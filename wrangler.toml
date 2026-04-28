@@ -21,3 +21,7 @@ META_REDIRECT_URI = "https://companionscpas-platform.meauxbility.workers.dev/api
 GOOGLE_CLIENT_ID = ""
 GOOGLE_CLIENT_SECRET = ""
 GOOGLE_REDIRECT_URI = "https://companionscpas-platform.meauxbility.workers.dev/api/social/oauth/youtube/callback"
+
+# Stripe + Resend integrations. Secrets are set with wrangler secret put.
+ADMIN_EMAIL = "ljmusland@gmail.com"
+RESEND_FROM_EMAIL = "Companions of CPAS <no-reply@companionscpas.org>"
