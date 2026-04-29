@@ -1289,6 +1289,19 @@ section{
 @media(prefers-reduced-motion:reduce){body::before{transition:none}}
 </style>
 
+
+<style id="cpas-extra-gallery-style">
+.cpas-extra-gallery{padding:80px 22px;background:linear-gradient(180deg,rgba(5,8,13,.92),rgba(16,25,39,.88))!important}
+.cpas-extra-gallery .section-inner{max-width:1180px;margin:auto;text-align:center}
+.cpas-extra-gallery h2{font-size:clamp(32px,5vw,58px);margin:10px 0;color:#fff}
+.cpas-extra-gallery .section-eyebrow{color:#C7A7FF!important;letter-spacing:.16em;text-transform:uppercase;font-weight:900}
+.cpas-extra-gallery .section-copy{max-width:680px;margin:0 auto 30px;color:rgba(255,255,255,.68)!important}
+.cpas-gallery-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.cpas-gallery-grid img{width:100%;height:290px;object-fit:cover;border-radius:26px;border:1px solid rgba(255,255,255,.12);box-shadow:0 24px 80px rgba(0,0,0,.34)}
+@media(max-width:900px){.cpas-gallery-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.cpas-gallery-grid{grid-template-columns:1fr}.cpas-gallery-grid img{height:340px}}
+</style>
+
 </head>
 
 <body>
@@ -1615,7 +1628,22 @@ section{
   </div>
 
   <!-- Footer (sitewide component injected by _shared.js) -->
-  <footer id="site-footer"></footer>
+  
+<section class="home-section cpas-extra-gallery" id="community-gallery">
+  <div class="section-inner">
+    <p class="section-eyebrow">Community Gallery</p>
+    <h2>Faces of the mission</h2>
+    <p class="section-copy">A few of the dogs and community moments that help tell the Companions of CPAS story.</p>
+    <div class="cpas-gallery-grid">
+      <img src="/assets/animals/2cute.webp" alt="Two companion dogs" loading="lazy">
+      <img src="/assets/animals/miniscoobydoo.webp" alt="Small rescue dog outside" loading="lazy">
+      <img src="/assets/animals/sus.webp" alt="Black rescue dog standing outside" loading="lazy">
+      <img src="/assets/animals/upclose.webp" alt="Close up smiling dog" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<footer id="site-footer"></footer>
 
   <script>
     // Stripe / Donate Modal (same pattern as donate/adopt/services pages)
