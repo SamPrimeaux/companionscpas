@@ -1,4 +1,8 @@
 
+function safeJson(value, fallback) {
+  try { return JSON.parse(value || ""); } catch { return fallback; }
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -35,9 +39,54 @@ export async function dashboardApiRoutes(request, env, url) {
     });
   }
 
+
   if (path === "/api/dashboard/animals") {
-    const rows = await env.DB.prepare("SELECT * FROM animal_profiles ORDER BY name").all();
-    return json({ animals: rows.results || [] });
+    const rows = await env.DB.prepare(`
+      SELECT
+        id,
+        animal_key,
+        name,
+        species,
+        breed,
+        sex,
+        age_label,
+        weight_label,
+        status,
+        location,
+        intake_date,
+        photo_url,
+        bio,
+        energy_level,
+        good_with_dogs,
+        good_with_cats,
+        good_with_kids,
+        medical_notes,
+        foster_needed,
+        adoption_fee_cents,
+        featured,
+        sort_order,
+        asset_id,
+        public_visible,
+        tags_json,
+        metadata_json,
+        created_at,
+        updated_at
+      FROM animal_profiles
+      WHERE tenant_id = 'tenant_companionscpas'
+      ORDER BY featured DESC, sort_order ASC, updated_at DESC
+    `).all();
+
+    return json({
+      animals: (rows.results || []).map(a => ({
+        ...a,
+        type: a.species,
+        image: a.photo_url,
+        photo: a.photo_url,
+        status: a.status || "available",
+        tags: safeJson(a.tags_json, []),
+        metadata: safeJson(a.metadata_json, {})
+      }))
+    });
   }
 
   if (path === "/api/dashboard/applications") {
