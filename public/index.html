@@ -123,7 +123,13 @@
     h2 { font-size: clamp(38px, 5vw, 72px); line-height: .94; }
     h3 { font-size: clamp(24px, 2.5vw, 36px); line-height: 1.02; }
     p { color: var(--muted); line-height: 1.75; font-size: 18px; }
-    .hero-copy p { max-width: 550px; font-size: 20px; }
+    .hero-copy p {
+      max-width: 550px;
+      font-size: 20px;
+      color: rgba(23, 32, 51, .82);
+      font-weight: 650;
+      text-shadow: 0 1px 0 rgba(255,255,255,.34);
+    }
 
     .hero-actions { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 30px; }
     .btn { border: 1px solid var(--line); border-radius: var(--radius-cta); min-height: 58px; padding: 0 26px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-weight: 900; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease, background .2s ease; }
