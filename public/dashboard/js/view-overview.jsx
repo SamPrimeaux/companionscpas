@@ -203,6 +203,7 @@ function OverviewView({ onNavigate }) {
 
     // Right panel
     React.createElement(AgentSamDrawer, null)
+  );
 }
 
 Object.assign(window, { OverviewView });
