@@ -173,13 +173,7 @@
             box-shadow: 0 18px 50px rgba(248, 113, 113, 0.18);
         }
 
-        .about-animals-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            gap: 16px;
-            margin-bottom: 20px;
-        }
+        .about-animals-
 
         .about-animals-header h2 {
             margin: 0;
@@ -291,8 +285,6 @@ h1, h2, h3 {
   letter-spacing: -.055em;
 }
 
-
-
 /* === CPAS Font Tokens === */
 :root {
   --font-display: "Satoshi", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -315,25 +307,10 @@ code, pre, kbd, samp, .mono, .id, [data-mono] {
   font-family: var(--font-mono);
 }
 
-
 /* old patch removed */
-.site-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background: rgba(5, 10, 18, .92);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
+.site-
 
-.site-header .nav-inner {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 28px 32px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+.site-header 
 
 .site-header .brand img {
   width: 130px;
@@ -341,32 +318,13 @@ code, pre, kbd, samp, .mono, .id, [data-mono] {
   object-fit: contain;
   filter: drop-shadow(0 10px 24px rgba(0,0,0,.26));
 }
+.site-header 
 
-.site-header .desktop-nav {
-  display: flex;
-  align-items: center;
-  gap: 34px;
-}
+.site-header 
 
-.site-header .desktop-nav a {
-  color: rgba(245,246,255,.68);
-  font-weight: 800;
-  font-size: 15px;
-  text-decoration: none;
-}
+.site-header 
 
-.site-header .desktop-nav a.active {
-  color: #fff;
-}
-
-.site-header .desktop-nav a.donate-link,
-.site-header .desktop-nav a[href="/donate"] {
-  color: #fff;
-  padding: 14px 24px;
-  border-radius: 20px;
-  background: rgba(124,58,237,.28);
-  border: 1px solid rgba(255,255,255,.14);
-}
+.site-header 
 
 .site-header .hamburger,
 .side-nav {
@@ -374,29 +332,14 @@ code, pre, kbd, samp, .mono, .id, [data-mono] {
 }
 
 @media (max-width: 760px) {
-  .site-header .desktop-nav { display: none; }
+  .site-header 
   .site-header .hamburger { display: block; }
 }
 
-
 /* === Homepage Header Compatibility Patch === */
-.site-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background: rgba(5, 10, 18, .92);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
+.site-
 
-.site-header .nav-inner {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 28px 32px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+.site-header 
 
 .site-header .brand img {
   width: 130px;
@@ -405,31 +348,13 @@ code, pre, kbd, samp, .mono, .id, [data-mono] {
   filter: drop-shadow(0 10px 24px rgba(0,0,0,.26));
 }
 
-.site-header .desktop-nav {
-  display: flex;
-  align-items: center;
-  gap: 34px;
-}
+.site-header 
 
-.site-header .desktop-nav a {
-  color: rgba(245,246,255,.68);
-  font-weight: 800;
-  font-size: 15px;
-  text-decoration: none;
-}
+.site-header 
 
-.site-header .desktop-nav a.active {
-  color: #fff;
-}
+.site-header 
 
-.site-header .desktop-nav a.donate-link,
-.site-header .desktop-nav a[href="/donate"] {
-  color: #fff;
-  padding: 14px 24px;
-  border-radius: 20px;
-  background: rgba(124,58,237,.28);
-  border: 1px solid rgba(255,255,255,.14);
-}
+.site-header 
 
 .site-header .hamburger,
 .side-nav {
@@ -437,7 +362,7 @@ code, pre, kbd, samp, .mono, .id, [data-mono] {
 }
 
 @media (max-width: 760px) {
-  .site-header .desktop-nav { display: none; }
+  .site-header 
   .site-header .hamburger { display: block; }
 }
 
@@ -445,8 +370,6 @@ code, pre, kbd, samp, .mono, .id, [data-mono] {
 
 <style id="cpas-public-dark-glass-theme">
 :root {
-
-
 
   --cpas-bg:#05080D;
   --cpas-bg-alt:#101927;
@@ -466,13 +389,7 @@ body{
     linear-gradient(135deg,var(--cpas-bg),var(--cpas-bg-alt) 52%,#04060A) !important;
   color:var(--cpas-text) !important;
 }
-.header-wrap,
-.nav,
-header{
-  background:rgba(5,8,13,.72) !important;
-  border-bottom:1px solid var(--cpas-border) !important;
-  backdrop-filter:blur(22px) saturate(135%) !important;
-}
+
 section,
 .home-section,
 .about-section,
@@ -528,7 +445,6 @@ h1, h2, h3 {
 }
 </style>
 
-
 <style id="cpas-public-polish-v2">
 :root{
   --cpas-purple:#6D5593;
@@ -549,25 +465,7 @@ body::before{
     linear-gradient(135deg,#05080D,#101927 52%,#04060A);
   transition:background .2s linear;
 }
-.header-wrap .nav a,
-.nav a,
-.mobile-nav a{
-  position:relative;
-}
-.header-wrap .nav a.active,
-.nav a.active,
-.header-wrap .nav a[aria-current="page"],
-.nav a[aria-current="page"]{
-  color:var(--cpas-purple-light)!important;
-  text-shadow:0 0 18px rgba(199,167,255,.68),0 0 36px rgba(109,85,147,.38);
-}
-.header-wrap .nav a.active::after,
-.nav a.active::after,
-.header-wrap .nav a[aria-current="page"]::after,
-.nav a[aria-current="page"]::after{
-  background:linear-gradient(90deg,transparent,var(--cpas-purple-light),transparent)!important;
-  box-shadow:0 0 18px rgba(199,167,255,.75);
-}
+
 .hero,
 .hero-split,
 .home-section,
@@ -627,7 +525,6 @@ h1, h2, h3 {
   letter-spacing: -.055em;
 }
 </style>
-
 
 <style id="cpas-sitewide-donation-modal-contrast-v1">
 .cpas-donate-modal,
@@ -740,7 +637,7 @@ h1, h2, h3 {
       <a class="brand" href="/admin/login" aria-label="Companions of CPAS home"><img src="https://companionscpas-platform.samprimeauxwork.workers.dev/logo.png" alt="Companions of CPAS logo" /></a>
       <nav class="desktop-links" aria-label="Primary navigation">
           <a  href="/">Home</a>
-          <a class="active" href="/about">About</a>
+          <a href="/about" class="active">About</a>
           <a href="/adopt">Adopt</a>
           <a href="/services">Services</a>
           <a href="/donate" class="donate-link">Donate</a>
@@ -904,7 +801,16 @@ h1, h2, h3 {
 
     <!-- Footer -->
     <!-- Footer (sitewide component injected by _shared.js) -->
-    <footer><div class="container footer-grid"><div><img class="footer-logo" src="https://companionscpas-platform.samprimeauxwork.workers.dev/logo.png" alt="Companions of CPAS logo" /><p>Companions of CPAS is a volunteer-run nonprofit helping dogs at Caddo Parish Animal Services receive medical care, transport support, and second chances.</p></div><div><h3>Nonprofit Info</h3><p>501(c)(3) Tax-Exempt<br/>EIN: 88-4156327<br/>Shreveport, LA 71106</p></div><div class="developer"><span>Developed by</span><img src="https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/238de9d1-a470-4fe5-5424-9182f4bc0500/small" alt="InnerAnimalMedia" /></div></div></footer>
+    <footer><div class="container footer-grid"><div><img class="footer-logo" src="https://companionscpas-platform.samprimeauxwork.workers.dev/logo.png" alt="Companions of CPAS logo" /><p>Companions of CPAS is a volunteer-run nonprofit helping dogs at Caddo Parish Animal Services receive medical care, transport support, and second chances.</p></div><nav class="footer-links" aria-label="Footer pages">
+          <h3>Pages</h3>
+          <a href="/">Home</a>
+          <a href="/about">About</a>
+          <a href="/adopt">Adopt</a>
+          <a href="/services">Services</a>
+          <a href="/donate">Donate</a>
+          
+          <a href="/admin/dashboard">Admin Dashboard</a>
+        </nav><div><h3>Nonprofit Info</h3><p>501(c)(3) Tax-Exempt<br/>EIN: 88-4156327<br/>Shreveport, LA 71106</p></div><div class="developer"><span>Developed by</span><img src="https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/238de9d1-a470-4fe5-5424-9182f4bc0500/small" alt="InnerAnimalMedia" /></div></div></footer>
 
     <script src="/_shared.js?v=4"></script>
     <script>
