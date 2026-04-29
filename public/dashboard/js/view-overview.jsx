@@ -70,11 +70,13 @@ function OverviewView({ onNavigate }) {
       // Header
       React.createElement("div", { style:{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24, flexWrap:"wrap", gap:12 } },
         React.createElement("div", null,
-          React.createElement("h1", { style:{ fontSize:26, fontWeight:700, color:C.text, margin:0 } }, "Welcome back, Danielle 👋"),
+          React.createElement("h1", { style:{ fontSize:26, fontWeight:700, color:C.text, margin:0 } }, `Welcome back, ${(window.CPAS_USER?.full_name || "Team").split(" ")[0]}`),
           React.createElement("p", { style:{ fontSize:13, color:C.textSec, margin:"4px 0 0" } }, "Here's what's happening at Companions of CPAS today.")
         ),
         React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:8 } },
-          React.createElement("span", { style:{ fontSize:12, color:C.textSec } }, "June 11, 2025"),
+          React.createElement("span", { style:{ fontSize:12, color:C.textSec } },
+            new Date().toLocaleDateString(undefined, { month:"long", day:"numeric", year:"numeric" })
+          ),
           React.createElement(Btn, { variant:"secondary", size:"sm", icon:"gear" }, "Customize")
         )
       ),
@@ -133,7 +135,7 @@ function OverviewView({ onNavigate }) {
               onMouseLeave:e=>e.currentTarget.style.borderColor=C.border
             },
               React.createElement("div", { style:{ height:110, overflow:"hidden", background:C.raised } },
-                React.createElement("img", { src:a.photo, alt:a.name, style:{ width:"100%", height:"100%", objectFit:"cover" }, onError:e=>{ e.target.style.display="none"; } })
+                React.createElement("img", { src:a.photo, alt:a.name, style:{ width:"100%", height:"100%", objectFit:"contain" }, onError:e=>{ e.target.style.display="none"; } })
               ),
               React.createElement("div", { style:{ padding:"10px 10px 12px" } },
                 React.createElement("div", { style:{ fontSize:13, fontWeight:600, color:C.text } }, a.name),

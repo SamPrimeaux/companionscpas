@@ -60,7 +60,7 @@ function AnimalsView({ onNavigate }) {
               onMouseLeave:e=>{ e.currentTarget.style.borderColor=C.border; e.currentTarget.style.transform="none"; }
             },
               React.createElement("div", { style:{ height:130, background:C.raised, overflow:"hidden", position:"relative" } },
-                React.createElement("img", { src:a.photo, alt:a.name, style:{ width:"100%", height:"100%", objectFit:"cover" }, onError:e=>{ e.target.style.opacity=0; } }),
+                React.createElement("img", { src:a.photo, alt:a.name, style:{ width:"100%", height:"100%", objectFit:"contain" }, onError:e=>{ e.target.style.opacity=0; } }),
                 React.createElement("div", { style:{ position:"absolute", top:8, right:8 } }, React.createElement(Badge, { label:a.status, dot:true }))
               ),
               React.createElement("div", { style:{ padding:"12px 14px 14px" } },
@@ -76,7 +76,7 @@ function AnimalsView({ onNavigate }) {
           React.createElement(Table, {
             cols:[
               { key:"id",      label:"ID",      render: v => React.createElement("span", { style:{ color:C.textSec, fontFamily:"monospace", fontSize:12 } }, v) },
-              { key:"name",    label:"Name",    render:(v,row) => React.createElement("div", { style:{display:"flex",alignItems:"center",gap:10} }, React.createElement("img",{src:row.photo,alt:v,style:{width:32,height:32,borderRadius:6,objectFit:"cover"},onError:e=>{e.target.style.display="none"}}), React.createElement("span",{style:{fontWeight:600}},v)) },
+              { key:"name",    label:"Name",    render:(v,row) => React.createElement("div", { style:{display:"flex",alignItems:"center",gap:10} }, React.createElement("img",{src:row.photo,alt:v,style:{width:32,height:32,borderRadius:6,objectFit:"contain"},onError:e=>{e.target.style.display="none"}}), React.createElement("span",{style:{fontWeight:600}},v)) },
               { key:"species", label:"Species" },
               { key:"breed",   label:"Breed",   render:v=>React.createElement("span",{style:{color:C.textSec}},v) },
               { key:"age",     label:"Age" },
@@ -128,7 +128,7 @@ function AnimalProfileView({ animalId, onNavigate }) {
     React.createElement(Card, { style:{ padding:24, marginBottom:24 } },
       React.createElement("div", { style:{ display:"flex", gap:24, flexWrap:"wrap" } },
         React.createElement("div", { style:{ width:160, height:160, borderRadius:12, overflow:"hidden", flexShrink:0, border:`2px solid ${C.border}` } },
-          React.createElement("img", { src:animal.photo, alt:animal.name, style:{ width:"100%", height:"100%", objectFit:"cover" }, onError:e=>{ e.target.style.background=C.raised; } })
+          React.createElement("img", { src:animal.photo, alt:animal.name, style:{ width:"100%", height:"100%", objectFit:"contain" }, onError:e=>{ e.target.style.background=C.raised; } })
         ),
         React.createElement("div", { style:{ flex:1, minWidth:200 } },
           React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:10, marginBottom:6 } },
@@ -263,7 +263,7 @@ function FostersView({ onNavigate }) {
     React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:14 } },
       fostered.map(a =>
         React.createElement(Card, { key:a.id, hover:true, onClick:()=>onNavigate("animal-profile",{animalId:a.id}), style:{ padding:16, display:"flex", gap:14, alignItems:"center" } },
-          React.createElement("img", { src:a.photo, alt:a.name, style:{ width:64, height:64, borderRadius:10, objectFit:"cover", border:`1px solid ${C.border}` }, onError:e=>{e.target.style.opacity=0;} }),
+          React.createElement("img", { src:a.photo, alt:a.name, style:{ width:64, height:64, borderRadius:10, objectFit:"contain", border:`1px solid ${C.border}` }, onError:e=>{e.target.style.opacity=0;} }),
           React.createElement("div", { style:{ flex:1 } },
             React.createElement("div", { style:{ fontSize:14, fontWeight:700, color:C.text } }, a.name),
             React.createElement("div", { style:{ fontSize:12, color:C.textSec } }, `${a.species} · ${a.breed}`),
