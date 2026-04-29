@@ -146,6 +146,19 @@ function Sparkline({ data, color = C.purple, width = 80, height = 28 }) {
 }
 
 // ── StatCard ──────────────────────────────────────────────────────────────────
+function SafeIcon({ icon, size = 18, color }) {
+  const map = {
+    "🐾":"paw", "💜":"heart", "🏠":"home", "🩺":"medical", "💵":"dollar", "💰":"dollar", "💸":"dollar",
+    "⚠️":"alert", "✅":"check", "❌":"close", "📋":"clipboard", "📊":"chart", "👤":"user", "💉":"medical",
+    "📥":"intake", "📧":"mail", "💳":"card", "🎯":"target", "🏆":"award", "🏷":"tag", "👥":"people",
+    "📅":"calendar", "🔁":"refresh", "☁️":"cloud", "☁":"cloud", "🍽":"utensils", "💊":"pill",
+    "🔴":"circle", "🟡":"circle", "🛣":"route", "🤝":"handshake", "🦮":"dog", "🔍":"search", "☰":"menu"
+  };
+  const key = map[icon] || icon;
+  if (typeof Icon === "function") return React.createElement(Icon, { name:key, size, color });
+  return React.createElement("span", { style:{ fontSize:size, color } }, icon || "");
+}
+
 function StatCard({ icon, iconColor, label, value, sub, subPositive, sparkData, sparkColor, onClick }) {
   const [hov, setHov] = useState(false);
   return React.createElement("div", {
@@ -154,7 +167,7 @@ function StatCard({ icon, iconColor, label, value, sub, subPositive, sparkData, 
   },
     React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" } },
       React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:8 } },
-        React.createElement("span", { style:{ fontSize:18 } }, icon),
+        React.createElement(SafeIcon, { icon, size:18, color:iconColor || C.textSec }),
         React.createElement("span", { style:{ fontSize:12, color:C.textSec, fontWeight:500 } }, label)
       ),
       sparkData && React.createElement(Sparkline, { data:sparkData, color:sparkColor || C.purple })
