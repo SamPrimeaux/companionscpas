@@ -62,7 +62,7 @@ function OverviewView({ onNavigate }) {
     { label:"Vaccinations",completed:3,  total:12,  color:"#f59e0b" },
   ];
 
-  const activityIcon = { adoption:"<span className="icon-paw" aria-hidden="true"></span>", donation:"DollarSign", volunteer:"User", medical:"Syringe", intake:"Inbox" };
+  const activityIcon = { adoption:"🐾", donation:"💸", volunteer:"👤", medical:"💉", intake:"📥" };
 
   return React.createElement("div", { style:{ display:"flex", gap:0, minHeight:0, flex:1 } },
     // Main content
@@ -70,7 +70,7 @@ function OverviewView({ onNavigate }) {
       // Header
       React.createElement("div", { style:{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24, flexWrap:"wrap", gap:12 } },
         React.createElement("div", null,
-          React.createElement("h1", { style:{ fontSize:26, fontWeight:700, color:C.text, margin:0 } }, "Welcome back, Danielle "),
+          React.createElement("h1", { style:{ fontSize:26, fontWeight:700, color:C.text, margin:0 } }, "Welcome back, Danielle 👋"),
           React.createElement("p", { style:{ fontSize:13, color:C.textSec, margin:"4px 0 0" } }, "Here's what's happening at Companions of CPAS today.")
         ),
         React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:8 } },
@@ -81,11 +81,11 @@ function OverviewView({ onNavigate }) {
 
       // Stat cards
       React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12, marginBottom:24 } },
-        React.createElement(StatCard, { icon:"<span className="icon-paw" aria-hidden="true"></span>", label:"Total Animals",    value:stats.totalAnimals, sub:`+${stats.animalsDelta} this week`,  subPositive:true,  sparkData:[108,112,115,118,120,128], sparkColor:"#7c3aed" }),
-        React.createElement(StatCard, { icon:"<span className="icon-heart" aria-hidden="true"></span>", label:"In Foster Care",   value:stats.inFoster,     sub:`+${stats.fosterDelta} this week`,   subPositive:true,  sparkData:[28,29,31,30,32,34],       sparkColor:"#a78bfa" }),
-        React.createElement(StatCard, { icon:"<span className="icon-home" aria-hidden="true"></span>", label:"Adoptions (MTD)",  value:stats.adoptionsMTD, sub:`+${stats.adoptionsDelta} this week`,subPositive:true,  sparkData:[12,14,15,15,17,18],       sparkColor:"#10b981" }),
-        React.createElement(StatCard, { icon:"<span className="icon-medical" aria-hidden="true"></span>", label:"Medical Due",      value:stats.medicalDue,   sub:`${stats.medicalOverdue} overdue`,    subPositive:false, sparkData:[5,7,6,8,9,9],             sparkColor:"#ef4444" }),
-        React.createElement(StatCard, { icon:"<span className="icon-dollar" aria-hidden="true"></span>", label:"Donations (MTD)",  value:`$${stats.donationsMTD.toLocaleString()}`, sub:`+${stats.donationsDeltaPct}% vs last month`, subPositive:true, sparkData:[4200,5800,6100,7200,9800,8432], sparkColor:"#10b981" })
+        React.createElement(StatCard, { icon:"🐾", label:"Total Animals",    value:stats.totalAnimals, sub:`+${stats.animalsDelta} this week`,  subPositive:true,  sparkData:[108,112,115,118,120,128], sparkColor:"#7c3aed" }),
+        React.createElement(StatCard, { icon:"💜", label:"In Foster Care",   value:stats.inFoster,     sub:`+${stats.fosterDelta} this week`,   subPositive:true,  sparkData:[28,29,31,30,32,34],       sparkColor:"#a78bfa" }),
+        React.createElement(StatCard, { icon:"🏠", label:"Adoptions (MTD)",  value:stats.adoptionsMTD, sub:`+${stats.adoptionsDelta} this week`,subPositive:true,  sparkData:[12,14,15,15,17,18],       sparkColor:"#10b981" }),
+        React.createElement(StatCard, { icon:"🩺", label:"Medical Due",      value:stats.medicalDue,   sub:`${stats.medicalOverdue} overdue`,    subPositive:false, sparkData:[5,7,6,8,9,9],             sparkColor:"#ef4444" }),
+        React.createElement(StatCard, { icon:"💵", label:"Donations (MTD)",  value:`$${stats.donationsMTD.toLocaleString()}`, sub:`+${stats.donationsDeltaPct}% vs last month`, subPositive:true, sparkData:[4200,5800,6100,7200,9800,8432], sparkColor:"#10b981" })
       ),
 
       // Middle row

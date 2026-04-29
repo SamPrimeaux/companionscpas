@@ -17,10 +17,10 @@ function IntakesView({ onNavigate }) {
     }),
 
     React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 } },
-      React.createElement(StatCard, { icon:"Inbox", label:"Total Intakes (YTD)", value:88 }),
-      React.createElement(StatCard, { icon:"<span className="icon-paw" aria-hidden="true"></span>", label:"This Month",          value:6,  sub:"+2 vs last month", subPositive:true }),
-      React.createElement(StatCard, { icon:"Route️", label:"Strays",              value:methodCounts["Stray"]||0 }),
-      React.createElement(StatCard, { icon:"Handshake", label:"Surrenders",          value:methodCounts["Owner Surrender"]||0 }),
+      React.createElement(StatCard, { icon:"📥", label:"Total Intakes (YTD)", value:88 }),
+      React.createElement(StatCard, { icon:"🐾", label:"This Month",          value:6,  sub:"+2 vs last month", subPositive:true }),
+      React.createElement(StatCard, { icon:"🛣️", label:"Strays",              value:methodCounts["Stray"]||0 }),
+      React.createElement(StatCard, { icon:"🤝", label:"Surrenders",          value:methodCounts["Owner Surrender"]||0 }),
     ),
 
     React.createElement("div", { style:{ marginBottom:16 } },
@@ -78,7 +78,7 @@ function DailyCareView({ onNavigate }) {
   const done = tasks.filter(t=>t.done).length;
   const total = tasks.length;
 
-  const taskIcon = { Feed:"Utensils️", Walk:"Dog", Medication:"Pill", Vaccination:"Syringe" };
+  const taskIcon = { Feed:"🍽️", Walk:"🦮", Medication:"💊", Vaccination:"💉" };
 
   return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
     React.createElement(PageHeader, {
@@ -88,10 +88,10 @@ function DailyCareView({ onNavigate }) {
     }),
 
     React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 } },
-      React.createElement(StatCard, { icon:"CircleCheck", label:"Completed",  value:`${done}/${total}`,  sub:`${Math.round(done/total*100)}% done`, subPositive:true }),
+      React.createElement(StatCard, { icon:"✅", label:"Completed",  value:`${done}/${total}`,  sub:`${Math.round(done/total*100)}% done`, subPositive:true }),
       React.createElement(StatCard, { icon:"⏳", label:"Remaining",  value:total-done }),
-      React.createElement(StatCard, { icon:"Pill", label:"Medications",value:tasks.filter(t=>t.task==="Medication").length, sub:`${tasks.filter(t=>t.task==="Medication"&&t.done).length} given`, subPositive:true }),
-      React.createElement(StatCard, { icon:"Dog", label:"Walks",      value:tasks.filter(t=>t.task==="Walk").length }),
+      React.createElement(StatCard, { icon:"💊", label:"Medications",value:tasks.filter(t=>t.task==="Medication").length, sub:`${tasks.filter(t=>t.task==="Medication"&&t.done).length} given`, subPositive:true }),
+      React.createElement(StatCard, { icon:"🦮", label:"Walks",      value:tasks.filter(t=>t.task==="Walk").length }),
     ),
 
     React.createElement("div", { style:{ marginBottom:16 } },
@@ -146,10 +146,10 @@ function MedicalView({ onNavigate }) {
     }),
 
     React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 } },
-      React.createElement(StatCard, { icon:"<span className="icon-medical" aria-hidden="true"></span>", label:"Total Records", value:CPAS.medicalRecords.length }),
-      React.createElement(StatCard, { icon:"Circle", label:"Overdue",       value:CPAS.medicalRecords.filter(r=>r.status==="Overdue").length,   sub:"Action needed", subPositive:false }),
-      React.createElement(StatCard, { icon:"Circle", label:"Due Soon",      value:CPAS.medicalRecords.filter(r=>r.status==="Due").length }),
-      React.createElement(StatCard, { icon:"Calendar", label:"Scheduled",     value:CPAS.medicalRecords.filter(r=>r.status==="Scheduled").length, sub:"Upcoming", subPositive:true }),
+      React.createElement(StatCard, { icon:"🩺", label:"Total Records", value:CPAS.medicalRecords.length }),
+      React.createElement(StatCard, { icon:"🔴", label:"Overdue",       value:CPAS.medicalRecords.filter(r=>r.status==="Overdue").length,   sub:"Action needed", subPositive:false }),
+      React.createElement(StatCard, { icon:"🟡", label:"Due Soon",      value:CPAS.medicalRecords.filter(r=>r.status==="Due").length }),
+      React.createElement(StatCard, { icon:"📅", label:"Scheduled",     value:CPAS.medicalRecords.filter(r=>r.status==="Scheduled").length, sub:"Upcoming", subPositive:true }),
     ),
 
     React.createElement("div", { style:{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" } },
@@ -214,10 +214,10 @@ function VolunteersView({ onNavigate }) {
     }),
 
     React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 } },
-      React.createElement(StatCard, { icon:"Users", label:"Total Volunteers",value:CPAS.volunteers.length }),
-      React.createElement(StatCard, { icon:"CircleCheck", label:"Active",           value:active,      sub:`${CPAS.volunteers.length-active} inactive` }),
+      React.createElement(StatCard, { icon:"👥", label:"Total Volunteers",value:CPAS.volunteers.length }),
+      React.createElement(StatCard, { icon:"✅", label:"Active",           value:active,      sub:`${CPAS.volunteers.length-active} inactive` }),
       React.createElement(StatCard, { icon:"⏱️", label:"Hours (MTD)",      value:totalHours,  sub:"+18% vs last month", subPositive:true }),
-      React.createElement(StatCard, { icon:"Calendar", label:"Avg Hours/Person", value:Math.round(totalHours/active), sub:"Active volunteers" }),
+      React.createElement(StatCard, { icon:"📅", label:"Avg Hours/Person", value:Math.round(totalHours/active), sub:"Active volunteers" }),
     ),
 
     React.createElement("div", { style:{ display:"flex", gap:10, marginBottom:16 } },

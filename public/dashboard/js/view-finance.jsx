@@ -16,10 +16,10 @@ function FundraisingView({ onNavigate }) {
     }),
 
     React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:28 } },
-      React.createElement(StatCard, { icon:"<span className="icon-dollar" aria-hidden="true"></span>", label:"Total Raised",    value:`$${totalRaised.toLocaleString()}`, sub:`of $${totalGoal.toLocaleString()} goal`, subPositive:true }),
-      React.createElement(StatCard, { icon:"ChartColumn", label:"Active Campaigns", value:CPAS.campaigns.filter(c=>c.status==="Active").length }),
-      React.createElement(StatCard, { icon:"Users", label:"Total Donors",     value:totalDonors }),
-      React.createElement(StatCard, { icon:"Target", label:"Overall Progress", value:`${Math.round(totalRaised/totalGoal*100)}%`, sub:"of all-time goal", subPositive:true }),
+      React.createElement(StatCard, { icon:"💰", label:"Total Raised",    value:`$${totalRaised.toLocaleString()}`, sub:`of $${totalGoal.toLocaleString()} goal`, subPositive:true }),
+      React.createElement(StatCard, { icon:"📊", label:"Active Campaigns", value:CPAS.campaigns.filter(c=>c.status==="Active").length }),
+      React.createElement(StatCard, { icon:"👥", label:"Total Donors",     value:totalDonors }),
+      React.createElement(StatCard, { icon:"🎯", label:"Overall Progress", value:`${Math.round(totalRaised/totalGoal*100)}%`, sub:"of all-time goal", subPositive:true }),
     ),
 
     React.createElement("h3", { style:{ margin:"0 0 14px", fontSize:14, fontWeight:600, color:C.text } }, "Campaigns"),
@@ -51,8 +51,8 @@ function FundraisingView({ onNavigate }) {
           ),
           React.createElement("div", { style:{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 } },
             React.createElement("div", { style:{ display:"flex", gap:16 } },
-              React.createElement("div", { style:{ fontSize:12, color:C.textSec } }, `Calendar ${campaign.startDate} → ${campaign.endDate}`),
-              React.createElement("div", { style:{ fontSize:12, color:C.textSec } }, `Tag️ ${campaign.category}`)
+              React.createElement("div", { style:{ fontSize:12, color:C.textSec } }, `📅 ${campaign.startDate} → ${campaign.endDate}`),
+              React.createElement("div", { style:{ fontSize:12, color:C.textSec } }, `🏷️ ${campaign.category}`)
             ),
             React.createElement("div", { style:{ display:"flex", gap:8 } },
               React.createElement(Btn, { variant:"secondary", size:"sm", icon:"edit" }, "Edit"),
@@ -113,10 +113,10 @@ function DonationsView({ onNavigate }) {
     }),
 
     React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 } },
-      React.createElement(StatCard, { icon:"<span className="icon-dollar" aria-hidden="true"></span>", label:"Total (MTD)",    value:`$${totalMTD.toLocaleString()}`,  sub:"+18% vs last month", subPositive:true, sparkData:[4200,5800,6100,7200,9800,totalMTD], sparkColor:C.green }),
-      React.createElement(StatCard, { icon:"ChartColumn", label:"Avg Donation",   value:`$${avgAmount}` }),
-      React.createElement(StatCard, { icon:"Repeat", label:"Recurring",       value:recurring, sub:"active recurring donors", subPositive:true }),
-      React.createElement(StatCard, { icon:"Trophy", label:"Largest Gift",    value:`$${largest.toLocaleString()}` }),
+      React.createElement(StatCard, { icon:"💵", label:"Total (MTD)",    value:`$${totalMTD.toLocaleString()}`,  sub:"+18% vs last month", subPositive:true, sparkData:[4200,5800,6100,7200,9800,totalMTD], sparkColor:C.green }),
+      React.createElement(StatCard, { icon:"📊", label:"Avg Donation",   value:`$${avgAmount}` }),
+      React.createElement(StatCard, { icon:"🔁", label:"Recurring",       value:recurring, sub:"active recurring donors", subPositive:true }),
+      React.createElement(StatCard, { icon:"🏆", label:"Largest Gift",    value:`$${largest.toLocaleString()}` }),
     ),
 
     React.createElement("div", { style:{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" } },

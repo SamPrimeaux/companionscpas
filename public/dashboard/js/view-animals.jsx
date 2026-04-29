@@ -39,7 +39,7 @@ function AnimalsView({ onNavigate }) {
       React.createElement("div", { style:{ display:"flex", gap:8, alignItems:"center" } },
         React.createElement(Input, { value:search, onChange:setSearch, placeholder:"Search…", icon:"search", style:{ width:200 } }),
         React.createElement("div", { style:{ display:"flex", gap:2, background:C.raised, border:`1px solid ${C.border}`, borderRadius:8, padding:3 } },
-          [["grid","⊞"],["list","Menu"]].map(([mode,icon]) =>
+          [["grid","⊞"],["list","☰"]].map(([mode,icon]) =>
             React.createElement("button", { key:mode, onClick:()=>setViewMode(mode),
               style:{ padding:"4px 10px", borderRadius:6, border:"none", background: viewMode===mode ? C.purple : "none", color: viewMode===mode ? "#fff" : C.textSec, cursor:"pointer", fontSize:14, transition:"all .12s" }
             }, icon)
@@ -288,9 +288,9 @@ function AdoptionsView({ onNavigate }) {
       action: React.createElement(Btn, { icon:"plus", size:"sm" }, "Record Adoption")
     }),
     React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 } },
-      React.createElement(StatCard, { icon:"<span className="icon-home" aria-hidden="true"></span>", label:"Adopted This Month",   value:CPAS.stats.adoptionsMTD,    sub:"+4 this week", subPositive:true }),
-      React.createElement(StatCard, { icon:"CircleCheck", label:"Approved Applications",value:approvedApps.length,         sub:"Ready to adopt" }),
-      React.createElement(StatCard, { icon:"ChartColumn", label:"Total Adoptions (YTD)", value:74,                          sub:"+18% vs last year", subPositive:true }),
+      React.createElement(StatCard, { icon:"🏠", label:"Adopted This Month",   value:CPAS.stats.adoptionsMTD,    sub:"+4 this week", subPositive:true }),
+      React.createElement(StatCard, { icon:"✅", label:"Approved Applications",value:approvedApps.length,         sub:"Ready to adopt" }),
+      React.createElement(StatCard, { icon:"📊", label:"Total Adoptions (YTD)", value:74,                          sub:"+18% vs last year", subPositive:true }),
     ),
     React.createElement("h3", { style:{ margin:"0 0 14px", fontSize:14, fontWeight:600, color:C.text } }, "Recently Adopted"),
     React.createElement(Card, { style:{ overflow:"hidden" } },

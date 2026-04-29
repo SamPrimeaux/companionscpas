@@ -157,10 +157,10 @@ function SettingsView() {
   ];
 
   const integrations = [
-    { name:"Stripe",    desc:"Payment processing for donations",     connected:true,  icon:"CreditCard" },
-    { name:"Mailchimp", desc:"Email marketing and donor newsletters", connected:false, icon:"Mail" },
-    { name:"Google Drive", desc:"Document storage and backups",      connected:true,  icon:"Cloud️" },
-    { name:"PetFinder", desc:"Sync adoptable animals to PetFinder",  connected:false, icon:"<span className="icon-paw" aria-hidden="true"></span>" },
+    { name:"Stripe",    desc:"Payment processing for donations",     connected:true,  icon:"💳" },
+    { name:"Mailchimp", desc:"Email marketing and donor newsletters", connected:false, icon:"📧" },
+    { name:"Google Drive", desc:"Document storage and backups",      connected:true,  icon:"☁️" },
+    { name:"PetFinder", desc:"Sync adoptable animals to PetFinder",  connected:false, icon:"🐾" },
   ];
 
   return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
@@ -254,7 +254,7 @@ function NotificationsView({ onNavigate }) {
   const markAll = () => setNotifs(n => n.map(x=>({...x,read:true})));
   const markOne = id => setNotifs(n => n.map(x=>x.id===id?{...x,read:true}:x));
 
-  const typeIcon = { urgent:"<span className="icon-alert" aria-hidden="true"></span>", adoption:"<span className="icon-paw" aria-hidden="true"></span>", donation:"DollarSign", volunteer:"User", medical:"Syringe", intake:"Inbox" };
+  const typeIcon = { urgent:"⚠️", adoption:"🐾", donation:"💸", volunteer:"👤", medical:"💉", intake:"📥" };
   const typeColor = { urgent:C.red, adoption:C.green, donation:C.purpleL, volunteer:C.teal, medical:C.red, intake:C.teal };
 
   return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },

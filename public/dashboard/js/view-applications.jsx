@@ -29,10 +29,10 @@ function ApplicationsView({ onNavigate }) {
     }),
 
     React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 } },
-      React.createElement(StatCard, { icon:"ClipboardList", label:"Total",       value:counts.All }),
+      React.createElement(StatCard, { icon:"📋", label:"Total",       value:counts.All }),
       React.createElement(StatCard, { icon:"⏳", label:"Pending",     value:counts.Pending,         sub:"Needs review", subPositive:false }),
-      React.createElement(StatCard, { icon:"CircleCheck", label:"Approved",    value:counts.Approved,        sub:"This month",  subPositive:true }),
-      React.createElement(StatCard, { icon:"Search", label:"Under Review",value:counts["Under Review"] }),
+      React.createElement(StatCard, { icon:"✅", label:"Approved",    value:counts.Approved,        sub:"This month",  subPositive:true }),
+      React.createElement(StatCard, { icon:"🔍", label:"Under Review",value:counts["Under Review"] }),
     ),
 
     React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12, marginBottom:4 } },
