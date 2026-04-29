@@ -1,120 +1,38 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Companions CPAS Dashboard</title>
-  <style>
-    :root {
-      --bg:#050a12; --panel:#0b1420; --panel2:#101a2a; --text:#f8f6ff;
-      --muted:#aab4c4; --line:rgba(255,255,255,.12);
-      --purple:#8664b7; --rose:#f04e65; --gold:#d6b24a; --green:#22c55e;
-      --radius:24px; --font:"Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;background:radial-gradient(circle at 20% 0%,rgba(134,100,183,.25),transparent 30rem),var(--bg);color:var(--text);font-family:var(--font)}
-    a{color:inherit;text-decoration:none}
-    .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
-    aside{border-right:1px solid var(--line);background:rgba(5,10,18,.72);backdrop-filter:blur(24px);padding:24px;position:sticky;top:0;height:100vh}
-    .logo{width:130px;margin-bottom:28px}
-    .nav{display:grid;gap:8px}
-    .nav a{padding:13px 14px;border-radius:16px;color:var(--muted);font-weight:800}
-    .nav a:hover,.nav a.active{background:rgba(134,100,183,.2);color:#fff}
-    main{padding:28px}
-    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
-    h1{font-size:clamp(38px,5vw,72px);line-height:.92;letter-spacing:-.06em;margin:0}
-    p{color:var(--muted);line-height:1.65}
-    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-    .card{background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.04));border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:0 24px 80px rgba(0,0,0,.25)}
-    .card strong{font-size:30px;display:block;margin-top:10px}
-    .section{margin-top:22px;display:grid;grid-template-columns:1.25fr .75fr;gap:16px}
-    .list{display:grid;gap:12px}
-    .row{display:flex;justify-content:space-between;gap:16px;padding:14px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.04)}
-    .badge{padding:7px 10px;border-radius:999px;background:rgba(134,100,183,.22);color:#fff;font-size:12px;font-weight:900}
-    .btn{border:0;border-radius:16px;background:linear-gradient(135deg,var(--purple),#7654aa);color:#fff;font-weight:900;padding:13px 16px;cursor:pointer}
-    .ghost{background:rgba(255,255,255,.08);border:1px solid var(--line)}
-    @media(max-width:900px){.app{grid-template-columns:1fr}aside{height:auto;position:relative}.grid,.section{grid-template-columns:1fr}.nav{grid-template-columns:repeat(2,1fr)}}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Companions CPAS — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body { background: #0b0b14; color: #f0f0f5; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2c2c44; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3d3d5a; }
+  input, select, textarea, button { font-family: inherit; }
+  select option { background: #191928; color: #f0f0f5; }
+  a { color: inherit; text-decoration: none; }
+</style>
 </head>
 <body>
-  <div class="app">
-    <aside>
-      <img class="logo" src="https://companionscpas-platform.samprimeauxwork.workers.dev/logo.png" alt="Companions of CPAS" />
-      <nav class="nav">
-        <a class="active" href="/dashboard">Overview</a>
-        <a href="/dashboard?view=animals">Animals</a>
-        <a href="/dashboard?view=applications">Applications</a>
-        <a href="/dashboard?view=fundraising">Fundraising</a>
-        <a href="/dashboard?view=cms">Website CMS</a>
-        <a href="/dashboard?view=reports">Reports</a>
-        <a href="/dashboard?view=settings">Settings</a>
-        <a href="/">Public Site</a>
-      </nav>
-    </aside>
-
-    <main>
-      <div class="topbar">
-        <div>
-          <h1>Rescue operations, simplified.</h1>
-          <p>Manage animals, foster applications, campaigns, donations, website edits, and team workflows from one place.</p>
-        </div>
-        <button class="btn">Agent Sam</button>
-      </div>
-
-      <section class="grid">
-        <div class="card"><span>Animals</span><strong id="animalsCount">—</strong><p>Profiles, intakes, fosters, adoptions.</p></div>
-        <div class="card"><span>Applications</span><strong id="appsCount">—</strong><p>Foster and adoption submissions.</p></div>
-        <div class="card"><span>Donations</span><strong id="donationsTotal">$0</strong><p>Stripe-ready fundraising tracking.</p></div>
-        <div class="card"><span>Campaigns</span><strong id="campaignsCount">2</strong><p>Medical support and transport costs.</p></div>
-      </section>
-
-      <section class="section">
-        <div class="card">
-          <h2>Today’s priority queue</h2>
-          <div class="list">
-            <div class="row"><span>Review new foster applications</span><span class="badge">Applications</span></div>
-            <div class="row"><span>Prepare Medical Support fundraiser update</span><span class="badge">Fundraising</span></div>
-            <div class="row"><span>Update adoptable animal cards</span><span class="badge">CMS</span></div>
-            <div class="row"><span>Check transport partner follow-ups</span><span class="badge">Ops</span></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Quick actions</h2>
-          <div class="list">
-            <button class="btn">Add Animal</button>
-            <button class="btn ghost">Review Applications</button>
-            <button class="btn ghost">Edit Homepage</button>
-            <button class="btn ghost">Create Campaign</button>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <script>
-    async function tryJson(url) {
-      try {
-        const r = await fetch(url, { credentials: "include" });
-        if (!r.ok) return null;
-        return await r.json();
-      } catch { return null; }
-    }
-
-    async function hydrate() {
-      const animals = await tryJson("/api/animals");
-      const apps = await tryJson("/api/applications");
-      const donations = await tryJson("/api/fundraising");
-
-      if (Array.isArray(animals)) document.getElementById("animalsCount").textContent = animals.length;
-      else document.getElementById("animalsCount").textContent = "Ready";
-
-      if (Array.isArray(apps)) document.getElementById("appsCount").textContent = apps.length;
-      else document.getElementById("appsCount").textContent = "Ready";
-
-      if (donations?.total) document.getElementById("donationsTotal").textContent = "$" + donations.total;
-    }
-    hydrate();
-  </script>
+<div id="root"></div>
+<script src="/dashboard/js/data.js"></script>
+<script type="text/babel" src="/dashboard/js/ui.jsx"></script>
+<script type="text/babel" src="/dashboard/js/view-overview.jsx"></script>
+<script type="text/babel" src="/dashboard/js/view-animals.jsx"></script>
+<script type="text/babel" src="/dashboard/js/view-applications.jsx"></script>
+<script type="text/babel" src="/dashboard/js/view-ops.jsx"></script>
+<script type="text/babel" src="/dashboard/js/view-finance.jsx"></script>
+<script type="text/babel" src="/dashboard/js/view-admin.jsx"></script>
+<script type="text/babel" src="/dashboard/js/app.jsx"></script>
 </body>
 </html>

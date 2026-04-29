@@ -1,0 +1,137 @@
+// ─── App Router — with live session + API data loading ───────────────────────
+
+function App() {
+  const [ready,   setReady]   = React.useState(false);
+  const [liveUser, setLiveUser] = React.useState(null);
+
+  // ── On mount: load session user + hydrate data from API ──────────────────
+  React.useEffect(() => {
+    async function init() {
+      // 1. Fetch session user
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        if (res.ok) {
+          const { user } = await res.json();
+          setLiveUser(user);
+          // Patch CPAS user to match real session
+          if (user) {
+            window.CPAS.user = {
+              name:     user.full_name || user.email,
+              role:     user.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : "Staff",
+              initials: (user.full_name || user.email).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()
+            };
+          }
+        } else if (res.status === 401) {
+          // Session gone — redirect to login
+          window.location.href = "/admin/login";
+          return;
+        }
+      } catch(e) {
+        console.warn("[CPAS] Session check failed:", e.message);
+      }
+
+      // 2. Hydrate data from API (fills in real D1 data if available)
+      if (window.__loadDashboardData) {
+        await window.__loadDashboardData();
+      }
+
+      setReady(true);
+    }
+    init();
+  }, []);
+
+  const getViewFromURL = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") || "overview";
+  };
+  const getParamsFromURL = () => {
+    const params = new URLSearchParams(window.location.search);
+    const result = {};
+    params.forEach((v, k) => { if (k !== "view") result[k] = v; });
+    return result;
+  };
+
+  const [view,   setView]   = React.useState(getViewFromURL);
+  const [params, setParams] = React.useState(getParamsFromURL);
+
+  const navigate = React.useCallback((newView, newParams = {}) => {
+    const qs = new URLSearchParams({ view: newView, ...newParams }).toString();
+    window.history.pushState({}, "", `?${qs}`);
+    setView(newView);
+    setParams(newParams);
+    const main = document.getElementById("main-scroll");
+    if (main) main.scrollTop = 0;
+  }, []);
+
+  React.useEffect(() => {
+    const onPop = () => { setView(getViewFromURL()); setParams(getParamsFromURL()); };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // ── Logout handler ────────────────────────────────────────────────────────
+  const handleLogout = React.useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch(e) {}
+    window.location.href = "/admin/login";
+  }, []);
+
+  // ── Loading screen ────────────────────────────────────────────────────────
+  if (!ready) {
+    return React.createElement("div", {
+      style:{ height:"100vh", background:"#0b0b14", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16 }
+    },
+      React.createElement("div", { dangerouslySetInnerHTML:{ __html:`
+        <svg width="48" height="48" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="36" height="36" rx="10" fill="#2d1b5e"/>
+          <circle cx="14" cy="11" r="2.5" fill="#a78bfa"/>
+          <circle cx="22" cy="11" r="2.5" fill="#a78bfa"/>
+          <circle cx="10" cy="17" r="2" fill="#a78bfa"/>
+          <circle cx="26" cy="17" r="2" fill="#a78bfa"/>
+          <path d="M18 15c-4 0-8 3.2-8 8 0 2.4 1.6 4 3.2 4 1 0 2.4-.8 3.2-.8h3.2c.8 0 2.2.8 3.2.8 1.6 0 3.2-1.6 3.2-4 0-4.8-4-8-8-8z" fill="#7c3aed"/>
+        </svg>` } }),
+      React.createElement("div", { style:{ color:"#8888aa", fontSize:13 } }, "Loading dashboard…")
+    );
+  }
+
+  const unreadCount = (window.CPAS.notifications || []).filter(n => !n.read).length;
+
+  const renderView = () => {
+    switch (view) {
+      case "overview":           return React.createElement(OverviewView,         { onNavigate:navigate });
+      case "animals":            return React.createElement(AnimalsView,           { onNavigate:navigate });
+      case "animal-profile":     return React.createElement(AnimalProfileView,     { animalId:params.animalId, onNavigate:navigate });
+      case "fosters":            return React.createElement(FostersView,           { onNavigate:navigate });
+      case "adoptions":          return React.createElement(AdoptionsView,         { onNavigate:navigate });
+      case "intakes":            return React.createElement(IntakesView,           { onNavigate:navigate });
+      case "medical":            return React.createElement(MedicalView,           { onNavigate:navigate });
+      case "daily-care":         return React.createElement(DailyCareView,         { onNavigate:navigate });
+      case "volunteers":         return React.createElement(VolunteersView,        { onNavigate:navigate });
+      case "applications":       return React.createElement(ApplicationsView,      { onNavigate:navigate });
+      case "application-detail": return React.createElement(ApplicationDetailView, { appId:params.appId, onNavigate:navigate });
+      case "donations":          return React.createElement(DonationsView,         { onNavigate:navigate });
+      case "fundraising":        return React.createElement(FundraisingView,       { onNavigate:navigate });
+      case "cms":                return React.createElement(CMSView,               { onNavigate:navigate });
+      case "reports":            return React.createElement(ReportsView,           { onNavigate:navigate });
+      case "settings":           return React.createElement(SettingsView,          { onNavigate:navigate });
+      case "notifications":      return React.createElement(NotificationsView,     { onNavigate:navigate });
+      default:                   return React.createElement(OverviewView,          { onNavigate:navigate });
+    }
+  };
+
+  return React.createElement("div", {
+    style:{ display:"flex", height:"100vh", background:C.bg, color:C.text, fontFamily:"'Inter', -apple-system, BlinkMacSystemFont, sans-serif", fontSize:14, overflow:"hidden" }
+  },
+    React.createElement(Sidebar, { view, onNavigate:navigate, notifCount:unreadCount, onLogout:handleLogout }),
+    React.createElement("div", { style:{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflow:"hidden" } },
+      React.createElement(TopBar,  { onNavigate:navigate, notifCount:unreadCount }),
+      React.createElement("main", { id:"main-scroll", style:{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", minHeight:0 } },
+        renderView()
+      )
+    )
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(App));
