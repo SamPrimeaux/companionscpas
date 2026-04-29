@@ -1,3 +1,4 @@
+import { dashboardApiRoutes } from "./api/dashboard_api.js";
 import { passwordResetRoutes } from "./api/password_reset.js";
 import { authRoutes } from "./api/auth_login.js";
 import { socialRoutes } from "./api/social.js";
@@ -7,6 +8,11 @@ import { paymentsEmailRoutes } from "./api/payments_email.js";
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/api/dashboard/")) {
+      const res = await dashboardApiRoutes(request, env, url);
+      if (res) return res;
+    }
 
     if (url.pathname.startsWith("/api/auth/password/")) {
       const res = await passwordResetRoutes(request, env, url);

@@ -1,4 +1,76 @@
-<!doctype html>
+from pathlib import Path
+
+root = Path(".")
+(root / "src/api").mkdir(parents=True, exist_ok=True)
+(root / "public/admin").mkdir(parents=True, exist_ok=True)
+
+(root / "src/api/dashboard_api.js").write_text(r'''
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data, null, 2), {
+    status,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+export async function dashboardApiRoutes(request, env, url) {
+  const path = url.pathname;
+
+  if (path === "/api/dashboard/overview") {
+    const animals = await env.DB.prepare("SELECT * FROM animal_profiles ORDER BY created_at DESC").all();
+    const apps = await env.DB.prepare("SELECT * FROM adoption_applications_demo ORDER BY submitted_at DESC").all();
+    const campaigns = await env.DB.prepare("SELECT * FROM fundraising_campaigns_demo ORDER BY created_at DESC").all();
+    const volunteers = await env.DB.prepare("SELECT * FROM volunteer_records ORDER BY hours_month DESC").all();
+    const events = await env.DB.prepare("SELECT * FROM dashboard_calendar_events ORDER BY starts_at ASC").all();
+
+    const raised = (campaigns.results || []).reduce((sum, c) => sum + Number(c.raised_cents || 0), 0);
+    const goal = (campaigns.results || []).reduce((sum, c) => sum + Number(c.goal_cents || 0), 0);
+
+    return json({
+      kpis: {
+        animals: animals.results?.length || 0,
+        applications: apps.results?.length || 0,
+        volunteers: volunteers.results?.length || 0,
+        raised_cents: raised,
+        goal_cents: goal
+      },
+      animals: animals.results || [],
+      applications: apps.results || [],
+      campaigns: campaigns.results || [],
+      volunteers: volunteers.results || [],
+      events: events.results || []
+    });
+  }
+
+  if (path === "/api/dashboard/animals") {
+    const rows = await env.DB.prepare("SELECT * FROM animal_profiles ORDER BY name").all();
+    return json({ animals: rows.results || [] });
+  }
+
+  if (path === "/api/dashboard/applications") {
+    const rows = await env.DB.prepare("SELECT * FROM adoption_applications_demo ORDER BY submitted_at DESC").all();
+    return json({ applications: rows.results || [] });
+  }
+
+  if (path === "/api/dashboard/fundraising") {
+    const campaigns = await env.DB.prepare("SELECT * FROM fundraising_campaigns_demo ORDER BY created_at DESC").all();
+    return json({ campaigns: campaigns.results || [] });
+  }
+
+  if (path === "/api/dashboard/team") {
+    const rows = await env.DB.prepare("SELECT * FROM volunteer_records ORDER BY role, full_name").all();
+    return json({ members: rows.results || [] });
+  }
+
+  if (path === "/api/dashboard/calendar") {
+    const rows = await env.DB.prepare("SELECT * FROM dashboard_calendar_events ORDER BY starts_at ASC").all();
+    return json({ events: rows.results || [] });
+  }
+
+  return null;
+}
+''')
+
+dashboard_html = r'''<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -55,4 +127,24 @@ async function render(){
 render().catch(e=>view.innerHTML=`<div class=card><h2>Dashboard API Error</h2><p>${e.message}</p></div>`);
 </script>
 </body>
-</html>
+</html>'''
+(root / "public/admin/dashboard.html").write_text(dashboard_html)
+
+idx = root / "src/index.js"
+s = idx.read_text()
+if 'import { dashboardApiRoutes } from "./api/dashboard_api.js";' not in s:
+    s = 'import { dashboardApiRoutes } from "./api/dashboard_api.js";\n' + s
+needle = 'const url = new URL(request.url);'
+insert = '''const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/api/dashboard/")) {
+      const res = await dashboardApiRoutes(request, env, url);
+      if (res) return res;
+    }'''
+if 'dashboardApiRoutes(request, env, url)' not in s:
+    s = s.replace(needle, insert, 1)
+s = s.replace('if (url.pathname === "/dashboard" || url.pathname.startsWith("/dashboard/")) {',
+              'if (url.pathname === "/admin/dashboard" || url.pathname.startsWith("/admin/dashboard/") || url.pathname === "/dashboard" || url.pathname.startsWith("/dashboard/")) {')
+idx.write_text(s)
+
+print("Built dashboard UI + API routes.")
