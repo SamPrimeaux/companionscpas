@@ -83,7 +83,7 @@ function DailyCareView({ onNavigate }) {
   return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
     React.createElement(PageHeader, {
       title:"Daily Care",
-      subtitle:"June 11, 2025 — Today's task list",
+      subtitle:`${new Date().toLocaleDateString(undefined, { month:"long", day:"numeric", year:"numeric" })} — Today’s task list`,
       action: React.createElement(Btn, { icon:"plus", size:"sm" }, "Add Task")
     }),
 
