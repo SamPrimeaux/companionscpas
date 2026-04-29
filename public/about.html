@@ -8,9 +8,442 @@
     <meta name="description"
         content="Meet the people and pets behind Companions of CPAS. Learn how we support your community families with spay/neuter, vaccinations, and compassionate pet care help.">
     <link rel="stylesheet" href="/_shared.css?v=3" />
+    <style>
+        .about-hero {
+            padding: 60px 0 48px;
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+            gap: 48px;
+            align-items: center;
+        }
+
+        .about-hero-kicker {
+            color: var(--accent);
+            text-transform: uppercase;
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: 0.12em;
+            margin-bottom: 12px;
+        }
+
+        .about-hero h1 {
+            font-size: clamp(40px, 4vw, 56px);
+            line-height: 1.05;
+            margin-bottom: 18px;
+        }
+
+        .about-hero-lead {
+            font-size: 18px;
+            color: var(--muted);
+            line-height: 1.7;
+            margin-bottom: 24px;
+        }
+
+        .about-hero-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .about-tag {
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: #f8fafc;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        .about-hero-meta {
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .about-hero-gallery {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .about-hero-card {
+            border-radius: 24px;
+            overflow: hidden;
+            background: #f1f5f9;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+            position: relative;
+            min-height: 240px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .about-hero-card img {
+            width: 100%;
+            height: 100%;
+            min-height: 240px;
+            max-height: 320px;
+            object-fit: contain;
+            object-position: center center;
+            display: block;
+        }
+
+        .about-hero-label {
+            position: absolute;
+            left: 14px;
+            bottom: 14px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.85);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .about-section {
+            padding: 40px 0 24px;
+        }
+
+        .about-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+            gap: 48px;
+            align-items: flex-start;
+        }
+
+        .about-section h2 {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+
+        .about-section p {
+            color: var(--muted);
+            line-height: 1.7;
+            margin-bottom: 12px;
+        }
+
+        .about-values-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .about-values-list li {
+            padding: 10px 14px;
+            border-radius: 14px;
+            background: #f8fafc;
+            font-size: 14px;
+        }
+
+        .about-values-list strong {
+            color: var(--ink);
+        }
+
+        .about-trust-grid {
+            margin-top: 32px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .about-trust-card {
+            background: #fff;
+            border-radius: 18px;
+            padding: 16px 18px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        }
+
+        .about-trust-card h3 {
+            font-size: 16px;
+            margin-bottom: 6px;
+        }
+
+        .about-trust-card p {
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .about-animals-section {
+            margin: 48px 0 24px;
+            padding: 32px 24px;
+            border-radius: 32px;
+            background: linear-gradient(135deg, #fef2f2 0%, #fffbeb 100%);
+            box-shadow: 0 18px 50px rgba(248, 113, 113, 0.18);
+        }
+
+        .about-animals-
+
+        .about-animals-header h2 {
+            margin: 0;
+        }
+
+        .about-animals-subtitle {
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .about-animals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .about-animal-card {
+            background: #fff;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+        }
+
+        .about-animal-image {
+            min-height: 220px;
+            background: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+        }
+
+        .about-animal-image img {
+            max-width: 100%;
+            max-height: 260px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            object-position: center center;
+            display: block;
+        }
+
+        .about-animal-body {
+            padding: 14px 16px 16px;
+        }
+
+        .about-animal-name {
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .about-animal-meta {
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        .about-animal-story {
+            font-size: 14px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .about-help-section {
+            margin: 40px 0 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+        }
+
+        .about-help-card {
+            background: #fff;
+            border-radius: 24px;
+            padding: 20px 22px;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+        }
+
+        .about-help-card h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .about-help-card p {
+            font-size: 14px;
+            margin: 0;
+            color: var(--muted);
+        }
+
+        @media (max-width: 900px) {
+            .about-hero {
+                grid-template-columns: 1fr;
+            }
+
+            .about-hero-gallery {
+                order: -1;
+            }
+
+            .about-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .about-animals-section {
+                padding: 24px 18px;
+            }
+        }
     
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -.055em;
+}
 
+/* === CPAS Font Tokens === */
+:root {
+  --font-display: "Satoshi", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
 
+/* === Global CPAS Font Normalization === */
+html, body,
+body, p, a, button, input, select, textarea, label, li, span, small, strong, em, td, th, dd, dt {
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, .hero-title, .section-title {
+  font-family: var(--font-display);
+  letter-spacing: -0.055em;
+}
+
+code, pre, kbd, samp, .mono, .id, [data-mono] {
+  font-family: var(--font-mono);
+}
+
+/* old patch removed */
+.site-
+
+.site-header 
+
+.site-header .brand img {
+  width: 130px;
+  height: 72px;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 24px rgba(0,0,0,.26));
+}
+.site-header 
+
+.site-header 
+
+.site-header 
+
+.site-header 
+
+.site-header .hamburger,
+.side-nav {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .site-header 
+  .site-header .hamburger { display: block; }
+}
+
+/* === Homepage Header Compatibility Patch === */
+.site-
+
+.site-header 
+
+.site-header .brand img {
+  width: 130px;
+  height: 72px;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 24px rgba(0,0,0,.26));
+}
+
+.site-header 
+
+.site-header 
+
+.site-header 
+
+.site-header 
+
+.site-header .hamburger,
+.side-nav {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .site-header 
+  .site-header .hamburger { display: block; }
+}
+
+</style>
+
+<style id="cpas-public-dark-glass-theme">
+:root {
+
+  --cpas-bg:#05080D;
+  --cpas-bg-alt:#101927;
+  --cpas-surface:rgba(18,25,36,.72);
+  --cpas-surface-soft:rgba(255,255,255,.055);
+  --cpas-border:rgba(255,255,255,.12);
+  --cpas-text:#F8F7FF;
+  --cpas-muted:rgba(248,247,255,.68);
+  --cpas-purple:#6D5593;
+  --cpas-purple-2:#8B74B7;
+  --cpas-cyan:#16BFD6;
+}
+body{
+  background:
+    radial-gradient(circle at 20% 0%,rgba(109,85,147,.24),transparent 32%),
+    radial-gradient(circle at 86% 18%,rgba(22,191,214,.15),transparent 34%),
+    linear-gradient(135deg,var(--cpas-bg),var(--cpas-bg-alt) 52%,#04060A) !important;
+  color:var(--cpas-text) !important;
+}
+
+section,
+.home-section,
+.about-section,
+.services-section,
+.donate-section,
+.adopt-section{
+  background:transparent !important;
+}
+.card,
+.service-card,
+.animal-card,
+.donation-card,
+.story-card,
+.value-card,
+.form-card,
+.info-card{
+  background:var(--cpas-surface) !important;
+  border:1px solid var(--cpas-border) !important;
+  box-shadow:0 24px 80px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.07) !important;
+  backdrop-filter:blur(18px) saturate(130%) !important;
+}
+h1,h2,h3,h4,p,li,label{color:inherit}
+p,.subheadline,.muted{color:var(--cpas-muted) !important}
+a{color:inherit}
+.btn,
+button,
+.btn-primary,
+.hero-cta-primary{
+  background:linear-gradient(135deg,var(--cpas-purple),var(--cpas-purple-2)) !important;
+  border:1px solid rgba(255,255,255,.14) !important;
+  color:white !important;
+  box-shadow:0 18px 42px rgba(109,85,147,.30) !important;
+}
+.btn-secondary,
+.hero-cta-secondary{
+  background:rgba(255,255,255,.055) !important;
+  border:1px solid rgba(255,255,255,.14) !important;
+  color:white !important;
+}
+img{
+  border-radius:18px;
+}
+.logo,
+.footer-logo,
+.brand img,
+header img{
+  border-radius:0 !important;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -.055em;
+}
+</style>
 
 <style id="cpas-public-polish-v2">
 :root{
@@ -197,17 +630,12 @@ h1, h2, h3 {
 </style>
 
 
-
-
-
 <style id="force-home-shell-about">
 body .site-header {
   position: sticky !important;
   top: 0 !important;
-  z-index: 1000 !important;
-  backdrop-filter: blur(16px) !important;
-  background: rgba(5,10,18,.48) !important;
-  box-shadow: 0 16px 50px rgba(0,0,0,.20) !important;
+  z-index: 999 !important;
+  background: rgba(5,10,18,.92) !important;
   border-bottom: 1px solid rgba(255,255,255,.08) !important;
 }
 
@@ -219,44 +647,38 @@ body .site-header .container.nav {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  gap: 28px !important;
 }
 
 body .site-header .brand img {
-  width: 52px !important;
-  height: 52px !important;
+  width: 130px !important;
+  height: 72px !important;
   object-fit: contain !important;
 }
 
 body .site-header .desktop-links {
   display: flex !important;
   align-items: center !important;
+  justify-content: flex-end !important;
   gap: 34px !important;
-  color: #c5cedc !important;
-  font-weight: 700 !important;
 }
 
 body .site-header .desktop-links a {
-  opacity: .72 !important;
-  color: #c5cedc !important;
+  color: rgba(245,246,255,.72) !important;
   text-decoration: none !important;
-  transition: .22s ease !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
 }
 
-body .site-header .desktop-links a:hover,
 body .site-header .desktop-links a.active {
-  opacity: 1 !important;
-  color: #f7f1ff !important;
-  text-shadow: 0 0 22px rgba(134,100,183,.9) !important;
+  color: #fff !important;
 }
 
-body .site-header .desktop-links .donate-link {
+body .site-header .desktop-links a.donate-link {
   color: #fff !important;
-  background: rgba(134,100,183,.26) !important;
-  border: 1px solid rgba(134,100,183,.35) !important;
-  padding: 12px 18px !important;
-  border-radius: 14px !important;
-  opacity: 1 !important;
+  padding: 14px 24px !important;
+  border-radius: 20px !important;
+  background: rgba(124,58,237,.28) !important;
+  border: 1px solid rgba(255,255,255,.14) !important;
 }
 
 body .site-header .hamburger {
@@ -305,17 +727,81 @@ body footer .developer img {
   opacity: .85 !important;
   filter: none !important;
 }
+
+@media (max-width: 760px) {
+  body .site-header .container.nav {
+    width: calc(100% - 36px) !important;
+    padding: 18px 0 !important;
+  }
+
+  body .site-header .desktop-links {
+    gap: 12px !important;
+    flex-wrap: wrap !important;
+  }
+
+  body .site-header .desktop-links a {
+    font-size: 13px !important;
+  }
+
+  body footer .footer-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+</style>
+
+
+<style id="about-home-shell-override">
+body {
+  margin: 0 !important;
+}
+
+body .site-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 9999 !important;
+}
+
+body .site-header .container.nav {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+body .site-header .desktop-links {
+  display: flex !important;
+  align-items: center !important;
+  gap: 34px !important;
+}
+
+body .site-header .hamburger {
+  display: none !important;
+}
+
+body footer {
+  background: #050a12 !important;
+  color: #f6f2ec !important;
+}
+
+body footer h3,
+body footer a {
+  color: #f6f2ec !important;
+}
+
+body footer p,
+body footer span {
+  color: rgba(255,255,255,.72) !important;
+}
 </style>
 
 </head>
 
 <body>
-    <header class="site-header" id="siteHeader">
+<header class="site-header" id="siteHeader">
     <div class="container nav">
       <a class="brand" href="/admin/login" aria-label="Companions of CPAS home"><img src="https://companionscpas-platform.samprimeauxwork.workers.dev/logo.png" alt="Companions of CPAS logo" /></a>
       <nav class="desktop-links" aria-label="Primary navigation">
-          <a  href="/">Home</a>
-          <a href="/about" class="active">About</a>
+          <a href="/">Home</a>
+          <a class="active" href="/about">About</a>
           <a href="/adopt">Adopt</a>
           <a href="/services">Services</a>
           <a href="/donate" class="donate-link">Donate</a>
@@ -324,6 +810,7 @@ body footer .developer img {
       <button class="hamburger" type="button" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false"><span></span><span></span><span></span></button>
     </div>
   </header>
+    
 
     <!-- Mobile Navigation -->
 
