@@ -113,7 +113,10 @@ function App() {
       case "application-detail": return React.createElement(ApplicationDetailView, { appId:params.appId, onNavigate:navigate });
       case "donations":          return React.createElement(DonationsView,         { onNavigate:navigate });
       case "fundraising":        return React.createElement(FundraisingView,       { onNavigate:navigate });
-      case "cms":                return React.createElement(CMSView,               { onNavigate:navigate });
+      case "cms":
+        return typeof CMSView === "function"
+          ? React.createElement(CMSView, { onNavigate:navigate })
+          : React.createElement("div", { style:{ padding:28, color:"#f0f0f5" } }, "CMS is loading...");
       case "reports":            return React.createElement(ReportsView,           { onNavigate:navigate });
       case "settings":           return React.createElement(SettingsView,          { onNavigate:navigate });
       case "notifications":      return React.createElement(NotificationsView,     { onNavigate:navigate });

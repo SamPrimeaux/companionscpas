@@ -1,3 +1,7 @@
+function CMSPageShell({ children }) {
+  return React.createElement("div", { style:{ minHeight:"100%", width:"100%" } }, children);
+}
+
 function CMSView({ onNavigate }) {
   const { useEffect, useMemo, useState } = React;
   const [boot, setBoot] = useState({ pages:[], assets:[], nav:[], themes:[], brand:null });
@@ -116,7 +120,7 @@ function CMSView({ onNavigate }) {
     React.createElement("p", { style:{ color:C.textSec, margin:0 } }, "Seed cms_page_sections or add a section template next.")
   );
 
-  return React.createElement(Page, {
+  return React.createElement(CMSPageShell, {
     title:"CMS Website",
     subtitle:"Shopify-style no-code editor for public pages, sections, assets, and publishing.",
     action: React.createElement("div", { style:{ display:"flex", gap:10 }},
