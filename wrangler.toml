@@ -29,4 +29,4 @@ RESEND_FROM_EMAIL = "Companions of CPAS <no-reply@companionscpas.org>"
 [[d1_databases]]
 binding = "DB"
 database_name = "companionscpas"
-database_id = "0790e2f0-f113-4f09-8ab0-f8865e55d880"
+database_id = "fd6dd6fb-156b-4b6a-8ff0-505422652391"
