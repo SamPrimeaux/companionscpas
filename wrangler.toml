@@ -1,4 +1,4 @@
-name = "companionscpas-platform"
+name = "companionscpas"
 main = "src/index.js"
 compatibility_date = "2025-04-01"
 
@@ -8,19 +8,19 @@ binding = "ASSETS"
 
 [vars]
 APP_NAME = "Companions of CPAS"
-APP_DOMAIN = "companionscpas-platform.samprimeauxwork.workers.dev"
-ALLOWED_ORIGINS = "https://companionscpas-platform.samprimeauxwork.workers.dev"
+APP_DOMAIN = "companionscpas.meauxbility.workers.dev"
+ALLOWED_ORIGINS = "https://companionscpas.meauxbility.workers.dev"
 
 # Social integrations, disabled until real app keys are added.
 # Meta powers Facebook Page + Instagram Business publishing.
 META_APP_ID = ""
 META_APP_SECRET = ""
-META_REDIRECT_URI = "https://companionscpas-platform.meauxbility.workers.dev/api/social/oauth/meta/callback"
+META_REDIRECT_URI = "https://companionscpas.meauxbility.workers.dev/api/social/oauth/meta/callback"
 
 # Google powers YouTube OAuth/upload routes.
 GOOGLE_CLIENT_ID = ""
 GOOGLE_CLIENT_SECRET = ""
-GOOGLE_REDIRECT_URI = "https://companionscpas-platform.meauxbility.workers.dev/api/social/oauth/youtube/callback"
+GOOGLE_REDIRECT_URI = "https://companionscpas.meauxbility.workers.dev/api/social/oauth/youtube/callback"
 
 # Stripe + Resend integrations. Secrets are set with wrangler secret put.
 ADMIN_EMAIL = "ljmusland@gmail.com"
