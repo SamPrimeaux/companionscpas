@@ -33,3 +33,6 @@ database_id = "fd6dd6fb-156b-4b6a-8ff0-505422652391"
 
 [ai]
 binding = "AGENTSAM_WAI"
+
+[triggers]
+crons = ["0 6 * * *"]

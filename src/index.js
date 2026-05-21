@@ -1,3 +1,4 @@
+import { syncToIAM } from "./api/resolveModel.js";
 import { authRoutes } from './api/auth_login.js';
 import { sessionRoutes } from './api/session_api.js';
 import { agentsamRoutes } from './api/agentsam_api.js';
@@ -107,5 +108,10 @@ export default {
 
     // ── Everything else: static assets ───────────────────────────────────────
     return env.ASSETS.fetch(request);
+  }
+
+  // Cron: sync ETO events to IAM daily 06:00 UTC
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(syncToIAM(env));
   }
 };
