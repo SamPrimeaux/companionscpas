@@ -5,16 +5,13 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 // ── Color tokens ──────────────────────────────────────────────────────────────
-const C = {
+const C = window.__C_OBJ__ = {
   bg:        "#0b0b14",
   surface:   "#12121f",
   raised:    "#191928",
+  bg2:       "#0f0f1a",
   high:      "#20203a",
   border:    "#282840",
-  purple:    "#7c3aed",
-  purpleHov: "#6d28d9",
-  purpleL:   "#a78bfa",
-  purpleDim: "#2d1b5e",
   text:      "#f0f0f5",
   textSec:   "#8888aa",
   textMut:   "#55556a",
@@ -26,7 +23,11 @@ const C = {
   yellowDim: "#3b2000",
   teal:      "#06b6d4",
   tealDim:   "#052e3a",
-  pink:      "#ec4899",
+  purple:    "#8664B7",
+  purpleHov: "#7654AA",
+  purpleL:   "#b89fd4",
+  purpleDim: "rgba(134,100,183,0.15)",
+  pink:      "#F04E65",
 };
 
 // ── Icon set (inline SVG strings) ─────────────────────────────────────────────
