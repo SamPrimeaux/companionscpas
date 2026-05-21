@@ -1,0 +1,8 @@
+name = "companionscpas-old-export"
+compatibility_date = "2026-05-21"
+account_id = "e8d0359c2ad85845814f446f4dd174ea"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "companionscpas"
+database_id = "0790e2f0-f113-4f09-8ab0-f8865e55d880"

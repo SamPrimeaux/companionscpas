@@ -8,3 +8,13 @@ r2-source
 companionscpas-platform.env
 cf.sh
 .local.env
+
+# Local D1 migration backups - contains real database data
+migration/d1/backups/
+*.sqlite
+*.db
+
+# Local D1 migration backups - contains real database data
+migration/d1/backups/
+migration/d1/*.sqlite
+migration/d1/*.db
