@@ -108,7 +108,7 @@ export default {
 
     // ── Everything else: static assets ───────────────────────────────────────
     return env.ASSETS.fetch(request);
-  }
+  },
 
   // Cron: sync ETO events to IAM daily 06:00 UTC
   async scheduled(event, env, ctx) {
