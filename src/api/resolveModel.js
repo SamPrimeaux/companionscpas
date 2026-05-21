@@ -19,7 +19,6 @@ export const MODELS = {
 };
 
 // Board-facing CMS copy must never go below mini
-export const CMS_FLOOR = MODELS.mini;
 
 const WORKSPACE = "ws_companionscpas";
 
