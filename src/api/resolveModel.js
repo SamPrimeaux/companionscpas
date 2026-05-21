@@ -7,15 +7,15 @@
 
 // ── Model alias map (short name → AGENTSAM_WAI model string) ─────────────────
 export const MODELS = {
-  flash:     "google/gemini-3-flash",
-  nano:      "openai/gpt-5.4-nano",
-  mini:      "openai/gpt-5.4-mini",
-  kimi:      "moonshot/kimi-k2.6",
-  pro:       "google/gemini-3.1-pro",
-  premium:   "openai/gpt-4.1",
-  image:     "xai/grok-imagine-image",
-  imagePlus: "openai/gpt-image-1.5",
-  imagePro:  "google/imagen-4",
+  // Native Cloudflare Workers AI — all route through AGENTSAM_WAI binding
+  flash:     "@cf/meta/llama-4-scout-17b-16e-instruct",  // fast, low cost
+  nano:      "@cf/meta/llama-4-scout-17b-16e-instruct",  // same tier
+  mini:      "@cf/google/gemma-4-26b-a4b-it",            // mid-tier
+  kimi:      "@cf/moonshotai/kimi-k2.6",                 // long context, tool calling
+  pro:       "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", // reasoning
+  premium:   "@cf/moonshotai/kimi-k2.6",                 // best available via WAI
+  coder:     "@cf/qwen/qwen2.5-coder-32b-instruct",      // code tasks
+  image:     "@cf/black-forest-labs/flux-1-schnell",     // image gen
 };
 
 // Board-facing CMS copy must never go below mini
