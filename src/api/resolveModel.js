@@ -217,7 +217,7 @@ export async function callAI(env, {
   if (!env.AGENTSAM_WAI) throw new Error("AGENTSAM_WAI binding missing.");
 
   const resolvedModel = MODELS[model] ?? model;
-  const provider      = resolvedModel.split("/")[0];
+  const provider      = resolvedModel.startsWith("@cf/") ? "workers_ai" : resolvedModel.split("/")[0];
 
   const msgs = [];
   if (system) msgs.push({ role: "system", content: system });
