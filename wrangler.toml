@@ -30,3 +30,6 @@ RESEND_FROM_EMAIL = "Companions of CPAS <no-reply@companionscpas.org>"
 binding = "DB"
 database_name = "companionscpas"
 database_id = "fd6dd6fb-156b-4b6a-8ff0-505422652391"
+
+[ai]
+binding = "AGENTSAM_WAI"
