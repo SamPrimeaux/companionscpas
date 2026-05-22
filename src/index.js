@@ -21,8 +21,22 @@ function json(data, status = 200) {
 
 async function asset(env, request, path) {
   const url = new URL(request.url);
-
-return env.ASSETS.fetch(new Request(url.origin + path, request));
+  try {
+    const res = await env.ASSETS.fetch(new Request(url.origin + path, request));
+    if (res.ok) return res;
+  } catch {}
+  // Fallback: R2 WEBSITE_ASSETS
+  try {
+    const key = path.replace(/^\//, '');
+    const obj = await env.WEBSITE_ASSETS.get(key);
+    if (obj) {
+      const headers = new Headers();
+      headers.set('content-type', obj.httpMetadata?.contentType || 'text/html');
+      headers.set('cache-control', 'public, max-age=300');
+      return new Response(obj.body, { headers });
+    }
+  } catch {}
+  return new Response('Not found', { status: 404 });
 }
 
 // ── Validate session cookie → returns user row or null ────────────────────────
