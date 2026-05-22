@@ -425,6 +425,40 @@ CRITICAL RULES:
             inputTokens, outputTokens, inputTokens + outputTokens, callCostUsd
           ).run().catch(() => {});
 
+          // Analytics record — mirrors agent_run with provider/token/cost detail
+          await env.DB.prepare(`
+            INSERT INTO agentsam_analytics
+              (id, tenant_id, user_id, session_id, provider, model_key,
+               runtime_location, mode, status,
+               prompt_tokens, completion_tokens, total_tokens,
+               input_tokens, output_tokens,
+               estimated_cost_usd, latency_ms,
+               input_chars, output_chars,
+               raw_usage_json, started_at, completed_at)
+            VALUES
+              (?, 'tenant_companionscpas', ?, ?, ?, ?,
+               'cloudflare', ?, 'completed',
+               ?, ?, ?,
+               ?, ?,
+               ?, ?,
+               ?, ?,
+               ?, datetime('now'), datetime('now'))
+          `).bind(
+            crypto.randomUUID(),
+            userId,
+            sessionId,
+            usedProvider,
+            usedModel,
+            mode,
+            inputTokens, outputTokens, inputTokens + outputTokens,
+            inputTokens, outputTokens,
+            callCostUsd,
+            Date.now() - started,
+            (prompt  || "").length,
+            (answer  || "").length,
+            JSON.stringify({ prompt_tokens: inputTokens, completion_tokens: outputTokens })
+          ).run().catch(e => console.warn("[analytics] INSERT failed:", e.message));
+
           // Write granular reward event
           await env.DB.prepare(`
             INSERT INTO agentsam_reward_events
