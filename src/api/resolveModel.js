@@ -244,7 +244,8 @@ export async function callAI(env, {
         body: JSON.stringify({
           model: modelId,
           messages: payload.messages,
-          max_tokens: payload.max_tokens,
+          max_completion_tokens: payload.max_tokens,
+          ...(payload.tools         ? { tools: payload.tools }                   : {}),
           ...(payload.response_format ? { response_format: payload.response_format } : {})
         })
       });
