@@ -212,7 +212,7 @@ export async function syncToIAM(env) {
 // ── Core AI call ──────────────────────────────────────────────────────────────
 // options.model: MODELS alias OR full model string OR use thompsonRoute() first
 export async function callAI(env, {
-  model, messages, system, maxTokens = 1024, json = false
+  model, messages, system, maxTokens = 1024, json = false, tools = null
 }) {
   if (!env.AGENTSAM_WAI) throw new Error("AGENTSAM_WAI binding missing.");
 
@@ -226,7 +226,8 @@ export async function callAI(env, {
   const payload = {
     messages:   msgs,
     max_tokens: maxTokens,
-    ...(json ? { response_format: { type: "json_object" } } : {}),
+    ...(json  ? { response_format: { type: "json_object" } } : {}),
+    ...(tools ? { tools } : {}),
   };
 
   let raw;
@@ -272,12 +273,21 @@ export async function callAI(env, {
   const inputTokens  = usage.prompt_tokens     || usage.input_tokens  || 0;
   const outputTokens = usage.completion_tokens || usage.output_tokens || 0;
 
+  // Extract tool calls if present (OpenAI + kimi-k2.6 format)
+  let toolCalls = [];
+  if (Array.isArray(raw?.choices?.[0]?.message?.tool_calls)) {
+    toolCalls = raw.choices[0].message.tool_calls;
+  } else if (Array.isArray(raw?.tool_calls)) {
+    toolCalls = raw.tool_calls;
+  }
+
   return {
     text: text.trim(),
     model: resolvedModel,
     provider,
     inputTokens,
     outputTokens,
+    toolCalls,
   };
 }
 
