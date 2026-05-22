@@ -184,11 +184,27 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
           const forceTools = activeRule?.force_tool_model || modelPolicy?.force_tool_capable || false;
 
           if (forceTools && !modelSupportsTools(usedModel)) {
-            const toolModel = env.OPENAI_API_KEY ? "openai/gpt-5.4-mini" : "@cf/moonshotai/kimi-k2.6";
+            // Pick best tool-capable arm from DB — no hardcoded model strings
+            const toolArms = await env.DB.prepare(`
+              SELECT model_key, provider, id
+              FROM agentsam_routing_arms
+              WHERE workspace_id='ws_companionscpas'
+                AND task_type=?
+                AND is_eligible=1 AND is_paused=0 AND budget_exhausted=0
+              ORDER BY (success_alpha / (success_alpha + success_beta)) DESC
+              LIMIT 5
+            `).bind(taskType).all().catch(() => ({ results: [] }));
+
+            const toolArm = (toolArms.results || []).find(a => modelSupportsTools(a.model_key));
+            const toolModel = toolArm?.model_key
+              || (env.OPENAI_API_KEY ? "openai/gpt-5.4-nano" : "@cf/moonshotai/kimi-k2.6");
+
             console.log(`[agentsam] policy escalation: ${usedModel} → ${toolModel} (rule: ${activeRule?.intent_pattern||'model_policy'})`);
             usedModel    = toolModel;
-            usedProvider = toolModel.startsWith("openai/") ? "openai" : "workers_ai";
-            usedArm      = null;
+            usedProvider = toolModel.startsWith("openai/") ? "openai"
+                         : toolModel.startsWith("@cf/")   ? "workers_ai"
+                         : toolModel.split("/")[0];
+            usedArm      = toolArm?.id || null;
           }
 
           send({ title: `Selected model`, status: "running" }, "step");

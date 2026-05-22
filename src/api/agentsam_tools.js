@@ -270,10 +270,12 @@ async function _executeTool(env, toolName, args) {
 
 // ── Models that support tool calling ─────────────────────────────────────────
 export const TOOL_CAPABLE_MODELS = new Set([
+  // WAI native — tool/function calling capable
   "@cf/moonshotai/kimi-k2.6",
   "@cf/moonshotai/kimi-k2.5",
-  "openai/gpt-5.4-mini",
+  // OpenAI via direct API
   "openai/gpt-5.4-nano",
+  "openai/gpt-5.4-mini",
   "openai/gpt-4.1",
 ]);
 
