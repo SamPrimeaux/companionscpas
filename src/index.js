@@ -2,6 +2,7 @@ import { syncToIAM } from "./api/resolveModel.js";
 import { authRoutes } from './api/auth_login.js';
 import { sessionRoutes } from './api/session_api.js';
 import { agentsamRoutes } from './api/agentsam_api.js';
+import { agentsamToolsRoutes } from './api/agentsam_tools.js';
 import { cmsRoutes } from './api/cms_api.js';
 import { passwordResetRoutes } from './api/password_reset.js';
 import { dashboardApiRoutes } from './api/dashboard_api.js';
@@ -59,6 +60,11 @@ async function getSession(request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/api/agentsam/tools/")) {
+      const toolResult = await agentsamToolsRoutes(request, env, url);
+      if (toolResult) return toolResult;
+    }
 
     if (url.pathname.startsWith("/api/agentsam/")) {
       const session = await getSession(request, env);
