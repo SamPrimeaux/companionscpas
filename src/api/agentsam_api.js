@@ -142,24 +142,33 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
           usedModel    = arm.modelKey;
           usedProvider = arm.provider;
 
-          send({ title: `Selected ${usedModel}`, status: "running" }, "step");
+          // If selected model can't use tools but prompt needs real data, escalate
+          const needsTools = /how many|list|count|table|database|show me|query|record|what.*in.*db|agentsam/i.test(prompt);
+          if (needsTools && !modelSupportsTools(usedModel)) {
+            // Pick best available tool-capable model
+            const toolModel = env.OPENAI_API_KEY ? "openai/gpt-5.4-mini" : "@cf/moonshotai/kimi-k2.6";
+            console.log(`[agentsam] escalating ${usedModel} → ${toolModel} for tool use`);
+            usedModel    = toolModel;
+            usedProvider = toolModel.startsWith("openai/") ? "openai" : "workers_ai";
+            usedArm      = null; // cold escalation, no arm to update
+          }
+
+          send({ title: `Selected model`, status: "running" }, "step");
 
           const context = await getRecentContext(env);
           const canUseTools = modelSupportsTools(usedModel);
 
-          const system = `You are Agent Sam — the AI assistant built into the Companions of CPAS dashboard. You have direct access to their database and CMS through tools.
+          const system = `You are Agent Sam, the AI assistant for Companions of CPAS — a nonprofit animal rescue organization.
 
-CAPABILITIES:
-- Query the database in real time (use query_database or list_tables)
-- Read and propose CMS page edits (use get_cms_page, update_cms_section)
-- Propose data updates with user approval (use write_database)
+You have live access to their database, website, and records. When a question requires real data, retrieve it directly — never guess or estimate.
 
-RULES:
-- Always use tools when the question requires real data. Never guess or use cached context for specific counts/records.
-- For database questions, call list_tables first if unsure of schema, then query_database.
-- Be concise. No lengthy explanations unless asked.
-- For write operations, propose clearly in plain English what will change.
-- You are helping a nonprofit animal rescue team — be warm, practical, and action-oriented.`;
+CRITICAL RULES:
+- NEVER mention tool names, function names, or technical implementation in your responses. Users see only clean natural language.
+- NEVER say things like "I'll use list_tables" or "calling query_database" — just do it silently and report results.
+- Always retrieve real data when asked about counts, records, animals, applications, donations, volunteers, or website content.
+- Be concise and warm. This is a small nonprofit team — friendly, practical, no jargon.
+- For proposed changes, describe what will change in plain English. Never show SQL to users.
+- If something fails silently, give a helpful response from context rather than exposing errors.`;
 
           // ── Tool-capable model: multi-turn tool loop ──────────────────────
           const callStart = Date.now();

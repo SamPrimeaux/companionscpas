@@ -118,6 +118,18 @@ export const AGENT_TOOLS = [
 
 // ── Tool executor ─────────────────────────────────────────────────────────────
 export async function executeTool(env, toolName, args) {
+  console.log(`[tool:${toolName}] called with`, JSON.stringify(args).slice(0, 200));
+  try {
+    const result = await _executeTool(env, toolName, args);
+    if (!result.success) console.warn(`[tool:${toolName}] failed:`, result.error);
+    return result;
+  } catch (err) {
+    console.error(`[tool:${toolName}] threw:`, err.message || err);
+    return { success: false, error: `Tool execution failed: ${err.message}` };
+  }
+}
+
+async function _executeTool(env, toolName, args) {
   switch (toolName) {
 
     case "list_tables": {
