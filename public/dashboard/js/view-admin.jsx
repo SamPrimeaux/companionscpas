@@ -289,4 +289,4 @@ function NotificationsView({ onNavigate }) {
   );
 }
 
-Object.assign(window, { CMSView, ReportsView, SettingsView, NotificationsView });
+Object.assign(window, { CMSView: AdminCMSView, ReportsView, SettingsView, NotificationsView });
