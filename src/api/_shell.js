@@ -31,8 +31,8 @@ const LOGO_LIGHT = 'https://assets.meauxxx.com/static/global/companionsofcpa-new
 const IAM_BADGE  = 'https://assets.meauxxx.com/static/global/logo.webp';
 
 /* ── HEADER ─────────────────────────────────────────────────── */
-export function renderHeader({ theme = 'dark', activePage = '/' } = {}) {
-  const logo    = theme === 'dark' ? LOGO_DARK : LOGO_LIGHT;
+export function renderHeader({ theme = 'dark', activePage = '/', logoDark = LOGO_DARK, logoLight = LOGO_LIGHT } = {}) {
+  const logo    = theme === 'dark' ? logoDark : logoLight;
   const navHtml = NAV_LINKS.map(({ label, href }) => {
     const isActive = activePage === href ? ' class="active"' : '';
     return `<li><a href="${esc(href)}"${isActive}>${esc(label)}</a></li>`;
@@ -59,7 +59,7 @@ export function renderHeader({ theme = 'dark', activePage = '/' } = {}) {
 }
 
 /* ── FOOTER ─────────────────────────────────────────────────── */
-export function renderFooter({ orgData = {} } = {}) {
+export function renderFooter({ orgData = {}, footerLogo = LOGO_DARK } = {}) {
   const {
     name            = 'Companions of CPAS',
     tax_status      = '501(c)(3) Tax-Exempt',
@@ -88,7 +88,7 @@ export function renderFooter({ orgData = {} } = {}) {
 
       <!-- Brand -->
       <div class="footer-brand">
-        <img src="${esc(LOGO_DARK)}" alt="Companions of CPAS" />
+        <img src="${esc(footerLogo)}" alt="Companions of CPAS" />
         <p class="footer-tagline">
           A volunteer-run nonprofit helping dogs at Caddo Parish
           Animal Services receive medical care, transport support,
@@ -148,9 +148,12 @@ export function pageShell(title, metaDesc, bodyHtml, {
   theme      = 'dark',
   activePage = '/',
   orgData    = {},
+  logoDark   = LOGO_DARK,
+  logoLight  = LOGO_LIGHT,
+  footerLogo = LOGO_DARK,
 } = {}) {
-  const header = renderHeader({ theme, activePage });
-  const footer = renderFooter({ orgData });
+  const header = renderHeader({ theme, activePage, logoDark, logoLight });
+  const footer = renderFooter({ orgData, footerLogo });
 
   return `<!DOCTYPE html>
 <html lang="en" class="${esc(theme === 'dark' ? 'theme-dark' : 'theme-light')}">
