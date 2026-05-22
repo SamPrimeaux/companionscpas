@@ -1,7 +1,7 @@
 // src/api/agentsam_api.js
 // Companions of CPAS — Agent Sam API with tool loop
 import { callAI, thompsonRoute, recordOutcome, syncToIAM, classifyIntent, MODELS } from './resolveModel.js';
-import { AGENT_TOOLS, executeTool, modelSupportsTools } from './agentsam_tools.js';
+import { AGENT_TOOLS, executeTool, modelSupportsTools, writeToolChain, resolveToolChain } from './agentsam_tools.js';
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -142,15 +142,53 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
           usedModel    = arm.modelKey;
           usedProvider = arm.provider;
 
-          // If selected model can't use tools but prompt needs real data, escalate
-          const needsTools = /how many|list|count|table|database|show me|query|record|what.*in.*db|agentsam/i.test(prompt);
-          if (needsTools && !modelSupportsTools(usedModel)) {
-            // Pick best available tool-capable model
+          // DB-driven intent rules — check agentsam_intent_rules for this prompt
+          const intentRules = await env.DB.prepare(`
+            SELECT required_tools, optional_tools, min_model_tier, force_tool_model
+            FROM agentsam_intent_rules
+            WHERE tenant_id='tenant_companionscpas'
+              AND is_active=1
+              AND ? REGEXP intent_pattern
+            ORDER BY priority ASC LIMIT 1
+          `).bind(prompt).first().catch(() => null);
+
+          // Fallback: simple regex if REGEXP not supported
+          const intentRulesFallback = !intentRules
+            ? await (async () => {
+                const rules = await env.DB.prepare(`
+                  SELECT required_tools, optional_tools, min_model_tier, force_tool_model, intent_pattern
+                  FROM agentsam_intent_rules
+                  WHERE tenant_id='tenant_companionscpas' AND is_active=1
+                  ORDER BY priority ASC
+                `).all().catch(() => ({ results: [] }));
+                const p = prompt.toLowerCase();
+                return (rules.results||[]).find(r => {
+                  try { return new RegExp(r.intent_pattern, 'i').test(p); } catch { return false; }
+                }) || null;
+              })()
+            : null;
+
+          const activeRule = intentRules || intentRulesFallback;
+
+          // DB-driven model policy
+          const modelPolicy = await env.DB.prepare(`
+            SELECT min_tier, force_tool_capable, max_cost_per_call
+            FROM agentsam_model_policy
+            WHERE tenant_id='tenant_companionscpas'
+              AND task_type=?
+              AND (mode=? OR mode='any')
+              AND is_active=1
+            ORDER BY mode DESC LIMIT 1
+          `).bind(taskType, mode).first().catch(() => null);
+
+          const forceTools = activeRule?.force_tool_model || modelPolicy?.force_tool_capable || false;
+
+          if (forceTools && !modelSupportsTools(usedModel)) {
             const toolModel = env.OPENAI_API_KEY ? "openai/gpt-5.4-mini" : "@cf/moonshotai/kimi-k2.6";
-            console.log(`[agentsam] escalating ${usedModel} → ${toolModel} for tool use`);
+            console.log(`[agentsam] policy escalation: ${usedModel} → ${toolModel} (rule: ${activeRule?.intent_pattern||'model_policy'})`);
             usedModel    = toolModel;
             usedProvider = toolModel.startsWith("openai/") ? "openai" : "workers_ai";
-            usedArm      = null; // cold escalation, no arm to update
+            usedArm      = null;
           }
 
           send({ title: `Selected model`, status: "running" }, "step");
@@ -216,7 +254,23 @@ CRITICAL RULES:
 
                 send({ title: `Using tool: ${toolName}`, status: "running" }, "step");
 
+                const _chainStart = Date.now();
+                const chainId = await writeToolChain(env, {
+                  agentRunId, sessionId,
+                  chainIndex: loopCount,
+                  toolKey: toolName,
+                  inputArgs: toolArgs,
+                });
+
                 const toolResult = await executeTool(env, toolName, toolArgs);
+
+                await resolveToolChain(env, {
+                  chainId, agentRunId, toolKey: toolName,
+                  outputJson: toolResult,
+                  status: toolResult.success ? "completed" : "failed",
+                  latencyMs: Date.now() - _chainStart,
+                  errorMsg: toolResult.error || null,
+                });
 
                 // Approval-required actions go to frontend as action events
                 if (toolResult.approval_required) {
@@ -320,6 +374,22 @@ CRITICAL RULES:
             classifyIntent(prompt, routePath), mode,
             Date.now() - started,
             inputTokens, outputTokens, inputTokens + outputTokens, callCostUsd
+          ).run().catch(() => {});
+
+          // Write granular reward event
+          await env.DB.prepare(`
+            INSERT INTO agentsam_reward_events
+              (agent_run_id, routing_arm_id, signal_type, signal_value, alpha_delta, beta_delta, reason, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            agentRunId,
+            usedArm || null,
+            success ? "success" : "failure",
+            success ? _reward : 0,
+            success ? _reward : 0,
+            success ? 0 : 1,
+            `lat:${_latMs}ms|cost:$${callCostUsd.toFixed(6)}|tools:${pendingActions.length}`,
+            JSON.stringify({ model: usedModel, taskType, mode, inputTokens, outputTokens })
           ).run().catch(() => {});
 
           env.AGENTSAM_BRIDGE_KEY && syncToIAM(env).catch(() => {});

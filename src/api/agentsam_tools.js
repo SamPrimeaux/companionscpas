@@ -1,3 +1,38 @@
+
+// ── Tool chain writer ─────────────────────────────────────────────────────────
+export async function writeToolChain(env, { agentRunId, sessionId, chainIndex, toolKey, inputArgs }) {
+  const chainId = "tc_" + crypto.randomUUID().replace(/-/g,"").slice(0,16);
+  await env.DB.prepare(`
+    INSERT INTO agentsam_tool_chain
+      (id, agent_run_id, session_id, chain_index, tool_key, tool_name, input_args_json, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'running')
+  `).bind(chainId, agentRunId, sessionId||null, chainIndex, toolKey, toolKey, JSON.stringify(inputArgs||{}))
+   .run().catch(e => console.error("[tool_chain write]", e.message));
+  return chainId;
+}
+
+export async function resolveToolChain(env, { chainId, agentRunId, toolKey, outputJson, status, latencyMs, errorMsg }) {
+  await env.DB.prepare(`
+    UPDATE agentsam_tool_chain
+    SET status=?, output_json=?, latency_ms=?, error_message=?, created_at=datetime('now')
+    WHERE id=?
+  `).bind(status, JSON.stringify(outputJson||{}), latencyMs||null, errorMsg||null, chainId)
+   .run().catch(e => console.error("[tool_chain resolve]", e.message));
+
+  if (status === "completed" && outputJson) {
+    await env.DB.prepare(`
+      INSERT INTO agentsam_tool_result
+        (chain_id, agent_run_id, tool_key, result_json, row_count, was_truncated)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(
+      chainId, agentRunId, toolKey,
+      JSON.stringify(outputJson),
+      outputJson.row_count || outputJson.table_count || null,
+      outputJson.was_truncated ? 1 : 0
+    ).run().catch(e => console.error("[tool_result write]", e.message));
+  }
+}
+
 // src/api/agentsam_tools.js
 // Companions of CPAS — Agent Sam tool definitions + executor
 // All DB reads execute directly. Writes require frontend approval.
