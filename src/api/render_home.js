@@ -109,21 +109,25 @@ function renderHero(s) {
           </div>` : "";
 
   const cta1 = s.cta_label ? `<${cta1Tag} class="btn btn-primary" ${cta1Modal}>${esc(s.cta_label)}</${cta1Tag}>` : "";
-  const cta2 = s.cta_secondary_label ? `<${cta2Tag} class="btn btn-secondary" ${cta2Modal}>${esc(s.cta_secondary_label)}</${cta2Tag}>` : "";
+  const cta2 = s.cta_secondary_label ? `<${cta2Tag} class="btn btn-ghost" ${cta2Modal}>${esc(s.cta_secondary_label)}</${cta2Tag}>` : "";
+
+  const heroImg = s.image_url || '/assets/animals/upclose.webp';
 
   return `
-  <section class="hero">
-    <div class="container hero-grid">
-      <div class="hero-copy">
-        ${s.eyebrow ? `<div class="eyebrow">${esc(s.eyebrow)}</div>` : ""}
+  <section class="section-hero">
+    <div class="container">
+      <div class="hero-content">
+        ${s.eyebrow ? `<div class="hero-badge">${esc(s.eyebrow)}</div>` : ""}
         <h1>${esc(s.heading)}</h1>
-        ${s.body ? `<p>${esc(s.body)}</p>` : ""}
+        ${s.body ? `<p class="text-muted mt-sm" style="max-width:600px;font-size:1.1rem;line-height:1.7">${esc(s.body)}</p>` : ""}
         ${cta1 || cta2 ? `<div class="hero-actions">${cta1}${cta2}</div>` : ""}
       </div>
-      <div class="hero-media">
-        ${s.image_url ? `<img src="${esc(s.image_url)}" alt="${esc(s.heading)}" />` : ""}
-        ${overlay}
-      </div>
+    </div>
+    <div style="position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none">
+      <img src="${esc(heroImg)}"
+           alt="${esc(s.heading)}"
+           style="position:absolute;right:0;top:0;height:100%;width:50%;object-fit:cover;object-position:center top" />
+      <div style="position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 45%,transparent 75%)"></div>
     </div>
   </section>`;
 }
