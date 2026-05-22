@@ -231,9 +231,31 @@ export async function callAI(env, {
 
   let raw;
   try {
-    raw = await env.AGENTSAM_WAI.run(resolvedModel, payload);
+    if (resolvedModel.startsWith("openai/") && env.OPENAI_API_KEY) {
+      // Route openai/* through direct API — WAI binding rejects these model strings
+      const modelId = resolvedModel.replace("openai/", "");
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: payload.messages,
+          max_tokens: payload.max_tokens,
+          ...(payload.response_format ? { response_format: payload.response_format } : {})
+        })
+      });
+      if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
+      raw = await res.json();
+    } else {
+      // Native @cf/ models through WAI binding
+      if (!env.AGENTSAM_WAI) throw new Error("AGENTSAM_WAI binding missing.");
+      raw = await env.AGENTSAM_WAI.run(resolvedModel, payload);
+    }
   } catch (err) {
-    throw new Error(`AGENTSAM_WAI.run failed for "${resolvedModel}": ${err.message}`);
+    throw new Error(`callAI failed for "${resolvedModel}": ${err.message}`);
   }
 
   // Normalize response across all providers
