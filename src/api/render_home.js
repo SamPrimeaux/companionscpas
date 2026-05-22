@@ -1,26 +1,33 @@
-import { pageShell, renderHeader, renderFooter } from './_shell.js';
+import { pageShell } from './_shell.js';
+
 /**
  * PRIMETECH v1 — Home Page Renderer
- * render_home.js
- *
- * Reads cms_page_sections + cms_navigation_items from D1,
- * renders the home page HTML using the exact same class/id
- * structure as the current static page so existing CSS applies.
- *
- * Falls back to null on any DB error — caller serves static asset.
+ * Reads cms_page_sections + cms_navigation_items from D1.
+ * Falls back to R2-stored static page on any DB error.
  */
 
-const TENANT = "tenant_companionscpas";
+const TENANT   = "tenant_companionscpas";
+const R2_CSS   = "https://assets.meauxxx.com/static/global/shared.css";
+const R2_FALLBACK_HTML = "https://assets.meauxxx.com/static/global/index.html";
 
-// ─── D1 helpers ───────────────────────────────────────────────────────────────
+// ─── Escape ────────────────────────────────────────────────────
+function esc(s) {
+  return (s || "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
+function cfg(s) {
+  try { return JSON.parse(s.config_json || "{}"); } catch { return {}; }
+}
+
+// ─── D1 Queries ────────────────────────────────────────────────
 async function getSections(env) {
   const { results } = await env.DB.prepare(`
     SELECT section_key, section_type, eyebrow, heading, subheading,
            body, cta_label, cta_href, cta_action,
            cta_secondary_label, cta_secondary_href, cta_secondary_action,
-           primary_asset_id, image_url, secondary_asset_id,
-           config_json, sort_order
+           image_url, config_json, sort_order
     FROM cms_page_sections
     WHERE tenant_id = ? AND page_route = '/'
     ORDER BY sort_order ASC
@@ -28,202 +35,126 @@ async function getSections(env) {
   return results || [];
 }
 
-async function getFooter(env) {
-  return await env.DB.prepare(`
-    SELECT heading, body, image_url, secondary_asset_id, config_json
-    FROM cms_page_sections
-    WHERE tenant_id = ? AND page_route = 'global' AND section_key = 'footer'
-    LIMIT 1
-  `).bind(TENANT).first();
+async function getOrgData(env) {
+  const row = await env.DB.prepare(`
+    SELECT organization_json FROM cms_brand_settings
+    WHERE id = 'brand_companionscpas' LIMIT 1
+  `).bind().first();
+  try { return JSON.parse(row?.organization_json || "{}"); } catch { return {}; }
 }
 
-async function getNav(env) {
-  const { results } = await env.DB.prepare(`
-    SELECT label, href, css_class, requires_auth, sort_order
-    FROM cms_navigation_items
-    WHERE tenant_id = ? AND nav_group = 'primary' AND is_visible = 1
-    ORDER BY sort_order ASC
-  `).bind(TENANT).all();
-  return results || [];
-}
-
-async function getFooterNav(env) {
-  const { results } = await env.DB.prepare(`
-    SELECT label, href, requires_auth
-    FROM cms_navigation_items
-    WHERE tenant_id = ? AND nav_group = 'footer' AND is_visible = 1
-      AND requires_auth = 0
-    ORDER BY sort_order ASC
-  `).bind(TENANT).all();
-  return results || [];
-}
-
-function cfg(section) {
-  try {
-    return JSON.parse(section.config_json || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function esc(s) {
-  return (s || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-// ─── Section renderers ────────────────────────────────────────────────────────
-
+// ─── Section Renderers ─────────────────────────────────────────
 
 function renderHero(s) {
-  const c = cfg(s);
-  const cta1Modal = s.cta_action === "modal" ? `data-open-modal="${esc(s.cta_href)}"` : `href="${esc(s.cta_href)}"`;
-  const cta2Modal = s.cta_secondary_action === "modal" ? `data-open-modal="${esc(s.cta_secondary_href)}"` : `href="${esc(s.cta_secondary_href)}"`;
-  const cta1Tag   = s.cta_action === "modal" ? "button" : "a";
-  const cta2Tag   = s.cta_secondary_action === "modal" ? "button" : "a";
-
-  const overlay = c.overlay_heading ? `
-          <div class="hero-card">
-            <strong>${esc(c.overlay_heading)}</strong>
-            <span>${esc(c.overlay_body || "")}</span>
-          </div>` : "";
-
-  const cta1 = s.cta_label ? `<${cta1Tag} class="btn btn-primary" ${cta1Modal}>${esc(s.cta_label)}</${cta1Tag}>` : "";
-  const cta2 = s.cta_secondary_label ? `<${cta2Tag} class="btn btn-ghost" ${cta2Modal}>${esc(s.cta_secondary_label)}</${cta2Tag}>` : "";
-
-  const heroImg = s.image_url || '/assets/animals/upclose.webp';
+  const c    = cfg(s);
+  const img  = s.image_url || '/assets/animals/upclose.webp';
+  const cta1 = s.cta_label
+    ? `<a class="btn btn-primary" href="${esc(s.cta_href)}">${esc(s.cta_label)}</a>` : "";
+  const cta2 = s.cta_secondary_label
+    ? `<button class="btn btn-ghost" onclick="document.getElementById('donateModal')?.showModal()">${esc(s.cta_secondary_label)}</button>` : "";
 
   return `
-  <section class="section-hero">
-    <div class="container">
-      <div class="hero-content">
-        ${s.eyebrow ? `<div class="hero-badge">${esc(s.eyebrow)}</div>` : ""}
-        <h1>${esc(s.heading)}</h1>
-        ${s.body ? `<p class="text-muted mt-sm" style="max-width:600px;font-size:1.1rem;line-height:1.7">${esc(s.body)}</p>` : ""}
-        ${cta1 || cta2 ? `<div class="hero-actions">${cta1}${cta2}</div>` : ""}
-      </div>
+<section class="section-hero" style="position:relative;overflow:hidden">
+  <div class="container" style="position:relative;z-index:2">
+    <div class="hero-content">
+      ${s.eyebrow ? `<div class="hero-badge">${esc(s.eyebrow)}</div>` : ""}
+      <h1>${esc(s.heading)}</h1>
+      ${s.body ? `<p class="text-muted mt-sm" style="max-width:580px;font-size:1.1rem;line-height:1.7">${esc(s.body)}</p>` : ""}
+      ${cta1 || cta2 ? `<div class="hero-actions">${cta1}${cta2}</div>` : ""}
     </div>
-    <div style="position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none">
-      <img src="${esc(heroImg)}"
-           alt="${esc(s.heading)}"
-           style="position:absolute;right:0;top:0;height:100%;width:50%;object-fit:cover;object-position:center top" />
-      <div style="position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 45%,transparent 75%)"></div>
-    </div>
-  </section>`;
+  </div>
+  <div style="position:absolute;inset:0;z-index:0;pointer-events:none">
+    <img src="${esc(img)}" alt="${esc(s.heading)}"
+         style="position:absolute;right:0;top:0;height:100%;width:55%;object-fit:cover;object-position:center top" />
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 42%,rgba(11,15,26,0.4) 70%,transparent 100%)"></div>
+  </div>
+</section>`;
 }
 
 function renderTextImage(s) {
-  const c     = cfg(s);
-  const side  = c.image_position === "left" ? "image-left" : "image-right";
-  const ctaTag = s.cta_action === "modal" ? "button" : "a";
-  const ctaAttr = s.cta_action === "modal"
-    ? `data-open-modal="${esc(s.cta_href)}"`
-    : `href="${esc(s.cta_href)}"`;
-
-  const featureList = (c.feature_list || []).length > 0 ? `
-      <ul class="feature-list">
-        ${c.feature_list.map(f => `<li>${esc(f)}</li>`).join("\n        ")}
-      </ul>` : "";
-
+  const c    = cfg(s);
+  const side = c.image_position === "left" ? "row-reverse" : "row";
+  const features = (c.feature_list || []).map(f =>
+    `<li>${esc(f)}</li>`).join("");
   const cta = s.cta_label
-    ? `<${ctaTag} class="btn btn-primary" ${ctaAttr}>${esc(s.cta_label)}</${ctaTag}>`
-    : "";
+    ? `<a class="btn btn-primary mt-md" href="${esc(s.cta_href)}">${esc(s.cta_label)}</a>` : "";
 
   return `
-  <section class="section ${side}">
-    <div class="container story-grid">
-      <div class="copy-side">
-        ${s.eyebrow ? `<div class="eyebrow">${esc(s.eyebrow)}</div>` : ""}
-        <h2>${esc(s.heading)}</h2>
-        ${s.body ? `<p>${esc(s.body)}</p>` : ""}
-        ${featureList}
-        ${cta}
-      </div>
-      <div class="media-side rounded-photo">
-        ${s.image_url ? `<img src="${esc(s.image_url)}" alt="${esc(s.heading)}" />` : ""}
-      </div>
+<section class="section">
+  <div class="container section-text-image" style="flex-direction:${side}">
+    <div class="text-col" style="flex:1;min-width:0">
+      ${s.eyebrow ? `<div class="eyebrow">${esc(s.eyebrow)}</div>` : ""}
+      <h2>${esc(s.heading)}</h2>
+      ${s.body ? `<p class="text-muted mt-sm">${esc(s.body)}</p>` : ""}
+      ${features ? `<ul class="feature-list">${features}</ul>` : ""}
+      ${cta}
     </div>
-  </section>`;
+    <div class="img-col" style="flex:1;min-width:0">
+      ${s.image_url ? `<img src="${esc(s.image_url)}" alt="${esc(s.heading)}" />` : ""}
+    </div>
+  </div>
+</section>`;
 }
 
 function renderCardGrid(s) {
   const c     = cfg(s);
-  const cards = (c.cards || []);
-  const ctaTag  = s.cta_action === "modal" ? "button" : "a";
-  const ctaAttr = s.cta_action === "modal"
-    ? `data-open-modal="${esc(s.cta_href)}"`
-    : `href="${esc(s.cta_href)}"`;
-
-  const cardHtml = cards.map(card => `
-      <article class="card">
-        ${card.image_url ? `<img src="${esc(card.image_url)}" alt="${esc(card.heading)}" />` : ""}
-        <div class="card-body">
-          <h3>${esc(card.heading)}</h3>
-          ${card.body ? `<p>${esc(card.body)}</p>` : ""}
-        </div>
-      </article>`).join("");
-
-  const cta = s.cta_label
-    ? `<div style="margin-top:30px"><${ctaTag} class="btn btn-primary" ${ctaAttr}>${esc(s.cta_label)}</${ctaTag}></div>`
-    : "";
+  const cards = (c.cards || []).map(card => `
+    <article class="card">
+      ${card.image_url ? `<img class="card-img" src="${esc(card.image_url)}" alt="${esc(card.heading)}" />` : ""}
+      <div class="card-body">
+        <p class="card-title">${esc(card.heading)}</p>
+        ${card.body ? `<p class="card-text">${esc(card.body)}</p>` : ""}
+      </div>
+    </article>`).join("");
 
   return `
-  <section id="${esc(s.section_key)}" class="section">
-    <div class="container">
-      ${s.eyebrow ? `<div class="eyebrow">${esc(s.eyebrow)}</div>` : ""}
-      <h2>${esc(s.heading)}</h2>
-      ${s.body ? `<p style="max-width:760px">${esc(s.body)}</p>` : ""}
-      <div class="cards">${cardHtml}</div>
-      ${cta}
-    </div>
-  </section>`;
+<section class="section">
+  <div class="container">
+    ${s.eyebrow ? `<div class="eyebrow">${esc(s.eyebrow)}</div>` : ""}
+    <h2>${esc(s.heading)}</h2>
+    ${s.body ? `<p class="text-muted mt-sm mb-md" style="max-width:680px">${esc(s.body)}</p>` : ""}
+    <div class="card-grid mt-md">${cards}</div>
+  </div>
+</section>`;
 }
 
 function renderCampaignGrid(s) {
   const c     = cfg(s);
-  const cards = (c.cards || []);
-
-  const cardHtml = cards.map(card => `
-      <article class="card campaign-card">
-        ${card.image_url ? `<img src="${esc(card.image_url)}" alt="${esc(card.heading)}" />` : ""}
-        <div class="card-body">
-          ${card.eyebrow ? `<div class="eyebrow">${esc(card.eyebrow)}</div>` : ""}
-          <h3>${esc(card.heading)}</h3>
-          ${card.body ? `<p>${esc(card.body)}</p>` : ""}
-          <div class="progress-bar"><span class="progress-fill"></span></div>
-          <p class="raised-label">$0 raised &bull; Click to support</p>
-        </div>
-      </article>`).join("");
+  const cards = (c.cards || []).map(card => `
+    <article class="card">
+      ${card.image_url ? `<img class="card-img" src="${esc(card.image_url)}" alt="${esc(card.heading)}" />` : ""}
+      <div class="card-body">
+        ${card.eyebrow ? `<div class="eyebrow">${esc(card.eyebrow)}</div>` : ""}
+        <p class="card-title">${esc(card.heading)}</p>
+        ${card.body ? `<p class="card-text">${esc(card.body)}</p>` : ""}
+      </div>
+    </article>`).join("");
 
   return `
-  <section class="section campaigns">
-    <div class="container">
-      ${s.eyebrow ? `<div class="eyebrow">${esc(s.eyebrow)}</div>` : ""}
-      <h2>${esc(s.heading)}</h2>
-      <div class="cards cards-2">${cardHtml}</div>
-    </div>
-  </section>`;
+<section class="section">
+  <div class="container">
+    ${s.eyebrow ? `<div class="eyebrow">${esc(s.eyebrow)}</div>` : ""}
+    <h2>${esc(s.heading)}</h2>
+    <div class="card-grid mt-md">${cards}</div>
+  </div>
+</section>`;
 }
 
 function renderTestimonial(s) {
   return `
-  <section class="section testimonial-section">
-    <div class="container">
-      <div class="testimonial-card">
-        ${s.eyebrow ? `<div class="eyebrow">${esc(s.eyebrow)}</div>` : ""}
-        <blockquote>${esc(s.heading)}</blockquote>
-        ${s.subheading ? `<cite>${esc(s.subheading)}</cite>` : ""}
-      </div>
-    </div>
-  </section>`;
+<section class="section-testimonial">
+  <div class="container">
+    ${s.eyebrow ? `<div class="eyebrow">${esc(s.eyebrow)}</div>` : ""}
+    <p class="testimonial-quote">&ldquo;${esc(s.heading)}&rdquo;</p>
+    ${s.subheading ? `<p class="testimonial-attr">— ${esc(s.subheading)}</p>` : ""}
+  </div>
+</section>`;
 }
 
 function renderOrgInfo(s) {
-  const c    = cfg(s);
-  const org  = c.org_data || {};
-  const cont = c.contact  || {};
+  const c   = cfg(s);
+  const org = c.org_data || {};
+  const con = c.contact  || {};
 
   const rows = [
     ["Tax status",       org.tax_status],
@@ -231,32 +162,29 @@ function renderOrgInfo(s) {
     ["Parish served",    org.parish],
     ["Operating budget", org.budget],
     ["Sector",           org.sector],
-  ].filter(([, v]) => v).map(([label, val]) => `
-          <div class="org-row">
-            <span class="org-label">${esc(label)}</span>
-            <span class="org-value">${esc(val)}</span>
-          </div>`).join("");
+  ].filter(([,v]) => v).map(([label, val]) =>
+    `<div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span class="text-muted" style="font-size:13px">${esc(label)}</span>
+      <span style="font-size:13px">${esc(val)}</span>
+    </div>`).join("");
 
   return `
-  <section class="section org-info">
-    <div class="container org-grid">
-      <div class="org-card">
-        <div class="eyebrow">Organization Data</div>
-        <h2>${esc(s.heading)}</h2>
-        ${rows}
-      </div>
-      <div class="org-card contact-card">
-        <div class="eyebrow">Contact</div>
-        ${cont.city ? `<h2>${esc(cont.city)}</h2>` : ""}
-        ${cont.email ? `<p>Email: <a href="${esc(cont.email_href || "#")}">${esc(cont.email)}</a></p>` : ""}
-        ${cont.social_desc ? `<p>${esc(cont.social_desc)}</p>` : ""}
-      </div>
+<section class="section">
+  <div class="container" style="display:grid;grid-template-columns:1fr 1fr;gap:3rem">
+    <div>
+      <div class="eyebrow">Organization Data</div>
+      <h3 class="mt-sm mb-md">${esc(s.heading)}</h3>
+      ${rows}
     </div>
-  </section>`;
+    <div>
+      <div class="eyebrow">Contact</div>
+      ${con.city  ? `<h3 class="mt-sm">${esc(con.city)}</h3>` : ""}
+      ${con.email ? `<p class="text-muted mt-sm">Email: <a href="mailto:${esc(con.email)}" style="color:var(--purple-light)">${esc(con.email)}</a></p>` : ""}
+      ${con.social_desc ? `<p class="text-muted mt-sm" style="font-size:13px">${esc(con.social_desc)}</p>` : ""}
+    </div>
+  </div>
+</section>`;
 }
-
-
-// ─── Section dispatcher ───────────────────────────────────────────────────────
 
 function renderSection(s) {
   switch (s.section_type) {
@@ -266,39 +194,39 @@ function renderSection(s) {
     case "campaign_grid": return renderCampaignGrid(s);
     case "testimonial":   return renderTestimonial(s);
     case "org_info":      return renderOrgInfo(s);
-    default:              return `<!-- unknown section type: ${esc(s.section_type)} -->`;
+    default: return "";
   }
 }
 
-// ─── Page shell ───────────────────────────────────────────────────────────────
-
-// pageShell now imported from ./_shell.js
-
-// ─── Main export ──────────────────────────────────────────────────────────────
-
+// ─── Main Export ───────────────────────────────────────────────
 export async function renderHome(env) {
   try {
-    const [sections, footer, navItems, footerNav] = await Promise.all([
+    const [sections, orgData] = await Promise.all([
       getSections(env),
-      getFooter(env),
-      getNav(env),
-      getFooterNav(env),
+      getOrgData(env),
     ]);
 
-    if (!sections.length) return null; // fall back to static
+    if (!sections.length) return null;
 
-    // Asset URLs
-
-    // Build page
-    const body     = sections.map(renderSection).join("\n");
-    const fullBody = `${nav}\n<main>${body}\n</main>\n${foot}`;
+    const body = sections.map(renderSection).join("\n");
 
     return pageShell(
-      "Companions of CPAS - Second Chances for Caddo Dogs", "Companions of CPAS funds critical care, opens transport pathways, and helps dogs at Caddo Parish Animal Services reach the families waiting for them.",
-      fullBody
-    , { theme: 'dark', activePage: '/', orgData: orgData || {} });
+      "Companions of CPAS — Second Chances for Caddo Dogs",
+      "Companions of CPAS funds critical care, opens transport pathways, and helps dogs at Caddo Parish Animal Services reach the families waiting for them.",
+      body,
+      { theme: 'dark', activePage: '/', orgData }
+    );
+
   } catch (err) {
-    console.error("[renderHome] DB error:", err.message || err);
-    return null; // fall back to static asset
+    console.error("[renderHome] error:", err.message || err);
+    // Fallback: fetch the R2-stored static homepage
+    try {
+      const r2  = await env.WEBSITE_ASSETS.get("static/global/index.html");
+      if (r2) {
+        const html = await r2.text();
+        return html;
+      }
+    } catch { /* ignore */ }
+    return null;
   }
 }
