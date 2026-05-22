@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "check:brand": "grep -RInEi \"pawlove|pawloverescue|meauxbility|g7wf09f|22963db|Grant Parish|Sissyj\" src public || true"
+    "check:brand": "grep -RInEi \"pawlove|pawloverescue|meauxbility|g7wf09f|22963db|Grant Parish|Sissyj\" src public || true",
+    "predeploy": "HASH=$(git rev-parse --short HEAD) && sed -i '' \"s|\\.jsx?v=[^\\\"]*|\\.jsx|g; s|\\.jsx\\\"|\\.jsx?v=${HASH}\\\"|g\" public/dashboard/index.html"
   },
   "devDependencies": {
     "wrangler": "^4.86.0"
