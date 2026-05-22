@@ -214,7 +214,7 @@ export async function renderHome(env) {
       "Companions of CPAS — Second Chances for Caddo Dogs",
       "Companions of CPAS funds critical care, opens transport pathways, and helps dogs at Caddo Parish Animal Services reach the families waiting for them.",
       body,
-      { theme: 'dark', activePage: '/', orgData }
+      { theme: 'dark', activePage: '/', orgData, logoDark, logoLight, footerLogo }
     );
 
   } catch (err) {
