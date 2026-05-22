@@ -27,16 +27,44 @@ async function getRecentContext(env) {
 }
 
 // ── Main route handler ────────────────────────────────────────────────────────
+
+// ── Agent Sam KV helpers ───────────────────────────────────────
+async function kvGetJson(env, key) {
+  if (!env.CMS_CACHE) return null;
+  try { return await env.CMS_CACHE.get(key, { type: "json" }); }
+  catch { return null; }
+}
+
+async function kvPutJson(env, key, value, ttl = 60) {
+  if (!env.CMS_CACHE) return;
+  try {
+    await env.CMS_CACHE.put(key, JSON.stringify(value), { expirationTtl: ttl });
+  } catch {}
+}
+
 export async function agentsamRoutes(request, env, url, sessionUser = null) {
   const path = url.pathname;
 
   // GET /api/agentsam/bootstrap
   if (path === "/api/agentsam/bootstrap" && request.method === "GET") {
+    const cacheKey = "agentsam:bootstrap:tenant_companionscpas:v1";
+    const cached = await kvGetJson(env, cacheKey);
+    if (cached) return json({ ...cached, cached: true });
+
     const [commands, models] = await Promise.all([
       env.DB.prepare(`SELECT command_key, command_name, command_category, description, safety_level FROM agentsam_commands WHERE tenant_id='tenant_companionscpas' AND is_enabled=1 ORDER BY sort_order ASC LIMIT 50`).all().catch(() => ({ results: [] })),
       env.DB.prepare(`SELECT model_key, display_name, provider, tier, routing_lane, is_enabled FROM agentsam_model_catalog WHERE is_active=1 ORDER BY tier ASC`).all().catch(() => ({ results: [] })),
     ]);
-    return json({ commands: commands.results||[], models: models.results||[] });
+
+    const payload = {
+      commands: commands.results || [],
+      models: models.results || [],
+      cached: false,
+      cache_ttl_seconds: 60,
+    };
+
+    await kvPutJson(env, cacheKey, payload, 60);
+    return json(payload);
   }
 
   // POST /api/agentsam/tool/approve — execute an approved write action
@@ -364,6 +392,11 @@ CRITICAL RULES:
             qualityScore: _reward,
             rewardReason: `ok|lat:${_latMs}ms|cost:$${callCostUsd.toFixed(6)}|tools:${pendingActions.length}`,
           });
+
+          answer = String(answer || "").trim();
+          if (!answer) {
+            answer = "I ran the Agent Sam tool/model loop, but the selected model returned an empty final message. The run, tool steps, routing arm, and usage event were still recorded, so this is an SSE/model-output parsing issue rather than a total failure.";
+          }
 
           send({ title: "Writing response", status: "running" }, "step");
 
