@@ -1,6 +1,6 @@
 import { syncToIAM } from "./api/resolveModel.js";
 import { authRoutes } from './api/auth_login.js';
-import { sessionRoutes } from './api/session_api.js';
+import { sessionRoutes, getAuthUser } from './api/session_api.js';
 import { agentsamRoutes } from './api/agentsam_api.js';
 import { agentsamToolsRoutes } from './api/agentsam_tools.js';
 import { cmsRoutes } from './api/cms_api.js';
@@ -21,47 +21,49 @@ function json(data, status = 200) {
 }
 
 async function asset(env, request, path) {
-  const url = new URL(request.url);
+  // Primary: WEBSITE_ASSETS (R2) — DB-driven content
   try {
-    const res = await env.ASSETS.fetch(new Request(url.origin + path, request));
-    if (res.ok) return res;
-  } catch {}
-  // Fallback: R2 WEBSITE_ASSETS
-  try {
-    const key = path.replace(/^\//, '');
+    const key = path.replace(/^\//, '') || 'index.html';
     const obj = await env.WEBSITE_ASSETS.get(key);
     if (obj) {
-      const headers = new Headers();
-      headers.set('content-type', obj.httpMetadata?.contentType || 'text/html');
-      headers.set('cache-control', 'public, max-age=300');
-      return new Response(obj.body, { headers });
+      const ext = key.split('.').pop().toLowerCase();
+      const mime = {
+        html:'text/html', css:'text/css', js:'application/javascript',
+        jsx:'application/javascript', json:'application/json',
+        png:'image/png', webp:'image/webp', jpg:'image/jpeg',
+        svg:'image/svg+xml', ico:'image/x-icon', woff2:'font/woff2',
+      }[ext] || obj.httpMetadata?.contentType || 'text/html';
+      return new Response(obj.body, {
+        headers: {
+          'content-type': mime,
+          'cache-control': 'public, max-age=300',
+        }
+      });
     }
+  } catch {}
+  // Fallback: ASSETS (static binding — being migrated out)
+  try {
+    const url = new URL(request.url);
+    const res = await env.ASSETS.fetch(new Request(url.origin + path, request));
+    if (res.ok) return res;
   } catch {}
   return new Response('Not found', { status: 404 });
 }
 
-// ── Validate session cookie → returns user row or null ────────────────────────
-async function getSession(request, env) {
-  const cookieHeader = request.headers.get("Cookie") || "";
-  const match = cookieHeader.match(/cpas_session=([^;]+)/);
-  if (!match) return null;
-  const sessionId = match[1];
-  return env.DB.prepare(`
-    SELECT s.user_id, s.id AS session_id, u.full_name, u.email
-    FROM sessions s
-    JOIN users u ON u.id = s.user_id
-    WHERE s.id = ?
-      AND s.expires_at > datetime('now')
-      AND s.revoked_at IS NULL
-    LIMIT 1
-  `).bind(sessionId).first().catch(() => null);
-}
+// ── Session validation — delegates to agentsam_sessions via session_api.js ─────
+// getAuthUser(request, env) reads agentsam_sessions WHERE status='active'
+// Alias kept as getSession for backward compat with existing call sites
+const getSession = getAuthUser;
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith("/api/agentsam/tools/")) {
+      const session = await getSession(request, env);
+      if (!session) return new Response(JSON.stringify({ error: "Not authenticated" }), {
+        status: 401, headers: { "Content-Type": "application/json" }
+      });
       const toolResult = await agentsamToolsRoutes(request, env, url);
       if (toolResult) return toolResult;
     }

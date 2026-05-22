@@ -26,7 +26,14 @@
  * All writes log to agentsam_tool_chain if agent_run_id is provided.
  */
 
-import { json } from "./agentsam_api.js";
+// ── Local response helper (agentsam_api.js does not export json) ─────────────
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 
 const TENANT = "tenant_companionscpas";
 

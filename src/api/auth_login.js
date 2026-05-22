@@ -19,7 +19,7 @@ async function pbkdf2Verify(password, saltHex, hashHex) {
 }
 
 function cookie(sessionId) {
-  return `cpas_session=${sessionId}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
+  return `cpas_session=${sessionId}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`;
 }
 
 export async function authRoutes(request, env, url) {
@@ -49,17 +49,26 @@ export async function authRoutes(request, env, url) {
 
   if (!row) return json({ error: "Invalid email or password" }, 401);
 
-  const ok = await pbkdf2Verify(data.password, row.password_salt, row.password_hash);
-  if (!ok) return json({ error: "Invalid email or password" }, 401);
+  const valid = await pbkdf2Verify(data.password, row.password_salt, row.password_hash);
+  if (!valid) return json({ error: "Invalid email or password" }, 401);
 
+  // Revoke all previous active agentsam_sessions for this user
+  await env.DB.prepare(`
+    UPDATE agentsam_sessions
+    SET status = 'revoked', updated_at = datetime('now')
+    WHERE user_id = ? AND status = 'active'
+  `).bind(row.id).run().catch(() => {});
+
+  // Create new agentsam_session
   const sessionId = crypto.randomUUID();
-  const expires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
 
   await env.DB.prepare(`
-    INSERT INTO sessions (id, user_id, expires_at, created_at)
-    VALUES (?, ?, ?, datetime('now'))
-  `).bind(sessionId, row.id, expires).run();
+    INSERT INTO agentsam_sessions
+      (id, tenant_id, user_id, session_title, route_path, mode, status, created_at, updated_at)
+    VALUES (?, 'tenant_companionscpas', ?, 'Dashboard Session', '/dashboard', 'ask', 'active', datetime('now'), datetime('now'))
+  `).bind(sessionId, row.id).run();
 
+  // Update last_login
   await env.DB.prepare(`
     UPDATE users SET last_login_at = datetime('now'), updated_at = datetime('now')
     WHERE id = ?
@@ -67,11 +76,7 @@ export async function authRoutes(request, env, url) {
 
   return json({
     success: true,
-    user: {
-      id: row.id,
-      email: row.email,
-      full_name: row.full_name
-    },
+    user: { id: row.id, email: row.email, full_name: row.full_name },
     redirect: "/dashboard"
   }, 200, {
     "Set-Cookie": cookie(sessionId)
