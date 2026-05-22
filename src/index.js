@@ -9,6 +9,8 @@ import { contactApiRoutes } from './api/contact_api.js';
 import { donationApiRoutes } from './api/donation_api.js';
 import { paymentsEmailRoutes } from './api/payments_email.js';
 import { socialRoutes } from './api/social.js';
+import { renderHome } from "./api/render_home.js";
+
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -105,6 +107,18 @@ export default {
       }
       return env.ASSETS.fetch(request);
     }
+
+    // ── PRIMETECH: DB-driven home page ──────────────────────────────────────────
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "")) {
+      const html = await renderHome(env);
+      return new Response(html, {
+        headers: {
+          "Content-Type": "text/html;charset=UTF-8",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+    // ── END PRIMETECH ─────────────────────────────────────────────────────────
 
     // ── Everything else: static assets ───────────────────────────────────────
     return env.ASSETS.fetch(request);

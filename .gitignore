@@ -18,3 +18,5 @@ migration/d1/backups/
 migration/d1/backups/
 migration/d1/*.sqlite
 migration/d1/*.db
+*.json
+url_mapping.json
