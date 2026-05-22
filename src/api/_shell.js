@@ -41,7 +41,7 @@ export function renderHeader({ theme = 'dark', activePage = '/' } = {}) {
   return `
 <header class="site-header">
   <div class="container header-inner">
-    <a href="/" class="logo-link" aria-label="Companions of CPAS — Home">
+    <a href="/admin/login" class="logo-link" aria-label="Companions of CPAS — Home">
       <img src="${esc(logo)}" alt="Companions of CPAS" />
     </a>
     <nav aria-label="Main navigation">
