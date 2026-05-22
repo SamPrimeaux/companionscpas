@@ -321,7 +321,7 @@ function pageShell(title, metaDesc, bodyHtml) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="/_shared.css" />
+  <link rel="stylesheet" href="https://assets.meauxxx.com/static/global/shared.css" />
   <meta name="description" content="${esc(metaDesc)}" />
   <title>${esc(title)}</title>
   <link rel="stylesheet" href="/css/style.css" />
