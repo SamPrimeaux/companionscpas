@@ -244,7 +244,19 @@ export async function callAI(env, {
   else if (typeof raw === "string")              text = raw;
   else                                           text = JSON.stringify(raw ?? "");
 
-  return { text: text.trim(), model: resolvedModel, provider };
+  // Capture token usage — WAI returns usage.prompt_tokens / usage.completion_tokens
+  // OpenAI-compatible returns usage.prompt_tokens / usage.completion_tokens too
+  const usage = raw?.usage || {};
+  const inputTokens  = usage.prompt_tokens     || usage.input_tokens  || 0;
+  const outputTokens = usage.completion_tokens || usage.output_tokens || 0;
+
+  return {
+    text: text.trim(),
+    model: resolvedModel,
+    provider,
+    inputTokens,
+    outputTokens,
+  };
 }
 
 // ── JSON helper ───────────────────────────────────────────────────────────────

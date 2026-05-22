@@ -88,11 +88,14 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
         const send = (payload, event = "message") =>
           controller.enqueue(enc.encode(sse(payload, event)));
 
-        let usedArm     = null;
-        let usedModel   = null;
+        let usedArm      = null;
+        let usedModel    = null;
         let usedProvider = null;
-        let answer      = "";
-        let success     = false;
+        let answer       = "";
+        let success      = false;
+        let inputTokens  = 0;
+        let outputTokens = 0;
+        let callCostUsd  = 0;
 
         try {
           send({ run_id: runId, status: "started", mode }, "status");
@@ -150,17 +153,37 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
               }],
               maxTokens: 1024,
             });
-            answer    = result.text;
-            success   = true;
+            answer       = result.text;
+            inputTokens  = result.inputTokens  || 0;
+            outputTokens = result.outputTokens || 0;
+            success      = true;
 
-            // Record success on primary arm
+            // Compute real cost from model catalog
+            const _cat = await env.DB.prepare(
+              `SELECT cost_per_1k_in, cost_per_1k_out FROM agentsam_model_catalog WHERE model_key=? LIMIT 1`
+            ).bind(usedModel).first().catch(() => null);
+            if (_cat) {
+              callCostUsd = (inputTokens  / 1000 * (_cat.cost_per_1k_in  || 0))
+                          + (outputTokens / 1000 * (_cat.cost_per_1k_out || 0));
+            }
+
+            // Thompson reward signal:
+            // base 1.0 for success + latency bonus + cost efficiency bonus
+            const _latMs   = Date.now() - callStart;
+            const _latBonus  = _latMs < 3000 ? 0.2 : _latMs < 6000 ? 0.1 : 0;
+            const _costBonus = callCostUsd < 0.001 ? 0.1 : 0;
+            const _reward    = Math.min(1.0, 1.0 + _latBonus + _costBonus);
+
             await recordOutcome(env, {
               armId: usedArm, agentRunId, modelKey: usedModel, provider: usedProvider,
               taskType, mode,
-              latencyMs:    Date.now() - callStart,
-              inputTokens:  0, outputTokens: 0, costUsd: 0,
+              latencyMs:    _latMs,
+              inputTokens,
+              outputTokens,
+              costUsd:      callCostUsd,
               success:      true,
-              rewardReason: "primary_ok",
+              qualityScore: _reward,
+              rewardReason: `primary_ok|lat:${_latMs}ms|cost:$${callCostUsd.toFixed(6)}`,
             });
 
           } catch (primaryErr) {
@@ -261,6 +284,20 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
             classifyIntent(prompt, routePath), mode,
             Date.now() - started
           ).run().catch(() => {});
+
+          // Back-fill real token counts + cost on usage event + agent_run
+          const _totalTok = inputTokens + outputTokens;
+          await env.DB.prepare(`
+            UPDATE agentsam_usage_events
+            SET tokens_in=?, tokens_out=?, total_tokens=?, cost_usd=?
+            WHERE agent_run_id=?
+          `).bind(inputTokens, outputTokens, _totalTok, callCostUsd, agentRunId).run().catch(() => {});
+
+          await env.DB.prepare(`
+            UPDATE agentsam_agent_run
+            SET input_tokens=?, output_tokens=?, cost_usd=?, quality_score=?
+            WHERE id=?
+          `).bind(inputTokens, outputTokens, callCostUsd, success ? 1.0 : 0.0, agentRunId).run().catch(() => {});
 
           // Async IAM sync — fire and forget
           env.AGENTSAM_BRIDGE_KEY && syncToIAM(env).catch(() => {});
