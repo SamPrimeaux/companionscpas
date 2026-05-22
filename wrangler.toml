@@ -41,3 +41,7 @@ crons = ["0 6 * * *"]
 [[r2_buckets]]
 binding = "WEBSITE_ASSETS"
 bucket_name = "companionscpas"
+
+[[kv_namespaces]]
+binding = "CMS_CACHE"
+id = "0b410337a8494fc982ea04c5bde1eab4"
