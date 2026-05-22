@@ -1,3 +1,4 @@
+import { pageShell, renderHeader, renderFooter } from './_shell.js';
 /**
  * PRIMETECH v1 — Home Page Renderer
  * render_home.js
@@ -315,22 +316,7 @@ function renderSection(s) {
 
 // ─── Page shell ───────────────────────────────────────────────────────────────
 
-function pageShell(title, metaDesc, bodyHtml) {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="${esc(metaDesc)}" />
-  <title>${esc(title)}</title>
-  <link rel="stylesheet" href="https://assets.meauxxx.com/static/global/shared.css" />
-  <link rel="icon" href="/logo.png" />
-</head>
-<body>
-${bodyHtml}
-</body>
-</html>`;
-}
+// pageShell now imported from ./_shell.js
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
@@ -356,10 +342,9 @@ export async function renderHome(env) {
     const fullBody = `${nav}\n<main>${body}\n</main>\n${foot}`;
 
     return pageShell(
-      "Companions of CPAS - Second Chances for Caddo Dogs",
-      "Companions of CPAS funds critical care, opens transport pathways, and helps dogs at Caddo Parish Animal Services reach the families waiting for them.",
+      "Companions of CPAS - Second Chances for Caddo Dogs", "Companions of CPAS funds critical care, opens transport pathways, and helps dogs at Caddo Parish Animal Services reach the families waiting for them.",
       fullBody
-    );
+    , { theme: 'dark', activePage: '/', orgData: orgData || {} });
   } catch (err) {
     console.error("[renderHome] DB error:", err.message || err);
     return null; // fall back to static asset
