@@ -76,24 +76,6 @@ function esc(s) {
 
 // ─── Section renderers ────────────────────────────────────────────────────────
 
-function renderNav(navItems, logoUrl) {
-  const links = navItems.map(n => {
-    const cls = n.css_class ? ` class="${esc(n.css_class)}"` : "";
-    return `<a href="${esc(n.href)}"${cls}>${esc(n.label)}</a>`;
-  }).join("\n        ");
-
-  return `
-  <header class="site-header">
-    <div class="container header-inner">
-      <a href="/" class="logo-link">
-        <img src="${esc(logoUrl)}" alt="Companions of CPAS" class="logo" />
-      </a>
-      <nav class="main-nav">
-        ${links}
-      </nav>
-    </div>
-  </header>`;
-}
 
 function renderHero(s) {
   const c = cfg(s);
@@ -273,36 +255,6 @@ function renderOrgInfo(s) {
   </section>`;
 }
 
-function renderFooter(footer, footerNav, logoUrl, badgeUrl) {
-  const c    = footer ? cfg(footer) : {};
-  const body = footer?.body || "";
-
-  const navLinks = (footerNav || []).map(n =>
-    `<a href="${esc(n.href)}">${esc(n.label)}</a>`
-  ).join("\n          ");
-
-  return `
-  <footer class="site-footer">
-    <div class="container footer-grid">
-      <div class="footer-brand">
-        <a href="/">
-          <img src="${esc(logoUrl)}" alt="Companions of CPAS" class="footer-logo" />
-        </a>
-        ${body ? `<p>${esc(body)}</p>` : ""}
-      </div>
-      <div class="footer-nav">
-        <p class="footer-nav-heading">Pages</p>
-        ${navLinks}
-      </div>
-      <div class="footer-badge">
-        <span>Developed by</span>
-        <a href="${esc(c.badge_href || "https://inneranimalmedia.com")}" target="_blank" rel="noopener">
-          <img src="${esc(badgeUrl)}" alt="Inner Animal Media" class="iam-badge" />
-        </a>
-      </div>
-    </div>
-  </footer>`;
-}
 
 // ─── Section dispatcher ───────────────────────────────────────────────────────
 
@@ -336,13 +288,9 @@ export async function renderHome(env) {
     if (!sections.length) return null; // fall back to static
 
     // Asset URLs
-    const logoUrl  = "https://assets.meauxxx.com/static/assets/logo-dark.webp";
-    const badgeUrl = "https://assets.meauxxx.com/static/assets/iam_badge.jpg";
 
     // Build page
-    const nav      = renderNav(navItems, logoUrl);
     const body     = sections.map(renderSection).join("\n");
-    const foot     = renderFooter(footer, footerNav, logoUrl, badgeUrl);
     const fullBody = `${nav}\n<main>${body}\n</main>\n${foot}`;
 
     return pageShell(
