@@ -35,12 +35,24 @@ async function getSections(env) {
   return results || [];
 }
 
-async function getOrgData(env) {
-  const row = await env.DB.prepare(`
-    SELECT organization_json FROM cms_brand_settings
-    WHERE id = 'brand_companionscpas' LIMIT 1
-  `).bind().first();
-  try { return JSON.parse(row?.organization_json || "{}"); } catch { return {}; }
+async function getBrand(env) {
+  if (env.CMS_CACHE) {
+    const cached = await env.CMS_CACHE.get('brand:tenant_companionscpas', { type: 'json' }).catch(() => null);
+    if (cached) return cached;
+  }
+  const row = await env.DB.prepare(
+    "SELECT organization_json, logo_dark_url, logo_light_url, footer_logo_dark_url FROM cms_brand_settings WHERE id = 'brand_companionscpas' LIMIT 1"
+  ).bind().first().catch(() => null);
+  const brand = {
+    orgData:    (() => { try { return JSON.parse(row?.organization_json || '{}'); } catch { return {}; } })(),
+    logoDark:   row?.logo_dark_url   || 'https://assets.meauxxx.com/static/global/companionsofcpa-newlogo.webp',
+    logoLight:  row?.logo_light_url  || 'https://assets.meauxxx.com/static/global/companionsofcpa-newlogo.webp',
+    footerLogo: row?.footer_logo_dark_url || 'https://assets.meauxxx.com/static/global/companionsofcpa-newlogo.webp',
+  };
+  if (env.CMS_CACHE) {
+    await env.CMS_CACHE.put('brand:tenant_companionscpas', JSON.stringify(brand), { expirationTtl: 60 }).catch(() => {});
+  }
+  return brand;
 }
 
 // ─── Section Renderers ─────────────────────────────────────────
@@ -201,10 +213,11 @@ function renderSection(s) {
 // ─── Main Export ───────────────────────────────────────────────
 export async function renderHome(env) {
   try {
-    const [sections, orgData] = await Promise.all([
+    const [sections, brand] = await Promise.all([
       getSections(env),
-      getOrgData(env),
+      getBrand(env),
     ]);
+    const { orgData, logoDark, logoLight, footerLogo } = brand || {};
 
     if (!sections.length) return null;
 
@@ -214,7 +227,7 @@ export async function renderHome(env) {
       "Companions of CPAS — Second Chances for Caddo Dogs",
       "Companions of CPAS funds critical care, opens transport pathways, and helps dogs at Caddo Parish Animal Services reach the families waiting for them.",
       body,
-      { theme: 'dark', activePage: '/', orgData, logoDark, logoLight, footerLogo }
+      { theme: 'dark', activePage: '/', orgData: orgData || {}, logoDark, logoLight, footerLogo }
     );
 
   } catch (err) {
