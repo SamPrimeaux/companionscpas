@@ -201,11 +201,10 @@ function renderSection(s) {
 // ─── Main Export ───────────────────────────────────────────────
 export async function renderHome(env) {
   try {
-    const [sections, brand] = await Promise.all([
+    const [sections, orgData] = await Promise.all([
       getSections(env),
-      getBrand(env),
+      getOrgData(env),
     ]);
-    const { orgData, logoDark, logoLight, footerLogo } = brand;
 
     if (!sections.length) return null;
 
@@ -215,7 +214,7 @@ export async function renderHome(env) {
       "Companions of CPAS — Second Chances for Caddo Dogs",
       "Companions of CPAS funds critical care, opens transport pathways, and helps dogs at Caddo Parish Animal Services reach the families waiting for them.",
       body,
-      { theme: 'dark', activePage: '/', orgData, logoDark, logoLight, footerLogo }
+      { theme: 'dark', activePage: '/', orgData }
     );
 
   } catch (err) {
