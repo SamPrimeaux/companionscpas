@@ -387,14 +387,52 @@ function renderFaq(section, blocks) {
 }
 
 function renderAnimalGrid(section, blocks) {
-  const cards = sortBlocks(blocks).map((block) => {
-    const parts = cardParts(block);
+  function sanitizeAnimalImageUrl(value) {
+    const raw = text(value).trim();
+    if (!raw) return "";
+    if (raw.startsWith("https://assets.meauxxx.com/") || raw.startsWith("/assets/")) {
+      return escapeAttribute(raw);
+    }
+    return "";
+  }
+
+  function truncateText(value, max = 120) {
+    const raw = text(value).trim();
+    if (!raw) return "";
+    if (raw.length <= max) return raw;
+    return `${raw.slice(0, max - 1).trimEnd()}…`;
+  }
+
+  const cardBlocks = sortBlocks(blocks).filter((block) => {
+    const blockType = pickText(block, ["block_type"]).toLowerCase();
+    return !blockType || blockType === "card";
+  });
+
+  const cards = cardBlocks.map((block) => {
+    const config = safeJson(block.config_json, {});
+    const name = pickText(block, ["title", "heading", "block_key"]) || pickText(config, ["name"]);
+    const breed = pickText(block, ["breed"]) || pickText(config, ["breed"]);
+    const sex = pickText(block, ["sex"]) || pickText(config, ["sex"]);
+    const ageLabel = pickText(block, ["age_label"]) || pickText(config, ["age_label"]);
+    const meta = [breed, sex, ageLabel].filter(Boolean).join(" · ");
+    const bio = truncateText(pickText(block, ["body"]) || pickText(config, ["bio", "description"]), 120);
+
+    const rawImage = pickText(block, ["image_url"]) || pickText(config, ["photo_url", "image_url"]);
+    const imageUrl = sanitizeAnimalImageUrl(rawImage);
+    const altText = pickText(block, ["alt_text", "title"]) || pickText(config, ["alt_text"]) || (name ? `${name} photo` : "Adoptable dog photo");
+
+    const labelName = name || "this dog";
+    const mailto = `mailto:companionsCPAS@gmail.com?subject=${encodeURIComponent(`Inquiry about ${labelName}`)}`;
+
     return `
-    <article class="cpas-card cpas-animal-card">
-      ${renderImage(parts.imageUrl, parts.imageAlt || parts.title || "Animal image", "cpas-card-image")}
-      ${parts.title ? `<h3 class="cpas-card-title">${escapeHtml(parts.title)}</h3>` : ""}
-      ${parts.body ? `<p class="cpas-card-body">${escapeHtml(parts.body)}</p>` : ""}
-      ${renderCta(parts.ctaLabel, parts.ctaUrl, "cpas-btn cpas-btn-secondary")}
+    <article class="cpas-animal-card">
+      ${imageUrl ? `<img src="${imageUrl}" alt="${escapeAttribute(altText)}" loading="lazy">` : ""}
+      <div class="cpas-animal-card__body">
+        ${name ? `<h3>${escapeHtml(name)}</h3>` : ""}
+        ${meta ? `<p class="cpas-animal-meta">${escapeHtml(meta)}</p>` : ""}
+        ${bio ? `<p class="cpas-animal-bio">${escapeHtml(bio)}</p>` : ""}
+        <a href="${escapeAttribute(mailto)}" class="cpas-btn">Ask about ${escapeHtml(labelName)}</a>
+      </div>
     </article>`.trim();
   }).join("");
 
@@ -402,7 +440,7 @@ function renderAnimalGrid(section, blocks) {
 <section class="cpas-section cpas-animal-grid" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
   ${renderSectionHeader(section)}
   <div class="cpas-cards">
-    ${cards || `<p class="cpas-empty">Animal content will appear here.</p>`}
+    ${cards || `<p class="cpas-empty">Adoptable dogs will appear here. Check back soon.</p>`}
   </div>
 </section>`.trim();
 }
