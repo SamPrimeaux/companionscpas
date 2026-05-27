@@ -34,12 +34,18 @@ function parseJson(value, fallback = {}) {
 }
 
 function normalizeRoute(route) {
-  const raw = text(route).trim() || "/";
-  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
-  if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")) {
-    return withLeadingSlash.replace(/\/+$/, "");
+  const raw = text(route).trim();
+  if (!raw) return "/";
+
+  let normalized = raw.replace(/\/+/g, "/");
+  if (!normalized.startsWith("/")) normalized = `/${normalized}`;
+  normalized = normalized.replace(/\/+/g, "/");
+
+  if (normalized.length > 1) {
+    normalized = normalized.replace(/\/+$/, "");
   }
-  return withLeadingSlash || "/";
+
+  return normalized || "/";
 }
 
 function sanitizePathSegment(value, fallback = "section") {
@@ -57,6 +63,27 @@ function getPageAssetBase(route) {
 
 function contentTypeOptions() {
   return { httpMetadata: { contentType: "text/html; charset=utf-8" } };
+}
+
+function safeUrl(value, fallback = "#") {
+  const raw = text(value).trim();
+  if (!raw) return fallback;
+
+  if (raw.startsWith("//")) return fallback;
+  if (raw.startsWith("/")) return escapeHtml(raw);
+  if (raw.startsWith("#")) return escapeHtml(raw);
+
+  const lower = raw.toLowerCase();
+  if (
+    lower.startsWith("mailto:") ||
+    lower.startsWith("tel:") ||
+    lower.startsWith("https://") ||
+    lower.startsWith("http://")
+  ) {
+    return escapeHtml(raw);
+  }
+
+  return fallback;
 }
 
 function randomId(prefix) {
@@ -114,7 +141,7 @@ function fallbackHeader(brand) {
   const navItems = navFromBrand
     .map((item) => {
       const label = escapeHtml(item?.label || "");
-      const href = escapeHtml(item?.href || "#");
+      const href = safeUrl(item?.href, "#");
       if (!label) return "";
       return `<li><a href="${href}">${label}</a></li>`;
     })
@@ -267,7 +294,8 @@ async function logPublishArtifact(env, data) {
 
     const sql = `INSERT INTO cms_publish_artifacts (${insertColumns.join(", ")}) VALUES (${placeholders.join(", ")})`;
     await env.DB.prepare(sql).bind(...binds).run();
-  } catch {
+  } catch (error) {
+    console.warn("[renderPage] cms_publish_artifacts logging skipped:", error?.message || error);
     // Artifact logging must never fail page render.
   }
 }
