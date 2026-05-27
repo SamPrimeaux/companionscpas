@@ -208,6 +208,39 @@ export default {
       }
     }
 
+    // ── CMS services page: KV -> R2 -> hardcoded fallback ───────────────────
+    if (request.method === "GET" && url.pathname === "/services") {
+      const cacheKey = "page:/services";
+      const htmlHeaders = {
+        "Content-Type": "text/html;charset=utf-8",
+        "Cache-Control": "public,max-age=60",
+      };
+
+      try {
+        if (env.CMS_CACHE) {
+          const cached = await env.CMS_CACHE.get(cacheKey);
+          if (cached) return new Response(cached, { headers: htmlHeaders });
+        }
+      } catch (err) {
+        console.warn("[services-serve] KV get failed:", err?.message || err);
+      }
+
+      try {
+        const artifact = await env.WEBSITE_ASSETS.get("static/pages/services/index.html");
+        if (artifact) {
+          const html = await artifact.text();
+          if (env.CMS_CACHE) {
+            await env.CMS_CACHE.put(cacheKey, html, { expirationTtl: 3600 }).catch((err) => {
+              console.warn("[services-serve] KV backfill failed:", err?.message || err);
+            });
+          }
+          return new Response(html, { headers: htmlHeaders });
+        }
+      } catch (err) {
+        console.warn("[services-serve] R2 get failed:", err?.message || err);
+      }
+    }
+
     // ── Everything else: static assets ───────────────────────────────────────
     return env.ASSETS.fetch(request);
   },
