@@ -1,10 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { renderSection } from "../src/api/render_section.js";
-import { assembleFullPage, getGlobalPartial } from "../src/api/render_page.js";
+import { assembleFullPage } from "../src/api/render_page.js";
 
 const TENANT_ID = "tenant_companionscpas";
 const ROUTES = ["/about", "/adopt", "/services"];
+const GLOBAL_HEADER_URL = "https://assets.meauxxx.com/static/global/header.html";
+const GLOBAL_FOOTER_URL = "https://assets.meauxxx.com/static/global/footer.html";
 
 function runWrangler(args) {
   try {
@@ -75,7 +77,24 @@ function groupBlocksBySection(blocks) {
   return map;
 }
 
-async function renderRoute(route, brand) {
+function buildAdoptAnimalBlocks(rows) {
+  return (rows || []).map((row) => ({
+    block_key: row?.id || "",
+    block_type: "card",
+    title: row?.name || "",
+    body: row?.bio || "",
+    image_url: row?.photo_url || "",
+    alt_text: row?.name || "",
+  }));
+}
+
+async function fetchGlobalPartial(url, name) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch ${name}: ${res.status} ${res.statusText}`);
+  return res.text();
+}
+
+async function renderRoute(route, brand, partials) {
   const pageRows = d1Query(
     `SELECT * FROM cms_pages WHERE tenant_id='${TENANT_ID}' AND route_path='${route}' LIMIT 1`
   );
@@ -92,8 +111,23 @@ async function renderRoute(route, brand) {
      WHERE tenant_id='${TENANT_ID}' AND page_route='${route}'
      ORDER BY section_key, sort_order`
   );
+  let adoptAnimalCount = 0;
 
   const blocksBySection = groupBlocksBySection(blocks);
+  if (route === "/adopt") {
+    const animalRows = d1Query(
+      `SELECT id, name, breed, sex, age_label, photo_url, bio,
+              weight_label, energy_level, foster_needed, featured, sort_order
+       FROM animal_profiles
+       WHERE tenant_id='tenant_companionscpas'
+         AND public_visible=1 AND status IN ('available','foster')
+       ORDER BY featured DESC, sort_order ASC`
+    );
+    const animalBlocks = buildAdoptAnimalBlocks(animalRows);
+    blocksBySection.set("adoptable_dogs", animalBlocks);
+    adoptAnimalCount = animalBlocks.length;
+  }
+
   const sectionHtmls = sections.map((section) => {
     const sectionKey = String(section?.section_key || "");
     const sectionBlocks = blocksBySection.get(sectionKey) || [];
@@ -104,10 +138,10 @@ async function renderRoute(route, brand) {
     sectionHtmls.push("<!-- no visible sections found -->");
   }
 
-  const partialEnv = {};
-  const headerHtml = await getGlobalPartial("header", brand, partialEnv);
-  const footerHtml = await getGlobalPartial("footer", brand, partialEnv);
-  return assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHtml);
+  return {
+    html: assembleFullPage(page, brand, partials.headerHtml, sectionHtmls, partials.footerHtml),
+    adoptAnimalCount,
+  };
 }
 
 async function uploadRouteHtml(route, html) {
@@ -133,12 +167,21 @@ async function main() {
     `SELECT * FROM cms_brand_settings WHERE tenant_id='${TENANT_ID}' ORDER BY updated_at DESC, id DESC LIMIT 1`
   );
   const brand = buildBrand(brandRows[0] || null);
+  const [headerHtml, footerHtml] = await Promise.all([
+    fetchGlobalPartial(GLOBAL_HEADER_URL, "header"),
+    fetchGlobalPartial(GLOBAL_FOOTER_URL, "footer"),
+  ]);
+  const partials = { headerHtml, footerHtml };
   const uploaded = [];
 
   for (const route of ROUTES) {
-    const html = await renderRoute(route, brand);
+    const { html, adoptAnimalCount } = await renderRoute(route, brand, partials);
     const result = await uploadRouteHtml(route, html);
-    uploaded.push(result);
+    uploaded.push({
+      ...result,
+      bytes: Buffer.byteLength(html, "utf8"),
+      adoptAnimalCount: route === "/adopt" ? adoptAnimalCount : undefined,
+    });
   }
 
   console.log(JSON.stringify({ uploaded }, null, 2));
