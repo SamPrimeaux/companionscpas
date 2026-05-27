@@ -1,536 +1,523 @@
 # CompanionsCPAS Platform
 
-**Companions of CPAS** — Volunteer-powered 501(c)(3) helping dogs at Caddo Parish Animal Services receive medical care, transport support, and second chances.
+**Companions of CPAS** — 501(c)(3) volunteer-powered rescue helping dogs at Caddo Parish Animal Services receive medical care, transport support, and second chances.
 
-- **Live site:** `https://companionscpas.meauxbility.workers.dev` *(migrating to client domain)*
-- **Dashboard:** `https://companionscpas.meauxbility.workers.dev/dashboard`
-- **Stack:** Cloudflare Workers · D1 · R2 · KV · Workers AI
-- **Developed by:** [Inner Animal Media](https://inneranimalmedia.com)
+- **Live site:** `https://companionscpas.meauxbility.workers.dev` *(domain pending)*
+- **Dashboard:** `/dashboard` *(auth-gated, session-enforced at Worker level)*
 - **Repo:** `github.com/SamPrimeaux/companionscpas-platform`
+- **Developed by:** [Inner Animal Media](https://inneranimalmedia.com)
+- **Stack:** Cloudflare Workers · D1 · R2 · KV · Workers AI
 
 ---
 
-## Table of Contents
+## Agent Quickstart
 
-1. [Architecture Overview](#architecture-overview)
-2. [Worker Bindings](#worker-bindings)
-3. [Infrastructure](#infrastructure)
-4. [CMS System](#cms-system)
-5. [Runtime Contract](#runtime-contract)
-6. [Database Schema](#database-schema)
-7. [API Routes](#api-routes)
-8. [R2 Asset Structure](#r2-asset-structure)
-9. [Brand & Assets](#brand--assets)
-10. [Agent Sam Integration](#agent-sam-integration)
-11. [Development](#development)
-12. [Deployment](#deployment)
-13. [Current Status & Known Gaps](#current-status--known-gaps)
-14. [Client Handoff Notes](#client-handoff-notes)
+> Read this section first. It tells you what is wired, what is not, and where every file lives.
 
----
+### What is fully working
+- Homepage `/` — D1+KV driven via `src/api/render_home.js`
+- Dashboard auth — cookie `cpas_session` → `agentsam_sessions` lookup (30-day window)
+- CMS CRUD — section/block/page/brand/asset save + KV invalidation (`src/api/cms_api.js`)
+- Agent Sam chat + tool dispatch (`src/api/agentsam_api.js`, `src/api/agentsam_tools.js`)
+- Donation intent + Stripe webhook (`src/api/donation_api.js`, `src/api/payments_email.js`)
+- Adopt/foster application form — 3-step, D1-backed (`cpas_foster_applications`)
+- Auth login, logout, password reset, session management
 
-## Architecture Overview
+### What is NOT wired — the publish pipeline
+The CMS publish pipeline has **never been executed**. `POST /api/cms/publish` currently only marks a page `published` in D1 — it does not render HTML or write to R2. Public pages (`/about`, `/adopt`, `/services`, `/donate`) are served from hardcoded HTML templates, not from D1 `cms_page_sections` data.
 
-```
-Browser
-  │
-  ▼
-Cloudflare Worker (src/index.js)
-  │
-  ├── /api/*          → src/api/*.js handlers
-  ├── /dashboard      → dashboard.html (React SPA, auth-gated)
-  ├── /              → render_home.js (D1+KV driven)
-  ├── /about|adopt|services|donate → [PENDING: CMS publish pipeline]
-  └── static assets  → WEBSITE_ASSETS (R2) → ASSETS (fallback)
+**The critical path to fix:**
+1. Wire `renderPage(route, env)` inside the `/api/cms/publish` handler
+2. Each section type needs a renderer function (`renderSection(section, blocks, brand)`)
+3. Rendered HTML writes to `WEBSITE_ASSETS` R2 at `static/pages/{slug}/index.html`
+4. Assembled page caches in `CMS_CACHE` KV at key `page:{route}`
+5. Worker `fetch()` serves from KV → R2 → on-demand render (in that priority)
 
-D1: companionscpas          ← source of truth for all content
-KV: companionscpas-cache    ← assembled page cache (60min TTL)
-R2: companionscpas          ← rendered HTML artifacts + images
-Workers AI: AGENTSAM_WAI   ← Agent Sam + content assist
-```
-
-The homepage (`/`) is fully D1+KV driven via `render_home.js`. All other public pages (`/about`, `/adopt`, `/services`, `/donate`) are currently served from hardcoded HTML templates — **the CMS publish pipeline has not been executed yet.** Once wired, every page will be rendered from D1 `cms_page_sections` data and cached in KV.
+### Content errors to fix before any page goes live
+| Page | Error | Fix |
+|---|---|---|
+| `/services` | Wrong mission — describes community pet assistance (spay/neuter, pet food) | Rewrite: medical funding + transport + rescue partnerships for shelter dogs |
+| `/donate` | Wrong org name: "Paw Love Rescue & Services" | Replace with "Companions of CPAS" |
+| `/donate` | Wrong address: "Dry Prong, LA 71423" (Grant Parish) | Replace with correct CPAS contact |
+| `/donate` | Wrong parish throughout: "Grant Parish" | Replace with "Caddo Parish" |
+| Brand settings | `logo_url` is empty string | `UPDATE cms_brand_settings SET logo_url='https://assets.meauxxx.com/static/assets/logo.png' WHERE tenant_id='tenant_companionscpas'` |
 
 ---
 
 ## Worker Bindings
 
-| Binding name | Type | Value | Purpose |
+| Binding | Type | Value | ID |
 |---|---|---|---|
-| `AGENTSAM_WAI` | Workers AI | Workers AI Catalog | Agent Sam LLM + embed |
-| `ASSETS` | Assets | — | Static fallback (being migrated out) |
-| `CMS_CACHE` | KV namespace | `companionscpas-cache` (`0b410337a8494fc982ea04c5bde1eab4`) | Page + brand cache |
-| `DB` | D1 database | `companionscpas` (`fd6dd6fb-156b-4b6a-8ff0-505422652391`) | All content, users, config |
-| `WEBSITE_ASSETS` | R2 bucket | `companionscpas` | Rendered HTML + images |
+| `AGENTSAM_WAI` | Workers AI | Workers AI Catalog | — |
+| `ASSETS` | Assets | Static fallback (migrating out) | — |
+| `CMS_CACHE` | KV namespace | `companionscpas-cache` | `0b410337a8494fc982ea04c5bde1eab4` |
+| `DB` | D1 database | `companionscpas` | `fd6dd6fb-156b-4b6a-8ff0-505422652391` |
+| `WEBSITE_ASSETS` | R2 bucket | `companionscpas` | — |
 
-**wrangler.toml** — note this project uses `wrangler.toml` (not `wrangler.production.toml`).
+Config file: `wrangler.toml` (not `wrangler.production.toml`).
 
 ---
 
-## Infrastructure
+## Source File Map
 
-### D1 Database
-- **Name:** `companionscpas`
-- **ID:** `fd6dd6fb-156b-4b6a-8ff0-505422652391`
-- **Tenant:** `tenant_companionscpas`
-- **Default workspace:** `ws_companionscpas`
-- **Region:** WNAM (Western North America)
+```
+companionscpas-platform/
+└── src/
+    ├── index.js                   ← Worker entry. Routes all requests.
+    └── api/
+        ├── _shell.js              ← Shared HTML shell. getBrand() reads D1+KV.
+        ├── agentsam_api.js        ← Agent Sam chat + session management
+        ├── agentsam_tools.js      ← DB-driven tool dispatch (no hardcoded tools)
+        ├── auth_login.js          ← Login: validates credentials, writes agentsam_sessions + sessions
+        ├── cms_api.js             ← CMS CRUD: section/block/page/brand/asset + publish stub
+        ├── cms_api_additions.js   ← Extended CMS routes (overflow from cms_api.js)
+        ├── contact_api.js         ← Public contact form → D1 contact_requests
+        ├── dashboard_api.js       ← Dashboard data: animals, fosters, applications
+        ├── dashboard_config_api.js← Dashboard config (DB-driven icon/feature flags)
+        ├── donation_api.js        ← Stripe checkout intent creation
+        ├── password_reset.js      ← Password reset flow (token → D1 → Resend email)
+        ├── payments_email.js      ← Stripe webhook handler + Resend email dispatch
+        ├── render_home.js         ← Homepage renderer: D1 sections → HTML (DONE — reference impl)
+        ├── resolveModel.js        ← LLM routing + ETO sync to IAM
+        ├── session_api.js         ← getAuthUser() + /api/auth/me + /api/auth/logout
+        └── social.js              ← Facebook/Instagram/YouTube connection routes
+```
 
-### R2 Bucket
-- **Name:** `companionscpas`
-- **Custom domain:** `assets.meauxxx.com` *(temp — migrate to client domain when purchased)*
-- **Dev URL:** `https://pub-bd8b064ba266482baa07a382af659771.r2.dev` *(rate-limited, not for production)*
-- **S3 API:** `https://ede6590ac0d2fb7daf155b35653457b2.r2.cloudflarestorage.com/companionscpas`
-- **R2 Data Catalog:** `https://catalog.cloudflarestorage.com/ede6590ac0d2fb7daf155b35653457b2/companionscpas`
+### Key patterns already established — follow these
 
-### KV Namespace
-- **Name:** `companionscpas-cache`
-- **ID:** `0b410337a8494fc982ea04c5bde1eab4`
-- **Key patterns:**
-  - `brand:tenant_companionscpas` — brand settings (60min TTL)
-  - `page:/` — assembled home HTML (60min TTL)
-  - `page:/about` — assembled about HTML (60min TTL)
-  - `sections:tenant_companionscpas:{route}` — sections array per route
-  - `bootstrap:tenant_companionscpas` — full CMS bootstrap payload
+**Reading brand (D1 + KV cache):**
+```js
+// From _shell.js / render_home.js
+async function getBrand(env) {
+  const cached = await env.CMS_CACHE.get('brand:tenant_companionscpas', { type: 'json' }).catch(() => null);
+  if (cached) return cached;
+  const brand = await env.DB.prepare(
+    'SELECT * FROM cms_brand_settings WHERE tenant_id = ? LIMIT 1'
+  ).bind('tenant_companionscpas').first();
+  if (brand) await env.CMS_CACHE.put('brand:tenant_companionscpas', JSON.stringify(brand), { expirationTtl: 60 });
+  return brand;
+}
+```
+
+**Auth check (from session_api.js — use this everywhere):**
+```js
+import { getAuthUser } from './api/session_api.js';
+const user = await getAuthUser(request, env);
+if (!user) return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401 });
+```
+
+**KV cache bust (from cms_api.js):**
+```js
+async function bustCache(env, ...keys) {
+  if (!env.CMS_CACHE) return;
+  await Promise.all(keys.map(k => env.CMS_CACHE.delete(k).catch(() => {})));
+}
+// After any content change:
+await bustCache(env, `sections:tenant_companionscpas:${route}`, 'bootstrap:tenant_companionscpas');
+```
+
+**Section upsert (from cms_api.js — already correct):**
+```js
+INSERT INTO cms_page_sections (...) VALUES (...)
+ON CONFLICT(tenant_id, page_route, section_key) DO UPDATE SET ...
+```
+
+---
+
+## Auth System
+
+### How it works
+
+```
+Login POST /api/auth/login (auth_login.js)
+  → validate credentials against users + user_credentials
+  → INSERT INTO agentsam_sessions (id=uuid, user_id, status='active', route_path, mode)
+  → INSERT INTO sessions (id=same uuid, user_id, expires_at=+30days)  ← secondary log
+  → Set-Cookie: cpas_session={session_id}; HttpOnly; Secure; SameSite=Strict
+
+Every protected request (session_api.js getAuthUser)
+  → read cookie cpas_session → sessionId
+  → SELECT FROM agentsam_sessions JOIN users
+      WHERE id=? AND status='active'
+      AND datetime(created_at, '+30 days') > datetime('now')
+  → return user row or null
+
+Logout POST /api/auth/logout
+  → UPDATE agentsam_sessions SET status='revoked' WHERE id=?
+  → Clear cookie Max-Age=0
+```
+
+### Two session tables — both active, different purposes
+
+| Table | Written by | Read by | Purpose |
+|---|---|---|---|
+| `agentsam_sessions` | `auth_login.js` + `agentsam_api.js` | `getAuthUser()` — **the auth gate** | Auth validation + agent conversation context. Has `route_path`, `mode`, `session_title`, `status`. 30-day expiry enforced in query. |
+| `sessions` | `auth_login.js` | Nothing (not read by auth gate) | Secondary audit log written at login. Has `expires_at`, `revoked_at`. Not used for auth decisions. |
+
+**Current state:** 5 valid auth sessions, all `usr_sam_primeaux`. 19 agent sessions all active. One user (you), one tenant.
+
+### Role resolution
+```js
+// After getAuthUser(), fetch role from tenant_memberships:
+const membership = await env.DB.prepare(
+  'SELECT role FROM tenant_memberships WHERE user_id = ? AND status = "active" ORDER BY created_at DESC LIMIT 1'
+).bind(user.user_id).first();
+const role = membership?.role || 'staff';
+// Roles: owner, admin, volunteer, staff
+```
 
 ---
 
 ## CMS System
 
-The CMS is built on 15 D1 tables and a section-schema registry. It supports agent-assisted editing, full revision history, and a publish pipeline that renders D1 content to R2 HTML artifacts.
+### Data model
 
-### Core Tables
+```
+cms_pages              (route_path, slug, title, status, SEO fields)
+  └── cms_page_sections    (page_route, section_key, section_type, heading, body, CTAs, sort_order)
+        └── cms_page_content_blocks  (section_key, block_key, block_type — repeating cards/items)
 
-| Table | Purpose |
-|---|---|
-| `cms_pages` | Page registry — route, slug, title, status, SEO |
-| `cms_page_sections` | Section content — heading, body, CTAs, image, sort_order |
-| `cms_page_content_blocks` | Sub-block level (repeating cards within a section) |
-| `cms_section_schemas` | Field contract per section_type (19 schemas) |
-| `cms_themes` | Design token system — color, typography, spacing, radius, motion |
-| `cms_brand_settings` | Logo, colors, nav JSON, footer JSON, socials, org data |
-| `cms_assets` | Asset registry — R2 keys, CDN URLs, alt text |
-| `cms_navigation_items` | Nav links with group, parent, sort_order |
-| `cms_navigation_menus` | Nav menu registry with R2 artifact key |
-| `cms_publish_jobs` | Publish pipeline job queue |
-| `cms_publish_artifacts` | Published HTML/CSS artifact registry |
-| `cms_revisions` | Full before/after revision history |
-| `cms_page_versions` | Draft/published version snapshots |
-| `cms_editor_sessions` | Session tracking for dashboard usage |
-| `cms_editor_events` | Audit trail — field_edit, publish, agent_assist, rollback |
+cms_section_schemas    (section_type, schema_json, default_json — field contract for editor + agent)
+cms_themes             (design tokens: color, typography, spacing, radius, motion, component)
+cms_brand_settings     (logo, colors, navigation_json, footer_json, socials_json, organization_json)
+cms_assets             (r2_key, cdn_url, alt_text, category — asset registry)
+cms_navigation_items   (label, href, nav_group, sort_order, parent_id)
+cms_publish_jobs       (job_type, status, page_id, r2_prefix — publish queue)
+cms_publish_artifacts  (r2_key, artifact_type, content_hash, is_current — rendered output)
+cms_revisions          (entity_type, before_json, after_json, change_type — full history)
+cms_editor_events      (event_type: field_edit|publish|agent_assist|rollback — audit trail)
+cms_editor_sessions    (user_id, page_id, started_at, event_count — usage tracking)
+cms_page_versions      (snapshot_json, sections_json, status: draft|published|archived)
+```
 
-### Section Schema Registry (19 schemas)
+### Section schema registry (19 schemas — agent reads before any edit)
 
-The `cms_section_schemas` table defines what fields each section type has. The CMS editor reads this to know what inputs to render. Agent Sam reads this before proposing any section edit.
+Before proposing any section change, query:
+```sql
+SELECT schema_json, default_json FROM cms_section_schemas
+WHERE section_type = ? AND tenant_id = 'tenant_companionscpas' AND is_active = 1
+```
 
-| section_type | Label | Category |
+| section_type | Category | Notes |
 |---|---|---|
-| `hero` | Hero | layout |
-| `text_image` | Text + Image | layout |
-| `card_grid` | Card Grid | layout |
-| `text_image_split` | Text + Image Split | content |
-| `feature_cards` | Feature Cards | content |
-| `faq` | FAQ | content |
-| `org_info` | Org Info | content |
-| `testimonial` | Testimonial | social_proof |
-| `testimonials` | Testimonials | social_proof |
-| `impact_stats` | Impact Stats Bar | social_proof |
-| `sponsor_logos` | Sponsor / Partner Logos | social_proof |
-| `image_gallery` | Image Gallery | media |
-| `animal_grid` | Animal Adoption Grid | dynamic |
-| `campaign_grid` | Campaign Grid | fundraising |
-| `cta_banner` | Call to Action Banner | conversion |
-| `donation_block` | Donation Block | conversion |
-| `volunteer_cta` | Volunteer CTA | conversion |
-| `nav` | Navigation | global |
-| `footer` | Footer | global |
+| `hero` | layout | Main page hero — eyebrow, heading, subheading, image, 2 CTAs |
+| `text_image` | layout | Text left/right + image |
+| `card_grid` | layout | Grid of cards with title + body |
+| `text_image_split` | content | Split layout with detailed copy |
+| `feature_cards` | content | Icon/image + heading + body cards |
+| `faq` | content | Accordion Q&A |
+| `org_info` | content | Nonprofit data block — EIN, budget, contact |
+| `testimonial` | social_proof | Single quote + attribution |
+| `testimonials` | social_proof | Multiple testimonials |
+| `impact_stats` | social_proof | Key metric numbers bar |
+| `sponsor_logos` | social_proof | Partner/sponsor logo grid |
+| `image_gallery` | media | Photo gallery |
+| `animal_grid` | dynamic | Queries `animal_profiles` D1 — live data |
+| `campaign_grid` | fundraising | Queries `fundraising_campaigns` — live data |
+| `cta_banner` | conversion | Full-width CTA strip |
+| `donation_block` | conversion | Embedded donation widget |
+| `volunteer_cta` | conversion | Foster/volunteer signup CTA |
+| `nav` | global | Navigation (rendered from `cms_navigation_items`) |
+| `footer` | global | Footer (rendered from brand + socials + IAM badge) |
 
-### Theme System
+### Current page state
 
-Two themes are active:
-- `midnight_companion_glass` — primary site theme
-- `donation_modal_glass` — donation modal overlay
-
-Themes store full design tokens as JSON columns: `color_tokens_json`, `typography_tokens_json`, `spacing_tokens_json`, `radius_tokens_json`, `shadow_tokens_json`, `motion_tokens_json`, `component_tokens_json`, `light_tokens_json`, `dark_tokens_json`. Compiled CSS lives in `css_vars_json` and `custom_css`.
+| Route | D1 Status | Sections in D1 | Live site |
+|---|---|---|---|
+| `/` | published | 7 | ✅ D1-driven via `render_home.js` |
+| `/about` | draft | 1 | ⚠️ Hardcoded template |
+| `/adopt` | draft | 0 (empty) | ⚠️ Hardcoded template |
+| `/services` | draft | 0 (empty) | 🔴 Wrong content |
+| `/donate` | draft | 1 | 🔴 Wrong org/address/parish |
 
 ---
 
-## Runtime Contract
+## Runtime Contract (Publish Pipeline — NOT YET WIRED)
 
-The CMS pipeline connects D1 content to live pages. This is the source of truth for how edits become visible on the site.
-
-### Flow
-
-```
-1. EDIT      POST /api/cms/section/save
-               └── UPDATE cms_page_sections (D1)
-               └── INSERT cms_revisions
-               └── INSERT cms_editor_events (event_type='field_edit')
-               └── KV.delete(`sections:${tenant}:${route}`)
-               └── KV.delete(`bootstrap:${tenant}`)
-
-2. PUBLISH   POST /api/cms/publish
-               └── INSERT cms_publish_jobs (status='running')
-               └── renderPage(route, env)
-               └── UPDATE cms_publish_jobs (status='done')
-
-3. RENDER    renderPage(route, env)
-               ├── load cms_pages WHERE route_path=?
-               ├── getBrand() → KV → D1
-               ├── load cms_page_sections WHERE page_route=? ORDER BY sort_order
-               ├── load cms_page_content_blocks WHERE page_route=?
-               ├── renderSection(section, blocks, brand) per section_type
-               ├── WEBSITE_ASSETS.put(static/pages{route}/{section_key}.html)
-               ├── assemble: header.html + sections + footer.html
-               ├── WEBSITE_ASSETS.put(static/pages{route}/index.html)
-               ├── CMS_CACHE.put(`page:${route}`, html, { expirationTtl: 3600 })
-               └── INSERT cms_publish_artifacts
-
-4. SERVE     GET /{route}
-               ├── CMS_CACHE.get(`page:${route}`) → return if hit
-               ├── WEBSITE_ASSETS.get(static/pages{route}/index.html) → cache + return
-               └── renderPage(route, env) → on-demand fallback
-```
-
-### Section Renderer Map
+This is the spec for `renderPage()` — implement in `src/api/cms_api.js` or a new `src/api/render_page.js`:
 
 ```js
-const SECTION_RENDERERS = {
-  hero:             renderHero,
-  text_image:       renderTextImage,
-  text_image_split: renderTextImageSplit,
-  card_grid:        renderCardGrid,
-  feature_cards:    renderFeatureCards,
-  testimonials:     renderTestimonials,
-  testimonial:      renderTestimonial,
-  impact_stats:     renderImpactStats,
-  campaign_grid:    renderCampaignGrid,
-  animal_grid:      renderAnimalGrid,    // queries animal_profiles D1
-  cta_banner:       renderCtaBanner,
-  donation_block:   renderDonationBlock,
-  org_info:         renderOrgInfo,
-  faq:              renderFaq,
-};
+// Step 1: POST /api/cms/publish handler (currently just marks status='published')
+// Replace the stub with:
+async function handlePublish(request, env, sessionUser) {
+  const { route_path } = await request.json();
+  const jobId = `pub_${crypto.randomUUID().slice(0,12)}`;
+
+  await env.DB.prepare(
+    `INSERT INTO cms_publish_jobs (id, tenant_id, page_id, job_type, status, triggered_by, created_at, updated_at)
+     SELECT ?, 'tenant_companionscpas', id, 'page', 'running', ?, datetime('now'), datetime('now')
+     FROM cms_pages WHERE route_path = ? AND tenant_id = 'tenant_companionscpas'`
+  ).bind(jobId, sessionUser?.email || 'dashboard', route_path).run();
+
+  try {
+    await renderPage(route_path, jobId, env);
+    await env.DB.prepare(
+      `UPDATE cms_publish_jobs SET status='done', completed_at=datetime('now') WHERE id=?`
+    ).bind(jobId).run();
+    return json({ success: true, job_id: jobId, route_path });
+  } catch (err) {
+    await env.DB.prepare(
+      `UPDATE cms_publish_jobs SET status='failed', error_message=?, completed_at=datetime('now') WHERE id=?`
+    ).bind(err.message, jobId).run();
+    return json({ error: err.message, job_id: jobId }, 500);
+  }
+}
+
+// Step 2: renderPage
+const TENANT = 'tenant_companionscpas';
+async function renderPage(route, jobId, env) {
+  const [page, brand] = await Promise.all([
+    env.DB.prepare('SELECT * FROM cms_pages WHERE route_path=? AND tenant_id=?').bind(route, TENANT).first(),
+    getBrand(env),
+  ]);
+
+  const { results: sections } = await env.DB.prepare(
+    'SELECT * FROM cms_page_sections WHERE page_route=? AND tenant_id=? AND is_visible=1 ORDER BY sort_order'
+  ).bind(route, TENANT).all();
+
+  const { results: blocks } = await env.DB.prepare(
+    'SELECT * FROM cms_page_content_blocks WHERE page_route=? AND tenant_id=? ORDER BY section_key, sort_order'
+  ).bind(route, TENANT).all();
+
+  const blocksBySection = blocks.reduce((acc, b) => {
+    (acc[b.section_key] = acc[b.section_key] || []).push(b); return acc;
+  }, {});
+
+  // Write individual section files + build full page
+  const sectionHTMLs = await Promise.all(
+    sections.map(async s => {
+      const html = renderSection(s, blocksBySection[s.section_key] || [], brand, env);
+      await env.WEBSITE_ASSETS.put(
+        `static/pages${route}/${s.section_key}.html`, html,
+        { httpMetadata: { contentType: 'text/html' } }
+      );
+      return html;
+    })
+  );
+
+  const header = await getGlobalPartial('header', brand, env);
+  const footer = await getGlobalPartial('footer', brand, env);
+  const fullHTML = assembleFullPage(page, brand, header, sectionHTMLs, footer);
+
+  // Write full page artifact
+  await env.WEBSITE_ASSETS.put(`static/pages${route}/index.html`, fullHTML,
+    { httpMetadata: { contentType: 'text/html' } });
+
+  // Cache in KV (60min)
+  await env.CMS_CACHE.put(`page:${route}`, fullHTML, { expirationTtl: 3600 });
+
+  // Log artifact
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fullHTML));
+  const hashHex = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('').slice(0,32);
+  await env.DB.prepare(
+    `INSERT INTO cms_publish_artifacts (id, tenant_id, job_id, page_id, artifact_type, r2_key, r2_bucket, content_hash, is_current, created_at)
+     SELECT 'art_'||lower(hex(randomblob(8))), 'tenant_companionscpas', ?, id, 'html', ?, 'companionscpas', ?, 1, datetime('now')
+     FROM cms_pages WHERE route_path=? AND tenant_id='tenant_companionscpas'`
+  ).bind(jobId, `static/pages${route}/index.html`, hashHex, route).run();
+}
+
+// Step 3: Worker serve path (add to index.js before the static asset fallback)
+const PUBLIC_ROUTES = ['/', '/about', '/adopt', '/services', '/donate'];
+if (PUBLIC_ROUTES.includes(url.pathname)) {
+  const cached = await env.CMS_CACHE.get(`page:${url.pathname}`);
+  if (cached) return new Response(cached, { headers: { 'content-type': 'text/html' } });
+
+  const artifact = await env.WEBSITE_ASSETS.get(`static/pages${url.pathname}/index.html`);
+  if (artifact) {
+    const html = await artifact.text();
+    await env.CMS_CACHE.put(`page:${url.pathname}`, html, { expirationTtl: 3600 });
+    return new Response(html, { headers: { 'content-type': 'text/html' } });
+  }
+  // fall through to existing hardcoded template as last resort
+}
 ```
 
-### Size Budget
-
-- `global.css` — **≤ 30KB** gzip (compiled from active theme tokens)
-- Each section HTML — **≤ 50KB** (markup only — no embedded CSS/JS)
-- Global header/footer — **≤ 10KB** each
-- Section files live at: `static/pages/{route_slug}/{section_key}.html`
-- Global partials live at: `static/global/header.html`, `static/global/footer.html`, `static/global/global.css`
-
-### Global Rebuild Trigger
-
+### Section renderer dispatch
+```js
+// Implement in src/api/render_section.js
+// render_home.js already has working examples — copy its pattern
+export function renderSection(section, blocks, brand) {
+  const renderers = {
+    hero:             renderHero,
+    text_image:       renderTextImage,
+    text_image_split: renderTextImageSplit,
+    card_grid:        renderCardGrid,
+    feature_cards:    renderFeatureCards,
+    testimonials:     renderTestimonials,
+    testimonial:      renderTestimonial,
+    impact_stats:     renderImpactStats,
+    campaign_grid:    renderCampaignGrid,  // async — queries fundraising_campaigns
+    animal_grid:      renderAnimalGrid,    // async — queries animal_profiles
+    cta_banner:       renderCtaBanner,
+    donation_block:   renderDonationBlock,
+    org_info:         renderOrgInfo,
+    faq:              renderFaq,
+  };
+  const fn = renderers[section.section_type];
+  if (!fn) return `<!-- section type '${section.section_type}' has no renderer -->`;
+  return fn(section, blocks, brand);
+}
 ```
-POST /api/cms/publish-global
-  → rebuild header.html from cms_brand_settings + cms_navigation_items
-  → rebuild footer.html from brand + socials + IAM badge
-  → compile global.css from active theme tokens
-  → write to R2 static/global/
-  → KV.delete all page:* keys (full site cache bust)
-```
 
----
-
-## Database Schema
-
-### Core domain tables
-
-| Table | Key fields | Notes |
+### Size budget per artifact
+| Artifact | Target | Notes |
 |---|---|---|
-| `users` | id, email, full_name, status | Site users + admins |
-| `admin_users` | id, email, role, is_active | Dashboard access |
-| `sessions` | id, user_id, expires_at | Auth sessions |
-| `tenants` | id, slug, name, domain | Multi-tenant support |
-| `tenant_memberships` | tenant_id, user_id, role | Roles: owner/admin/volunteer |
-
-### Animal & rescue tables
-
-| Table | Key fields | Notes |
-|---|---|---|
-| `animal_profiles` | id, name, breed, status, photo_url, adoption_fee_cents | Powers `/adopt` animal grid |
-| `animals` | id, name, breed, age, status | Legacy (pre-animal_profiles) |
-| `foster_records` | id, animal_id, foster_name, status, application_id | Active foster placements |
-| `care_tasks` | id, animal_id, task_type, status, due_at | Vet/feed/walk task queue |
-
-### Application tables
-
-| Table | Key fields | Notes |
-|---|---|---|
-| `cpas_application_forms` | id, form_key, title | Form registry |
-| `cpas_application_steps` | form_id, step_key, title, sort_order | Multi-step form structure |
-| `cpas_application_fields` | form_id, step_id, field_key, field_type | Dynamic field registry |
-| `cpas_foster_applications` | id, status, review_status, answers_json | Submitted adopt/foster apps |
-| `cpas_application_events` | application_id, event_type | Status history |
-| `cpas_application_email_logs` | application_id, email_type, status | Resend delivery tracking |
-| `applications` | id, applicant_name, applicant_email, status | Legacy (pre-cpas tables) |
-
-### Fundraising tables
-
-| Table | Key fields | Notes |
-|---|---|---|
-| `fundraising_campaigns` | id, title, goal_amount_cents, raised_amount_cents, status | Active campaigns |
-| `fundraising_campaigns_demo` | id, title, goal_cents, raised_cents | Demo/dev data |
-| `campaign_updates` | campaign_id, title, body, is_public | Campaign progress posts |
-| `donors` | id, email, stripe_customer_id, total_given_cents | Donor CRM |
-| `donations` | id, amount_cents, stripe_payment_intent_id, status | Donation records |
-| `donation_intents` | id, donor_name, amount_cents, frequency, provider_checkout_id | Stripe checkout sessions |
-| `donation_payments` | id, donation_id, provider_payment_id, status | Payment confirmations |
-| `donation_settings` | tenant_id, provider, default_amounts_json | Donation widget config |
-
-### Agent Sam tables
-
-| Table | Notes |
-|---|---|
-| `agentsam_sessions` | Chat sessions |
-| `agentsam_messages` | Message history |
-| `agentsam_agent_run` | LLM call records with token/cost tracking |
-| `agentsam_tool_chain` | Tool call log per agent run |
-| `agentsam_tool_result` | Tool output per chain entry |
-| `agentsam_tools` | Tool registry (DB-driven, replaces hardcoded) |
-| `agentsam_mcp_tools` | MCP tool catalog |
-| `agentsam_mcp_workflows` | Workflow definitions |
-| `agentsam_commands` | Slash command registry |
-| `agentsam_memory` | Agent memory (key/value + embedding_id) |
-| `agentsam_model_catalog` | LLM model registry |
-| `agentsam_routing_arms` | Thompson Sampling routing arms |
-| `agentsam_performance_eto_events` | ETO reward signal log |
-| `agentsam_usage_events` | Token + cost per call |
-| `agentsam_usage_rollups_daily` | Daily spend aggregates |
-| `agentsam_analytics` | Analytics per run |
-| `agentsam_eval_suites/cases/runs` | Eval framework |
-| `agentsam_plans` | Sprint/daily plans |
-| `agentsam_plan_tasks` | Tasks per plan |
-| `agentsam_project_context` | Project context entries |
-| `agentsam_todo` | Todo backlog |
-| `agentsam_rules_document` | Agent rules / system prompt patches |
-| `agentsam_skill` | Agent skills |
-| `agentsam_workflows` | Workflow graph definitions |
-| `agentsam_workflow_nodes` | Workflow nodes |
-| `agentsam_workflow_edges` | Workflow edges |
-| `agentsam_workflow_runs` | Workflow execution history |
-| `agentsam_workflow_handlers` | Handler registry |
-| `agentsam_escalation` | Model escalation chain |
-| `context_index` | Knowledge/rule index |
-| `agentsam_ai_models` | AI model metadata |
-| `agentsam_model_policy` | Routing policy per task_type |
-| `agentsam_intent_rules` | Intent → task_type mapping |
-| `agentsam_bridge_connections` | Bridge connections (PTY/local) |
-| `agentsam_secret_bindings` | Secret key bindings |
-| `agentsam_code_index_job` | Codebase index job status |
-| `agentsam_reward_events` | Thompson sampling reward events |
-| `agentsam_superdev_grants` | Developer permission grants |
-
-### Supporting tables
-
-| Table | Notes |
-|---|---|
-| `organizations` | Org registry |
-| `volunteer_records` | Volunteer roster |
-| `email_templates` | Resend email templates |
-| `email_events` | Email delivery log |
-| `contact_requests` | Public contact form submissions |
-| `secret_vault_items` | Encrypted API keys |
-| `secret_vault_access_log` | Secret access audit |
-| `audit_log` | General audit log |
-| `oauth_accounts` | OAuth provider accounts |
-| `user_credentials` | Password credentials |
-| `user_security_events` | Login/security events |
-| `password_reset_tokens` | Password reset tokens |
-| `role_permissions` | RBAC permission map |
-| `dashboard_calendar_events` | Dashboard calendar |
+| `static/global/global.css` | ≤ 30KB | Compiled from active theme tokens |
+| `static/global/header.html` | ≤ 10KB | Brand + nav |
+| `static/global/footer.html` | ≤ 10KB | Brand + socials + IAM badge |
+| `static/pages/{slug}/{section_key}.html` | ≤ 50KB each | Markup only — no inline CSS/JS |
+| `static/pages/{slug}/index.html` | ≤ 200KB | Full assembled page |
 
 ---
 
 ## API Routes
 
-### Health
-| Method | Route | Notes |
-|---|---|---|
-| GET | `/api/health` | Returns `{ ok: true, service: "companionscpas-platform" }` |
-
 ### Auth
-| Method | Route | Handler |
-|---|---|---|
-| POST | `/api/auth/login` | `auth_login.js` |
-| POST | `/api/auth/logout` | `session_api.js` |
-| GET | `/api/auth/session` | `session_api.js` |
-| POST | `/api/auth/password-reset/request` | `password_reset.js` |
-| POST | `/api/auth/password-reset/confirm` | `password_reset.js` |
-
-### CMS
 | Method | Route | Handler | Notes |
 |---|---|---|---|
-| GET | `/api/cms/bootstrap` | `cms_api.js` | Full CMS payload — pages, assets, brand, nav, themes |
-| GET | `/api/cms/page?route=/about` | `cms_api.js` | Single page + sections + blocks |
-| POST | `/api/cms/page/save` | `cms_api.js` | Upsert page metadata |
-| POST | `/api/cms/section/save` | `cms_api.js` | Upsert section (UPSERT on tenant+route+key) |
-| POST | `/api/cms/section/delete` | `cms_api.js` | Delete section + bust KV |
-| POST | `/api/cms/block/save` | `cms_api.js` | Upsert content block |
-| POST | `/api/cms/publish` | `cms_api.js` | Mark page published *(render pipeline pending)* |
-| GET | `/api/cms/brand` | `cms_api.js` | Brand settings (KV → D1) |
-| POST | `/api/cms/brand/save` | `cms_api.js` | Update brand + bust KV |
-| GET | `/api/cms/assets` | `cms_api.js` | Asset list (filter by context/category) |
-| POST | `/api/cms/asset/save` | `cms_api.js` | Upsert asset record |
+| POST | `/api/auth/login` | `auth_login.js` | Sets `cpas_session` cookie |
+| GET | `/api/auth/me` | `session_api.js` | Returns user + role from `agentsam_sessions` |
+| POST | `/api/auth/logout` | `session_api.js` | Revokes session, clears cookie |
+| POST | `/api/auth/password-reset/request` | `password_reset.js` | Resend email |
+| POST | `/api/auth/password-reset/confirm` | `password_reset.js` | Token → new password |
+
+### CMS
+| Method | Route | Handler | Status |
+|---|---|---|---|
+| GET | `/api/cms/bootstrap` | `cms_api.js` | ✅ pages + assets + brand + nav + themes |
+| GET | `/api/cms/page?route=` | `cms_api.js` | ✅ page + sections + blocks |
+| POST | `/api/cms/page/save` | `cms_api.js` | ✅ upsert page |
+| POST | `/api/cms/section/save` | `cms_api.js` | ✅ upsert section + bust KV |
+| POST | `/api/cms/section/delete` | `cms_api.js` | ✅ delete + bust KV |
+| POST | `/api/cms/block/save` | `cms_api.js` | ✅ upsert block |
+| POST | `/api/cms/publish` | `cms_api.js` | ⚠️ marks D1 only — render pipeline NOT wired |
+| GET | `/api/cms/brand` | `cms_api.js` | ✅ KV → D1 |
+| POST | `/api/cms/brand/save` | `cms_api.js` | ✅ update + bust KV |
+| GET | `/api/cms/assets` | `cms_api.js` | ✅ filtered asset list |
+| POST | `/api/cms/asset/save` | `cms_api.js` | ✅ upsert asset |
+| POST | `/api/cms/publish-global` | — | ❌ NOT BUILT — needed for header/footer/CSS rebuild |
 
 ### Agent Sam
-| Method | Route | Notes |
-|---|---|---|
-| POST | `/api/agentsam/chat` | Agent chat — requires session auth |
-| GET/POST | `/api/agentsam/tools/*` | Tool dispatch — requires session auth |
+| Method | Route | Handler | Auth |
+|---|---|---|---|
+| POST | `/api/agentsam/chat` | `agentsam_api.js` | Session required |
+| GET/POST | `/api/agentsam/tools/*` | `agentsam_tools.js` | Session required |
 
-### Donations
+### Data
 | Method | Route | Handler |
 |---|---|---|
-| POST | `/api/donations/intent` | `donation_api.js` — create Stripe checkout |
-| POST | `/api/donations/webhook` | `payments_email.js` — Stripe webhook handler |
-
-### Dashboard
-| Method | Route | Handler |
-|---|---|---|
-| GET | `/api/dashboard/*` | `dashboard_api.js` — animals, fosters, applications |
+| GET | `/api/dashboard/*` | `dashboard_api.js` |
 | GET | `/api/dashboard/config` | `dashboard_config_api.js` |
-
-### Contact / Social
-| Method | Route | Handler |
-|---|---|---|
+| POST | `/api/donations/intent` | `donation_api.js` |
+| POST | `/api/donations/webhook` | `payments_email.js` |
 | POST | `/api/contact` | `contact_api.js` |
-| GET/POST | `/api/social/*` | `social.js` — Facebook/Instagram/YouTube |
+| GET | `/api/health` | `index.js` inline |
 
 ---
 
-## R2 Asset Structure
+## R2 Structure
 
 ```
-companionscpas/              ← WEBSITE_ASSETS binding
-│
-├── static/
-│   ├── global/              ← compiled global partials
-│   │   ├── header.html      ← [PENDING: publish pipeline]
-│   │   ├── footer.html      ← [PENDING: publish pipeline]
-│   │   └── global.css       ← [PENDING: theme compile]
-│   │
-│   ├── animals/             ← 21 animal photos (webp/jpg)
-│   │   ├── 2cute.webp
-│   │   ├── awwmaaann-(1).webp
-│   │   ├── bigsmiles.webp
-│   │   ├── bluepit.webp
-│   │   ├── brindle.jpg
-│   │   ├── conehead.webp
-│   │   ├── gimmieabite.webp
-│   │   ├── goinhome.webp
-│   │   ├── happyboy.webp
-│   │   ├── hungryboy.webp
-│   │   ├── miniscoobydoo.webp
-│   │   ├── pup.webp
-│   │   ├── redeye.webp
-│   │   ├── skinnyman.webp
-│   │   ├── sus.webp
-│   │   ├── thefounders.webp
-│   │   ├── theteam.webp
-│   │   ├── thinboy.webp
-│   │   ├── thisismysweater.webp
-│   │   ├── transport-fundraiser.webp
-│   │   └── upclose.webp
-│   │
-│   ├── assets/              ← brand assets
-│   │   ├── logo.png         ← light logo
-│   │   ├── logo-dark.webp   ← dark logo
-│   │   └── iam_badge.jpg    ← Inner Animal Media footer badge
-│   │
-│   ├── pages/               ← rendered page section HTML
-│   │   ├── home/            ← [PENDING: publish pipeline]
-│   │   ├── about/
-│   │   ├── adopt/
-│   │   ├── services/
-│   │   └── donate/
-│   │
-│   └── backup/              ← backup files
+companionscpas/  (binding: WEBSITE_ASSETS, custom domain: assets.meauxxx.com)
+└── static/
+    ├── global/
+    │   ├── header.html              ← [NOT BUILT]
+    │   ├── footer.html              ← [NOT BUILT]
+    │   └── global.css               ← [NOT BUILT]
+    ├── assets/
+    │   ├── logo.png                 ← light logo (dark backgrounds)
+    │   ├── logo-dark.webp           ← dark logo (light backgrounds)
+    │   └── iam_badge.jpg            ← Inner Animal Media footer badge
+    ├── animals/                     ← 21 animal photos (all webp/jpg)
+    │   ├── 2cute.webp · awwmaaann-(1).webp · bigsmiles.webp · bluepit.webp
+    │   ├── brindle.jpg · conehead.webp · gimmieabite.webp · goinhome.webp
+    │   ├── happyboy.webp · hungryboy.webp · miniscoobydoo.webp · pup.webp
+    │   ├── redeye.webp · skinnyman.webp · sus.webp · thefounders.webp
+    │   ├── theteam.webp · thinboy.webp · thisismysweater.webp
+    │   ├── transport-fundraiser.webp · upclose.webp
+    └── pages/
+        ├── home/    ← [NOT BUILT — render_home.js serves / directly]
+        ├── about/   ← [NOT BUILT]
+        ├── adopt/   ← [NOT BUILT]
+        ├── services/← [NOT BUILT]
+        └── donate/  ← [NOT BUILT]
 ```
-
-All public assets are served via `assets.meauxxx.com` (custom domain on the `companionscpas` R2 bucket). When the client's actual domain is purchased, update the custom domain in R2 settings and update `cms_brand_settings.site_domain`.
 
 ---
 
-## Brand & Assets
+## Brand
 
-### Logos
-
-| Usage | URL |
+| Asset | URL |
 |---|---|
-| Light version (dark backgrounds) | `https://assets.meauxxx.com/static/assets/logo.png` |
-| Dark version (light backgrounds) | `https://assets.meauxxx.com/static/assets/logo-dark.webp` |
-| Inner Animal Media badge (footer) | `https://assets.meauxxx.com/static/assets/iam_badge.jpg` |
-
-### Colors (from `cms_brand_settings`)
+| Light logo | `https://assets.meauxxx.com/static/assets/logo.png` |
+| Dark logo | `https://assets.meauxxx.com/static/assets/logo-dark.webp` |
+| IAM badge (footer) | `https://assets.meauxxx.com/static/assets/iam_badge.jpg` |
 
 | Token | Value |
 |---|---|
-| Primary | `#7c3aed` (purple) |
-| Secondary | `#172033` (dark navy) |
-| Accent | `#ee2336` (red) |
+| Primary | `#7c3aed` |
+| Secondary | `#172033` |
+| Accent | `#ee2336` |
+| Themes active | `midnight_companion_glass`, `donation_modal_glass` |
 
-### Organization Data
-
-| Field | Value |
-|---|---|
-| Legal name | Companions of CPAS |
-| Tax status | 501(c)(3) |
-| EIN | 88-4156327 |
-| Parish served | Caddo |
-| Operating budget | Under $100,000 |
-| Email | companionsCPAS@gmail.com |
-| Facebook | facebook.com/people/Companions-of-CPAS/100069291576354 |
-| Instagram | instagram.com/companionscpas |
-
-> **Note:** `cms_brand_settings.logo_url` is currently empty — this causes `/logo.png` fallback in some templates. Fix: `UPDATE cms_brand_settings SET logo_url = 'https://assets.meauxxx.com/static/assets/logo.png' WHERE tenant_id = 'tenant_companionscpas'`
+**Organization:**
+EIN `88-4156327` · 501(c)(3) · Caddo Parish · `companionsCPAS@gmail.com`
+Facebook: `facebook.com/people/Companions-of-CPAS/100069291576354`
+Instagram: `instagram.com/companionscpas`
 
 ---
 
-## Agent Sam Integration
+## Database Quick Reference
 
-Agent Sam is embedded in the dashboard CMS view. It uses `AGENTSAM_WAI` (Workers AI) and the `agentsam_*` D1 tables for session, memory, tool, and routing management.
+### Tables agents touch most
+```sql
+-- Read a page + all sections
+SELECT * FROM cms_pages WHERE route_path=? AND tenant_id='tenant_companionscpas';
+SELECT * FROM cms_page_sections WHERE page_route=? AND tenant_id='tenant_companionscpas' ORDER BY sort_order;
+SELECT * FROM cms_page_content_blocks WHERE page_route=? AND tenant_id='tenant_companionscpas' ORDER BY section_key, sort_order;
 
-### How agent-assisted CMS editing works
+-- Read brand
+SELECT * FROM cms_brand_settings WHERE tenant_id='tenant_companionscpas' LIMIT 1;
 
-1. Agent reads the current section from D1 via `GET /api/cms/page?route=/about`
-2. Agent reads the section schema from `cms_section_schemas WHERE section_type=?` to know what fields exist
-3. Agent proposes a new heading/body/CTA in chat
-4. User approves → `POST /api/cms/section/save` (same path as manual dashboard edit)
-5. `POST /api/cms/publish` → triggers render pipeline → page goes live
+-- Read section schema before editing
+SELECT schema_json, default_json FROM cms_section_schemas WHERE section_type=? AND is_active=1;
 
-### Event logging
+-- Check publish state
+SELECT status, tasks_done, tasks_total FROM cms_publish_jobs WHERE tenant_id='tenant_companionscpas' ORDER BY created_at DESC LIMIT 5;
 
-Every agent edit is logged to `cms_editor_events` with `event_type = 'agent_assist'`. This table also captures `field_edit`, `draft_save`, `publish`, `rollback`, and `preview_switch` events — full audit trail of every change to the site.
+-- Read animal profiles (powers /adopt animal_grid)
+SELECT id, name, breed, status, photo_url, bio, adoption_fee_cents, public_visible
+FROM animal_profiles WHERE tenant_id='tenant_companionscpas' AND public_visible=1 AND status='available'
+ORDER BY featured DESC, sort_order;
 
-### Tool registry
+-- Read active campaigns (powers campaign_grid)
+SELECT id, title, goal_amount_cents, raised_amount_cents, donor_count, status
+FROM fundraising_campaigns WHERE is_public=1 AND status='active';
 
-Agent Sam's tools are DB-driven via `agentsam_tools` (not hardcoded). Tools are added by inserting rows into `agentsam_tools` — no code deploy required for new tool additions.
+-- Auth: validate session
+SELECT s.id, s.user_id, s.route_path, s.mode, u.full_name, u.email
+FROM agentsam_sessions s JOIN users u ON u.id=s.user_id
+WHERE s.id=? AND s.status='active' AND datetime(s.created_at,'+30 days')>datetime('now');
+```
 
 ---
 
 ## Development
 
-### Prerequisites
-
-- Node.js 18+
-- `wrangler` CLI (`npm install -g wrangler`)
-- Cloudflare account access (`ede6590ac0d2fb7daf155b35653457b2`)
-
-### Local setup
-
 ```bash
+# Clone
 git clone https://github.com/SamPrimeaux/companionscpas-platform.git
 cd companionscpas-platform
 npm install
+
+# Local dev (uses wrangler.toml)
+wrangler dev
+
+# Deploy
+wrangler deploy
 ```
 
-### Environment
-
-Secrets are stored in Cloudflare Worker secrets (not `.env`). For local dev, create `.dev.vars`:
-
+Local secrets in `.dev.vars`:
 ```
 RESEND_API_KEY=...
 STRIPE_SECRET_KEY=...
@@ -538,108 +525,59 @@ STRIPE_WEBHOOK_SECRET=...
 AGENTSAM_BRIDGE_TOKEN=...
 ```
 
-### Running locally
+---
 
-```bash
-wrangler dev
-```
+## Ordered Task List for Agents
 
-The local dev server binds to all configured D1/KV/R2 bindings. Note: `WEBSITE_ASSETS` (R2) in local dev uses a local simulation — R2 puts will not hit the production bucket.
+Work these in order. Each task is self-contained.
+
+### Immediate (no deploy — SQL only)
+1. `UPDATE cms_brand_settings SET logo_url='https://assets.meauxxx.com/static/assets/logo.png' WHERE tenant_id='tenant_companionscpas'` — fixes broken logo on About/Adopt
+2. Rewrite `/services` sections in D1 — wrong mission, needs: medical funding + transport + rescue partnerships
+3. Rewrite `/donate` sections — fix org name, address, parish throughout
+
+### Short sprint (src/ changes → `wrangler deploy`)
+4. Write `src/api/render_section.js` — section renderer dispatch. Copy pattern from `render_home.js`
+5. Implement `renderPage()` and `getGlobalPartial()` — wire into `/api/cms/publish` handler in `cms_api.js`
+6. Add `POST /api/cms/publish-global` route — rebuilds `static/global/header.html`, `footer.html`, `global.css`
+7. Add public route serve logic in `index.js` — KV → R2 → fallback for `/about`, `/adopt`, `/services`, `/donate`
+8. Seed sections for `/adopt` (0 in D1) and `/services` (0 in D1)
+
+### After publish pipeline is live
+9. Wire `animal_profiles` query into `renderAnimalGrid()` — fixes "Loading..." on adopt page
+10. Populate `cms_section_schemas.schema_json` for 8 schemas missing field definitions
+11. Populate `cms_brand_settings.navigation_json` from `cms_navigation_items`
+12. Run full site publish: `POST /api/cms/publish` for each route
 
 ---
 
-## Deployment
+## What Never Needs a Deploy
 
-```bash
-wrangler deploy
-```
-
-> Uses `wrangler.toml` (not `wrangler.production.toml`). There is no separate sandbox deploy.
-
-### Post-deploy checklist
-
-1. `curl https://companionscpas.meauxbility.workers.dev/api/health` → `{ ok: true }`
-2. Visit `/` → confirm homepage renders with correct brand
-3. Visit `/dashboard` → confirm auth redirect to `/admin/login`
-4. Check D1 metrics in Cloudflare dashboard
-
-### D1 migrations
-
-```bash
-wrangler d1 execute companionscpas --remote --file=./migrations/MIGRATION_FILE.sql
-```
+- Page content edits (D1 via `/api/cms/section/save`)
+- Brand updates — logo, colors, nav, footer (D1 via `/api/cms/brand/save`)
+- Asset additions (D1 + R2 upload)
+- New Agent Sam tools (D1 insert into `agentsam_tools`)
+- Theme token updates (D1)
+- Adding admin users (D1 insert into `users` + `admin_users` + `tenant_memberships`)
 
 ---
 
-## Current Status & Known Gaps
-
-### What is working
-
-- ✅ Homepage (`/`) — fully D1+KV driven via `render_home.js`
-- ✅ Dashboard (`/dashboard`) — auth-gated React SPA, Agent Sam embedded
-- ✅ Auth — login, session, password reset
-- ✅ CMS section save/delete (`/api/cms/section/save`)
-- ✅ Brand save with KV invalidation (`/api/cms/brand/save`)
-- ✅ Asset registry (`/api/cms/assets`, `/api/cms/asset/save`)
-- ✅ Agent Sam chat + tool dispatch
-- ✅ Donation intent flow (Stripe checkout)
-- ✅ Adopt/foster application form (3-step)
-- ✅ 19 section schemas defined
-- ✅ 2 themes active with CSS vars compiled
-- ✅ 53 assets in `cms_assets`
-- ✅ 21 animal images in R2 `static/animals/`
-
-### Gaps to close (ordered by priority)
-
-| Priority | Gap | Fix |
-|---|---|---|
-| **P0** | `cms_brand_settings.logo_url` empty | 1 SQL UPDATE — causes broken logo on About/Adopt header |
-| **P0** | Services page content wrong | Rewrite: community pet assistance → shelter rescue mission |
-| **P0** | Donate page critical errors | Rewrite: wrong org name ("Paw Love"), wrong address ("Dry Prong, LA"), wrong parish ("Grant Parish") |
-| **P0** | Publish pipeline never executed | Wire `renderPage()` in `cms_api.js` `/api/cms/publish` route |
-| **P0** | `/adopt`, `/services` have 0 D1 sections | Seed sections per page |
-| **P1** | 8 section schemas missing `schema_json` | Populate field definitions for: `org_info`, `campaign_grid`, `footer`, `nav`, `hero`, `text_image`, `card_grid`, `testimonial` |
-| **P1** | `navigation_json` empty in brand settings | Populate from `cms_navigation_items` |
-| **P1** | Animal grid on `/adopt` shows "Loading..." | Wire `animal_profiles` D1 query to the adopt page render |
-| **P1** | 0 revision history entries | First CMS edit via dashboard will start populating |
-| **P2** | `global.css` not compiled to R2 | Wire theme compile → `static/global/global.css` |
-| **P2** | Section renderers not written | Write `renderSection()` per section_type |
-| **P2** | Client domain not purchased | Update R2 custom domain + `site_domain` in brand when ready |
-
----
-
-## Client Handoff Notes
+## Client Handoff
 
 ### Domain migration
+When client purchases domain:
+1. Add to R2 `companionscpas` bucket → Custom Domains (replace `assets.meauxxx.com`)
+2. Point DNS to Cloudflare Worker route
+3. `UPDATE cms_brand_settings SET site_domain='<new-domain>' WHERE tenant_id='tenant_companionscpas'`
+4. Update `wrangler.toml` routes
 
-When Companions of CPAS purchases their domain:
-1. Add custom domain to `companionscpas` R2 bucket (replace `assets.meauxxx.com`)
-2. Update DNS to point to the Cloudflare Worker
-3. `UPDATE cms_brand_settings SET site_domain = 'companionscpas.org' WHERE tenant_id = 'tenant_companionscpas'`
-4. Update Worker route in `wrangler.toml`
-
-### Admin access
-
-Admin dashboard at `/dashboard`. The client should be provisioned an `admin_users` row with a hashed password. Password reset flow is fully wired at `/admin/reset`.
-
-### Content updates
-
-The client can update page content directly through the CMS dashboard at `/dashboard?view=cms`. Any section field (heading, body, CTA text, images) can be edited and published without a code deploy. Agent Sam is available in the dashboard sidebar to assist with copy.
-
-### What requires a code deploy
-
-- New section types (requires adding a renderer to `src/api/`)
-- New API routes
-- New Worker bindings
-
-### What does NOT require a code deploy
-
-- Page content (D1)
-- Brand settings — logo, colors, nav, footer (D1 + KV)
-- Asset additions (D1 + R2 upload)
-- New Agent Sam tools (D1 insert only)
-- Theme token updates (D1)
+### Client can do without developer
+- Edit any page content via `/dashboard?view=cms`
+- Upload new photos to R2 via dashboard asset manager
+- View donation records, applications, volunteer roster in dashboard
+- Agent Sam assists with content writing in the CMS sidebar
 
 ---
 
-*Developed and maintained by [Inner Animal Media](https://inneranimalmedia.com) · info@inneranimals.com*
+*Developed by [Inner Animal Media](https://inneranimalmedia.com) · sam@inneranimalmedia.com
+*Developed and maintained by [Inner Animal Media](https://inneranimalmedia.com) · info@inneranimals.com + sam@inneranimalmedia.com
