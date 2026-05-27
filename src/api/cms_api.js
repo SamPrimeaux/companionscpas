@@ -1,3 +1,4 @@
+import { renderPage } from "./render_page.js";
 const TENANT_ID = "tenant_companionscpas";
 
 function json(data, status = 200) {
@@ -23,6 +24,103 @@ function safeJson(value, fallback) {
 async function bustCache(env, ...keys) {
   if (!env.CMS_CACHE) return;
   await Promise.all(keys.map(k => env.CMS_CACHE.delete(k).catch(() => {})));
+}
+
+function normalizeRouteInput(route) {
+  const raw = String(route || "").trim();
+  if (!raw) return "";
+  let normalized = raw.replace(/\/+/g, "/");
+  if (!normalized.startsWith("/")) normalized = `/${normalized}`;
+  normalized = normalized.replace(/\/+/g, "/");
+  if (normalized.length > 1) normalized = normalized.replace(/\/+$/, "");
+  return normalized || "/";
+}
+
+async function tableColumns(env, tableName) {
+  const exists = await env.DB.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name=? LIMIT 1"
+  ).bind(tableName).first().catch(() => null);
+  if (!exists) return null;
+  const { results } = await env.DB.prepare(`PRAGMA table_info(${tableName})`).all().catch(() => ({ results: [] }));
+  const cols = new Set((results || []).map((row) => row?.name).filter(Boolean));
+  return cols.size ? cols : null;
+}
+
+async function createPublishJob(env, routePath, triggeredBy) {
+  const cols = await tableColumns(env, "cms_publish_jobs").catch(() => null);
+  if (!cols) return null;
+
+  const jobId = id("pub");
+  const now = new Date().toISOString();
+  const values = {
+    id: jobId,
+    tenant_id: TENANT_ID,
+    page_id: null,
+    route_path: routePath,
+    page_route: routePath,
+    job_type: "page",
+    status: "running",
+    triggered_by: triggeredBy,
+    created_by: triggeredBy,
+    created_at: now,
+    updated_at: now,
+    started_at: now,
+  };
+
+  const insertCols = [];
+  const placeholders = [];
+  const binds = [];
+  for (const [key, value] of Object.entries(values)) {
+    if (!cols.has(key)) continue;
+    insertCols.push(key);
+    placeholders.push("?");
+    binds.push(value);
+  }
+  if (!insertCols.length) return null;
+
+  try {
+    await env.DB.prepare(
+      `INSERT INTO cms_publish_jobs (${insertCols.join(", ")}) VALUES (${placeholders.join(", ")})`
+    ).bind(...binds).run();
+    return jobId;
+  } catch (err) {
+    console.warn("[cms/publish] unable to create cms_publish_jobs row:", err?.message || err);
+    return null;
+  }
+}
+
+async function updatePublishJob(env, jobId, status, extras = {}) {
+  if (!jobId) return;
+  const cols = await tableColumns(env, "cms_publish_jobs").catch(() => null);
+  if (!cols) return;
+
+  const now = new Date().toISOString();
+  const values = {
+    status,
+    updated_at: now,
+    completed_at: status === "done" ? now : null,
+    finished_at: status === "done" ? now : null,
+    failed_at: status === "failed" ? now : null,
+    error: extras.error || null,
+    error_message: extras.error || null,
+    artifact_path: extras.artifactPath || null,
+    result_json: extras.resultJson ? JSON.stringify(extras.resultJson) : null,
+  };
+
+  const updates = [];
+  const binds = [];
+  for (const [key, value] of Object.entries(values)) {
+    if (!cols.has(key)) continue;
+    updates.push(`${key} = ?`);
+    binds.push(value);
+  }
+  if (!updates.length) return;
+
+  await env.DB.prepare(
+    `UPDATE cms_publish_jobs SET ${updates.join(", ")} WHERE id = ?`
+  ).bind(...binds, jobId).run().catch((err) => {
+    console.warn("[cms/publish] unable to update cms_publish_jobs row:", err?.message || err);
+  });
 }
 
 export async function cmsRoutes(request, env, url, sessionUser = null) {
@@ -225,7 +323,14 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
   if (path === "/api/cms/publish" && method === "POST") {
     const data = await body(request);
-    const route = data.route_path || data.route || "/";
+    const routeInput = data.route_path ?? data.page_route ?? data.route ?? "";
+    const route = normalizeRouteInput(routeInput);
+    if (!route) {
+      return json({ error: "route_path (or page_route/route) is required" }, 400);
+    }
+
+    const triggeredBy = sessionUser?.email || sessionUser?.id || "dashboard";
+    const jobId = await createPublishJob(env, route, triggeredBy);
 
     await env.DB.prepare(`
       UPDATE cms_pages
@@ -234,13 +339,35 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
           updated_at = datetime('now'),
           published_by = ?
       WHERE tenant_id = ? AND route_path = ?
-    `).bind(sessionUser?.email || sessionUser?.id || "dashboard", TENANT_ID, route).run();
+    `).bind(triggeredBy, TENANT_ID, route).run();
+
+    const artifactKey = route === "/" ? "static/pages/index.html" : `static/pages${route}/index.html`;
+
+    try {
+      await renderPage(route, jobId, env);
+      await updatePublishJob(env, jobId, "done", {
+        artifactPath: artifactKey,
+        resultJson: { success: true, route_path: route, artifact_key: artifactKey },
+      });
+    } catch (err) {
+      const message = err?.message || String(err);
+      await updatePublishJob(env, jobId, "failed", { error: message });
+      return json({
+        success: false,
+        error: "Failed to render published page artifacts",
+        route_path: route,
+        job_id: jobId,
+        details: message,
+      }, 500);
+    }
 
     return json({
       success: true,
+      job_id: jobId,
       route_path: route,
+      artifact_key: artifactKey,
       preview_url: route === "/" ? "/" : route,
-      message: "Page marked published. Static page regeneration can be wired after the client approves the build."
+      message: "Page marked published and rendered to artifacts."
     });
   }
 
