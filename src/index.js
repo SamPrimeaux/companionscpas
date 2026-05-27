@@ -142,6 +142,39 @@ export default {
     }
     // ── END PRIMETECH ─────────────────────────────────────────────────────────
 
+    // ── CMS about page: KV -> R2 -> hardcoded fallback ──────────────────────
+    if (request.method === "GET" && url.pathname === "/about") {
+      const cacheKey = "page:/about";
+      const htmlHeaders = {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=60",
+      };
+
+      try {
+        if (env.CMS_CACHE) {
+          const cached = await env.CMS_CACHE.get(cacheKey);
+          if (cached) return new Response(cached, { headers: htmlHeaders });
+        }
+      } catch (err) {
+        console.warn("[about-serve] KV get failed:", err?.message || err);
+      }
+
+      try {
+        const artifact = await env.WEBSITE_ASSETS.get("static/pages/about/index.html");
+        if (artifact) {
+          const html = await artifact.text();
+          if (env.CMS_CACHE) {
+            await env.CMS_CACHE.put(cacheKey, html, { expirationTtl: 3600 }).catch((err) => {
+              console.warn("[about-serve] KV backfill failed:", err?.message || err);
+            });
+          }
+          return new Response(html, { headers: htmlHeaders });
+        }
+      } catch (err) {
+        console.warn("[about-serve] R2 get failed:", err?.message || err);
+      }
+    }
+
     // ── Everything else: static assets ───────────────────────────────────────
     return env.ASSETS.fetch(request);
   },
