@@ -26,7 +26,12 @@
  * All writes log to agentsam_tool_chain if agent_run_id is provided.
  */
 
-import { json } from "./agentsam_api.js";
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
 const TENANT = "tenant_companionscpas";
 
@@ -63,6 +68,112 @@ function ok(tool_key, result, duration_ms) {
 
 function err(tool_key, error, duration_ms) {
   return { ok: false, tool_key, error: String(error), duration_ms };
+}
+
+function isSafeRead(sql) {
+  const raw = String(sql || "").trim();
+  const normalized = raw.toUpperCase();
+  if (!normalized.startsWith("SELECT") && !normalized.startsWith("PRAGMA TABLE_INFO")) return false;
+  if (/DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE|ALTER\s+TABLE|DELETE\s+FROM\s+(USERS|SESSIONS|AUTH_USERS|USER_CREDENTIALS|TENANT_MEMBERSHIPS)/i.test(raw)) {
+    return false;
+  }
+  return true;
+}
+
+function isApprovedWrite(sql) {
+  const raw = String(sql || "").trim();
+  if (!raw || /^SELECT/i.test(raw)) return false;
+  if (/DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE|ALTER\s+TABLE|DELETE\s+FROM\s+(USERS|SESSIONS|AUTH_USERS|USER_CREDENTIALS|TENANT_MEMBERSHIPS)/i.test(raw)) {
+    return false;
+  }
+  return true;
+}
+
+export const AGENT_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "list_tables",
+      description: "List available database tables and columns.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "query_database",
+      description: "Run a safe read-only SELECT query.",
+      parameters: {
+        type: "object",
+        properties: {
+          sql: { type: "string" },
+          description: { type: "string" },
+        },
+        required: ["sql", "description"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "write_database",
+      description: "Propose an INSERT/UPDATE change requiring approval.",
+      parameters: {
+        type: "object",
+        properties: {
+          sql: { type: "string" },
+          description: { type: "string" },
+          impact: { type: "string" },
+        },
+        required: ["sql", "description", "impact"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_cms_page",
+      description: "Get CMS page and section data by slug.",
+      parameters: {
+        type: "object",
+        properties: { page_slug: { type: "string" } },
+        required: ["page_slug"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_cms_section",
+      description: "Propose a CMS section field update requiring approval.",
+      parameters: {
+        type: "object",
+        properties: {
+          section_id: { type: "string" },
+          field: { type: "string" },
+          current_value: { type: "string" },
+          proposed_value: { type: "string" },
+          reason: { type: "string" },
+        },
+        required: ["section_id", "field", "proposed_value", "reason"],
+      },
+    },
+  },
+];
+
+const TOOL_CAPABLE_MODELS = new Set([
+  "@cf/moonshotai/kimi-k2.6",
+  "@cf/moonshotai/kimi-k2.5",
+  "openai/gpt-5.4-mini",
+  "openai/gpt-5.4-nano",
+  "openai/gpt-4.1",
+]);
+
+export function modelSupportsTools(modelKey) {
+  const key = String(modelKey || "").trim();
+  if (!key) return false;
+  if (TOOL_CAPABLE_MODELS.has(key)) return true;
+  return key.startsWith("openai/");
 }
 
 // ── KV key namespaces ─────────────────────────────────────────────────────────
@@ -609,6 +720,146 @@ const TOOL_ROUTES = {
   "cms/revision":         toolWriteRevision,
   "cms/publish_job":      toolCreatePublishJob,
 };
+
+export async function writeToolChain(env, {
+  agentRunId,
+  sessionId = null,
+  chainIndex = null,
+  toolKey,
+  inputArgs = {},
+}) {
+  const chainId = "tc_" + uid();
+  try {
+    await env.DB.prepare(`
+      INSERT INTO agentsam_tool_chain
+        (id, tenant_id, agent_run_id, session_id, tool_key, tool_name, chain_index, input_args_json, status, latency_ms)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      chainId,
+      TENANT,
+      agentRunId || null,
+      sessionId,
+      toolKey || "unknown_tool",
+      toolKey || "unknown_tool",
+      Number.isFinite(Number(chainIndex)) ? Number(chainIndex) : null,
+      JSON.stringify(inputArgs || {}),
+      "running",
+      0
+    ).run();
+  } catch (e) {
+    // Compatibility helper: chain logging should never block execution.
+    console.warn("[tools] writeToolChain failed:", e.message);
+  }
+  return chainId;
+}
+
+export async function resolveToolChain(env, {
+  chainId,
+  outputJson = {},
+  status = "completed",
+  latencyMs = 0,
+  errorMsg = null,
+}) {
+  if (!chainId) return;
+  try {
+    await env.DB.prepare(`
+      UPDATE agentsam_tool_chain
+      SET output_json = ?, status = ?, latency_ms = ?, error_message = ?, resolved_at = datetime('now')
+      WHERE id = ?
+    `).bind(
+      JSON.stringify(outputJson || {}),
+      status || "completed",
+      Number(latencyMs || 0),
+      errorMsg || null,
+      chainId
+    ).run();
+  } catch (e) {
+    console.warn("[tools] resolveToolChain failed:", e.message);
+  }
+}
+
+export async function executeTool(env, toolName, args = {}) {
+  try {
+    switch (toolName) {
+      case "list_tables": {
+        const rows = await env.DB.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_cf_%' ORDER BY name"
+        ).all().catch(() => ({ results: [] }));
+        const tables = rows.results || [];
+        return { success: true, table_count: tables.length, tables: tables.map((t) => t.name) };
+      }
+      case "query_database": {
+        const sql = String(args?.sql || "");
+        if (!isSafeRead(sql)) {
+          return { success: false, error: "Query blocked — only safe SELECT statements are allowed." };
+        }
+        const safeSql = /\bLIMIT\s+\d+\b/i.test(sql) ? sql : `${sql.trim().replace(/;$/, "")} LIMIT 50`;
+        const result = await env.DB.prepare(safeSql).all().catch((e) => ({ error: e.message }));
+        if (result.error) return { success: false, error: result.error };
+        return {
+          success: true,
+          description: args?.description || "",
+          row_count: result.results?.length || 0,
+          rows: result.results || [],
+        };
+      }
+      case "write_database": {
+        const sql = String(args?.sql || "");
+        if (!isApprovedWrite(sql)) {
+          return { success: false, error: "This operation is blocked for safety." };
+        }
+        return {
+          success: true,
+          approval_required: true,
+          action_type: "db_write",
+          sql,
+          description: String(args?.description || ""),
+          impact: String(args?.impact || ""),
+        };
+      }
+      case "get_cms_page": {
+        const slug = String(args?.page_slug || "").trim();
+        if (!slug) return { success: false, error: "page_slug required" };
+        const page = await env.DB.prepare(
+          "SELECT * FROM cms_pages WHERE tenant_id = ? AND slug = ? LIMIT 1"
+        ).bind(TENANT, slug).first().catch(() => null);
+        if (!page) return { success: false, error: `Page '${slug}' not found.` };
+        const route = page.route_path || (slug === "home" ? "/" : `/${slug}`);
+        const [sections, blocks] = await Promise.all([
+          env.DB.prepare(
+            "SELECT * FROM cms_page_sections WHERE tenant_id = ? AND page_route = ? ORDER BY sort_order, section_key"
+          ).bind(TENANT, route).all().catch(() => ({ results: [] })),
+          env.DB.prepare(
+            "SELECT * FROM cms_page_content_blocks WHERE tenant_id = ? AND page_route = ? ORDER BY sort_order, section_key, block_key"
+          ).bind(TENANT, route).all().catch(() => ({ results: [] })),
+        ]);
+        return { success: true, page, sections: sections.results || [], blocks: blocks.results || [] };
+      }
+      case "update_cms_section": {
+        return {
+          success: true,
+          approval_required: true,
+          action_type: "cms_edit",
+          section_id: args?.section_id,
+          field: args?.field,
+          current_value: args?.current_value || "",
+          proposed_value: args?.proposed_value,
+          reason: args?.reason || "",
+        };
+      }
+      default: {
+        const routeKey = String(toolName || "").replace(/_/g, "/");
+        const handler = TOOL_ROUTES[toolName] || TOOL_ROUTES[routeKey];
+        if (!handler) return { success: false, error: `Unknown tool: ${toolName}` };
+        const result = await handler(env, args || {});
+        if (result?.error) return { success: false, ...result };
+        return { success: true, ...result };
+      }
+    }
+  } catch (err) {
+    return { success: false, error: `Tool execution failed: ${err?.message || err}` };
+  }
+}
 
 export async function agentsamToolsRoutes(request, env, url) {
   if (!url.pathname.startsWith("/api/agentsam/tools/")) return null;
