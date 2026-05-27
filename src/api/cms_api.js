@@ -1,4 +1,5 @@
 import { renderPage } from "./render_page.js";
+import { getAuthUser } from "./session_api.js";
 const TENANT_ID = "tenant_companionscpas";
 
 function json(data, status = 200) {
@@ -24,6 +25,16 @@ function safeJson(value, fallback) {
 async function bustCache(env, ...keys) {
   if (!env.CMS_CACHE) return;
   await Promise.all(keys.map(k => env.CMS_CACHE.delete(k).catch(() => {})));
+}
+
+async function requireCmsUser(request, env, sessionUser = null) {
+  if (sessionUser) return sessionUser;
+  try {
+    return await getAuthUser(request, env);
+  } catch (err) {
+    console.warn("[cms/auth] getAuthUser failed:", err?.message || err);
+    return null;
+  }
 }
 
 function normalizeRouteInput(route) {
@@ -166,6 +177,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
   }
 
   if (path === "/api/cms/section/save" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
     const data = await body(request);
     const section = data.section || data;
 
@@ -221,6 +235,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
   }
 
   if (path === "/api/cms/block/save" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
     const data = await body(request);
     const block = data.block || data;
 
@@ -276,6 +293,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
   }
 
   if (path === "/api/cms/page/save" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
     const data = await body(request);
     const page = data.page || data;
     const route_path = page.route_path || "/";
@@ -322,6 +342,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
   }
 
   if (path === "/api/cms/publish" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
     const data = await body(request);
     const routeInput = data.route_path ?? data.page_route ?? data.route ?? "";
     const route = normalizeRouteInput(routeInput);
@@ -329,7 +352,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       return json({ error: "route_path (or page_route/route) is required" }, 400);
     }
 
-    const triggeredBy = sessionUser?.email || sessionUser?.id || "dashboard";
+    const triggeredBy = cmsUser?.email || cmsUser?.id || "dashboard";
     const jobId = await createPublishJob(env, route, triggeredBy);
 
     await env.DB.prepare(`
@@ -386,6 +409,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
   // POST /api/cms/asset/save
   if (path === "/api/cms/asset/save" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
     const data = await body(request);
     const asset = data.asset || data;
     const asset_key = asset.asset_key || id("asset");
@@ -457,6 +483,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
   // POST /api/cms/brand/save
   if (path === "/api/cms/brand/save" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
     const data = await body(request);
     const brand = data.brand || data;
 
@@ -511,6 +540,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
   // POST /api/cms/section/delete
   if (path === "/api/cms/section/delete" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
     const data = await body(request);
     const { page_route, section_key } = data;
     if (!page_route || !section_key) return json({ error: "page_route and section_key required" }, 400);
