@@ -1238,3 +1238,72 @@ body[data-route="/"] .site-main > .section:first-child {
     padding-top: clamp(56px, 12vw, 88px);
   }
 }
+
+/* Homepage final visual header/hero normalization */
+body[data-route="/"] .site-header,
+body[data-route="home"] .site-header,
+body.home .site-header {
+  height: var(--cpas-header-h, 76px) !important;
+  min-height: var(--cpas-header-h, 76px) !important;
+  padding: 0 !important;
+  display: block !important;
+}
+
+body[data-route="/"] .site-header .header-inner,
+body[data-route="home"] .site-header .header-inner,
+body.home .site-header .header-inner {
+  height: var(--cpas-header-h, 76px) !important;
+  min-height: var(--cpas-header-h, 76px) !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  display: grid !important;
+  grid-template-columns: minmax(132px, 1fr) auto minmax(132px, 1fr) !important;
+  align-items: center !important;
+}
+
+body[data-route="/"] .site-header .logo-link,
+body[data-route="/"] .site-header nav,
+body[data-route="/"] .site-header .header-actions,
+body[data-route="home"] .site-header .logo-link,
+body[data-route="home"] .site-header nav,
+body[data-route="home"] .site-header .header-actions,
+body.home .site-header .logo-link,
+body.home .site-header nav,
+body.home .site-header .header-actions {
+  transform: none !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  align-self: center !important;
+}
+
+/* Remove homepage-only dead air between header and hero */
+body[data-route="/"] .site-header + .site-main,
+body[data-route="home"] .site-header + .site-main,
+body.home .site-header + .site-main {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+body[data-route="/"] .site-main > .section:first-child,
+body[data-route="home"] .site-main > .section:first-child,
+body.home .site-main > .section:first-child {
+  padding-top: clamp(64px, 7vw, 104px) !important;
+}
+
+@media (max-width: 760px) {
+  body[data-route="/"] .site-header,
+  body[data-route="/"] .site-header .header-inner,
+  body[data-route="home"] .site-header,
+  body[data-route="home"] .site-header .header-inner,
+  body.home .site-header,
+  body.home .site-header .header-inner {
+    height: var(--cpas-header-h, 70px) !important;
+    min-height: var(--cpas-header-h, 70px) !important;
+  }
+
+  body[data-route="/"] .site-main > .section:first-child,
+  body[data-route="home"] .site-main > .section:first-child,
+  body.home .site-main > .section:first-child {
+    padding-top: clamp(48px, 10vw, 76px) !important;
+  }
+}
