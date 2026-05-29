@@ -201,6 +201,17 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   const theme = safePage.theme === "light" ? "light" : "dark";
   const route = escapeHtml(safePage.route_path || "/");
   const sectionsMarkup = Array.isArray(sectionHtmls) ? sectionHtmls.join("\n") : "";
+  const brandScript = `<script>window.__BRAND=${JSON.stringify({
+    brand_name: safeBrand.brand_name || "Companions of CPAS",
+    logo_dark_url: safeBrand.logo_dark_url || "/static/global/logo-dark.webp",
+    logo_light_url: safeBrand.logo_light_url || "/static/global/companionsofcpa-newlogo.webp",
+    footer_logo_dark_url: safeBrand.footer_logo_dark_url || "/static/global/companionsofcpa-newlogo.webp",
+    footer_logo_light_url: safeBrand.footer_logo_light_url || "/static/global/logo-dark.webp",
+    developer_logo_dark_url: safeBrand.developer_logo_dark_url || "",
+    developer_logo_light_url: safeBrand.developer_logo_light_url || "",
+    logo_width: safeBrand.logo_width || 140,
+    footer_logo_width: safeBrand.footer_logo_width || 120,
+  })}<\/script>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -210,6 +221,7 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   <title>${title}</title>
   <meta name="description" content="${description}">
   <link rel="stylesheet" href="/static/global/cpas-shell.css">
+${brandScript}
 </head>
 <body class="theme-${theme}" data-theme="${theme}" data-route="${route}">
 ${headerHtml || ""}
