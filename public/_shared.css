@@ -1205,3 +1205,36 @@ body[data-theme="light"] .site-header .site-nav a.active {
   }
 }
 
+
+/* Homepage header normalization: keep hero design, unify header behavior */
+body[data-route="/"] .site-header {
+  position: sticky;
+  top: 0;
+  min-height: var(--cpas-header-h);
+}
+
+body[data-route="/"] .site-header .header-inner {
+  min-height: var(--cpas-header-h);
+  align-items: center;
+}
+
+body[data-route="/"] .site-header .logo-link,
+body[data-route="/"] .site-header nav,
+body[data-route="/"] .site-header .header-actions {
+  align-self: center;
+}
+
+body[data-route="/"] .site-header + .site-main {
+  margin-top: 0;
+}
+
+/* Give homepage hero calm space below the now-normalized header */
+body[data-route="/"] .site-main > .section:first-child {
+  padding-top: clamp(72px, 8vw, 112px);
+}
+
+@media (max-width: 760px) {
+  body[data-route="/"] .site-main > .section:first-child {
+    padding-top: clamp(56px, 12vw, 88px);
+  }
+}
