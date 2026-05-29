@@ -42,12 +42,6 @@ async function asset(env, request, path) {
       });
     }
   } catch {}
-  // Fallback: ASSETS (static binding — being migrated out)
-  try {
-    const url = new URL(request.url);
-    const res = await env.ASSETS.fetch(new Request(url.origin + path, request));
-    if (res.ok) return res;
-  } catch {}
   return new Response('Not found', { status: 404 });
 }
 
@@ -159,7 +153,7 @@ export default {
 
 
     // ── Same-origin CMS/R2 static assets ───────────────────────────────────────
-    // /static/global/shared.css -> WEBSITE_ASSETS key static/global/shared.css
+    // /static/global/cpas-shell.css -> WEBSITE_ASSETS key static/global/cpas-shell.css
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/static/")) {
       const key = url.pathname.slice(1);
 
@@ -235,8 +229,8 @@ export default {
       return servePublicPage(url.pathname, env);
     }
 
-    // ── Everything else: static assets ───────────────────────────────────────
-    return env.ASSETS.fetch(request);
+    // ── Everything else: 404 ───────────────────────────────────────────────
+    return new Response('Not found', { status: 404 });
   },
 
   // Cron: sync ETO events to IAM daily 06:00 UTC
