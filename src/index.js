@@ -11,6 +11,7 @@ import { donationApiRoutes } from './api/donation_api.js';
 import { paymentsEmailRoutes } from './api/payments_email.js';
 import { socialRoutes } from './api/social.js';
 import { renderHome } from "./api/render_home.js";
+import { handleFosterApply, handleFosterList, handleFosterUpdate } from './api/foster_api.js';
 
 
 function json(data, status = 200) {
@@ -293,3 +294,15 @@ export default {
     ctx.waitUntil(syncToIAM(env));
   }
 };
+
+// ── Foster Application Routes ──────────────────────────────────────────────
+  if (path === '/api/foster/apply' && request.method === 'POST') {
+    return handleFosterApply(request, env);
+  }
+  if (path === '/api/foster/applications' && request.method === 'GET') {
+    return handleFosterList(request, env);
+  }
+  if (path.startsWith('/api/foster/applications/') && request.method === 'PATCH') {
+    const appId = path.split('/api/foster/applications/')[1];
+    return handleFosterUpdate(request, env, appId);
+  }
