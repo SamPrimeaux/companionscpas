@@ -212,7 +212,7 @@ export default {
       return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     }
 
-    if (url.pathname === "/admin/reset") {
+    if (url.pathname === "/admin/reset" || url.pathname === "/admin/reset-password") {
       return asset(env, request, "/admin/reset-password.html");
     }
 
