@@ -182,7 +182,7 @@ export async function dashboardApiRoutes(request, env, url) {
   }
 
   if (path === "/api/dashboard/intakes") {
-    const rows = await env.DB.prepare("SELECT * FROM animals ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
+    const rows = await env.DB.prepare("SELECT * FROM animal_profiles WHERE status = 'available' ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
     return json({ intakes: rows.results || [] });
   }
 
@@ -198,7 +198,7 @@ export async function dashboardApiRoutes(request, env, url) {
 
   if (path === "/api/dashboard/reports") {
     const donations = await env.DB.prepare("SELECT * FROM donations ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
-    const animals = await env.DB.prepare("SELECT * FROM animals ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
+    const animals = await env.DB.prepare("SELECT * FROM animal_profiles WHERE status = 'available' ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
     const apps = await env.DB.prepare("SELECT * FROM applications ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
     return json({ donations: donations.results || [], animals: animals.results || [], applications: apps.results || [] });
   }

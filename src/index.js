@@ -160,7 +160,7 @@ export default {
       }
 
       try {
-        const artifact = await env.WEBSITE_ASSETS.get("static/pages/about/index.html");
+        console.warn("[about-r2] attempting get"); const artifact = await env.WEBSITE_ASSETS.get("static/pages/about/index.html"); console.warn("[about-r2] result:", artifact ? "HIT " + artifact.size : "MISS");
         if (artifact) {
           const html = await artifact.text();
           if (env.CMS_CACHE) {

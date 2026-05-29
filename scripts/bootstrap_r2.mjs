@@ -88,6 +88,20 @@ function buildAdoptAnimalBlocks(rows) {
   }));
 }
 
+function applyGlobalSharedAssets(html) {
+  const cssTag = `<link rel="stylesheet" href="https://assets.meauxxx.com/static/global/shared.css">`;
+  const preloadJsTag = `<script src="https://assets.meauxxx.com/static/global/shared.js" defer></script>`;
+  const scriptTag = `<script src="https://assets.meauxxx.com/static/global/shared.js"></script>`;
+
+  let out = String(html || "");
+  out = out.replace(
+    '<link rel="stylesheet" href="/_shared.css">',
+    `${cssTag}\n  ${preloadJsTag}`
+  );
+  out = out.replace("</body>", `  ${scriptTag}\n</body>`);
+  return out;
+}
+
 async function fetchGlobalPartial(url, name) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch ${name}: ${res.status} ${res.statusText}`);
@@ -139,7 +153,9 @@ async function renderRoute(route, brand, partials) {
   }
 
   return {
-    html: assembleFullPage(page, brand, partials.headerHtml, sectionHtmls, partials.footerHtml),
+    html: applyGlobalSharedAssets(
+      assembleFullPage(page, brand, partials.headerHtml, sectionHtmls, partials.footerHtml)
+    ),
     adoptAnimalCount,
   };
 }
@@ -160,6 +176,19 @@ async function uploadRouteHtml(route, html) {
     "--remote",
   ]);
   return { route, key, file };
+}
+
+function deleteKvCacheKey(route) {
+  const cacheKey = `page:${route}`;
+  runWrangler([
+    "kv",
+    "key",
+    "delete",
+    cacheKey,
+    "--binding=CMS_CACHE",
+    "--remote",
+  ]);
+  return { key: cacheKey, success: true };
 }
 
 async function main() {
@@ -184,7 +213,9 @@ async function main() {
     });
   }
 
-  console.log(JSON.stringify({ uploaded }, null, 2));
+  const deletedKvKeys = ROUTES.map((route) => deleteKvCacheKey(route));
+
+  console.log(JSON.stringify({ uploaded, deletedKvKeys }, null, 2));
 }
 
 main().catch((err) => {

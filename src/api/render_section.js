@@ -50,7 +50,7 @@ function safeUrl(value, fallback = "") {
   }
 }
 
-function renderCta(label, url, className = "cpas-btn") {
+function renderCta(label, url, className = "btn btn-ghost") {
   const safeLabel = text(label).trim();
   const safeHref = safeUrl(url, "");
   if (!safeLabel || !safeHref) return "";
@@ -67,10 +67,10 @@ function renderSectionHeader(section, opts = {}) {
   const bodyEnabled = options.includeBody !== false;
 
   return [
-    eyebrow ? `<p class="cpas-eyebrow">${escapeHtml(eyebrow)}</p>` : "",
-    heading ? `<${headingTag} class="cpas-heading">${escapeHtml(heading)}</${headingTag}>` : "",
-    subheading ? `<p class="cpas-subheading">${escapeHtml(subheading)}</p>` : "",
-    bodyEnabled && body ? `<p class="cpas-body">${escapeHtml(body)}</p>` : "",
+    eyebrow ? `<p class="eyebrow">${escapeHtml(eyebrow)}</p>` : "",
+    heading ? `<${headingTag}>${escapeHtml(heading)}</${headingTag}>` : "",
+    subheading ? `<p class="text-muted mt-sm">${escapeHtml(subheading)}</p>` : "",
+    bodyEnabled && body ? `<p>${escapeHtml(body)}</p>` : "",
   ].join("");
 }
 
@@ -103,25 +103,27 @@ function renderHero(section) {
   const ctaPrimary = renderCta(
     pickText(section, ["cta_label"]) || pickText(config, ["cta_label"]),
     pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]),
-    "cpas-btn cpas-btn-primary"
+    "btn btn-primary"
   );
   const ctaSecondary = renderCta(
     pickText(section, ["secondary_cta_label", "cta_secondary_label"]) || pickText(config, ["secondary_cta_label"]),
     pickText(section, ["secondary_cta_url", "cta_secondary_href"]) || pickText(config, ["secondary_cta_url"]),
-    "cpas-btn cpas-btn-secondary"
+    "btn btn-ghost"
   );
 
   return `
-<section class="cpas-section cpas-hero" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  <div class="cpas-hero-content">
-    ${pickText(section, ["eyebrow"]) ? `<p class="cpas-eyebrow">${escapeHtml(pickText(section, ["eyebrow"]))}</p>` : ""}
-    ${heading ? `<h1 class="cpas-heading">${escapeHtml(heading)}</h1>` : ""}
-    ${subheading ? `<p class="cpas-subheading">${escapeHtml(subheading)}</p>` : ""}
-    ${body ? `<p class="cpas-body">${escapeHtml(body)}</p>` : ""}
-    ${ctaPrimary || ctaSecondary ? `<div class="cpas-actions">${ctaPrimary}${ctaSecondary}</div>` : ""}
-  </div>
-  <div class="cpas-hero-media">
-    ${renderImage(imageUrl, imageAlt, "cpas-image")}
+<section class="section section-hero" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    <div class="hero-content">
+      ${pickText(section, ["eyebrow"]) ? `<p class="eyebrow">${escapeHtml(pickText(section, ["eyebrow"]))}</p>` : ""}
+      ${heading ? `<h1>${escapeHtml(heading)}</h1>` : ""}
+      ${subheading ? `<p class="text-muted mt-sm">${escapeHtml(subheading)}</p>` : ""}
+      ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+      ${ctaPrimary || ctaSecondary ? `<div class="hero-actions">${ctaPrimary}${ctaSecondary}</div>` : ""}
+    </div>
+    <div>
+      ${renderImage(imageUrl, imageAlt, "")}
+    </div>
   </div>
 </section>`.trim();
 }
@@ -134,22 +136,24 @@ function renderTextImage(section) {
   const cta = renderCta(
     pickText(section, ["cta_label"]) || pickText(config, ["cta_label"]),
     pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]),
-    "cpas-btn cpas-btn-primary"
+    "btn btn-primary"
   );
   const secondaryCta = renderCta(
     pickText(section, ["secondary_cta_label", "cta_secondary_label"]),
     pickText(section, ["secondary_cta_url", "cta_secondary_href"]),
-    "cpas-btn cpas-btn-secondary"
+    "btn btn-ghost"
   );
 
   return `
-<section class="cpas-section cpas-text-image cpas-text-image--${escapeAttribute(imagePosition)}" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  <div class="cpas-text-image-content">
-    ${renderSectionHeader(section)}
-    ${cta || secondaryCta ? `<div class="cpas-actions">${cta}${secondaryCta}</div>` : ""}
-  </div>
-  <div class="cpas-text-image-media">
-    ${renderImage(imageUrl, imageAlt, "cpas-image")}
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    <div>
+      ${renderSectionHeader(section)}
+      ${cta || secondaryCta ? `<div class="hero-actions">${cta}${secondaryCta}</div>` : ""}
+    </div>
+    <div>
+      ${renderImage(imageUrl, imageAlt, "")}
+    </div>
   </div>
 </section>`.trim();
 }
@@ -165,21 +169,23 @@ function renderTextImageSplit(section, blocks) {
   const rightBody = rightParts.body;
 
   return `
-<section class="cpas-section cpas-text-image-split" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${renderSectionHeader(section, { includeBody: false })}
-  <div class="cpas-split-grid">
-    <article class="cpas-split-panel">
-      ${leftParts.title ? `<h3 class="cpas-card-title">${escapeHtml(leftParts.title)}</h3>` : ""}
-      ${leftBody ? `<p class="cpas-card-body">${escapeHtml(leftBody)}</p>` : ""}
-      ${renderImage(leftParts.imageUrl || pickText(section, ["image_url"]), leftParts.imageAlt || pickText(section, ["image_alt"]) || "Section image", "cpas-image")}
-      ${renderCta(leftParts.ctaLabel, leftParts.ctaUrl, "cpas-btn cpas-btn-secondary")}
-    </article>
-    <article class="cpas-split-panel">
-      ${rightParts.title ? `<h3 class="cpas-card-title">${escapeHtml(rightParts.title)}</h3>` : ""}
-      ${rightBody ? `<p class="cpas-card-body">${escapeHtml(rightBody)}</p>` : ""}
-      ${renderImage(rightParts.imageUrl, rightParts.imageAlt || "Section image", "cpas-image")}
-      ${renderCta(rightParts.ctaLabel, rightParts.ctaUrl, "cpas-btn cpas-btn-secondary")}
-    </article>
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${renderSectionHeader(section, { includeBody: false })}
+    <div class="card-grid mt-md">
+      <article class="card">
+        ${leftParts.title ? `<h3>${escapeHtml(leftParts.title)}</h3>` : ""}
+        ${leftBody ? `<p class="card-text">${escapeHtml(leftBody)}</p>` : ""}
+        ${renderImage(leftParts.imageUrl || pickText(section, ["image_url"]), leftParts.imageAlt || pickText(section, ["image_alt"]) || "Section image", "")}
+        ${renderCta(leftParts.ctaLabel, leftParts.ctaUrl, "btn btn-ghost")}
+      </article>
+      <article class="card">
+        ${rightParts.title ? `<h3>${escapeHtml(rightParts.title)}</h3>` : ""}
+        ${rightBody ? `<p class="card-text">${escapeHtml(rightBody)}</p>` : ""}
+        ${renderImage(rightParts.imageUrl, rightParts.imageAlt || "Section image", "")}
+        ${renderCta(rightParts.ctaLabel, rightParts.ctaUrl, "btn btn-ghost")}
+      </article>
+    </div>
   </div>
 </section>`.trim();
 }
@@ -188,20 +194,23 @@ function renderCardGrid(section, blocks) {
   const cards = sortBlocks(blocks).map((block) => {
     const parts = cardParts(block);
     return `
-    <article class="cpas-card">
-      ${parts.icon ? `<p class="cpas-card-icon">${escapeHtml(parts.icon)}</p>` : ""}
-      ${renderImage(parts.imageUrl, parts.imageAlt || parts.title || "Card image", "cpas-card-image")}
-      ${parts.title ? `<h3 class="cpas-card-title">${escapeHtml(parts.title)}</h3>` : ""}
-      ${parts.body ? `<p class="cpas-card-body">${escapeHtml(parts.body)}</p>` : ""}
-      ${renderCta(parts.ctaLabel, parts.ctaUrl, "cpas-btn cpas-btn-secondary")}
-    </article>`.trim();
+    <article class="card">
+      ${parts.icon ? `<p>${escapeHtml(parts.icon)}</p>` : ""}
+      ${renderImage(parts.imageUrl, parts.imageAlt || parts.title || "Card image", "")}
+      ${parts.title ? `<h3>${escapeHtml(parts.title)}</h3>` : ""}
+      ${parts.body ? `<p class="card-text">${escapeHtml(parts.body)}</p>` : ""}
+      ${renderCta(parts.ctaLabel, parts.ctaUrl, "btn btn-ghost")}
+    </article>
+    `.trim();
   }).join("");
 
   return `
-<section class="cpas-section cpas-card-grid" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${renderSectionHeader(section)}
-  <div class="cpas-cards">
-    ${cards || `<p class="cpas-empty">No cards available.</p>`}
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${renderSectionHeader(section)}
+    <div class="card-grid mt-md">
+      ${cards || `<p class="text-muted mt-sm">No cards available.</p>`}
+    </div>
   </div>
 </section>`.trim();
 }
@@ -210,19 +219,21 @@ function renderFeatureCards(section, blocks) {
   const cards = sortBlocks(blocks).map((block) => {
     const parts = cardParts(block);
     return `
-    <article class="cpas-card cpas-feature-card">
-      ${parts.icon ? `<p class="cpas-card-icon">${escapeHtml(parts.icon)}</p>` : ""}
-      ${parts.title ? `<h3 class="cpas-card-title">${escapeHtml(parts.title)}</h3>` : ""}
-      ${parts.body ? `<p class="cpas-card-body">${escapeHtml(parts.body)}</p>` : ""}
-      ${renderCta(parts.ctaLabel, parts.ctaUrl, "cpas-btn cpas-btn-secondary")}
+    <article class="card">
+      ${parts.icon ? `<p>${escapeHtml(parts.icon)}</p>` : ""}
+      ${parts.title ? `<h3>${escapeHtml(parts.title)}</h3>` : ""}
+      ${parts.body ? `<p class="card-text">${escapeHtml(parts.body)}</p>` : ""}
+      ${renderCta(parts.ctaLabel, parts.ctaUrl, "btn btn-ghost")}
     </article>`.trim();
   }).join("");
 
   return `
-<section class="cpas-section cpas-feature-cards" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${renderSectionHeader(section)}
-  <div class="cpas-cards">
-    ${cards || `<p class="cpas-empty">No features available.</p>`}
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${renderSectionHeader(section)}
+    <div class="card-grid mt-md">
+      ${cards || `<p class="text-muted mt-sm">No features available.</p>`}
+    </div>
   </div>
 </section>`.trim();
 }
@@ -234,10 +245,12 @@ function renderTestimonial(section, blocks) {
   const role = pickText(firstBlock, ["subheading"]);
 
   return `
-<section class="cpas-section cpas-testimonial" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${pickText(section, ["eyebrow"]) ? `<p class="cpas-eyebrow">${escapeHtml(pickText(section, ["eyebrow"]))}</p>` : ""}
-  ${quote ? `<blockquote class="cpas-quote">${escapeHtml(quote)}</blockquote>` : ""}
-  ${(author || role) ? `<p class="cpas-attribution">${escapeHtml([author, role].filter(Boolean).join(" • "))}</p>` : ""}
+<section class="section section-testimonial" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${pickText(section, ["eyebrow"]) ? `<p class="eyebrow">${escapeHtml(pickText(section, ["eyebrow"]))}</p>` : ""}
+    ${quote ? `<blockquote class="testimonial-quote">${escapeHtml(quote)}</blockquote>` : ""}
+    ${(author || role) ? `<p class="text-muted mt-sm">${escapeHtml([author, role].filter(Boolean).join(" • "))}</p>` : ""}
+  </div>
 </section>`.trim();
 }
 
@@ -247,17 +260,19 @@ function renderTestimonials(section, blocks) {
     const author = pickText(block, ["title", "heading", "block_key"]);
     const detail = pickText(block, ["subheading"]);
     return `
-    <article class="cpas-card cpas-testimonial-card">
-      ${quote ? `<blockquote class="cpas-quote">${escapeHtml(quote)}</blockquote>` : ""}
-      ${(author || detail) ? `<p class="cpas-attribution">${escapeHtml([author, detail].filter(Boolean).join(" • "))}</p>` : ""}
+    <article class="card">
+      ${quote ? `<blockquote class="testimonial-quote">${escapeHtml(quote)}</blockquote>` : ""}
+      ${(author || detail) ? `<p class="text-muted mt-sm">${escapeHtml([author, detail].filter(Boolean).join(" • "))}</p>` : ""}
     </article>`.trim();
   }).join("");
 
   return `
-<section class="cpas-section cpas-testimonials" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${renderSectionHeader(section)}
-  <div class="cpas-cards">
-    ${items || `<p class="cpas-empty">No testimonials available.</p>`}
+<section class="section section-testimonial" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${renderSectionHeader(section)}
+    <div class="card-grid mt-md">
+      ${items || `<p class="text-muted mt-sm">No testimonials available.</p>`}
+    </div>
   </div>
 </section>`.trim();
 }
@@ -269,18 +284,20 @@ function renderImpactStats(section, blocks) {
     const label = pickText(block, ["title", "block_key"]) || pickText(config, ["label"]);
     const body = pickText(block, ["body"]) || pickText(config, ["description"]);
     return `
-    <article class="cpas-stat">
-      ${value ? `<p class="cpas-stat-value">${escapeHtml(value)}</p>` : ""}
-      ${label ? `<h3 class="cpas-stat-label">${escapeHtml(label)}</h3>` : ""}
-      ${body ? `<p class="cpas-stat-body">${escapeHtml(body)}</p>` : ""}
+    <article class="card">
+      ${value ? `<p>${escapeHtml(value)}</p>` : ""}
+      ${label ? `<h3>${escapeHtml(label)}</h3>` : ""}
+      ${body ? `<p class="card-text">${escapeHtml(body)}</p>` : ""}
     </article>`.trim();
   }).join("");
 
   return `
-<section class="cpas-section cpas-impact-stats" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${renderSectionHeader(section)}
-  <div class="cpas-stats-grid">
-    ${stats || `<p class="cpas-empty">No impact stats available.</p>`}
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${renderSectionHeader(section)}
+    <div class="card-grid mt-md">
+      ${stats || `<p class="text-muted mt-sm">No impact stats available.</p>`}
+    </div>
   </div>
 </section>`.trim();
 }
@@ -290,20 +307,22 @@ function renderCtaBanner(section) {
   const primary = renderCta(
     pickText(section, ["cta_label"]) || pickText(config, ["cta_label"]),
     pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]),
-    "cpas-btn cpas-btn-primary"
+    "btn btn-primary"
   );
   const secondary = renderCta(
     pickText(section, ["secondary_cta_label", "cta_secondary_label"]) || pickText(config, ["secondary_cta_label"]),
     pickText(section, ["secondary_cta_url", "cta_secondary_href"]) || pickText(config, ["secondary_cta_url"]),
-    "cpas-btn cpas-btn-secondary"
+    "btn btn-ghost"
   );
 
   return `
-<section class="cpas-section cpas-cta cpas-cta-banner" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  <div class="cpas-cta-content">
-    ${renderSectionHeader(section)}
+<section class="section section-cta" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    <div>
+      ${renderSectionHeader(section)}
+    </div>
+    ${primary || secondary ? `<div class="hero-actions">${primary}${secondary}</div>` : ""}
   </div>
-  ${primary || secondary ? `<div class="cpas-actions">${primary}${secondary}</div>` : ""}
 </section>`.trim();
 }
 
@@ -313,27 +332,29 @@ function renderDonationBlock(section, blocks) {
   const amountItems = amounts
     .map((amount) => text(amount).trim())
     .filter(Boolean)
-    .map((amount) => `<li class="cpas-donation-amount">${escapeHtml(amount)}</li>`)
+    .map((amount) => `<li>${escapeHtml(amount)}</li>`)
     .join("");
   const details = sortBlocks(blocks).map((block) => {
     const title = pickText(block, ["title", "heading"]);
     const body = pickText(block, ["body"]);
     if (!title && !body) return "";
-    return `<li class="cpas-donation-detail">${title ? `<strong>${escapeHtml(title)}</strong>` : ""}${body ? ` ${escapeHtml(body)}` : ""}</li>`;
+    return `<li>${title ? `<strong>${escapeHtml(title)}</strong>` : ""}${body ? ` ${escapeHtml(body)}` : ""}</li>`;
   }).join("");
 
   const cta = renderCta(
     pickText(section, ["cta_label"]) || "Donate",
     pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]),
-    "cpas-btn cpas-btn-primary"
+    "btn btn-primary"
   );
 
   return `
-<section class="cpas-section cpas-donation-block" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${renderSectionHeader(section)}
-  ${amountItems ? `<ul class="cpas-donation-amounts">${amountItems}</ul>` : ""}
-  ${details ? `<ul class="cpas-donation-details">${details}</ul>` : ""}
-  ${cta ? `<div class="cpas-actions">${cta}</div>` : ""}
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${renderSectionHeader(section)}
+    ${amountItems ? `<ul>${amountItems}</ul>` : ""}
+    ${details ? `<ul>${details}</ul>` : ""}
+    ${cta ? `<div class="hero-actions">${cta}</div>` : ""}
+  </div>
 </section>`.trim();
 }
 
@@ -349,7 +370,7 @@ function renderOrgInfo(section, _blocks, brand) {
     ["Budget", pickText(orgData, ["budget"])],
     ["Sector", pickText(orgData, ["sector"])],
   ].filter(([, value]) => value);
-  const rowHtml = rows.map(([label, value]) => `<div class="cpas-org-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  const rowHtml = rows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
   const contactLines = [
     pickText(contact, ["email"]),
     pickText(contact, ["phone"]),
@@ -358,10 +379,12 @@ function renderOrgInfo(section, _blocks, brand) {
   ].filter(Boolean);
 
   return `
-<section class="cpas-section cpas-org-info" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${renderSectionHeader(section)}
-  ${rowHtml ? `<dl class="cpas-org-grid">${rowHtml}</dl>` : ""}
-  ${contactLines.length ? `<p class="cpas-contact">${escapeHtml(contactLines.join(" • "))}</p>` : ""}
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${renderSectionHeader(section)}
+    ${rowHtml ? `<dl>${rowHtml}</dl>` : ""}
+    ${contactLines.length ? `<p class="text-muted mt-sm">${escapeHtml(contactLines.join(" • "))}</p>` : ""}
+  </div>
 </section>`.trim();
 }
 
@@ -371,17 +394,19 @@ function renderFaq(section, blocks) {
     const answer = pickText(block, ["body"]);
     if (!question && !answer) return "";
     return `
-    <details class="cpas-faq-item">
+    <details>
       ${question ? `<summary>${escapeHtml(question)}</summary>` : "<summary>Question</summary>"}
       ${answer ? `<p>${escapeHtml(answer)}</p>` : ""}
     </details>`.trim();
   }).join("");
 
   return `
-<section class="cpas-section cpas-faq" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${renderSectionHeader(section)}
-  <div class="cpas-faq-list">
-    ${items || `<p class="cpas-empty">${escapeHtml(pickText(section, ["body"]) || "No FAQs available.")}</p>`}
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${renderSectionHeader(section)}
+    <div>
+      ${items || `<p class="text-muted mt-sm">${escapeHtml(pickText(section, ["body"]) || "No FAQs available.")}</p>`}
+    </div>
   </div>
 </section>`.trim();
 }
@@ -425,22 +450,24 @@ function renderAnimalGrid(section, blocks) {
     const mailto = `mailto:companionsCPAS@gmail.com?subject=${encodeURIComponent(`Inquiry about ${labelName}`)}`;
 
     return `
-    <article class="cpas-animal-card">
+    <article class="card">
       ${imageUrl ? `<img src="${imageUrl}" alt="${escapeAttribute(altText)}" loading="lazy">` : ""}
-      <div class="cpas-animal-card__body">
+      <div class="card-body">
         ${name ? `<h3>${escapeHtml(name)}</h3>` : ""}
-        ${meta ? `<p class="cpas-animal-meta">${escapeHtml(meta)}</p>` : ""}
-        ${bio ? `<p class="cpas-animal-bio">${escapeHtml(bio)}</p>` : ""}
-        <a href="${escapeAttribute(mailto)}" class="cpas-btn">Ask about ${escapeHtml(labelName)}</a>
+        ${meta ? `<p class="text-muted">${escapeHtml(meta)}</p>` : ""}
+        ${bio ? `<p class="card-text">${escapeHtml(bio)}</p>` : ""}
+        <a href="${escapeAttribute(mailto)}" class="btn btn-ghost">Ask about ${escapeHtml(labelName)}</a>
       </div>
     </article>`.trim();
   }).join("");
 
   return `
-<section class="cpas-section cpas-animal-grid" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${renderSectionHeader(section)}
-  <div class="cpas-cards">
-    ${cards || `<p class="cpas-empty">Adoptable dogs will appear here. Check back soon.</p>`}
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${renderSectionHeader(section)}
+    <div class="card-grid mt-md">
+      ${cards || `<p class="text-muted mt-sm">Adoptable dogs will appear here. Check back soon.</p>`}
+    </div>
   </div>
 </section>`.trim();
 }
@@ -449,19 +476,21 @@ function renderCampaignGrid(section, blocks) {
   const cards = sortBlocks(blocks).map((block) => {
     const parts = cardParts(block);
     return `
-    <article class="cpas-card cpas-campaign-card">
-      ${renderImage(parts.imageUrl, parts.imageAlt || parts.title || "Campaign image", "cpas-card-image")}
-      ${parts.title ? `<h3 class="cpas-card-title">${escapeHtml(parts.title)}</h3>` : ""}
-      ${parts.body ? `<p class="cpas-card-body">${escapeHtml(parts.body)}</p>` : ""}
-      ${renderCta(parts.ctaLabel, parts.ctaUrl, "cpas-btn cpas-btn-secondary")}
+    <article class="card">
+      ${renderImage(parts.imageUrl, parts.imageAlt || parts.title || "Campaign image", "")}
+      ${parts.title ? `<h3>${escapeHtml(parts.title)}</h3>` : ""}
+      ${parts.body ? `<p class="card-text">${escapeHtml(parts.body)}</p>` : ""}
+      ${renderCta(parts.ctaLabel, parts.ctaUrl, "btn btn-ghost")}
     </article>`.trim();
   }).join("");
 
   return `
-<section class="cpas-section cpas-campaign-grid" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${renderSectionHeader(section)}
-  <div class="cpas-cards">
-    ${cards || `<p class="cpas-empty">Campaign content will appear here.</p>`}
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  <div class="container">
+    ${renderSectionHeader(section)}
+    <div class="card-grid mt-md">
+      ${cards || `<p class="text-muted mt-sm">Campaign content will appear here.</p>`}
+    </div>
   </div>
 </section>`.trim();
 }

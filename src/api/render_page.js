@@ -206,11 +206,11 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
   <meta name="description" content="${description}">
-  <link rel="stylesheet" href="/_shared.css">
+  <link rel="stylesheet" href="https://assets.meauxxx.com/static/global/shared.css">
 </head>
-<body data-route="${route}">
+<body class="theme-dark" data-route="${route}">
 ${headerHtml || ""}
-<main class="cpas-page-content">
+<main class="site-main">
 ${sectionsMarkup}
 </main>
 ${footerHtml || ""}
