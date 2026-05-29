@@ -165,16 +165,17 @@ export function pageShell(title, metaDesc, bodyHtml, {
   <link rel="stylesheet" href="/static/global/shared.css" />
   <link rel="icon" href="/logo.png" />
 </head>
-<body class="${esc(theme === 'dark' ? 'theme-dark' : 'theme-light')}">
+<body class="${esc(theme === 'dark' ? 'theme-dark' : 'theme-light')}" data-theme="${esc(theme)}" data-route="${esc(activePage || '/')}" data-tenant="tenant_companionscpas">
 
 ${header}
 
-<main>
+<main class="site-main">
 ${bodyHtml}
 </main>
 
 ${footer}
 
+<script src="/static/global/shared.js"></script>
 </body>
 </html>`;
 }

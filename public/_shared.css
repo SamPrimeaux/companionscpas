@@ -1307,3 +1307,177 @@ body.home .site-main > .section:first-child {
     padding-top: clamp(48px, 10vw, 76px) !important;
   }
 }
+/* Thu May 28 21:05:16 CDT 2026 */
+
+
+/* ── HERO SPLIT — mobile-first responsive hero ──────────────────────────────
+   Mobile  : full-bleed image behind text, scrim fades bottom-to-top
+   Desktop : image pinned right 55%, text left, sharp gradient cutoff
+   ────────────────────────────────────────────────────────────────────────── */
+
+.hero-split {
+  position: relative;
+  overflow: hidden;
+  min-height: 100svh;
+  display: flex;
+  align-items: flex-end;
+}
+
+/* Full-bleed background layer */
+.hero-media-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.hero-media-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+
+/* Mobile scrim: dark gradient from bottom so text is readable */
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(11,15,26,0.97) 0%,
+    rgba(11,15,26,0.82) 38%,
+    rgba(11,15,26,0.40) 65%,
+    rgba(11,15,26,0.10) 100%
+  );
+}
+
+/* Content sits above the image */
+.hero-body {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding-top: 6rem;
+  padding-bottom: 3.5rem;
+}
+
+.hero-content {
+  max-width: 600px;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 100px;
+  padding: 0.35rem 0.85rem;
+  margin-bottom: 1.25rem;
+  backdrop-filter: blur(8px);
+}
+
+.hero-heading {
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 8vw, 4.8rem);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: var(--text-1);
+  margin-bottom: 1.25rem;
+}
+
+.hero-sub {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--text-2);
+  max-width: 520px;
+  margin-bottom: 2rem;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.hero-cta-primary {
+  font-size: 15px;
+  padding: 0.8rem 1.75rem;
+  border-radius: 100px;
+}
+
+.hero-cta-secondary {
+  font-size: 15px;
+  padding: 0.8rem 1.75rem;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Desktop: revert to split layout */
+@media (min-width: 768px) {
+  .hero-split {
+    min-height: 92vh;
+    align-items: center;
+  }
+
+  .hero-media-bg img {
+    width: 55%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+
+  .hero-scrim {
+    background: linear-gradient(
+      90deg,
+      var(--bg) 38%,
+      rgba(11,15,26,0.55) 62%,
+      rgba(11,15,26,0.10) 100%
+    );
+  }
+
+  .hero-body {
+    padding-top: 0;
+    padding-bottom: 0;
+    display: flex;
+    align-items: center;
+    min-height: 92vh;
+  }
+
+  .hero-heading {
+    font-size: clamp(3rem, 5vw, 5.5rem);
+  }
+}
+
+/* Light theme scrim adjustments */
+.theme-light .hero-scrim {
+  background: linear-gradient(
+    to top,
+    rgba(244,240,232,0.97) 0%,
+    rgba(244,240,232,0.80) 40%,
+    rgba(244,240,232,0.30) 70%,
+    transparent 100%
+  );
+}
+
+@media (min-width: 768px) {
+  .theme-light .hero-scrim {
+    background: linear-gradient(
+      90deg,
+      var(--bg) 38%,
+      rgba(244,240,232,0.60) 62%,
+      transparent 100%
+    );
+  }
+}

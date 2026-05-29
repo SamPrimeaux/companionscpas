@@ -21,6 +21,13 @@ function cfg(s) {
   try { return JSON.parse(s.config_json || "{}"); } catch { return {}; }
 }
 
+function href(path, fallback = "#") {
+  const v = String(path || fallback).trim();
+  if (!v || v === "#") return fallback;
+  if (/^(https?:|mailto:|tel:|#|javascript:)/i.test(v)) return v;
+  return v.startsWith("/") ? v : `/${v}`;
+}
+
 // ─── D1 Queries ────────────────────────────────────────────────
 async function getSections(env) {
   const { results } = await env.DB.prepare(`
@@ -58,27 +65,28 @@ async function getBrand(env) {
 // ─── Section Renderers ─────────────────────────────────────────
 
 function renderHero(s) {
-  const c    = cfg(s);
   const img  = s.image_url || '/assets/animals/upclose.webp';
+  // Normalize image: replace meauxxx.com asset URLs with R2-served relative paths
+  const imgSrc = img.replace(/https:\/\/assets\.meauxxx\.com\/static\/pages\/home\//, '/assets/animals/');
   const cta1 = s.cta_label
-    ? `<a class="btn btn-primary" href="${esc(s.cta_href)}">${esc(s.cta_label)}</a>` : "";
+    ? `<a class="btn btn-primary hero-cta-primary" href="${esc(href(s.cta_href))}">${esc(s.cta_label)}</a>` : "";
   const cta2 = s.cta_secondary_label
-    ? `<button class="btn btn-ghost" onclick="document.getElementById('donateModal')?.showModal()">${esc(s.cta_secondary_label)}</button>` : "";
+    ? `<button class="btn btn-ghost hero-cta-secondary" onclick="document.getElementById('donateModal')?.showModal()">${esc(s.cta_secondary_label)}</button>` : "";
 
   return `
-<section class="section-hero" style="position:relative;overflow:hidden">
-  <div class="container" style="position:relative;z-index:2">
+<section class="section-hero hero-split" aria-label="Site hero">
+  <!-- Mobile: full-bleed image behind text | Desktop: split layout -->
+  <div class="hero-media-bg" aria-hidden="true">
+    <img src="${esc(imgSrc)}" alt="" loading="eager" fetchpriority="high" />
+    <div class="hero-scrim"></div>
+  </div>
+  <div class="container hero-body">
     <div class="hero-content">
       ${s.eyebrow ? `<div class="hero-badge">${esc(s.eyebrow)}</div>` : ""}
-      <h1>${esc(s.heading)}</h1>
-      ${s.body ? `<p class="text-muted mt-sm" style="max-width:580px;font-size:1.1rem;line-height:1.7">${esc(s.body)}</p>` : ""}
+      <h1 class="hero-heading">${esc(s.heading)}</h1>
+      ${s.body ? `<p class="hero-sub">${esc(s.body)}</p>` : ""}
       ${cta1 || cta2 ? `<div class="hero-actions">${cta1}${cta2}</div>` : ""}
     </div>
-  </div>
-  <div style="position:absolute;inset:0;z-index:0;pointer-events:none">
-    <img src="${esc(img)}" alt="${esc(s.heading)}"
-         style="position:absolute;right:0;top:0;height:100%;width:55%;object-fit:cover;object-position:center top" />
-    <div style="position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 42%,rgba(11,15,26,0.4) 70%,transparent 100%)"></div>
   </div>
 </section>`;
 }
@@ -89,7 +97,7 @@ function renderTextImage(s) {
   const features = (c.feature_list || []).map(f =>
     `<li>${esc(f)}</li>`).join("");
   const cta = s.cta_label
-    ? `<a class="btn btn-primary mt-md" href="${esc(s.cta_href)}">${esc(s.cta_label)}</a>` : "";
+    ? `<a class="btn btn-primary mt-md" href="${esc(href(s.cta_href))}">${esc(s.cta_label)}</a>` : "";
 
   return `
 <section class="section">
