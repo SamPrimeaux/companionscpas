@@ -225,7 +225,7 @@ export default {
       if (!isAsset) {
         return asset(env, request, "/dashboard.html");
       }
-      return env.ASSETS.fetch(request);
+      return asset(env, request, url.pathname);
     }
 
     // ── Public CMS pages: D1 render -> R2 artifact -> KV cache ────────────────
