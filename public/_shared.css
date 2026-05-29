@@ -1870,3 +1870,270 @@ body.home .site-main > .section:first-child {
 }
 
 /* cpas-mobile-shell-v1-marker */
+
+/* cpas-public-design-repair-v2-marker */
+
+/* ─────────────────────────────────────────────
+   PUBLIC HERO DESIGN REPAIR
+   Goal: controlled desktop composition + readable mobile hero
+   ───────────────────────────────────────────── */
+
+body[data-route] .section-hero,
+body[data-route] .section.section-hero {
+  min-height: auto !important;
+  padding: clamp(72px, 9vw, 128px) 0 clamp(56px, 7vw, 96px) !important;
+  overflow: hidden;
+}
+
+body[data-route] .section-hero .container,
+body[data-route] .section.section-hero .container {
+  width: min(100% - 40px, 1120px) !important;
+  margin-inline: auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 0.75fr) !important;
+  align-items: center !important;
+  gap: clamp(32px, 6vw, 76px) !important;
+}
+
+body[data-route] .section-hero .hero-content,
+body[data-route] .section.section-hero .hero-content {
+  max-width: 680px !important;
+}
+
+body[data-route] .section-hero h1,
+body[data-route] .section.section-hero h1 {
+  max-width: 11ch !important;
+  font-size: clamp(3.8rem, 7vw, 6.8rem) !important;
+  line-height: 0.92 !important;
+  letter-spacing: -0.055em !important;
+  margin: 0 !important;
+}
+
+body[data-route] .section-hero p,
+body[data-route] .section.section-hero p {
+  max-width: 620px !important;
+}
+
+body[data-route] .section-hero .text-muted,
+body[data-route] .section.section-hero .text-muted {
+  font-size: clamp(1rem, 1.25vw, 1.18rem) !important;
+  line-height: 1.75 !important;
+}
+
+body[data-route] .section-hero img,
+body[data-route] .section.section-hero img {
+  width: 100% !important;
+  max-height: 560px !important;
+  object-fit: cover !important;
+  border-radius: 30px !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  box-shadow: 0 30px 90px rgba(0,0,0,0.38) !important;
+}
+
+body[data-route] .hero-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 14px !important;
+  margin-top: clamp(24px, 3vw, 36px) !important;
+}
+
+body[data-route] .hero-actions .btn {
+  min-height: 48px !important;
+  padding-inline: 24px !important;
+}
+
+/* Desktop: stop huge empty dark space when no hero image exists */
+@media (min-width: 900px) {
+  body[data-route] .section-hero .container > div:empty,
+  body[data-route] .section.section-hero .container > div:empty {
+    display: none !important;
+  }
+
+  body[data-route] .section-hero .container:has(> div:empty),
+  body[data-route] .section.section-hero .container:has(> div:empty) {
+    grid-template-columns: minmax(0, 760px) !important;
+  }
+}
+
+/* Mobile hero should feel premium, not blown up */
+@media (max-width: 760px) {
+  body[data-route] .section-hero,
+  body[data-route] .section.section-hero {
+    padding: 64px 0 44px !important;
+  }
+
+  body[data-route] .section-hero .container,
+  body[data-route] .section.section-hero .container {
+    width: min(100% - 32px, 520px) !important;
+    display: block !important;
+  }
+
+  body[data-route] .section-hero h1,
+  body[data-route] .section.section-hero h1 {
+    max-width: 10.5ch !important;
+    font-size: clamp(3.15rem, 15vw, 4.35rem) !important;
+    line-height: 0.91 !important;
+    letter-spacing: -0.06em !important;
+  }
+
+  body[data-route] .section-hero .text-muted,
+  body[data-route] .section.section-hero .text-muted {
+    font-size: 1.02rem !important;
+    line-height: 1.62 !important;
+  }
+
+  body[data-route] .section-hero img,
+  body[data-route] .section.section-hero img {
+    margin-top: 28px !important;
+    max-height: 360px !important;
+    border-radius: 22px !important;
+  }
+
+  body[data-route] .hero-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  body[data-route] .hero-actions .btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   HEADER / LOGO REPAIR
+   ───────────────────────────────────────────── */
+
+.site-header .logo-link,
+.site-header .brand,
+.site-header .site-logo {
+  min-width: 96px !important;
+}
+
+.site-header img,
+.site-header .logo-link img,
+.site-header .site-logo img {
+  width: auto !important;
+  height: clamp(34px, 4vw, 46px) !important;
+  max-width: 138px !important;
+  object-fit: contain !important;
+}
+
+/* ─────────────────────────────────────────────
+   MOBILE MENU DRAWER REPAIR
+   Full-screen overlay + right drawer.
+   Phone: 88vw drawer.
+   Larger small screens: 45vw drawer.
+   ───────────────────────────────────────────── */
+
+@media (max-width: 820px) {
+  body.menu-open,
+  html:has(body.menu-open) {
+    overflow: hidden !important;
+  }
+
+  .mobile-menu,
+  .mobile-nav,
+  .site-mobile-menu,
+  .nav-drawer,
+  .drawer-menu,
+  .mobile-menu-panel {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    background:
+      radial-gradient(circle at 85% 8%, rgba(137, 82, 255, 0.22), transparent 34%),
+      rgba(5, 8, 18, 0.82) !important;
+    backdrop-filter: blur(18px) saturate(140%) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(140%) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+
+  .mobile-menu nav,
+  .mobile-nav nav,
+  .site-mobile-menu nav,
+  .nav-drawer nav,
+  .drawer-menu nav,
+  .mobile-menu-panel nav,
+  .mobile-menu .nav-links,
+  .mobile-nav .nav-links,
+  .site-mobile-menu .nav-links,
+  .nav-drawer .nav-links,
+  .drawer-menu .nav-links,
+  .mobile-menu-panel .nav-links {
+    position: absolute !important;
+    top: 92px !important;
+    right: 16px !important;
+    width: min(88vw, 390px) !important;
+    min-height: 45dvh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding: 20px !important;
+    border-radius: 26px !important;
+    border: 1px solid rgba(255,255,255,0.14) !important;
+    background:
+      linear-gradient(145deg, rgba(26, 29, 44, 0.96), rgba(10, 13, 26, 0.96)) !important;
+    box-shadow: 0 30px 100px rgba(0,0,0,0.55) !important;
+  }
+
+  .mobile-menu a,
+  .mobile-nav a,
+  .site-mobile-menu a,
+  .nav-drawer a,
+  .drawer-menu a,
+  .mobile-menu-panel a {
+    min-height: 46px !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 16px !important;
+    border-radius: 14px !important;
+    font-size: 1.05rem !important;
+    font-weight: 800 !important;
+  }
+
+  .mobile-menu a[href="/donate"],
+  .mobile-nav a[href="/donate"],
+  .site-mobile-menu a[href="/donate"],
+  .nav-drawer a[href="/donate"],
+  .drawer-menu a[href="/donate"],
+  .mobile-menu-panel a[href="/donate"] {
+    margin-top: 8px !important;
+    justify-content: center !important;
+    min-height: 54px !important;
+    color: white !important;
+    background: linear-gradient(135deg, #9b5cff, #7434d6) !important;
+    box-shadow: 0 18px 38px rgba(127, 58, 255, 0.35) !important;
+  }
+
+  .mobile-menu-toggle,
+  .menu-toggle,
+  .nav-toggle,
+  .hamburger {
+    position: relative !important;
+    z-index: 10000 !important;
+  }
+}
+
+@media (min-width: 560px) and (max-width: 820px) {
+  .mobile-menu nav,
+  .mobile-nav nav,
+  .site-mobile-menu nav,
+  .nav-drawer nav,
+  .drawer-menu nav,
+  .mobile-menu-panel nav,
+  .mobile-menu .nav-links,
+  .mobile-nav .nav-links,
+  .site-mobile-menu .nav-links,
+  .nav-drawer .nav-links,
+  .drawer-menu .nav-links,
+  .mobile-menu-panel .nav-links {
+    width: min(45vw, 420px) !important;
+  }
+}
+
