@@ -25,6 +25,43 @@
     });
   }
 
+  /* ── 2. HEADER SCROLL BEHAVIOR ─────────────────────────────── */
+  function initHeaderScroll() {
+    const header = document.querySelector('.site-header');
+    if (!header) return;
+    let lastY = window.scrollY;
+    let ticking = false;
+    const THRESHOLD = 80;
+    const HIDE_THRESHOLD = 40;
+
+    function update() {
+      const currentY = window.scrollY;
+      const delta = currentY - lastY;
+
+      if (currentY > THRESHOLD) {
+        header.classList.add('scrolled');
+      } else {
+        header.classList.remove('scrolled');
+      }
+
+      if (delta > 8 && currentY > HIDE_THRESHOLD) {
+        header.classList.add('header-hidden');
+      } else if (delta < -4) {
+        header.classList.remove('header-hidden');
+      }
+
+      lastY = currentY;
+      ticking = false;
+    }
+
+    window.addEventListener('scroll', function () {
+      if (!ticking) {
+        requestAnimationFrame(update);
+        ticking = true;
+      }
+    }, { passive: true });
+  }
+
   /* ── 2. MOBILE NAV ───────────────────────────────────────── */
   function initMobileNav() {
     const header = document.querySelector('.site-header');
@@ -55,24 +92,39 @@
       document.body.appendChild(overlay);
     }
 
-    /* Right-side glass drawer */
+    /* Glass drawer — mobile first */
     let drawer = document.querySelector('.nav-drawer');
     if (!drawer) {
+      const b = window.__BRAND || {};
+      const theme = document.body.dataset.theme || 'dark';
+      const headerLogo = theme === 'dark'
+        ? (b.logo_light_url || '/static/global/companionsofcpa-newlogo.webp')
+        : (b.logo_dark_url || '/static/global/logo-dark.webp');
+      const currentPath = window.location.pathname;
+      const links = [
+        { href: '/', label: 'Home' },
+        { href: '/about', label: 'About' },
+        { href: '/adopt', label: 'Adopt' },
+        { href: '/services', label: 'Services' },
+        { href: '/donate', label: 'Donate' },
+      ];
+      const linksHtml = links.map(({ href, label }) => {
+        const isActive = currentPath === href || (href !== '/' && currentPath.startsWith(href));
+        return `<a href="${href}" class="drawer-link${isActive ? ' is-active' : ''}">${label}</a>`;
+      }).join('');
       drawer = document.createElement('nav');
       drawer.className = 'nav-drawer';
       drawer.setAttribute('aria-label', 'Mobile navigation');
-      drawer.innerHTML = [
-        '<div class="nav-drawer-card">',
-        '  <a href="/">Home</a>',
-        '  <a href="/about">About</a>',
-        '  <a href="/adopt">Adopt</a>',
-        '  <a href="/services">Services</a>',
-        '  <div class="drawer-donate">',
-        '    <a href="/donate">Donate</a>',
-        '  </div>',
-        '</div>',
-      ].join('\n');
+      drawer.innerHTML = `
+        <div class="nav-drawer-inner">
+          <div class="nav-drawer-header">
+            <img src="${headerLogo}" alt="Companions of CPAS" class="drawer-logo" />
+            <button class="drawer-close" aria-label="Close navigation">&times;</button>
+          </div>
+          <div class="nav-drawer-links">${linksHtml}</div>
+        </div>`;
       document.body.appendChild(drawer);
+      drawer.querySelector('.drawer-close').addEventListener('click', closeMenu);
     }
 
     /* Active state */
@@ -265,6 +317,7 @@
     injectFooterStyles();
     renderFooter();
     setActiveLinks();
+    initHeaderScroll();
     initMobileNav();
   }
 
