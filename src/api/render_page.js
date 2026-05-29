@@ -214,6 +214,7 @@ ${headerHtml || ""}
 ${sectionsMarkup}
 </main>
 ${footerHtml || ""}
+<script src="/static/global/shared.js"></script>
 </body>
 </html>`;
 }
