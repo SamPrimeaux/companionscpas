@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Companions CPAS — Platform Audit v1</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e2e8f0; font-size: 13px; }
+  header { background: #1a1a2e; border-bottom: 2px solid #7c3aed; padding: 24px 32px; }
+  header h1 { font-size: 22px; font-weight: 700; color: #a78bfa; }
+  header p  { color: #94a3b8; margin-top: 4px; font-size: 12px; }
+  .summary  { display: flex; gap: 16px; padding: 20px 32px; background: #12121c; flex-wrap: wrap; }
+  .stat     { background: #1e1e30; border-radius: 8px; padding: 14px 24px; text-align: center; min-width: 100px; }
+  .stat .n  { font-size: 28px; font-weight: 800; }
+  .stat .l  { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  .green .n { color: #4ade80; } .yellow .n { color: #facc15; } .red .n { color: #f87171; }
+  .section-header { padding: 16px 32px 8px; font-size: 11px; font-weight: 700; letter-spacing: .1em; color: #7c3aed; text-transform: uppercase; border-top: 1px solid #2d2d44; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #1e1e30; color: #94a3b8; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 10px 12px; text-align: left; }
+  td { padding: 10px 12px; border-bottom: 1px solid #1e1e30; vertical-align: top; }
+  tr.row-public { background: #12121c; } tr.row-auth { background: #13101e; } tr.row-dashboard { background: #0f0f1a; }
+  tr:hover { background: #1a1a2e !important; }
+  .thumb { width: 120px; height: 70px; object-fit: cover; border-radius: 4px; border: 1px solid #2d2d44; display: block; }
+  .url { color: #7c3aed; font-size: 11px; word-break: break-all; }
+  .center { text-align: center; } .small { font-size: 11px; color: #94a3b8; max-width: 200px; }
+  .good { color: #4ade80; } .bad { color: #f87171; font-weight: 600; }
+  .flag { background: #422006; color: #fb923c; padding: 2px 6px; border-radius: 3px; font-size: 10px; }
+  .redir { display: block; font-size: 10px; color: #94a3b8; margin-top: 2px; }
+  .load-err { color: #f87171; font-size: 10px; margin-top: 4px; }
+  .err-list { color: #f87171; font-size: 10px; padding-left: 14px; margin-top: 4px; }
+  .ss-cell { width: 130px; }
+  .generated { padding: 12px 32px; font-size: 11px; color: #4b5563; border-top: 1px solid #1e1e30; margin-top: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐾 Companions of CPAS — Platform Audit v1</h1>
+  <p>Generated 5/22/2026, 2:12:24 AM CT · 20 pages audited · https://companionscpas.meauxbility.workers.dev</p>
+</header>
+<div class="summary">
+  <div class="stat green"><div class="n">19</div><div class="l">🟢 OK</div></div>
+  <div class="stat yellow"><div class="n">1</div><div class="l">🟡 Needs Work</div></div>
+  <div class="stat red"><div class="n">0</div><div class="l">🔴 Broken</div></div>
+  <div class="stat"><div class="n">20</div><div class="l">Total Pages</div></div>
+</div>
+<div class="section-header">Public Pages</div>
+<table><thead><tr>
+    <th>Screenshot</th><th>Page</th><th>Status</th><th>HTTP</th><th>Load</th>
+    <th>H1</th><th>Images</th><th>Nav Links</th><th>CTAs</th><th>Issues</th>
+  </tr></thead><tbody>
+    <tr class="row-public" data-label="Home">
+      <td class="ss-cell"><img class="thumb" src="screenshots/home.png" alt="Home"></td>
+      <td><strong>Home</strong><br><a href="https://companionscpas.meauxbility.workers.dev/" target="_blank" class="url">/</a></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">2674ms</td>
+      <td>Every dog deserves a way out.</td>
+      <td class="center">11 / <span class="good">0 broken</span></td>
+      <td class="center">4</td>
+      <td class="small">Donate, Apply to Foster, Support Our Mission, Help Fund Recovery</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-public" data-label="About">
+      <td class="ss-cell"><img class="thumb" src="screenshots/about.png" alt="About"></td>
+      <td><strong>About</strong><br><a href="https://companionscpas.meauxbility.workers.dev/about" target="_blank" class="url">/about</a></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">587ms</td>
+      <td>Giving Caddo dogs the second chance they might not get otherwise.</td>
+      <td class="center">15 / <span class="good">0 broken</span></td>
+      <td class="center">11</td>
+      <td class="small">Support the Mission, Meet Adoptable Dogs, Donate Now, View Adoptable Dogs, ×, One-TimeSingle donation</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-public" data-label="Adopt">
+      <td class="ss-cell"><img class="thumb" src="screenshots/adopt.png" alt="Adopt"></td>
+      <td><strong>Adopt</strong><br><a href="https://companionscpas.meauxbility.workers.dev/adopt" target="_blank" class="url">/adopt</a></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">467ms</td>
+      <td>Meet your new best friend</td>
+      <td class="center">5 / <span class="good">0 broken</span></td>
+      <td class="center">11</td>
+      <td class="small">Have Questions?, ❤ Support Our Work, Apply to Adopt, Apply
+                            to Adopt Savannah, Partner With Us, ×</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-public" data-label="Services">
+      <td class="ss-cell"><img class="thumb" src="screenshots/services.png" alt="Services"></td>
+      <td><strong>Services</strong><br><a href="https://companionscpas.meauxbility.workers.dev/services" target="_blank" class="url">/services</a></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">355ms</td>
+      <td>Services that keep pets healthy—and families together.</td>
+      <td class="center">7 / <span class="good">0 broken</span></td>
+      <td class="center">5</td>
+      <td class="small">Request Help, Support Our Work, ×, One-Time
+Single donation, Monthly
+Recurring support, Donate Now</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-public" data-label="Donate">
+      <td class="ss-cell"><img class="thumb" src="screenshots/donate.png" alt="Donate"></td>
+      <td><strong>Donate</strong><br><a href="https://companionscpas.meauxbility.workers.dev/donate" target="_blank" class="url">/donate</a></td>
+      <td class="center">🟡 WARN</td>
+      <td class="center">200</td>
+      <td class="center">473ms</td>
+      <td>Donate to Companions of CPAS</td>
+      <td class="center">6 / <span class="good">0 broken</span></td>
+      <td class="center">5</td>
+      <td class="small">Donate Now, Contact Us, Meet them on Adopt, Donate Securely Online, ×, One-Time
+Single donation</td>
+      <td class="small"><ul class="err-list"><li>Failed to load resource: the server responded with a status of 404 ()</li><li>Failed to load resource: the server responded with a status of 404 ()</li><li>Failed to load resource: the server responded with a status of 404 ()</li><li>Failed to load resource: the server responded with a status of 404 ()</li></ul></td>
+    </tr></tbody></table>
+<div class="section-header">Auth</div>
+<table><thead><tr>
+    <th>Screenshot</th><th>Page</th><th>Status</th><th>HTTP</th><th>Load</th>
+    <th>H1</th><th>Images</th><th>Nav Links</th><th>CTAs</th><th>Issues</th>
+  </tr></thead><tbody>
+    <tr class="row-auth" data-label="Login">
+      <td class="ss-cell"><img class="thumb" src="screenshots/login.png" alt="Login"></td>
+      <td><strong>Login</strong><br><a href="https://companionscpas.meauxbility.workers.dev/admin/login" target="_blank" class="url">/admin/login</a></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">5175ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr></tbody></table>
+<div class="section-header">Dashboard Views</div>
+<table><thead><tr>
+    <th>Screenshot</th><th>Page</th><th>Status</th><th>HTTP</th><th>Load</th>
+    <th>H1</th><th>Images</th><th>Nav Links</th><th>CTAs</th><th>Issues</th>
+  </tr></thead><tbody>
+    <tr class="row-dashboard" data-label="Overview">
+      <td class="ss-cell"><img class="thumb" src="screenshots/overview.png" alt="Overview"></td>
+      <td><strong>Overview</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=overview" target="_blank" class="url">/dashboard?view=overview</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">100ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Animals">
+      <td class="ss-cell"><img class="thumb" src="screenshots/animals.png" alt="Animals"></td>
+      <td><strong>Animals</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=animals" target="_blank" class="url">/dashboard?view=animals</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">127ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Fosters">
+      <td class="ss-cell"><img class="thumb" src="screenshots/fosters.png" alt="Fosters"></td>
+      <td><strong>Fosters</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=fosters" target="_blank" class="url">/dashboard?view=fosters</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">145ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Adoptions">
+      <td class="ss-cell"><img class="thumb" src="screenshots/adoptions.png" alt="Adoptions"></td>
+      <td><strong>Adoptions</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=adoptions" target="_blank" class="url">/dashboard?view=adoptions</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">140ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Intakes">
+      <td class="ss-cell"><img class="thumb" src="screenshots/intakes.png" alt="Intakes"></td>
+      <td><strong>Intakes</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=intakes" target="_blank" class="url">/dashboard?view=intakes</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">143ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Medical">
+      <td class="ss-cell"><img class="thumb" src="screenshots/medical.png" alt="Medical"></td>
+      <td><strong>Medical</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=medical" target="_blank" class="url">/dashboard?view=medical</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">114ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Daily Care">
+      <td class="ss-cell"><img class="thumb" src="screenshots/daily_care.png" alt="Daily Care"></td>
+      <td><strong>Daily Care</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=daily-care" target="_blank" class="url">/dashboard?view=daily-care</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">117ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Volunteers">
+      <td class="ss-cell"><img class="thumb" src="screenshots/volunteers.png" alt="Volunteers"></td>
+      <td><strong>Volunteers</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=volunteers" target="_blank" class="url">/dashboard?view=volunteers</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">92ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Applications">
+      <td class="ss-cell"><img class="thumb" src="screenshots/applications.png" alt="Applications"></td>
+      <td><strong>Applications</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=applications" target="_blank" class="url">/dashboard?view=applications</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">126ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Donations">
+      <td class="ss-cell"><img class="thumb" src="screenshots/donations.png" alt="Donations"></td>
+      <td><strong>Donations</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=donations" target="_blank" class="url">/dashboard?view=donations</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">93ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Fundraising">
+      <td class="ss-cell"><img class="thumb" src="screenshots/fundraising.png" alt="Fundraising"></td>
+      <td><strong>Fundraising</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=fundraising" target="_blank" class="url">/dashboard?view=fundraising</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">92ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="CMS">
+      <td class="ss-cell"><img class="thumb" src="screenshots/cms.png" alt="CMS"></td>
+      <td><strong>CMS</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=cms" target="_blank" class="url">/dashboard?view=cms</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">89ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Reports">
+      <td class="ss-cell"><img class="thumb" src="screenshots/reports.png" alt="Reports"></td>
+      <td><strong>Reports</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=reports" target="_blank" class="url">/dashboard?view=reports</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">101ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr>
+
+    <tr class="row-dashboard" data-label="Settings">
+      <td class="ss-cell"><img class="thumb" src="screenshots/settings.png" alt="Settings"></td>
+      <td><strong>Settings</strong><br><a href="https://companionscpas.meauxbility.workers.dev/dashboard?view=settings" target="_blank" class="url">/dashboard?view=settings</a><span class="redir">↪ https://companionscpas.meauxbility.workers.dev/admin/login</span></td>
+      <td class="center">🟢 OK</td>
+      <td class="center">200</td>
+      <td class="center">97ms</td>
+      <td><em>none</em></td>
+      <td class="center">1 / <span class="good">0 broken</span></td>
+      <td class="center">0</td>
+      <td class="small">LOGIN</td>
+      <td class="small"></td>
+    </tr></tbody></table>
+<div class="generated">Audit run: 5/22/2026, 2:12:24 AM CT · companionscpas_audit.js</div>
+</body>
+</html>
