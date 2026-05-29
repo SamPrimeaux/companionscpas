@@ -10,7 +10,7 @@ import { contactApiRoutes } from './api/contact_api.js';
 import { donationApiRoutes } from './api/donation_api.js';
 import { paymentsEmailRoutes } from './api/payments_email.js';
 import { socialRoutes } from './api/social.js';
-import { renderPage } from "./api/render_page.js";
+import { renderPage, getBrand } from "./api/render_page.js";
 import { handleFosterApply, handleFosterList, handleFosterUpdate } from './api/foster_api.js';
 
 
@@ -203,7 +203,13 @@ export default {
 
     // ── Admin routes ─────────────────────────────────────────────────────────
     if (url.pathname === "/admin/login" || url.pathname === "/admin" || url.pathname === "/admin/") {
-      return asset(env, request, "/admin/login.html");
+      const brand = await getBrand(env).catch(() => ({}));
+      const logoUrl = brand?.logo_light_url || "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/9a00de35-fa41-49da-e431-a5f004cf5e00/avatar";
+      const obj = await env.WEBSITE_ASSETS.get("admin/login.html").catch(() => null);
+      if (!obj) return new Response("Not found", { status: 404 });
+      let html = await obj.text();
+      html = html.replace(/src="[^"]*" alt="Companions of CPAS"/, `src="${logoUrl}" alt="Companions of CPAS"`);
+      return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     }
 
     if (url.pathname === "/admin/reset") {
