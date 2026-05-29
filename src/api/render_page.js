@@ -175,7 +175,9 @@ export async function getGlobalPartial(name, brand, env) {
   const partialName = sanitizePathSegment(name, "");
   if (!partialName) return "";
 
-  const key = `static/global/${partialName}.html`;
+  const keyMap = { header: 'cpas-header', footer: 'cpas-footer' };
+  const resolvedName = keyMap[partialName] || partialName;
+  const key = `static/global/${resolvedName}.html`;
   const fromR2 = await env?.WEBSITE_ASSETS?.get(key).catch(() => null);
   if (fromR2) {
     const html = await fromR2.text().catch(() => "");
@@ -196,6 +198,7 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
       safeBrand?.seoDefaults?.description ||
       "Companions of CPAS community animal rescue support."
   );
+  const theme = safePage.theme === "light" ? "light" : "dark";
   const route = escapeHtml(safePage.route_path || "/");
   const sectionsMarkup = Array.isArray(sectionHtmls) ? sectionHtmls.join("\n") : "";
 
@@ -206,15 +209,15 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
   <meta name="description" content="${description}">
-  <link rel="stylesheet" href="/static/global/shared.css">
+  <link rel="stylesheet" href="/static/global/cpas-shell.css">
 </head>
-<body class="theme-dark" data-route="${route}">
+<body class="theme-${theme}" data-theme="${theme}" data-route="${route}">
 ${headerHtml || ""}
 <main class="site-main">
 ${sectionsMarkup}
 </main>
 ${footerHtml || ""}
-<script src="/static/global/shared.js"></script>
+<script src="/static/global/cpas-shell.js"></script>
 </body>
 </html>`;
 }
