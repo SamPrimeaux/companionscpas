@@ -201,7 +201,11 @@ export default {
       }
     }
 
-    // ── Admin password reset ──────────────────────────────────────────────────
+    // ── Admin routes ─────────────────────────────────────────────────────────
+    if (url.pathname === "/admin/login" || url.pathname === "/admin" || url.pathname === "/admin/") {
+      return asset(env, request, "/admin/login.html");
+    }
+
     if (url.pathname === "/admin/reset") {
       return asset(env, request, "/admin/reset-password.html");
     }
