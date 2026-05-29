@@ -1481,3 +1481,206 @@ body.home .site-main > .section:first-child {
     );
   }
 }
+
+
+/* ============================================================
+   CompanionsCPAS mobile shell correction
+   Fixes: centered hamburger, tiny logo, hero content too low.
+   This is intentionally scoped to public homepage/mobile widths.
+   ============================================================ */
+
+@media (max-width: 760px) {
+  :root {
+    --cpas-header-h: 136px;
+  }
+
+  body[data-route="/"] .site-header,
+  body.home .site-header {
+    height: var(--cpas-header-h) !important;
+    min-height: var(--cpas-header-h) !important;
+    padding: 0 !important;
+  }
+
+  body[data-route="/"] .site-header .header-inner,
+  body.home .site-header .header-inner,
+  .site-header .header-inner {
+    height: var(--cpas-header-h) !important;
+    min-height: var(--cpas-header-h) !important;
+    width: min(100% - 44px, var(--cpas-container, 1180px)) !important;
+    margin: 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    grid-template-columns: none !important;
+    gap: 18px !important;
+    padding: 0 !important;
+  }
+
+  .site-header nav,
+  .site-header .site-nav,
+  .site-header .desktop-links,
+  .site-header .header-actions {
+    display: none !important;
+  }
+
+  .site-header .logo-link {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+  }
+
+  .site-header .logo-link img,
+  .site-header .brand img {
+    height: 92px !important;
+    width: auto !important;
+    max-width: 190px !important;
+    object-fit: contain !important;
+    display: block !important;
+  }
+
+  .mobile-menu-toggle {
+    display: inline-flex !important;
+    flex: 0 0 54px !important;
+    width: 54px !important;
+    height: 54px !important;
+    margin-left: auto !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 16px !important;
+    border: 1px solid rgba(255,255,255,.18) !important;
+    background: rgba(255,255,255,.07) !important;
+    color: #fff !important;
+  }
+
+  .mobile-menu-toggle span {
+    width: 28px !important;
+    height: 3px !important;
+    border-radius: 999px !important;
+  }
+
+  body[data-route="/"] .site-main > .section:first-child,
+  body.home .site-main > .section:first-child {
+    padding-top: 0 !important;
+  }
+
+  body[data-route="/"] .hero-split,
+  body.home .hero-split {
+    min-height: calc(100svh - var(--cpas-header-h)) !important;
+    align-items: stretch !important;
+  }
+
+  body[data-route="/"] .hero-media-bg,
+  body.home .hero-media-bg {
+    position: absolute !important;
+    inset: 0 !important;
+  }
+
+  body[data-route="/"] .hero-media-bg img,
+  body.home .hero-media-bg img {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: 58% 18% !important;
+  }
+
+  body[data-route="/"] .hero-scrim,
+  body.home .hero-scrim {
+    background:
+      linear-gradient(
+        90deg,
+        rgba(7,12,22,.98) 0%,
+        rgba(7,12,22,.82) 43%,
+        rgba(7,12,22,.25) 74%,
+        rgba(7,12,22,.04) 100%
+      ),
+      linear-gradient(
+        to top,
+        rgba(7,12,22,.98) 0%,
+        rgba(7,12,22,.76) 30%,
+        rgba(7,12,22,.20) 68%,
+        rgba(7,12,22,.04) 100%
+      ) !important;
+  }
+
+  body[data-route="/"] .hero-body,
+  body.home .hero-body {
+    min-height: calc(100svh - var(--cpas-header-h)) !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 32px 0 44px !important;
+  }
+
+  body[data-route="/"] .hero-content,
+  body.home .hero-content {
+    width: min(420px, calc(100vw - 52px)) !important;
+    max-width: 420px !important;
+    margin-top: 16vh !important;
+  }
+
+  body[data-route="/"] .hero-badge,
+  body.home .hero-badge {
+    font-size: 12px !important;
+    letter-spacing: .04em !important;
+    text-transform: none !important;
+    margin-bottom: 18px !important;
+    padding: 8px 14px !important;
+  }
+
+  body[data-route="/"] .hero-heading,
+  body.home .hero-heading {
+    font-size: clamp(3rem, 12vw, 4.65rem) !important;
+    line-height: .93 !important;
+    letter-spacing: -.045em !important;
+    max-width: 390px !important;
+    margin: 0 0 18px !important;
+  }
+
+  body[data-route="/"] .hero-sub,
+  body.home .hero-sub {
+    font-size: clamp(1.02rem, 4vw, 1.25rem) !important;
+    line-height: 1.55 !important;
+    max-width: 360px !important;
+    margin-bottom: 28px !important;
+  }
+
+  body[data-route="/"] .hero-actions,
+  body.home .hero-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    width: min(360px, 100%) !important;
+  }
+
+  body[data-route="/"] .hero-actions .btn,
+  body.home .hero-actions .btn {
+    min-height: 58px !important;
+    width: 100% !important;
+    border-radius: 999px !important;
+    justify-content: center !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  body[data-route="/"] .site-header .header-inner,
+  body.home .site-header .header-inner {
+    display: flex !important;
+    justify-content: space-between !important;
+    grid-template-columns: none !important;
+  }
+
+  body[data-route="/"] .hero-media-bg img,
+  body.home .hero-media-bg img {
+    width: 62% !important;
+    right: 0 !important;
+    left: auto !important;
+  }
+
+  body[data-route="/"] .hero-content,
+  body.home .hero-content {
+    max-width: 520px !important;
+  }
+}
