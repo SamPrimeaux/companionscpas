@@ -78,6 +78,18 @@ export default {
 
     // ── API routes ────────────────────────────────────────────────────────────
     if (url.pathname.startsWith("/api/")) {
+      // Foster/application baseline routes
+      if (url.pathname === "/api/foster/apply" && request.method === "POST") {
+        return handleFosterApply(request, env);
+      }
+      if (url.pathname === "/api/foster/applications" && request.method === "GET") {
+        return handleFosterList(request, env);
+      }
+      if (url.pathname.startsWith("/api/foster/applications/") && request.method === "PATCH") {
+        const appId = url.pathname.split("/api/foster/applications/")[1];
+        return handleFosterUpdate(request, env, appId);
+      }
+
       if (url.pathname === "/api/health") {
         return json({ ok: true, service: "companionscpas" });
       }
@@ -295,14 +307,3 @@ export default {
   }
 };
 
-// ── Foster Application Routes ──────────────────────────────────────────────
-  if (path === '/api/foster/apply' && request.method === 'POST') {
-    return handleFosterApply(request, env);
-  }
-  if (path === '/api/foster/applications' && request.method === 'GET') {
-    return handleFosterList(request, env);
-  }
-  if (path.startsWith('/api/foster/applications/') && request.method === 'PATCH') {
-    const appId = path.split('/api/foster/applications/')[1];
-    return handleFosterUpdate(request, env, appId);
-  }
