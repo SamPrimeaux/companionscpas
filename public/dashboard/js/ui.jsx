@@ -352,7 +352,7 @@ function Sidebar({ view, onNavigate, notifCount }) {
         style:{ display:"flex", alignItems:"center", textDecoration:"none" }
       },
         React.createElement("img", {
-          src:"https://companionscpas-platform.samprimeauxwork.workers.dev/logo.png",
+          src:"https://companionscpas.meauxbility.workers.dev/logo.png",
           alt:"Companions of CPAS",
           style:{ width:108, height:"auto", display:"block", objectFit:"contain" }
         })

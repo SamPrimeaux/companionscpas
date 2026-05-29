@@ -78,7 +78,7 @@ export default {
     // ── API routes ────────────────────────────────────────────────────────────
     if (url.pathname.startsWith("/api/")) {
       if (url.pathname === "/api/health") {
-        return json({ ok: true, service: "companionscpas-platform" });
+        return json({ ok: true, service: "companionscpas" });
       }
 
       const cmsResult = await cmsRoutes(request, env, url);
