@@ -45,9 +45,9 @@ async function getBrand(env) {
   ).bind().first().catch(() => null);
   const brand = {
     orgData:    (() => { try { return JSON.parse(row?.organization_json || '{}'); } catch { return {}; } })(),
-    logoDark:   row?.logo_dark_url   || 'https://assets.meauxxx.com/static/global/companionsofcpa-newlogo.webp',
-    logoLight:  row?.logo_light_url  || 'https://assets.meauxxx.com/static/global/companionsofcpa-newlogo.webp',
-    footerLogo: row?.footer_logo_dark_url || 'https://assets.meauxxx.com/static/global/companionsofcpa-newlogo.webp',
+    logoDark:   row?.logo_dark_url   || '/static/global/companionsofcpa-newlogo.webp',
+    logoLight:  row?.logo_light_url  || '/static/global/companionsofcpa-newlogo.webp',
+    footerLogo: row?.footer_logo_dark_url || '/static/global/companionsofcpa-newlogo.webp',
   };
   if (env.CMS_CACHE) {
     await env.CMS_CACHE.put('brand:tenant_companionscpas', JSON.stringify(brand), { expirationTtl: 60 }).catch(() => {});

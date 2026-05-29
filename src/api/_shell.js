@@ -27,7 +27,7 @@ const NAV_LINKS = [
 
 /* ── LOGOS ─────────────────────────────────────────────────── */
 const LOGO_DARK  = 'https://assets.meauxxx.com/static/global/logo-dark.webp';
-const LOGO_LIGHT = 'https://assets.meauxxx.com/static/global/companionsofcpa-newlogo.webp';
+const LOGO_LIGHT = '/static/global/companionsofcpa-newlogo.webp';
 const IAM_BADGE  = 'https://assets.meauxxx.com/static/global/logo.webp';
 
 /* ── HEADER ─────────────────────────────────────────────────── */
@@ -41,7 +41,7 @@ export function renderHeader({ theme = 'dark', activePage = '/', logoDark = LOGO
   return `
 <header class="site-header">
   <div class="container header-inner">
-    <a href="/admin/login" class="logo-link" aria-label="Companions of CPAS — Home">
+    <a href="/admin/login" class="logo-link" aria-label="Companions of CPAS admin login">
       <img src="${esc(logo)}" alt="Companions of CPAS" />
     </a>
     <nav aria-label="Main navigation">
@@ -50,9 +50,7 @@ export function renderHeader({ theme = 'dark', activePage = '/', logoDark = LOGO
       </ul>
     </nav>
     <div class="header-actions">
-      <button class="btn btn-primary" onclick="document.getElementById('donateModal').showModal?.() || (document.getElementById('donateModal').style.display='flex')">
-        Donate
-      </button>
+      <a class="btn btn-primary nav-donate" href="/donate">Donate</a>
     </div>
   </div>
 </header>`.trim();
