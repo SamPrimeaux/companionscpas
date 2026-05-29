@@ -206,7 +206,7 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
   <meta name="description" content="${description}">
-  <link rel="stylesheet" href="https://assets.meauxxx.com/static/global/shared.css">
+  <link rel="stylesheet" href="/static/global/shared.css">
 </head>
 <body class="theme-dark" data-route="${route}">
 ${headerHtml || ""}

@@ -7,8 +7,8 @@ import { pageShell } from './_shell.js';
  */
 
 const TENANT   = "tenant_companionscpas";
-const R2_CSS   = "https://assets.meauxxx.com/static/global/shared.css";
-const R2_FALLBACK_HTML = "https://assets.meauxxx.com/static/global/index.html";
+const R2_CSS   = "/static/global/shared.css";
+const R2_FALLBACK_HTML = "/static/global/index.html";
 
 // ─── Escape ────────────────────────────────────────────────────
 function esc(s) {

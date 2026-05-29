@@ -26,9 +26,9 @@ const NAV_LINKS = [
 ];
 
 /* ── LOGOS ─────────────────────────────────────────────────── */
-const LOGO_DARK  = 'https://assets.meauxxx.com/static/global/logo-dark.webp';
+const LOGO_DARK  = '/static/global/logo-dark.webp';
 const LOGO_LIGHT = '/static/global/companionsofcpa-newlogo.webp';
-const IAM_BADGE  = 'https://assets.meauxxx.com/static/global/logo.webp';
+const IAM_BADGE  = '/static/global/logo.webp';
 
 /* ── HEADER ─────────────────────────────────────────────────── */
 export function renderHeader({ theme = 'dark', activePage = '/', logoDark = LOGO_DARK, logoLight = LOGO_LIGHT } = {}) {
@@ -162,7 +162,7 @@ export function pageShell(title, metaDesc, bodyHtml, {
   <title>${esc(title)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="/_shared.css" />
+  <link rel="stylesheet" href="/static/global/shared.css" />
   <link rel="icon" href="/logo.png" />
 </head>
 <body class="${esc(theme === 'dark' ? 'theme-dark' : 'theme-light')}">
