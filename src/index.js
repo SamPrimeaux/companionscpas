@@ -103,6 +103,49 @@ export default {
       return json({ error: "API route not found", path: url.pathname }, 404);
     }
 
+
+    // ── Same-origin CMS/R2 static assets ───────────────────────────────────────
+    // /static/global/shared.css -> WEBSITE_ASSETS key static/global/shared.css
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/static/")) {
+      const key = url.pathname.slice(1);
+
+      try {
+        const object = await env.WEBSITE_ASSETS.get(key);
+        if (!object) return new Response("Not found", { status: 404 });
+
+        const ext = key.split(".").pop()?.toLowerCase();
+        const contentType =
+          ext === "css" ? "text/css; charset=utf-8" :
+          ext === "js" ? "application/javascript; charset=utf-8" :
+          ext === "html" ? "text/html; charset=utf-8" :
+          ext === "webp" ? "image/webp" :
+          ext === "png" ? "image/png" :
+          ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
+          ext === "svg" ? "image/svg+xml" :
+          ext === "ico" ? "image/x-icon" :
+          "application/octet-stream";
+
+        if (request.method === "HEAD") {
+          return new Response(null, {
+            headers: {
+              "content-type": object.httpMetadata?.contentType || contentType,
+              "cache-control": "public, max-age=3600"
+            }
+          });
+        }
+
+        return new Response(object.body, {
+          headers: {
+            "content-type": object.httpMetadata?.contentType || contentType,
+            "cache-control": "public, max-age=3600"
+          }
+        });
+      } catch (err) {
+        console.warn("[static-r2] failed:", err?.message || err);
+        return new Response("Static asset error", { status: 500 });
+      }
+    }
+
     // ── Admin password reset ──────────────────────────────────────────────────
     if (url.pathname === "/admin/reset") {
       return asset(env, request, "/admin/reset-password.html");
