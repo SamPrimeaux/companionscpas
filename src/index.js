@@ -173,21 +173,28 @@ export default {
           ext === "ico" ? "image/x-icon" :
           "application/octet-stream";
 
-        if (request.method === "HEAD") {
-          return new Response(null, {
-            headers: {
-              "content-type": object.httpMetadata?.contentType || contentType,
-              "cache-control": "public, max-age=3600"
-            }
-          });
+        const etag = object.etag ? `"${object.etag}"` : null;
+        const ifNoneMatch = request.headers.get("if-none-match");
+        if (etag && ifNoneMatch === etag) {
+          return new Response(null, { status: 304 });
         }
 
-        return new Response(object.body, {
-          headers: {
-            "content-type": object.httpMetadata?.contentType || contentType,
-            "cache-control": "public, max-age=3600"
-          }
-        });
+        const isShell = key.includes("cpas-shell");
+        const cacheControl = isShell
+          ? "public, max-age=60, stale-while-revalidate=300"
+          : "public, max-age=3600, stale-while-revalidate=86400";
+
+        const staticHeaders = {
+          "content-type": object.httpMetadata?.contentType || contentType,
+          "cache-control": cacheControl,
+          ...(etag ? { "etag": etag } : {}),
+        };
+
+        if (request.method === "HEAD") {
+          return new Response(null, { headers: staticHeaders });
+        }
+
+        return new Response(object.body, { headers: staticHeaders });
       } catch (err) {
         console.warn("[static-r2] failed:", err?.message || err);
         return new Response("Static asset error", { status: 500 });
