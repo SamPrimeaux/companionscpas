@@ -506,6 +506,7 @@ const SECTION_RENDERERS = {
   impact_stats: renderImpactStats,
   cta_banner: renderCtaBanner,
   donation_block: renderDonationBlock,
+  fundraising: renderDonationBlock,
   org_info: renderOrgInfo,
   faq: renderFaq,
   animal_grid: renderAnimalGrid,

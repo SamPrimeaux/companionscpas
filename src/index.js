@@ -10,7 +10,7 @@ import { contactApiRoutes } from './api/contact_api.js';
 import { donationApiRoutes } from './api/donation_api.js';
 import { paymentsEmailRoutes } from './api/payments_email.js';
 import { socialRoutes } from './api/social.js';
-import { renderHome } from "./api/render_home.js";
+import { renderPage } from "./api/render_page.js";
 import { handleFosterApply, handleFosterList, handleFosterUpdate } from './api/foster_api.js';
 
 
@@ -49,6 +49,47 @@ async function asset(env, request, path) {
     if (res.ok) return res;
   } catch {}
   return new Response('Not found', { status: 404 });
+}
+
+
+async function servePublicPage(route, env) {
+  const normalizedRoute = route === "" ? "/" : route;
+  const cacheKey = `page:${normalizedRoute}`;
+  const artifactKey = normalizedRoute === "/" ? "static/pages/index.html" : `static/pages${normalizedRoute}/index.html`;
+  const headers = {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "public, max-age=60",
+  };
+
+  try {
+    if (env.CMS_CACHE) {
+      const cached = await env.CMS_CACHE.get(cacheKey);
+      if (cached) return new Response(cached, { headers });
+    }
+  } catch (err) {
+    console.warn("[public-page] KV get failed:", normalizedRoute, err?.message || err);
+  }
+
+  try {
+    const artifact = await env.WEBSITE_ASSETS.get(artifactKey);
+    if (artifact) {
+      const html = await artifact.text();
+      if (env.CMS_CACHE) {
+        await env.CMS_CACHE.put(cacheKey, html, { expirationTtl: 3600 }).catch(() => {});
+      }
+      return new Response(html, { headers });
+    }
+  } catch (err) {
+    console.warn("[public-page] R2 get failed:", normalizedRoute, err?.message || err);
+  }
+
+  try {
+    const html = await renderPage(normalizedRoute, `adhoc_${Date.now()}`, env);
+    return new Response(html, { headers: { ...headers, "cache-control": "no-store" } });
+  } catch (err) {
+    console.warn("[public-page] render fallback failed:", normalizedRoute, err?.message || err);
+    return new Response("Page unavailable", { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } });
+  }
 }
 
 // ── Session validation — delegates to agentsam_sessions via session_api.js ─────
@@ -186,115 +227,12 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
-    // ── PRIMETECH: DB-driven home page ──────────────────────────────────────────
-    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "")) {
-      const html = await renderHome(env);
-      return new Response(html, {
-        headers: {
-          "Content-Type": "text/html;charset=UTF-8",
-          "Cache-Control": "no-store",
-        },
-      });
-    }
-    // ── END PRIMETECH ─────────────────────────────────────────────────────────
-
-    // ── CMS about page: KV -> R2 -> hardcoded fallback ──────────────────────
-    if (request.method === "GET" && url.pathname === "/about") {
-      const cacheKey = "page:/about";
-      const htmlHeaders = {
-        "content-type": "text/html; charset=utf-8",
-        "cache-control": "public, max-age=60",
-      };
-
-      try {
-        if (env.CMS_CACHE) {
-          const cached = await env.CMS_CACHE.get(cacheKey);
-          if (cached) return new Response(cached, { headers: htmlHeaders });
-        }
-      } catch (err) {
-        console.warn("[about-serve] KV get failed:", err?.message || err);
-      }
-
-      try {
-        console.warn("[about-r2] attempting get"); const artifact = await env.WEBSITE_ASSETS.get("static/pages/about/index.html"); console.warn("[about-r2] result:", artifact ? "HIT " + artifact.size : "MISS");
-        if (artifact) {
-          const html = await artifact.text();
-          if (env.CMS_CACHE) {
-            await env.CMS_CACHE.put(cacheKey, html, { expirationTtl: 3600 }).catch((err) => {
-              console.warn("[about-serve] KV backfill failed:", err?.message || err);
-            });
-          }
-          return new Response(html, { headers: htmlHeaders });
-        }
-      } catch (err) {
-        console.warn("[about-serve] R2 get failed:", err?.message || err);
-      }
-    }
-
-    // ── CMS adopt page: KV -> R2 -> hardcoded fallback ──────────────────────
-    if (request.method === "GET" && url.pathname === "/adopt") {
-      const cacheKey = "page:/adopt";
-      const htmlHeaders = {
-        "Content-Type": "text/html;charset=utf-8",
-        "Cache-Control": "public,max-age=60",
-      };
-
-      try {
-        if (env.CMS_CACHE) {
-          const cached = await env.CMS_CACHE.get(cacheKey);
-          if (cached) return new Response(cached, { headers: htmlHeaders });
-        }
-      } catch (err) {
-        console.warn("[adopt-serve] KV get failed:", err?.message || err);
-      }
-
-      try {
-        const artifact = await env.WEBSITE_ASSETS.get("static/pages/adopt/index.html");
-        if (artifact) {
-          const html = await artifact.text();
-          if (env.CMS_CACHE) {
-            await env.CMS_CACHE.put(cacheKey, html, { expirationTtl: 3600 }).catch((err) => {
-              console.warn("[adopt-serve] KV backfill failed:", err?.message || err);
-            });
-          }
-          return new Response(html, { headers: htmlHeaders });
-        }
-      } catch (err) {
-        console.warn("[adopt-serve] R2 get failed:", err?.message || err);
-      }
-    }
-
-    // ── CMS services page: KV -> R2 -> hardcoded fallback ───────────────────
-    if (request.method === "GET" && url.pathname === "/services") {
-      const cacheKey = "page:/services";
-      const htmlHeaders = {
-        "Content-Type": "text/html;charset=utf-8",
-        "Cache-Control": "public,max-age=60",
-      };
-
-      try {
-        if (env.CMS_CACHE) {
-          const cached = await env.CMS_CACHE.get(cacheKey);
-          if (cached) return new Response(cached, { headers: htmlHeaders });
-        }
-      } catch (err) {
-        console.warn("[services-serve] KV get failed:", err?.message || err);
-      }
-
-      try {
-        const artifact = await env.WEBSITE_ASSETS.get("static/pages/services/index.html");
-        if (artifact) {
-          const html = await artifact.text();
-          if (env.CMS_CACHE) {
-            await env.CMS_CACHE.put(cacheKey, html, { expirationTtl: 3600 }).catch((err) => {
-              console.warn("[services-serve] KV backfill failed:", err?.message || err);
-            });
-          }
-          return new Response(html, { headers: htmlHeaders });
-        }
-      } catch (err) {
-        console.warn("[services-serve] R2 get failed:", err?.message || err);
-      }
+    // ── Public CMS pages: D1 render -> R2 artifact -> KV cache ────────────────
+    if (
+      request.method === "GET" &&
+      ["/", "/about", "/adopt", "/services", "/donate"].includes(url.pathname)
+    ) {
+      return servePublicPage(url.pathname, env);
     }
 
     // ── Everything else: static assets ───────────────────────────────────────
