@@ -1,5 +1,5 @@
 window.CPAS_CONFIG = {
-  logoUrl: "/logo.png",
+  logoUrl: "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar",
   assets: {},
   theme: {},
   brand: {}
@@ -67,7 +67,7 @@ window.loadDashboardConfig = async function loadDashboardConfig() {
       logoUrl:
         data.brand?.logo_light_url ||
         data.brand?.logo_url       ||
-        "/logo.png"
+        "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar"
     };
     window.applyCmsTheme(data.theme, data.brand);
     document.querySelectorAll("[data-asset]").forEach(el => {

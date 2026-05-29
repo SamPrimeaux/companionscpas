@@ -179,7 +179,7 @@ function CMSView({ onNavigate }) {
             }
           },
             React.createElement("div",{style:{padding:18,borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}},
-              React.createElement("img",{src:"/logo.png",style:{width:84,height:50,objectFit:"contain"}}),
+              React.createElement("img",{src:"https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar",style:{width:84,height:50,objectFit:"contain"}}),
               React.createElement("div",{style:{display:"flex",gap:16,color:C.textSec,fontWeight:800,fontSize:12}}, "Home", "About", "Adopt", "Donate")
             ),
             (pageData.sections || []).length ? pageData.sections.map(s => React.createElement("section", {
