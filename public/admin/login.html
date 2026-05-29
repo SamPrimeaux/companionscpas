@@ -59,15 +59,31 @@ input{
 input::placeholder{color:rgba(255,255,255,.72)}
 .eye{cursor:pointer;opacity:.9}
 button{
-  border:0;
-  background:transparent;
-  color:#a985ff;
-  font-size:20px;
-  font-weight:900;
-  letter-spacing:.08em;
-  margin:26px 0 14px 74px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin:26px 0 14px 54px;
+  padding:0 32px;
+  height:48px;
+  width:calc(100% - 108px);
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,0.18);
+  background:linear-gradient(135deg,rgba(160,104,255,0.92),rgba(109,58,220,0.84));
+  color:#fff;
+  font-size:14px;
+  font-weight:700;
+  letter-spacing:0.08em;
   cursor:pointer;
+  box-shadow:0 12px 28px rgba(124,58,237,0.35),inset 0 1px 0 rgba(255,255,255,0.2);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  transition:transform 180ms,box-shadow 180ms;
 }
+button:hover{
+  transform:translateY(-1px);
+  box-shadow:0 18px 40px rgba(124,58,237,0.45),inset 0 1px 0 rgba(255,255,255,0.26);
+}
+button:active{transform:translateY(0)}
 .forgot{
   display:block;
   margin-left:74px;
