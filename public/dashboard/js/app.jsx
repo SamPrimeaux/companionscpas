@@ -1,10 +1,39 @@
-// ─── App Router — with live session + API data loading ───────────────────────
+// App Router — with live session + API data loading
+
+const MOBILE_BREAKPOINT = 900;
 
 function App() {
-  const [ready,   setReady]   = React.useState(false);
-  const [liveUser, setLiveUser] = React.useState(null);
+  const [ready,        setReady]        = React.useState(false);
+  const [liveUser,     setLiveUser]     = React.useState(null);
+  const [isMobile,     setIsMobile]     = React.useState(() => window.innerWidth < MOBILE_BREAKPOINT);
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
-  // ── On mount: load session user + hydrate data from API ──────────────────
+  // Resize listener: update isMobile, close drawer when viewport expands past breakpoint
+  React.useEffect(() => {
+    const onResize = () => {
+      const mobile = window.innerWidth < MOBILE_BREAKPOINT;
+      setIsMobile(mobile);
+      if (!mobile) setMobileNavOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Body scroll lock while mobile drawer is open
+  React.useEffect(() => {
+    document.body.style.overflow = mobileNavOpen ? "hidden" : "";
+    if (mobileNavOpen) {
+      document.body.classList.add("cpas-mobile-nav-open");
+    } else {
+      document.body.classList.remove("cpas-mobile-nav-open");
+    }
+    return () => {
+      document.body.style.overflow = "";
+      document.body.classList.remove("cpas-mobile-nav-open");
+    };
+  }, [mobileNavOpen]);
+
+  // On mount: load session user + hydrate data from API
   React.useEffect(() => {
     async function init() {
       // 1. Fetch session user
@@ -13,7 +42,6 @@ function App() {
         if (res.ok) {
           const { user } = await res.json();
           setLiveUser(user);
-          // Patch CPAS user to match real session
           if (user) {
             window.CPAS_USER = user;
             window.CPAS.user = {
@@ -23,7 +51,6 @@ function App() {
             };
           }
         } else if (res.status === 401) {
-          // Session gone — redirect to login
           window.location.href = "/admin/login";
           return;
         }
@@ -31,7 +58,7 @@ function App() {
         console.warn("[CPAS] Session check failed:", e.message);
       }
 
-      // 2. Hydrate data from API (fills in real D1 data if available)
+      // 2. Hydrate data from API
       if (window.__loadDashboardData) {
         await window.__loadDashboardData();
       }
@@ -70,7 +97,7 @@ function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // ── Logout handler ────────────────────────────────────────────────────────
+  // Logout handler
   const handleLogout = React.useCallback(async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
@@ -78,7 +105,7 @@ function App() {
     window.location.href = "/admin/login";
   }, []);
 
-  // ── Loading screen ────────────────────────────────────────────────────────
+  // Loading screen
   if (!ready) {
     return React.createElement("div", {
       style:{ height:"100vh", background:"#0b0b14", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16 }
@@ -124,16 +151,102 @@ function App() {
     }
   };
 
+  // Desktop: flex row with sidebar + main column
+  // Mobile: no sidebar, full-width main, mobile drawer overlay
+  const shellStyle = isMobile
+    ? {
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        background: C.bg,
+        color: C.text,
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontSize: 14,
+        overflowX: "hidden",
+      }
+    : {
+        display: "flex",
+        height: "100vh",
+        background: C.bg,
+        color: C.text,
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontSize: 14,
+        overflow: "hidden",
+      };
+
+  const mainColStyle = isMobile
+    ? {
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+        overflowX: "hidden",
+      }
+    : {
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+        overflow: "hidden",
+      };
+
+  const mainScrollStyle = isMobile
+    ? {
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        overflowX: "hidden",
+      }
+    : {
+        flex: 1,
+        overflowY: "auto",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+      };
+
   return React.createElement("div", {
-    style:{ display:"flex", height:"100vh", background:C.bg, color:C.text, fontFamily:"'Inter', -apple-system, BlinkMacSystemFont, sans-serif", fontSize:14, overflow:"hidden" }
+    className: "cpas-dashboard-shell",
+    style: shellStyle
   },
-    React.createElement(Sidebar, { view, onNavigate:navigate, notifCount:unreadCount, onLogout:handleLogout }),
-    React.createElement("div", { style:{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflow:"hidden" } },
-      React.createElement(TopBar,  { onNavigate:navigate, notifCount:unreadCount }),
-      React.createElement("main", { id:"main-scroll", style:{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", minHeight:0 } },
+    // Desktop sidebar (hidden on mobile)
+    !isMobile && React.createElement(Sidebar, {
+      view,
+      onNavigate: navigate,
+      notifCount: unreadCount,
+      onLogout: handleLogout
+    }),
+
+    // Main column: TopBar + scrollable content
+    React.createElement("div", { className:"cpas-dashboard-main", style: mainColStyle },
+      React.createElement(TopBar, {
+        view,
+        isMobile,
+        mobileNavOpen,
+        onOpenMobileNav: () => setMobileNavOpen(true),
+        onNavigate: navigate,
+        notifCount: unreadCount
+      }),
+      React.createElement("main", {
+        id: "main-scroll",
+        style: mainScrollStyle
+      },
         renderView()
       )
     ),
+
+    // Mobile nav drawer (only rendered on mobile)
+    isMobile && React.createElement(MobileNavDrawer, {
+      open: mobileNavOpen,
+      view,
+      onClose: () => setMobileNavOpen(false),
+      onNavigate: (nextView, nextParams) => {
+        navigate(nextView, nextParams || {});
+        setMobileNavOpen(false);
+      }
+    }),
+
     React.createElement(AgentSamDrawer, null)
   );
 }
