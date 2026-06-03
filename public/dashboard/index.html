@@ -48,6 +48,50 @@
 .icon-alert{ -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E"); mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E"); }
 </style>
 
+<!-- Mobile layout helpers -->
+<style id="cpas-mobile-helpers">
+/* Visibility toggles */
+.cpas-mobile-only  { display: none !important; }
+.cpas-desktop-only { display: flex !important; }
+
+@media (max-width: 899px) {
+  .cpas-mobile-only  { display: flex !important; }
+  .cpas-desktop-only { display: none !important; }
+  body { overflow-x: hidden; }
+}
+
+/* Body scroll lock when mobile nav drawer is open */
+body.cpas-mobile-nav-open { overflow: hidden !important; }
+
+/* Root overflow guard — prevents horizontal bleed on any viewport */
+#root { overflow-x: hidden; }
+
+/* Mobile drawer animation */
+@keyframes cpas-drawer-slide-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes cpas-backdrop-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Hamburger bars SVG helper (used by MobileTopBar) */
+.cpas-hamburger-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.cpas-hamburger-btn:hover { background: rgba(255,255,255,0.06); }
+</style>
+
 </head>
 <body>
 <div id="root"></div>
