@@ -23,6 +23,7 @@ const NAV_LINKS = [
   { label: 'About',   href: '/about' },
   { label: 'Adopt',   href: '/adopt' },
   { label: 'Services',href: '/services' },
+  { label: 'Community', href: '/community' },
 ];
 
 /* ── LOGOS ─────────────────────────────────────────────────── */
@@ -72,6 +73,7 @@ export function renderFooter({ orgData = {}, footerLogo = LOGO_DARK } = {}) {
     { label: 'About',   href: '/about' },
     { label: 'Adopt',   href: '/adopt' },
     { label: 'Services',href: '/services' },
+    { label: 'Community', href: '/community' },
     { label: 'Donate',  href: '/donate' },
   ];
 
