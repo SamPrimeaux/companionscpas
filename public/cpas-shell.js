@@ -106,6 +106,7 @@
         { href: '/about', label: 'About' },
         { href: '/adopt', label: 'Adopt' },
         { href: '/services', label: 'Services' },
+        { href: '/community', label: 'Community' },
         { href: '/donate', label: 'Donate' },
       ];
       const linksHtml = links.map(({ href, label }) => {
@@ -263,6 +264,7 @@
       '        <a href="/about">About</a>',
       '        <a href="/adopt">Adopt</a>',
       '        <a href="/services">Services</a>',
+      '        <a href="/community">Community</a>',
       '        <a href="/donate">Donate</a>',
       '      </div>',
 
