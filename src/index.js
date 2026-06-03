@@ -86,9 +86,12 @@ async function servePublicPage(route, env) {
   }
 }
 
-// ── Session validation — delegates to agentsam_sessions via session_api.js ─────
-// getAuthUser(request, env) reads agentsam_sessions WHERE status='active'
-// Alias kept as getSession for backward compat with existing call sites
+// Public CMS routes — add new routes here only. KV/R2 pipeline handles the rest.
+// /community: community impact page with Facebook embed config + CMS-driven content.
+// NOTE: /community will return 503 until a CMS artifact is published for that route.
+const PUBLIC_ROUTES = ["/", "/about", "/community", "/adopt", "/services", "/donate"];
+
+// Session validation — delegates to agentsam_sessions via session_api.js
 const getSession = getAuthUser;
 
 export default {
@@ -111,7 +114,7 @@ export default {
       if (agentResult) return agentResult;
     }
 
-    // ── API routes ────────────────────────────────────────────────────────────
+    // API routes
     if (url.pathname.startsWith("/api/")) {
       // Foster/application baseline routes
       if (url.pathname === "/api/foster/apply" && request.method === "POST") {
@@ -152,8 +155,7 @@ export default {
     }
 
 
-    // ── Same-origin CMS/R2 static assets ───────────────────────────────────────
-    // /static/global/cpas-shell.css -> WEBSITE_ASSETS key static/global/cpas-shell.css
+    // Same-origin CMS/R2 static assets
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/static/")) {
       const key = url.pathname.slice(1);
 
@@ -201,7 +203,7 @@ export default {
       }
     }
 
-    // ── Admin routes ─────────────────────────────────────────────────────────
+    // Admin routes
     if (url.pathname === "/admin/login" || url.pathname === "/admin" || url.pathname === "/admin/") {
       const brand = await getBrand(env).catch(() => ({}));
       const logoUrl = brand?.logo_light_url || "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/9a00de35-fa41-49da-e431-a5f004cf5e00/avatar";
@@ -216,12 +218,12 @@ export default {
       return asset(env, request, "/admin/reset-password.html");
     }
 
-    // ── Legacy admin dashboard (keep working) ─────────────────────────────────
+    // Legacy admin dashboard (keep working)
     if (url.pathname.startsWith("/admin/dashboard")) {
       return asset(env, request, "/admin/dashboard.html");
     }
 
-    // ── Dashboard: enforce session auth ──────────────────────────────────────
+    // Dashboard: enforce session auth
     if (url.pathname === "/dashboard" || url.pathname.startsWith("/dashboard")) {
       // Let JS/CSS/asset sub-paths through without auth check
       const isAsset = url.pathname.match(/\.(js|jsx|css|png|webp|jpg|svg|ico|woff2?)$/i);
@@ -238,15 +240,12 @@ export default {
       return asset(env, request, url.pathname);
     }
 
-    // ── Public CMS pages: D1 render -> R2 artifact -> KV cache ────────────────
-    if (
-      request.method === "GET" &&
-      ["/", "/about", "/adopt", "/services", "/donate"].includes(url.pathname)
-    ) {
+    // Public CMS pages: D1 render -> R2 artifact -> KV cache
+    if (request.method === "GET" && PUBLIC_ROUTES.includes(url.pathname)) {
       return servePublicPage(url.pathname, env);
     }
 
-    // ── Everything else: 404 ───────────────────────────────────────────────
+    // Everything else: 404
     return new Response('Not found', { status: 404 });
   },
 
@@ -255,4 +254,3 @@ export default {
     ctx.waitUntil(syncToIAM(env));
   }
 };
-
