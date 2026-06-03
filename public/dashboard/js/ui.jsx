@@ -1,10 +1,11 @@
-// ─── Shared UI Components ─────────────────────────────────────────────────────
-// Exports to window: Sidebar, TopBar, Badge, StatCard, PageHeader, Modal,
-//                    Table, EmptyState, Icon, Avatar, ProgressBar, Sparkline
+// Shared UI Components
+// Exports to window: Sidebar, TopBar, MobileNavDrawer, NAV_ITEMS, useIsMobile,
+//                    Badge, StatCard, PageHeader, Modal, Table, EmptyState,
+//                    Icon, Avatar, ProgressBar, Sparkline, C
 
 const { useState, useEffect, useRef, useCallback } = React;
 
-// ── Color tokens ──────────────────────────────────────────────────────────────
+// Color tokens
 const C = window.__C_OBJ__ = {
   bg:        "#0b0b14",
   surface:   "#12121f",
@@ -30,7 +31,7 @@ const C = window.__C_OBJ__ = {
   pink:      "#F04E65",
 };
 
-// ── Icon set (inline SVG strings) ─────────────────────────────────────────────
+// Icon set (inline SVG strings)
 const ICONS = {
   dashboard: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5"/></svg>`,
   paw:       `<svg viewBox="0 0 20 20" fill="currentColor"><circle cx="7" cy="4" r="1.5"/><circle cx="13" cy="4" r="1.5"/><circle cx="4" cy="8" r="1.5"/><circle cx="16" cy="8" r="1.5"/><path d="M10 8c-2.5 0-5 2-5 5 0 1.5 1 2.5 2 2.5.6 0 1.5-.5 2-.5h2c.5 0 1.4.5 2 .5 1 0 2-1 2-2.5 0-3-2.5-5-5-5z"/></svg>`,
@@ -70,9 +71,11 @@ const ICONS = {
   panelRightClose:`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M13 3v14"/><path d="M9 7l-3 3 3 3"/></svg>`,
   paperclip: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 9l-7 7a4 4 0 0 1-5.7-5.7l8-8a3 3 0 0 1 4.2 4.2l-8 8a2 2 0 0 1-2.8-2.8l7-7"/></svg>`,
   image:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="M17 13l-3.5-3.5L6 16"/></svg>`,
+  // Hamburger for mobile nav (3 horizontal bars)
+  menu:      `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg>`,
 };
 
-// ── Icon component ────────────────────────────────────────────────────────────
+// Icon component
 function Icon({ name, size = 16, style = {} }) {
   const aliases = { "arrow-up":"arrowUp", "panel-right-close":"panelRightClose" };
   const key = aliases[name] || name;
@@ -83,7 +86,23 @@ function Icon({ name, size = 16, style = {} }) {
   });
 }
 
-// ── Avatar ────────────────────────────────────────────────────────────────────
+// useIsMobile hook — shared across all views
+function useIsMobile(breakpoint = 900) {
+  const [matches, setMatches] = useState(() => window.innerWidth < breakpoint);
+  useEffect(() => {
+    const onResize = () => setMatches(window.innerWidth < breakpoint);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [breakpoint]);
+  return matches;
+}
+
+// useIsNarrow — for very narrow viewports (<=520px)
+function useIsNarrow(breakpoint = 520) {
+  return useIsMobile(breakpoint);
+}
+
+// Avatar
 function Avatar({ name, size = 32, photo }) {
   const initials = name ? name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase() : "??";
   if (photo) return React.createElement("img", { src:photo, style:{ width:size, height:size, borderRadius:"50%", objectFit:"cover", border:`2px solid ${C.border}` } });
@@ -92,7 +111,7 @@ function Avatar({ name, size = 32, photo }) {
   }, initials);
 }
 
-// ── Badge ─────────────────────────────────────────────────────────────────────
+// Badge
 const BADGE_COLORS = {
   Available:    { bg:"#052e20", color:"#34d399", border:"#065f46" },
   Foster:       { bg:"#1e1b4b", color:"#818cf8", border:"#3730a3" },
@@ -132,7 +151,7 @@ function Badge({ label, dot = false }) {
   );
 }
 
-// ── ProgressBar ───────────────────────────────────────────────────────────────
+// ProgressBar
 function ProgressBar({ value, max, color = C.purple, height = 5 }) {
   const pct = Math.min(100, (value / max) * 100);
   return React.createElement("div", { style:{ width:"100%", height, borderRadius:99, background:C.border, overflow:"hidden" } },
@@ -140,7 +159,7 @@ function ProgressBar({ value, max, color = C.purple, height = 5 }) {
   );
 }
 
-// ── Sparkline (simple SVG) ────────────────────────────────────────────────────
+// Sparkline (simple SVG)
 function Sparkline({ data, color = C.purple, width = 80, height = 28 }) {
   if (!data || data.length < 2) return null;
   const min = Math.min(...data), max = Math.max(...data);
@@ -155,7 +174,7 @@ function Sparkline({ data, color = C.purple, width = 80, height = 28 }) {
   );
 }
 
-// ── StatCard ──────────────────────────────────────────────────────────────────
+// StatCard
 function SafeIcon({ icon, size = 18, color }) {
   const key = icon || "docs";
   if (typeof Icon === "function") return React.createElement(Icon, { name:key, size, style:{ color } });
@@ -180,7 +199,7 @@ function StatCard({ icon, iconColor, label, value, sub, subPositive, sparkData, 
   );
 }
 
-// ── PageHeader ────────────────────────────────────────────────────────────────
+// PageHeader
 function PageHeader({ title, subtitle, action, back, onBack }) {
   return React.createElement("div", { style:{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:24, flexWrap:"wrap", gap:12 } },
     React.createElement("div", null,
@@ -195,7 +214,7 @@ function PageHeader({ title, subtitle, action, back, onBack }) {
   );
 }
 
-// ── Btn ───────────────────────────────────────────────────────────────────────
+// Btn
 function Btn({ children, onClick, variant = "primary", size = "md", icon, style: extraStyle = {} }) {
   const [hov, setHov] = useState(false);
   const pad = size === "sm" ? "6px 12px" : "9px 18px";
@@ -214,7 +233,7 @@ function Btn({ children, onClick, variant = "primary", size = "md", icon, style:
   }, icon && React.createElement(Icon, { name:icon, size:14 }), children);
 }
 
-// ── Modal ────────────────────────────────────────────────────────────────────
+// Modal
 function Modal({ open, onClose, title, children, width = 560 }) {
   if (!open) return null;
   return React.createElement("div", {
@@ -234,7 +253,7 @@ function Modal({ open, onClose, title, children, width = 560 }) {
   );
 }
 
-// ── Table ────────────────────────────────────────────────────────────────────
+// Table
 function Table({ cols, rows, onRowClick, emptyMsg = "No records found" }) {
   if (!rows || rows.length === 0) return React.createElement(EmptyState, { message: emptyMsg });
   return React.createElement("div", { style:{ overflowX:"auto" } },
@@ -269,7 +288,7 @@ function Table({ cols, rows, onRowClick, emptyMsg = "No records found" }) {
   );
 }
 
-// ── EmptyState ────────────────────────────────────────────────────────────────
+// EmptyState
 function EmptyState({ message, icon = "docs" }) {
   return React.createElement("div", { style:{ display:"flex", flexDirection:"column", alignItems:"center", gap:12, padding:"48px 24px", color:C.textMut } },
     React.createElement(Icon, { name:icon, size:36, style:{ opacity:.4 } }),
@@ -277,7 +296,7 @@ function EmptyState({ message, icon = "docs" }) {
   );
 }
 
-// ── Tabs ─────────────────────────────────────────────────────────────────────
+// Tabs
 function Tabs({ tabs, active, onChange }) {
   return React.createElement("div", { style:{ display:"flex", gap:2, borderBottom:`1px solid ${C.border}`, marginBottom:24 } },
     tabs.map(tab =>
@@ -290,7 +309,7 @@ function Tabs({ tabs, active, onChange }) {
   );
 }
 
-// ── Card wrapper ──────────────────────────────────────────────────────────────
+// Card wrapper
 function Card({ children, style: extra = {}, onClick, hover = false }) {
   const [hov, setHov] = useState(false);
   return React.createElement("div", {
@@ -299,7 +318,7 @@ function Card({ children, style: extra = {}, onClick, hover = false }) {
   }, children);
 }
 
-// ── Input ─────────────────────────────────────────────────────────────────────
+// Input
 function Input({ value, onChange, placeholder, icon, style: extra = {} }) {
   const [focus, setFocus] = useState(false);
   return React.createElement("div", { style:{ position:"relative", overflow:"hidden", ...extra } },
@@ -313,7 +332,7 @@ function Input({ value, onChange, placeholder, icon, style: extra = {} }) {
   );
 }
 
-// ── Select ────────────────────────────────────────────────────────────────────
+// Select
 function Select({ value, onChange, options, style: extra = {} }) {
   return React.createElement("select", {
     value, onChange: e => onChange(e.target.value),
@@ -321,7 +340,7 @@ function Select({ value, onChange, options, style: extra = {} }) {
   }, options.map(o => React.createElement("option", { key:o.value||o, value:o.value||o }, o.label||o)));
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
+// NAV_ITEMS — canonical nav list shared by Sidebar and MobileNavDrawer
 const NAV_ITEMS = [
   { key:"overview",    label:"Dashboard",    icon:"dashboard" },
   { key:"animals",     label:"Animals",      icon:"paw" },
@@ -339,6 +358,29 @@ const NAV_ITEMS = [
   { key:"settings",    label:"Settings",     icon:"gear" },
 ];
 
+// Helper: get readable label for a view key
+function getNavLabel(viewKey) {
+  const item = NAV_ITEMS.find(n => n.key === viewKey);
+  return item ? item.label : "Dashboard";
+}
+
+// NAV_GROUPS — grouped nav for the mobile drawer
+const NAV_GROUPS = [
+  {
+    label: "Rescue Operations",
+    keys: ["overview", "animals", "fosters", "adoptions", "intakes", "medical", "daily-care"]
+  },
+  {
+    label: "Public Presence",
+    keys: ["cms", "fundraising", "donations"]
+  },
+  {
+    label: "Administration",
+    keys: ["volunteers", "applications", "reports", "settings"]
+  }
+];
+
+// Sidebar — desktop only (hidden on mobile via App logic)
 function Sidebar({ view, onNavigate, notifCount }) {
   const [hov, setHov] = useState(null);
   return React.createElement("aside", {
@@ -391,9 +433,44 @@ function Sidebar({ view, onNavigate, notifCount }) {
   );
 }
 
-// ── TopBar ────────────────────────────────────────────────────────────────────
-function TopBar({ onNavigate, notifCount }) {
+// TopBar — desktop search/bells + mobile hamburger/title
+function TopBar({ onNavigate, notifCount, isMobile, mobileNavOpen, onOpenMobileNav, view }) {
   const [search, setSearch] = useState("");
+
+  if (isMobile) {
+    // Mobile top bar: hamburger | section title | Agent Sam button
+    const viewLabel = getNavLabel(view || "overview");
+    return React.createElement("header", {
+      style:{ height:54, background:C.surface, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 12px", gap:8, position:"sticky", top:0, zIndex:100, flexShrink:0 }
+    },
+      // Hamburger
+      React.createElement("button", {
+        className: "cpas-hamburger-btn",
+        "aria-label": "Open navigation",
+        "aria-expanded": String(mobileNavOpen || false),
+        onClick: onOpenMobileNav,
+        style:{ color:C.textSec, padding:8 }
+      },
+        React.createElement(Icon, { name:"menu", size:22 })
+      ),
+      // Section title
+      React.createElement("span", {
+        style:{ flex:1, fontSize:15, fontWeight:600, color:C.text, textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }
+      }, viewLabel),
+      // Agent Sam button (compact)
+      React.createElement("button", {
+        onClick: () => {
+          if (typeof window.__toggleAgentSam === "function") window.__toggleAgentSam();
+          else window.dispatchEvent(new Event("agentsam:toggle"));
+        },
+        title: "Toggle Agent Sam",
+        className: "agentsam-launcher",
+        style:{ width:38, height:38, borderRadius:10, border:"none", background:"transparent", color:C.textSec, display:"grid", placeItems:"center", cursor:"pointer", padding:0, flexShrink:0 }
+      }, React.createElement(Icon, { name:"bot", size:22 }))
+    );
+  }
+
+  // Desktop top bar (original)
   return React.createElement("header", {
     style:{ height:56, background:C.surface, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 24px", gap:16, position:"sticky", top:0, zIndex:100 }
   },
@@ -412,29 +489,153 @@ function TopBar({ onNavigate, notifCount }) {
       }, React.createElement(Icon, { name:"mail", size:20 })),
       React.createElement("button", {
         onClick: () => {
-          if (typeof window.__toggleAgentSam === "function") {
-            window.__toggleAgentSam();
-          } else {
-            window.dispatchEvent(new Event("agentsam:toggle"));
-          }
+          if (typeof window.__toggleAgentSam === "function") window.__toggleAgentSam();
+          else window.dispatchEvent(new Event("agentsam:toggle"));
         },
         title: "Toggle Agent Sam",
         className:"agentsam-launcher",
-        style: {
-          width:38,
-          height:38,
-          borderRadius:10,
-          border:"none",
-          background:"transparent",
-          color:C.textSec,
-          display:"grid",
-          placeItems:"center",
-          cursor:"pointer",
-          padding:0
-        }
+        style:{ width:38, height:38, borderRadius:10, border:"none", background:"transparent", color:C.textSec, display:"grid", placeItems:"center", cursor:"pointer", padding:0 }
       }, React.createElement(Icon, { name:"bot", size:22 }))
     )
   );
 }
 
-Object.assign(window, { Icon, Avatar, Badge, ProgressBar, Sparkline, StatCard, PageHeader, Btn, Modal, Table, EmptyState, Tabs, Card, Input, Select, Sidebar, TopBar, C, CPAS });
+// MobileNavDrawer — glassmorphic slide-in drawer for mobile nav
+// Only mounted when isMobile is true (controlled by App).
+// Handles: backdrop click, Escape key, nav item click — all close the drawer.
+function MobileNavDrawer({ open, view, onClose, onNavigate }) {
+  // Escape key handler
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return React.createElement("div", {
+    // Full-viewport wrapper (backdrop)
+    style:{
+      position: "fixed",
+      inset: 0,
+      zIndex: 200,
+      display: "flex",
+    }
+  },
+    // Backdrop
+    React.createElement("div", {
+      onClick: onClose,
+      "aria-label": "Close navigation",
+      style:{
+        position: "absolute",
+        inset: 0,
+        background: "rgba(0,0,0,.55)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        animation: "cpas-backdrop-fade-in 0.18s ease",
+      }
+    }),
+
+    // Drawer panel
+    React.createElement("div", {
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-label": "Navigation menu",
+      style:{
+        position: "relative",
+        width: "clamp(280px, 68vw, 340px)",
+        maxWidth: "calc(100vw - 56px)",
+        height: "100%",
+        background: "rgba(18,18,31,.92)",
+        borderRight: `1px solid rgba(255,255,255,.10)`,
+        boxShadow: "4px 0 32px rgba(0,0,0,.5)",
+        display: "flex",
+        flexDirection: "column",
+        overflowY: "auto",
+        animation: "cpas-drawer-slide-in 0.22s cubic-bezier(.22,.77,.35,1)",
+        zIndex: 1,
+      }
+    },
+      // Drawer header: logo + close button
+      React.createElement("div", {
+        style:{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 16px 12px", borderBottom:`1px solid rgba(255,255,255,.08)`, flexShrink:0 }
+      },
+        React.createElement("img", {
+          src: "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar",
+          alt: "Companions of CPAS",
+          style:{ width:90, height:"auto", objectFit:"contain" }
+        }),
+        React.createElement("button", {
+          onClick: onClose,
+          "aria-label": "Close navigation",
+          style:{ background:"none", border:"none", color:C.textSec, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:6, borderRadius:8 }
+        }, React.createElement(Icon, { name:"close", size:20 }))
+      ),
+
+      // Grouped nav sections
+      React.createElement("nav", { style:{ flex:1, padding:"10px 10px 20px" } },
+        NAV_GROUPS.map(group => {
+          const items = NAV_ITEMS.filter(n => group.keys.includes(n.key));
+          return React.createElement("div", { key:group.label, style:{ marginBottom:8 } },
+            // Group label
+            React.createElement("div", {
+              style:{ fontSize:10, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:C.textMut, padding:"10px 12px 4px" }
+            }, group.label),
+            // Items
+            items.map(item => {
+              const active = view === item.key;
+              return React.createElement("button", {
+                key: item.key,
+                onClick: () => onNavigate(item.key),
+                style:{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: active ? C.purple : "transparent",
+                  color: active ? "#fff" : C.textSec,
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "background .1s, color .1s",
+                }
+              },
+                React.createElement(Icon, { name:item.icon, size:17 }),
+                item.label
+              );
+            })
+          );
+        })
+      ),
+
+      // User footer
+      React.createElement("div", {
+        style:{ padding:"14px 16px", borderTop:`1px solid rgba(255,255,255,.08)`, display:"flex", alignItems:"center", gap:10, flexShrink:0 }
+      },
+        React.createElement(Avatar, { name: (window.CPAS && CPAS.user) ? CPAS.user.name : "Admin", size:32 }),
+        React.createElement("div", { style:{ flex:1, minWidth:0 } },
+          React.createElement("div", { style:{ fontSize:13, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" } },
+            (window.CPAS && CPAS.user) ? CPAS.user.name : "Admin"
+          ),
+          React.createElement("div", { style:{ fontSize:11, color:C.textSec } },
+            (window.CPAS && CPAS.user) ? CPAS.user.role : "Staff"
+          )
+        )
+      )
+    )
+  );
+}
+
+Object.assign(window, {
+  Icon, Avatar, Badge, ProgressBar, Sparkline, StatCard, PageHeader, Btn,
+  Modal, Table, EmptyState, Tabs, Card, Input, Select,
+  Sidebar, TopBar, MobileNavDrawer,
+  NAV_ITEMS, NAV_GROUPS, getNavLabel,
+  useIsMobile, useIsNarrow,
+  C, CPAS
+});
