@@ -33,7 +33,6 @@ async function handleGoogleInit(request, env, url) {
     status: 302,
     headers: {
       Location: googleUrl,
-      // SameSite=None so the cookie is sent back on Google's cross-origin redirect
       "Set-Cookie": `cpas_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=600`,
     },
   });
@@ -43,7 +42,7 @@ async function handleGoogleInit(request, env, url) {
 async function handleGoogleCallback(request, env, url) {
   const clientId = env.GOOGLE_CLIENT_ID;
   const clientSecret = env.GOOGLE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return json({ error: "Google OAuth not configured" }, 503);
+  if (!clientId || !clientSecret) return json({ error: "Google OAuth not configured", has_id: !!clientId, has_secret: !!clientSecret }, 503);
 
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -57,7 +56,7 @@ async function handleGoogleCallback(request, env, url) {
     return Response.redirect(`${url.origin}/admin/login?error=invalid_callback`, 302);
   }
 
-  // Validate CSRF state — warn but don't hard-block (cookie may not survive cross-origin redirect)
+  // Validate CSRF state
   const cookieHeader = request.headers.get("Cookie") || "";
   const storedState = cookieHeader.match(/cpas_oauth_state=([^;]+)/)?.[1];
   if (state && storedState && storedState !== state) {
@@ -119,7 +118,7 @@ async function handleGoogleCallback(request, env, url) {
 
   if (!user) {
     console.warn("[google-oauth] email not authorized:", profile.email);
-    return Response.redirect(`${url.origin}/admin/login?error=not_authorized`, 302);
+    return Response.redirect(`${url.origin}/admin/login?error=not_authorized&email=${encodeURIComponent(profile.email)}`, 302);
   }
 
   // Revoke existing sessions
@@ -161,6 +160,15 @@ export async function googleAuthRoutes(request, env, url) {
   }
   if (url.pathname === "/api/auth/google/callback" && request.method === "GET") {
     return handleGoogleCallback(request, env, url);
+  }
+  // Temporary debug — remove after confirming secrets are wired
+  if (url.pathname === "/api/auth/google/debug" && request.method === "GET") {
+    return json({
+      has_client_id: !!env.GOOGLE_CLIENT_ID,
+      has_client_secret: !!env.GOOGLE_CLIENT_SECRET,
+      client_id_length: env.GOOGLE_CLIENT_ID?.length || 0,
+      client_secret_length: env.GOOGLE_CLIENT_SECRET?.length || 0,
+    });
   }
   return null;
 }
