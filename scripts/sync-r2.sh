@@ -1,5 +1,6 @@
 #!/bin/bash
 # sync-r2.sh — uploads public/ (or a subdirectory) to companionscpas R2 bucket
+# Always bakes the current git hash into dashboard/index.html before uploading.
 # Usage:
 #   npm run sync          — uploads entire public/ dir
 #   npm run sync:js       — uploads public/dashboard/js/ only
@@ -10,11 +11,18 @@ set -e
 BUCKET="companionscpas"
 PUBLIC="${1:-public}"
 
+# Always bake the current git hash into dashboard/index.html so JSX cache-busting works
+HASH=$(git rev-parse --short HEAD)
+HTML="public/dashboard/index.html"
+if [ -f "$HTML" ]; then
+  sed -i '' "s|\.jsx?v=[^\"]*|\.jsx|g; s|\.jsx\"|\.jsx?v=${HASH}\"|g" "$HTML"
+  echo "Hash baked: $HASH → $HTML"
+fi
+
 echo "Syncing $PUBLIC/ → R2 $BUCKET ..."
 
 upload() {
   local file="$1"
-  # Strip leading public/ prefix for the R2 key
   local key="${file#public/}"
   local ext="${file##*.}"
 
