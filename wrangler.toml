@@ -16,8 +16,6 @@ META_APP_SECRET = ""
 META_REDIRECT_URI = "https://companionscpas.meauxbility.workers.dev/api/social/oauth/meta/callback"
 
 # Google powers YouTube OAuth/upload routes.
-GOOGLE_CLIENT_ID = ""
-GOOGLE_CLIENT_SECRET = ""
 GOOGLE_REDIRECT_URI = "https://companionscpas.meauxbility.workers.dev/api/social/oauth/youtube/callback"
 
 # Stripe + Resend integrations. Secrets are set with wrangler secret put.
