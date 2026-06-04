@@ -5,8 +5,12 @@ function json(data, status = 200, headers = {}) {
   });
 }
 
-function cookie(sessionId) {
+function sessionCookie(sessionId) {
   return `cpas_session=${sessionId}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
+}
+
+function clearStateCookie() {
+  return `cpas_oauth_state=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`;
 }
 
 // ── STEP 1: Redirect to Google's OAuth consent screen
@@ -48,19 +52,14 @@ async function handleGoogleCallback(request, env, url) {
   const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
 
-  if (error) {
-    return Response.redirect(`${url.origin}/admin/login?error=google_denied`, 302);
-  }
+  if (error) return Response.redirect(`${url.origin}/admin/login?error=google_denied`, 302);
+  if (!code) return Response.redirect(`${url.origin}/admin/login?error=invalid_callback`, 302);
 
-  if (!code) {
-    return Response.redirect(`${url.origin}/admin/login?error=invalid_callback`, 302);
-  }
-
-  // Validate CSRF state
+  // Soft CSRF check
   const cookieHeader = request.headers.get("Cookie") || "";
   const storedState = cookieHeader.match(/cpas_oauth_state=([^;]+)/)?.[1];
   if (state && storedState && storedState !== state) {
-    console.warn("[google-oauth] state mismatch — possible CSRF or cookie loss");
+    console.warn("[google-oauth] state mismatch");
     return Response.redirect(`${url.origin}/admin/login?error=state_mismatch`, 302);
   }
 
@@ -91,7 +90,7 @@ async function handleGoogleCallback(request, env, url) {
     return Response.redirect(`${url.origin}/admin/login?error=token_missing`, 302);
   }
 
-  // Fetch user profile from Google
+  // Fetch user profile
   let profile;
   try {
     const profileRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
@@ -103,11 +102,9 @@ async function handleGoogleCallback(request, env, url) {
     return Response.redirect(`${url.origin}/admin/login?error=profile_failed`, 302);
   }
 
-  if (!profile?.email) {
-    return Response.redirect(`${url.origin}/admin/login?error=no_email`, 302);
-  }
+  if (!profile?.email) return Response.redirect(`${url.origin}/admin/login?error=no_email`, 302);
 
-  // Look up user in D1 by email
+  // Look up user in D1
   const user = await env.DB.prepare(`
     SELECT u.id, u.email, u.full_name, u.status
     FROM users u
@@ -117,14 +114,13 @@ async function handleGoogleCallback(request, env, url) {
   `).bind(profile.email).first();
 
   if (!user) {
-    console.warn("[google-oauth] email not authorized:", profile.email);
+    console.warn("[google-oauth] not authorized:", profile.email);
     return Response.redirect(`${url.origin}/admin/login?error=not_authorized&email=${encodeURIComponent(profile.email)}`, 302);
   }
 
   // Revoke existing sessions
   await env.DB.prepare(`
-    UPDATE agentsam_sessions
-    SET status = 'revoked', updated_at = datetime('now')
+    UPDATE agentsam_sessions SET status = 'revoked', updated_at = datetime('now')
     WHERE user_id = ? AND status = 'active'
   `).bind(user.id).run().catch(() => {});
 
@@ -136,22 +132,17 @@ async function handleGoogleCallback(request, env, url) {
     VALUES (?, 'tenant_companionscpas', ?, 'Google Login', '/dashboard', 'ask', 'active', datetime('now'), datetime('now'))
   `).bind(sessionId, user.id).run();
 
-  // Update last login
   await env.DB.prepare(`
-    UPDATE users SET last_login_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ?
+    UPDATE users SET last_login_at = datetime('now'), updated_at = datetime('now') WHERE id = ?
   `).bind(user.id).run().catch(() => {});
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: "/dashboard",
-      "Set-Cookie": [
-        cookie(sessionId),
-        `cpas_oauth_state=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`,
-      ].join(", "),
-    },
-  });
+  // Use Headers object so each Set-Cookie is a separate header
+  const headers = new Headers();
+  headers.append("Location", "/dashboard");
+  headers.append("Set-Cookie", sessionCookie(sessionId));
+  headers.append("Set-Cookie", clearStateCookie());
+
+  return new Response(null, { status: 302, headers });
 }
 
 export async function googleAuthRoutes(request, env, url) {
@@ -161,7 +152,7 @@ export async function googleAuthRoutes(request, env, url) {
   if (url.pathname === "/api/auth/google/callback" && request.method === "GET") {
     return handleGoogleCallback(request, env, url);
   }
-  // Temporary debug — remove after confirming secrets are wired
+  // Temporary debug — remove after confirming
   if (url.pathname === "/api/auth/google/debug" && request.method === "GET") {
     return json({
       has_client_id: !!env.GOOGLE_CLIENT_ID,
