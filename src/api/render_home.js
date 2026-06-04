@@ -7,7 +7,7 @@ import { pageShell } from './_shell.js';
  */
 
 const TENANT   = "tenant_companionscpas";
-const R2_CSS   = "/static/global/shared.css";
+const R2_CSS   = "/static/global/cpas-shell.css";
 const R2_FALLBACK_HTML = "/static/global/index.html";
 
 // ─── Escape ────────────────────────────────────────────────────

@@ -33,7 +33,7 @@ const IAM_BADGE  = '/static/global/logo.webp';
 
 /* ── HEADER ─────────────────────────────────────────────────── */
 export function renderHeader({ theme = 'dark', activePage = '/', logoDark = LOGO_DARK, logoLight = LOGO_LIGHT } = {}) {
-  const logo    = theme === 'dark' ? logoDark : logoLight;
+  const logo    = theme === 'dark' ? logoLight : logoDark;
   const navHtml = NAV_LINKS.map(({ label, href }) => {
     const isActive = activePage === href ? ' class="active"' : '';
     return `<li><a href="${esc(href)}"${isActive}>${esc(label)}</a></li>`;
@@ -164,7 +164,7 @@ export function pageShell(title, metaDesc, bodyHtml, {
   <title>${esc(title)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="/static/global/shared.css" />
+  <link rel="stylesheet" href="/static/global/cpas-shell.css" />
   <link rel="icon" href="/logo.png" />
 </head>
 <body class="${esc(theme === 'dark' ? 'theme-dark' : 'theme-light')}" data-theme="${esc(theme)}" data-route="${esc(activePage || '/')}" data-tenant="tenant_companionscpas">
@@ -177,7 +177,7 @@ ${bodyHtml}
 
 ${footer}
 
-<script src="/static/global/shared.js"></script>
+<script src="/static/global/cpas-shell.js"></script>
 </body>
 </html>`;
 }
