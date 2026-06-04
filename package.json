@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "sync": "bash scripts/sync-r2.sh",
+    "sync:js": "bash scripts/sync-r2.sh public/dashboard/js",
     "deploy": "wrangler deploy",
+    "deploy:full": "npm run sync && npm run deploy",
     "check:brand": "grep -RInEi \"pawlove|pawloverescue|meauxbility|g7wf09f|22963db|Grant Parish|Sissyj\" src public || true",
     "predeploy": "HASH=$(git rev-parse --short HEAD) && sed -i '' \"s|\\.jsx?v=[^\\\"]*|\\.jsx|g; s|\\.jsx\\\"|\\.jsx?v=${HASH}\\\"|g\" public/dashboard/index.html"
   },
