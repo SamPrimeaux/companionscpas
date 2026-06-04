@@ -31,6 +31,16 @@ const C = window.__C_OBJ__ = {
   pink:      "#F04E65",
 };
 
+// Logo URLs
+const LOGO_DARK  = "/static/global/companionsofcpa-newlogo.webp";
+const LOGO_LIGHT = "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar";
+
+// Detect theme — body data-theme or class
+function getDashboardLogo() {
+  const theme = document.body.dataset.theme || (document.body.classList.contains("theme-light") ? "light" : "dark");
+  return theme === "light" ? LOGO_LIGHT : LOGO_DARK;
+}
+
 // Icon set (inline SVG strings)
 const ICONS = {
   dashboard: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5"/></svg>`,
@@ -71,7 +81,6 @@ const ICONS = {
   panelRightClose:`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M13 3v14"/><path d="M9 7l-3 3 3 3"/></svg>`,
   paperclip: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 9l-7 7a4 4 0 0 1-5.7-5.7l8-8a3 3 0 0 1 4.2 4.2l-8 8a2 2 0 0 1-2.8-2.8l7-7"/></svg>`,
   image:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="M17 13l-3.5-3.5L6 16"/></svg>`,
-  // Hamburger for mobile nav (3 horizontal bars)
   menu:      `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg>`,
 };
 
@@ -86,7 +95,7 @@ function Icon({ name, size = 16, style = {} }) {
   });
 }
 
-// useIsMobile hook — shared across all views
+// useIsMobile hook
 function useIsMobile(breakpoint = 900) {
   const [matches, setMatches] = useState(() => window.innerWidth < breakpoint);
   useEffect(() => {
@@ -97,7 +106,6 @@ function useIsMobile(breakpoint = 900) {
   return matches;
 }
 
-// useIsNarrow — for very narrow viewports (<=520px)
 function useIsNarrow(breakpoint = 520) {
   return useIsMobile(breakpoint);
 }
@@ -159,7 +167,7 @@ function ProgressBar({ value, max, color = C.purple, height = 5 }) {
   );
 }
 
-// Sparkline (simple SVG)
+// Sparkline
 function Sparkline({ data, color = C.purple, width = 80, height = 28 }) {
   if (!data || data.length < 2) return null;
   const min = Math.min(...data), max = Math.max(...data);
@@ -340,7 +348,7 @@ function Select({ value, onChange, options, style: extra = {} }) {
   }, options.map(o => React.createElement("option", { key:o.value||o, value:o.value||o }, o.label||o)));
 }
 
-// NAV_ITEMS — canonical nav list shared by Sidebar and MobileNavDrawer
+// NAV_ITEMS
 const NAV_ITEMS = [
   { key:"overview",    label:"Dashboard",    icon:"dashboard" },
   { key:"animals",     label:"Animals",      icon:"paw" },
@@ -358,35 +366,63 @@ const NAV_ITEMS = [
   { key:"settings",    label:"Settings",     icon:"gear" },
 ];
 
-// Helper: get readable label for a view key
 function getNavLabel(viewKey) {
   const item = NAV_ITEMS.find(n => n.key === viewKey);
   return item ? item.label : "Dashboard";
 }
 
-// NAV_GROUPS — grouped nav for the mobile drawer
 const NAV_GROUPS = [
-  {
-    label: "Rescue Operations",
-    keys: ["overview", "animals", "fosters", "adoptions", "intakes", "medical", "daily-care"]
-  },
-  {
-    label: "Public Presence",
-    keys: ["cms", "fundraising", "donations"]
-  },
-  {
-    label: "Administration",
-    keys: ["volunteers", "applications", "reports", "settings"]
-  }
+  { label: "Rescue Operations", keys: ["overview","animals","fosters","adoptions","intakes","medical","daily-care"] },
+  { label: "Public Presence",   keys: ["cms","fundraising","donations"] },
+  { label: "Administration",    keys: ["volunteers","applications","reports","settings"] },
 ];
 
-// Sidebar — desktop only (hidden on mobile via App logic)
+// ── GLASSMORPHIC HAMBURGER BUTTON ──
+// Circular frosted glass bubble, left-aligned, 3 staggered lines
+function HamburgerBtn({ open, onClick }) {
+  const [hov, setHov] = useState(false);
+  return React.createElement("button", {
+    onClick,
+    onMouseEnter: () => setHov(true),
+    onMouseLeave: () => setHov(false),
+    "aria-label": open ? "Close navigation" : "Open navigation",
+    "aria-expanded": String(open),
+    style: {
+      width: 40,
+      height: 40,
+      borderRadius: "50%",
+      border: `1px solid rgba(255,255,255,${hov ? ".18" : ".10"})`,
+      background: hov
+        ? "rgba(134,100,183,0.22)"
+        : "rgba(255,255,255,0.07)",
+      backdropFilter: "blur(12px)",
+      WebkitBackdropFilter: "blur(12px)",
+      boxShadow: "0 2px 12px rgba(0,0,0,.25)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-start",
+      justifyContent: "center",
+      gap: 4,
+      padding: "0 11px",
+      cursor: "pointer",
+      transition: "background 180ms, border-color 180ms, box-shadow 180ms",
+      flexShrink: 0,
+    }
+  },
+    // 3 staggered lines — long, short, medium
+    React.createElement("span", { style:{ display:"block", width: open ? 18 : 18, height:1.8, borderRadius:2, background:"rgba(255,255,255,.75)", transition:"width 150ms" } }),
+    React.createElement("span", { style:{ display:"block", width: open ? 18 : 12, height:1.8, borderRadius:2, background:"rgba(255,255,255,.5)", transition:"width 150ms" } }),
+    React.createElement("span", { style:{ display:"block", width: open ? 18 : 15, height:1.8, borderRadius:2, background:"rgba(255,255,255,.65)", transition:"width 150ms" } }),
+  );
+}
+
+// Sidebar — desktop only
 function Sidebar({ view, onNavigate, notifCount }) {
   const [hov, setHov] = useState(null);
+  const logo = getDashboardLogo();
   return React.createElement("aside", {
     style:{ width:220, flexShrink:0, background:C.surface, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", height:"100vh", position:"sticky", top:0, overflow:"hidden" }
   },
-    // Logo
     React.createElement("div", { style:{ padding:"18px 18px 14px", borderBottom:`1px solid ${C.border}`, flexShrink:0 } },
       React.createElement("a", {
         href:"/dashboard?view=overview",
@@ -394,13 +430,12 @@ function Sidebar({ view, onNavigate, notifCount }) {
         style:{ display:"flex", alignItems:"center", textDecoration:"none" }
       },
         React.createElement("img", {
-          src:"https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar",
+          src: logo,
           alt:"Companions of CPAS",
           style:{ width:108, height:"auto", display:"block", objectFit:"contain" }
         })
       )
     ),
-    // Nav
     React.createElement("nav", { style:{ flex:1, overflowY:"auto", padding:"12px 10px" } },
       NAV_ITEMS.map(item => {
         const active = view === item.key;
@@ -418,7 +453,6 @@ function Sidebar({ view, onNavigate, notifCount }) {
         );
       })
     ),
-    // User
     React.createElement("div", {
       style:{ padding:"16px 20px", borderTop:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:10, cursor:"pointer" },
       onClick: () => onNavigate("settings")
@@ -433,31 +467,19 @@ function Sidebar({ view, onNavigate, notifCount }) {
   );
 }
 
-// TopBar — desktop search/bells + mobile hamburger/title
+// TopBar
 function TopBar({ onNavigate, notifCount, isMobile, mobileNavOpen, onOpenMobileNav, view }) {
   const [search, setSearch] = useState("");
 
   if (isMobile) {
-    // Mobile top bar: hamburger | section title | Agent Sam button
     const viewLabel = getNavLabel(view || "overview");
     return React.createElement("header", {
-      style:{ height:54, background:C.surface, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 12px", gap:8, position:"sticky", top:0, zIndex:100, flexShrink:0 }
+      style:{ height:54, background:C.surface, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 12px", gap:10, position:"sticky", top:0, zIndex:100, flexShrink:0 }
     },
-      // Hamburger
-      React.createElement("button", {
-        className: "cpas-hamburger-btn",
-        "aria-label": "Open navigation",
-        "aria-expanded": String(mobileNavOpen || false),
-        onClick: onOpenMobileNav,
-        style:{ color:C.textSec, padding:8 }
-      },
-        React.createElement(Icon, { name:"menu", size:22 })
-      ),
-      // Section title
+      React.createElement(HamburgerBtn, { open: mobileNavOpen, onClick: onOpenMobileNav }),
       React.createElement("span", {
         style:{ flex:1, fontSize:15, fontWeight:600, color:C.text, textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }
       }, viewLabel),
-      // Agent Sam button (compact)
       React.createElement("button", {
         onClick: () => {
           if (typeof window.__toggleAgentSam === "function") window.__toggleAgentSam();
@@ -470,7 +492,6 @@ function TopBar({ onNavigate, notifCount, isMobile, mobileNavOpen, onOpenMobileN
     );
   }
 
-  // Desktop top bar (original)
   return React.createElement("header", {
     style:{ height:56, background:C.surface, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 24px", gap:16, position:"sticky", top:0, zIndex:100 }
   },
@@ -500,11 +521,10 @@ function TopBar({ onNavigate, notifCount, isMobile, mobileNavOpen, onOpenMobileN
   );
 }
 
-// MobileNavDrawer — glassmorphic slide-in drawer for mobile nav
-// Only mounted when isMobile is true (controlled by App).
-// Handles: backdrop click, Escape key, nav item click — all close the drawer.
+// MobileNavDrawer
 function MobileNavDrawer({ open, view, onClose, onNavigate }) {
-  // Escape key handler
+  const logo = getDashboardLogo();
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -515,94 +535,80 @@ function MobileNavDrawer({ open, view, onClose, onNavigate }) {
   if (!open) return null;
 
   return React.createElement("div", {
-    // Full-viewport wrapper (backdrop)
-    style:{
-      position: "fixed",
-      inset: 0,
-      zIndex: 200,
-      display: "flex",
-    }
+    style:{ position:"fixed", inset:0, zIndex:200, display:"flex" }
   },
     // Backdrop
     React.createElement("div", {
       onClick: onClose,
       "aria-label": "Close navigation",
       style:{
-        position: "absolute",
-        inset: 0,
-        background: "rgba(0,0,0,.55)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        animation: "cpas-backdrop-fade-in 0.18s ease",
+        position:"absolute", inset:0,
+        background:"rgba(0,0,0,.55)",
+        backdropFilter:"blur(10px)",
+        WebkitBackdropFilter:"blur(10px)",
+        animation:"cpas-backdrop-fade-in 0.18s ease",
       }
     }),
 
-    // Drawer panel
+    // Drawer panel — ~50% viewport width
     React.createElement("div", {
-      role: "dialog",
-      "aria-modal": "true",
-      "aria-label": "Navigation menu",
+      role:"dialog",
+      "aria-modal":"true",
+      "aria-label":"Navigation menu",
       style:{
-        position: "relative",
-        width: "clamp(280px, 68vw, 340px)",
-        maxWidth: "calc(100vw - 56px)",
-        height: "100%",
-        background: "rgba(18,18,31,.92)",
-        borderRight: `1px solid rgba(255,255,255,.10)`,
-        boxShadow: "4px 0 32px rgba(0,0,0,.5)",
-        display: "flex",
-        flexDirection: "column",
-        overflowY: "auto",
-        animation: "cpas-drawer-slide-in 0.22s cubic-bezier(.22,.77,.35,1)",
-        zIndex: 1,
+        position:"relative",
+        width:"min(52vw, 320px)",
+        maxWidth:"calc(100vw - 48px)",
+        height:"100%",
+        background:"rgba(18,18,31,.95)",
+        borderRight:`1px solid rgba(255,255,255,.10)`,
+        boxShadow:"4px 0 40px rgba(0,0,0,.6)",
+        display:"flex",
+        flexDirection:"column",
+        overflowY:"auto",
+        animation:"cpas-drawer-slide-in 0.22s cubic-bezier(.22,.77,.35,1)",
+        zIndex:1,
+        backdropFilter:"blur(20px)",
+        WebkitBackdropFilter:"blur(20px)",
       }
     },
-      // Drawer header: logo + close button
+      // Header: logo + close
       React.createElement("div", {
         style:{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 16px 12px", borderBottom:`1px solid rgba(255,255,255,.08)`, flexShrink:0 }
       },
         React.createElement("img", {
-          src: "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar",
-          alt: "Companions of CPAS",
+          src: logo,
+          alt:"Companions of CPAS",
           style:{ width:90, height:"auto", objectFit:"contain" }
         }),
         React.createElement("button", {
           onClick: onClose,
-          "aria-label": "Close navigation",
+          "aria-label":"Close navigation",
           style:{ background:"none", border:"none", color:C.textSec, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:6, borderRadius:8 }
         }, React.createElement(Icon, { name:"close", size:20 }))
       ),
 
-      // Grouped nav sections
+      // Grouped nav
       React.createElement("nav", { style:{ flex:1, padding:"10px 10px 20px" } },
         NAV_GROUPS.map(group => {
           const items = NAV_ITEMS.filter(n => group.keys.includes(n.key));
           return React.createElement("div", { key:group.label, style:{ marginBottom:8 } },
-            // Group label
             React.createElement("div", {
               style:{ fontSize:10, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:C.textMut, padding:"10px 12px 4px" }
             }, group.label),
-            // Items
             items.map(item => {
               const active = view === item.key;
               return React.createElement("button", {
                 key: item.key,
                 onClick: () => onNavigate(item.key),
                 style:{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "10px 12px",
-                  borderRadius: 8,
-                  border: "none",
+                  width:"100%", display:"flex", alignItems:"center", gap:10,
+                  padding:"10px 12px", borderRadius:8, border:"none",
                   background: active ? C.purple : "transparent",
                   color: active ? "#fff" : C.textSec,
-                  fontSize: 13,
-                  fontWeight: active ? 600 : 400,
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "background .1s, color .1s",
+                  fontSize:13, fontWeight: active ? 600 : 400,
+                  cursor:"pointer", textAlign:"left",
+                  transition:"background .1s, color .1s",
                 }
               },
                 React.createElement(Icon, { name:item.icon, size:17 }),
@@ -617,7 +623,7 @@ function MobileNavDrawer({ open, view, onClose, onNavigate }) {
       React.createElement("div", {
         style:{ padding:"14px 16px", borderTop:`1px solid rgba(255,255,255,.08)`, display:"flex", alignItems:"center", gap:10, flexShrink:0 }
       },
-        React.createElement(Avatar, { name: (window.CPAS && CPAS.user) ? CPAS.user.name : "Admin", size:32 }),
+        React.createElement(Avatar, { name:(window.CPAS && CPAS.user) ? CPAS.user.name : "Admin", size:32 }),
         React.createElement("div", { style:{ flex:1, minWidth:0 } },
           React.createElement("div", { style:{ fontSize:13, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" } },
             (window.CPAS && CPAS.user) ? CPAS.user.name : "Admin"
