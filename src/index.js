@@ -1,5 +1,6 @@
 import { syncToIAM } from "./api/resolveModel.js";
 import { authRoutes } from './api/auth_login.js';
+import { googleAuthRoutes } from './api/auth_google.js';
 import { sessionRoutes, getAuthUser } from './api/session_api.js';
 import { agentsamRoutes } from './api/agentsam_api.js';
 import { agentsamToolsRoutes } from './api/agentsam_tools.js';
@@ -134,6 +135,10 @@ export default {
 
       const cmsResult = await cmsRoutes(request, env, url);
       if (cmsResult) return cmsResult;
+
+      // Google OAuth — before generic auth routes
+      const googleResult = await googleAuthRoutes(request, env, url);
+      if (googleResult) return googleResult;
 
       const routes = [
         authRoutes,
