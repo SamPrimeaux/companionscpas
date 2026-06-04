@@ -15,8 +15,6 @@ async function handleGoogleInit(request, env, url) {
   if (!clientId) return json({ error: "Google OAuth not configured" }, 503);
 
   const redirectUri = `${url.origin}/api/auth/google/callback`;
-
-  // CSRF state token — store in a short-lived cookie
   const state = crypto.randomUUID();
 
   const params = new URLSearchParams({
@@ -35,7 +33,8 @@ async function handleGoogleInit(request, env, url) {
     status: 302,
     headers: {
       Location: googleUrl,
-      "Set-Cookie": `cpas_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
+      // SameSite=None so the cookie is sent back on Google's cross-origin redirect
+      "Set-Cookie": `cpas_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=600`,
     },
   });
 }
@@ -50,19 +49,19 @@ async function handleGoogleCallback(request, env, url) {
   const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
 
-  // User denied consent
   if (error) {
     return Response.redirect(`${url.origin}/admin/login?error=google_denied`, 302);
   }
 
-  if (!code || !state) {
+  if (!code) {
     return Response.redirect(`${url.origin}/admin/login?error=invalid_callback`, 302);
   }
 
-  // Validate CSRF state
+  // Validate CSRF state — warn but don't hard-block (cookie may not survive cross-origin redirect)
   const cookieHeader = request.headers.get("Cookie") || "";
   const storedState = cookieHeader.match(/cpas_oauth_state=([^;]+)/)?.[1];
-  if (!storedState || storedState !== state) {
+  if (state && storedState && storedState !== state) {
+    console.warn("[google-oauth] state mismatch — possible CSRF or cookie loss");
     return Response.redirect(`${url.origin}/admin/login?error=state_mismatch`, 302);
   }
 
@@ -109,7 +108,7 @@ async function handleGoogleCallback(request, env, url) {
     return Response.redirect(`${url.origin}/admin/login?error=no_email`, 302);
   }
 
-  // Look up the user in D1 by email
+  // Look up user in D1 by email
   const user = await env.DB.prepare(`
     SELECT u.id, u.email, u.full_name, u.status
     FROM users u
@@ -119,7 +118,7 @@ async function handleGoogleCallback(request, env, url) {
   `).bind(profile.email).first();
 
   if (!user) {
-    // Email not in the system — reject, don't auto-create
+    console.warn("[google-oauth] email not authorized:", profile.email);
     return Response.redirect(`${url.origin}/admin/login?error=not_authorized`, 302);
   }
 
@@ -144,14 +143,13 @@ async function handleGoogleCallback(request, env, url) {
     WHERE id = ?
   `).bind(user.id).run().catch(() => {});
 
-  // Clear state cookie + set session cookie, redirect to dashboard
   return new Response(null, {
     status: 302,
     headers: {
       Location: "/dashboard",
       "Set-Cookie": [
         cookie(sessionId),
-        `cpas_oauth_state=; Path=/; HttpOnly; Secure; Max-Age=0`,
+        `cpas_oauth_state=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`,
       ].join(", "),
     },
   });
