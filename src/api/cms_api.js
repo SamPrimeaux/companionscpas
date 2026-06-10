@@ -559,5 +559,30 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     return json({ success: true, deleted: { page_route, section_key } });
   }
 
+
+  // PATCH /api/cms/brand/config — write active_font_preset or any config_json key
+  if (path === '/api/cms/brand/config' && (method === 'POST' || method === 'PATCH')) {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: 'Not authenticated' }, 401);
+    const data = await body(request);
+    // data: { active_font_preset: 'playfair_inter' } or any flat config key
+    // Read current config_json, merge, write back
+    const row = await env.DB.prepare(
+      'SELECT config_json FROM cms_brand_settings WHERE tenant_id = ? LIMIT 1'
+    ).bind(TENANT_ID).first().catch(() => null);
+    const current = (() => { try { return JSON.parse(row?.config_json || '{}'); } catch { return {}; } })();
+    const merged = { ...current, ...data };
+    await env.DB.prepare(
+      `UPDATE cms_brand_settings SET config_json = ?, updated_at = datetime("now") WHERE tenant_id = ?`
+    ).bind(JSON.stringify(merged), TENANT_ID).run();
+    await bustCache(env, 'brand:' + TENANT_ID, 'bootstrap:' + TENANT_ID);
+    // Bust all page KV cache so re-render picks up new font
+    const PUBLIC_ROUTES = ['/', '/about', '/adopt', '/services', '/donate', '/community'];
+    for (const r of PUBLIC_ROUTES) {
+      await env.CMS_CACHE.delete('page:' + r).catch(() => {});
+    }
+    return json({ success: true, config: merged });
+  }
+
   return null;
 }

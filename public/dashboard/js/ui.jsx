@@ -472,14 +472,12 @@ function TopBar({ onNavigate, notifCount, isMobile, mobileNavOpen, onOpenMobileN
   const [search, setSearch] = useState("");
 
   if (isMobile) {
-    const viewLabel = getNavLabel(view || "overview");
     return React.createElement("header", {
       style:{ height:54, background:C.surface, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 12px", gap:10, position:"sticky", top:0, zIndex:100, flexShrink:0 }
     },
       React.createElement(HamburgerBtn, { open: mobileNavOpen, onClick: onOpenMobileNav }),
       React.createElement("span", {
         style:{ flex:1, fontSize:15, fontWeight:600, color:C.text, textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }
-      }, viewLabel),
       React.createElement("button", {
         onClick: () => {
           if (typeof window.__toggleAgentSam === "function") window.__toggleAgentSam();

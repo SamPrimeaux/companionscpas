@@ -1,17 +1,18 @@
 // App Router — with live session + API data loading
 
 const MOBILE_BREAKPOINT = 900;
+const mobileQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
 
 function App() {
   const [ready,        setReady]        = React.useState(false);
   const [liveUser,     setLiveUser]     = React.useState(null);
-  const [isMobile,     setIsMobile]     = React.useState(() => window.innerWidth < MOBILE_BREAKPOINT);
+  const [isMobile,     setIsMobile]     = React.useState(() => mobileQuery.matches);
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
   // Resize listener: update isMobile, close drawer when viewport expands past breakpoint
   React.useEffect(() => {
     const onResize = () => {
-      const mobile = window.innerWidth < MOBILE_BREAKPOINT;
+      const mobile = mobileQuery.matches;
       setIsMobile(mobile);
       if (!mobile) setMobileNavOpen(false);
     };

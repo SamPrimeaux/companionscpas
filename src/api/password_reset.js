@@ -44,7 +44,7 @@ export async function passwordResetRoutes(request, env, url) {
         VALUES (?,?,?,?,datetime('now'))
       `).bind(resetId,user.id,tokenHash,expires).run();
 
-      const resetUrl = `https://${env.APP_DOMAIN || "companionscpas.meauxbility.workers.dev"}/admin/reset-password?token=${encodeURIComponent(token)}`;
+      const resetUrl = `https://${env.APP_DOMAIN || "companionsofcaddo.org"}/admin/reset-password?token=${encodeURIComponent(token)}`;
       const fromEmail = env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionscpas.org>";
       const emailHtml = `
         <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#090d18;color:#f0ece6;border-radius:16px">

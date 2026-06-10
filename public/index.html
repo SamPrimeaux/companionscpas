@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Companions of CPAS funds critical care, opens transport pathways, and helps dogs at Caddo Parish Animal Services reach the families waiting for them." />
+  <meta name="description" content="Companions of CPAS moves dogs from crisis to care through transport, urgent medical support, foster pathways, and a community that shows up when it matters most." />
   <title>Companions of CPAS — Second Chances for Caddo Dogs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,228 +14,346 @@
 
 <header class="site-header">
   <div class="container header-inner">
-    <a href="/admin/login" class="logo-link" aria-label="Companions of CPAS admin login">
+    <a href="/admin/login" class="logo-link" aria-label="Companions of CPAS — staff login">
       <img src="/static/global/companionsofcpa-newlogo.webp" alt="Companions of CPAS" />
     </a>
     <nav aria-label="Main navigation">
       <ul class="site-nav">
         <li><a href="/" class="active">Home</a></li>
         <li><a href="/about">About</a></li>
+        <li><a href="/services">Foster</a></li>
         <li><a href="/adopt">Adopt</a></li>
-        <li><a href="/services">Services</a></li>
+        <li><a href="/community">Community</a></li>
       </ul>
     </nav>
     <div class="header-actions">
-      <a class="btn btn-primary nav-donate" href="/donate">Donate</a>
+      <a class="nav-donate" href="/donate">Donate</a>
     </div>
+    <button class="mobile-menu-toggle" type="button" aria-label="Open navigation">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </header>
 
+<div class="mobile-menu-panel" id="mobileMenuPanel">
+  <a href="/">Home</a>
+  <a href="/about">About</a>
+  <a href="/services">Foster</a>
+  <a href="/adopt">Adopt</a>
+  <a href="/community">Community</a>
+  <a href="/donate" class="mobile-donate">Donate</a>
+</div>
+
 <main>
 
-<section class="section-hero" style="position:relative;overflow:hidden">
-  <div class="container" style="position:relative;z-index:2">
-    <div class="hero-content">
-      <div class="hero-badge">Caddo Parish  Volunteer Powered</div>
-      <h1>Every dog deserves a way out.</h1>
-      <p class="text-muted mt-sm" style="max-width:580px;font-size:1.1rem;line-height:1.7">Companions of CPAS funds critical care, opens transport pathways, and helps dogs at Caddo Parish Animal Services reach the families waiting for them.</p>
-      <div class="hero-actions"><a class="btn btn-primary" href="foster">Apply to Foster</a><button class="btn btn-ghost" onclick="document.getElementById('donateModal')?.showModal()">Support Our Mission</button></div>
-    </div>
+<!-- S1 HERO · dark -->
+<section class="hero-split">
+  <div class="hero-media-bg">
+    <img src="https://assets.meauxxx.com/static/animals/upclose.webp" alt="A dog at Caddo Parish Animal Services" />
+    <div class="hero-scrim"></div>
   </div>
-  <div style="position:absolute;inset:0;z-index:0;pointer-events:none">
-    <img src="https://assets.meauxxx.com/static/pages/home/upclose.webp" alt="Every dog deserves a way out."
-         style="position:absolute;right:0;top:0;height:100%;width:55%;object-fit:cover;object-position:center top" />
-    <div style="position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 42%,rgba(11,15,26,0.4) 70%,transparent 100%)"></div>
+  <div class="hero-body">
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          Caddo Parish · Volunteer Powered
+        </div>
+        <h1 class="hero-heading">Every dog deserves a way out.</h1>
+        <p class="hero-sub">We move dogs from crisis to care through transport, urgent medical support, foster pathways, and a community that shows up when it matters most.</p>
+        <div class="hero-actions">
+          <a class="hero-cta hero-cta-primary" href="/services">
+            <span class="hero-cta-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            </span>
+            <span class="hero-cta-text">
+              <span class="hero-cta-label">Apply to Foster</span>
+              <span class="hero-cta-sub">Open your home</span>
+            </span>
+          </a>
+          <a class="hero-cta hero-cta-ghost" href="/donate">
+            <span class="hero-cta-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+            </span>
+            <span class="hero-cta-text">
+              <span class="hero-cta-label">Support Our Mission</span>
+              <span class="hero-cta-sub">Donate or give supplies</span>
+            </span>
+          </a>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
-<section class="section">
-  <div class="container section-text-image" style="flex-direction:row-reverse">
-    <div class="text-col" style="flex:1;min-width:0">
-      <div class="eyebrow">Our Mission</div>
-      <h2>We step in where the second chance starts.</h2>
-      <p class="text-muted mt-sm">Companions of CPAS exists to give dogs at Caddo Parish Animal Services the opportunity they may not get otherwise. As a 100% volunteer-based nonprofit, every dollar is directed toward helping animals who need care, transport, visibility, and a safe path forward.</p>
-      
-      
-    </div>
-    <div class="img-col" style="flex:1;min-width:0">
-      <img src="https://assets.meauxxx.com/static/pages/home/pup.webp" alt="We step in where the second chance starts." />
-    </div>
-  </div>
-</section>
-
-<section class="section">
+<!-- S2 MISSION · light card floating from hero -->
+<div class="mission-wrap">
   <div class="container">
-    <div class="eyebrow">Open Your Home</div>
-    <h2>Meet your familys next best friend.</h2>
-    <p class="text-muted mt-sm mb-md" style="max-width:680px">Fostering gives a dog safety, stability, and the time they need to be seen. It is one of the fastest ways to create space, save lives, and help a dog become ready for forever.</p>
-    <div class="card-grid mt-md">
-    <article class="card">
-      <img class="card-img" src="https://assets.meauxxx.com/static/pages/home/2cute.webp" alt="Family-ready moments" />
-      <div class="card-body">
-        <p class="card-title">Family-ready moments</p>
-        <p class="card-text">Some dogs just need a loving bridge between the shelter and the home they were meant to find.</p>
+    <div class="mission-card">
+      <div class="mission-card-left">
+        <div class="ey-purple">Our Mission</div>
+        <h2 class="mission-heading">We are the bridge from urgent to safe.</h2>
+        <p class="mission-body">Companions of CPAS connects dogs in crisis with the care, transport, and loving foster homes they need — until they find their forever.</p>
       </div>
-    </article>
-    <article class="card">
-      <img class="card-img" src="https://assets.meauxxx.com/static/pages/home/sus.webp" alt="Big personalities" />
-      <div class="card-body">
-        <p class="card-title">Big personalities</p>
-        <p class="card-text">Behind every silly face is a dog waiting for someone to notice their spark.</p>
+      <div class="mission-card-right">
+        <div class="mission-flow">
+          <div class="mission-step">
+            <div class="mission-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            </div>
+            <span>From urgent<br>situations</span>
+          </div>
+          <div class="mission-arrow">→</div>
+          <div class="mission-step">
+            <div class="mission-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+            </div>
+            <span>To safe,<br>loving care</span>
+          </div>
+          <div class="mission-arrow">→</div>
+          <div class="mission-step">
+            <div class="mission-step-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+            </div>
+            <span>To a better<br>future</span>
+          </div>
+        </div>
       </div>
-    </article>
-    <article class="card">
-      <img class="card-img" src="https://assets.meauxxx.com/static/pages/home/bluepit.webp" alt="Joy worth fighting for" />
-      <div class="card-body">
-        <p class="card-title">Joy worth fighting for</p>
-        <p class="card-text">Every adoption story starts with someone willing to take the first step.</p>
-      </div>
-    </article></div>
+    </div>
   </div>
-</section>
+</div>
 
-<section class="section">
+<!-- S3 HOW YOUR SUPPORT HELPS · light -->
+<section class="section s-light">
   <div class="container">
-    <div class="eyebrow">Featured Campaigns</div>
-    <h2>Two direct ways your gift saves lives.</h2>
-    <div class="card-grid mt-md">
-    <article class="card">
-      <img class="card-img" src="https://assets.meauxxx.com/static/pages/home/thinboy.webp" alt="Medical Support" />
-      <div class="card-body">
-        <div class="eyebrow">Fundraiser</div>
-        <p class="card-title">Medical Support</p>
-        <p class="card-text">Heartworm treatment, surgery, diagnostics, and urgent care can be the difference between a dog being passed over and a family being able to say yes.</p>
+    <div class="ey-purple" style="text-align:center">How Your Support Helps</div>
+    <div class="pillars-row">
+      <div class="pillar">
+        <div class="pillar-icon-wrap">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        </div>
+        <h3>Move dogs to safety</h3>
+        <p>We coordinate transport across Louisiana and beyond to get dogs out of high-risk situations and into care.</p>
+        <a href="/services">Learn more →</a>
       </div>
-    </article>
-    <article class="card">
-      <img class="card-img" src="https://assets.meauxxx.com/static/pages/home/conehead.webp" alt="Transport Costs" />
-      <div class="card-body">
-        <div class="eyebrow">Fundraiser</div>
-        <p class="card-title">Transport Costs</p>
-        <p class="card-text">When local space runs out, transport connects Caddo dogs with rescue partners and communities where they have a stronger chance to be adopted.</p>
+      <div class="pillar">
+        <div class="pillar-icon-wrap">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <h3>Provide urgent care</h3>
+        <p>We fund urgent vet care and life-saving treatments so dogs have the chance to heal and thrive.</p>
+        <a href="/donate">Learn more →</a>
       </div>
-    </article></div>
+      <div class="pillar">
+        <div class="pillar-icon-wrap">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+        </div>
+        <h3>Build foster pathways</h3>
+        <p>We support our foster network with supplies, resources, and guidance to help every dog feel safe and loved.</p>
+        <a href="/services">Learn more →</a>
+      </div>
+    </div>
   </div>
 </section>
 
-<section class="section-testimonial">
+<!-- S4 STORY · light -->
+<section class="section s-light">
   <div class="container">
-    <div class="eyebrow">Real Impact</div>
-    <p class="testimonial-quote">&ldquo;Companions gave me the chance to say yes - and to fight for her.&rdquo;</p>
-    <p class="testimonial-attr">— Brittany Ramsey, foster and board member</p>
-  </div>
-</section>
-
-<section class="section">
-  <div class="container section-text-image" style="flex-direction:row">
-    <div class="text-col" style="flex:1;min-width:0">
-      <div class="eyebrow">From Crisis to Care</div>
-      <h2>Some dogs arrive with stories they cannot tell.</h2>
-      <p class="text-muted mt-sm">Road rash, illness, neglect, and urgent medical needs can make a dog easy to overlook in an overcrowded shelter. Companions of CPAS helps turn those moments into treatment, recovery, and a future.</p>
-      
-      <a class="btn btn-primary mt-md" href="donate">Help Fund Recovery</a>
-    </div>
-    <div class="img-col" style="flex:1;min-width:0">
-      <img src="https://assets.meauxxx.com/static/pages/home/miniscoobydoo.webp" alt="Some dogs arrive with stories they cannot tell." />
+    <div class="story-block">
+      <div class="story-block-img">
+        <img src="https://assets.meauxxx.com/static/animals/goinhome.webp" alt="A dog going home" />
+      </div>
+      <div class="story-block-body">
+        <div class="ey-purple">Recent Transport Win</div>
+        <h2 class="story-heading">A few hours on the road changed everything.</h2>
+        <p class="story-body">Thanks to our transport volunteers and a community that showed up, 13 dogs rolled out on the Freedom Bus toward rescue partners and families waiting for them. Every sponsored seat — $150 — is one more dog that makes it out.</p>
+        <a class="story-cta" href="/donate">
+          Sponsor a Transport Seat
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
     </div>
   </div>
 </section>
 
-<section class="section">
-  <div class="container" style="display:grid;grid-template-columns:1fr 1fr;gap:3rem">
-    <div>
-      <div class="eyebrow">Organization Data</div>
-      <h3 class="mt-sm mb-md">Companions of CPAS</h3>
-      <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border)">
-      <span class="text-muted" style="font-size:13px">Tax status</span>
-      <span style="font-size:13px">501(c)(3)</span>
-    </div><div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border)">
-      <span class="text-muted" style="font-size:13px">EIN</span>
-      <span style="font-size:13px">88-4156327</span>
-    </div><div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border)">
-      <span class="text-muted" style="font-size:13px">Parish served</span>
-      <span style="font-size:13px">Caddo</span>
-    </div><div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border)">
-      <span class="text-muted" style="font-size:13px">Operating budget</span>
-      <span style="font-size:13px">Under $100,000</span>
-    </div><div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border)">
-      <span class="text-muted" style="font-size:13px">Sector</span>
-      <span style="font-size:13px">Animals</span>
+<!-- S5 STATS · purple -->
+<div class="stats-band s-purple">
+  <div class="container">
+    <div class="stats-row">
+      <div class="stat-cell">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+        <div class="stat-num">13</div>
+        <div class="stat-lbl">Dogs Transported</div>
+        <div class="stat-sub-lbl">in the last 30 days</div>
+      </div>
+      <div class="stat-cell">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        <div class="stat-num">$150</div>
+        <div class="stat-lbl">Sponsors One Seat</div>
+        <div class="stat-sub-lbl">to freedom on a transport</div>
+      </div>
+      <div class="stat-cell">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+        <div class="stat-num">24 hrs</div>
+        <div class="stat-lbl">Can Make a Difference</div>
+        <div class="stat-sub-lbl">in urgent medical cases</div>
+      </div>
+      <div class="stat-cell">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+        <div class="stat-num">68</div>
+        <div class="stat-lbl">Fosters Supported</div>
+        <div class="stat-sub-lbl">this month and growing</div>
+      </div>
     </div>
-    </div>
-    <div>
-      <div class="eyebrow">Contact</div>
-      <h3 class="mt-sm">Shreveport, LA 71106</h3>
-      <p class="text-muted mt-sm">Email: <a href="mailto:companionsCPAS@gmail.com" style="color:var(--purple-light)">companionsCPAS@gmail.com</a></p>
-      <p class="text-muted mt-sm" style="font-size:13px">Contact Shreveport, LA 71106 Email: companionsCPAS@gmail.com Follow along for adoptable dogs, urgent needs, transport wins, and stories from the volunteers making it happen.</p>
+  </div>
+</div>
+
+<!-- S6 CAMPAIGNS + COMMUNITY · light -->
+<section class="section s-light">
+  <div class="container">
+    <div class="cc-grid">
+      <div>
+        <div class="cc-header">
+          <div class="ey-purple">Featured Campaigns</div>
+          <a class="cc-view-all" href="/donate">View all →</a>
+        </div>
+        <div class="camp-list">
+          <div class="camp-item">
+            <img src="https://assets.meauxxx.com/static/animals/goinhome.webp" alt="Transport" />
+            <div class="camp-item-body">
+              <p class="camp-item-title">Transport Fuel Fund</p>
+              <p class="camp-item-desc">Keep the wheels turning for dogs who need a way out.</p>
+              <div class="progress-bar"><div class="progress-fill" style="width:47%"></div></div>
+              <p class="progress-label">$2,350 of $5,000 · 47%</p>
+            </div>
+          </div>
+          <div class="camp-item">
+            <img src="https://assets.meauxxx.com/static/animals/thinboy.webp" alt="Vet care" />
+            <div class="camp-item-body">
+              <p class="camp-item-title">Urgent Vet Care</p>
+              <p class="camp-item-desc">Help provide life-saving care for dogs in crisis.</p>
+              <div class="progress-bar"><div class="progress-fill" style="width:42%"></div></div>
+              <p class="progress-label">$3,175 of $7,500 · 42%</p>
+            </div>
+          </div>
+          <div class="camp-item">
+            <img src="https://assets.meauxxx.com/static/animals/2cute.webp" alt="Supplies" />
+            <div class="camp-item-body">
+              <p class="camp-item-title">Foster Care Supplies</p>
+              <p class="camp-item-desc">Stock our foster homes with the essentials dogs need.</p>
+              <div class="progress-bar"><div class="progress-fill" style="width:45%"></div></div>
+              <p class="progress-label">$1,120 of $2,500 · 45%</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="ey-purple">From Our Community</div>
+        <div class="comm-list">
+          <div class="comm-item">
+            <img src="https://assets.meauxxx.com/static/animals/thefounders.webp" alt="Transport team" />
+            <div>
+              <p class="comm-item-text">Thank you to our amazing transport team this weekend!</p>
+              <p class="comm-item-date">2 days ago</p>
+            </div>
+          </div>
+          <div class="comm-item">
+            <img src="https://assets.meauxxx.com/static/animals/happyboy.webp" alt="Dog found family" />
+            <div>
+              <p class="comm-item-text">Sweet Luna found her forever family today.</p>
+              <p class="comm-item-date">5 days ago</p>
+            </div>
+          </div>
+          <div class="comm-item">
+            <img src="https://assets.meauxxx.com/static/animals/theteam.webp" alt="New fosters" />
+            <div>
+              <p class="comm-item-text">New foster orientation — welcome to the team!</p>
+              <p class="comm-item-date">1 week ago</p>
+            </div>
+          </div>
+        </div>
+        <a class="comm-see-all" href="/community">See all updates →</a>
+      </div>
     </div>
   </div>
 </section>
+
+<!-- S7 CTA BAND · purple -->
+<div class="cta-band s-purple">
+  <div class="container cta-band-inner">
+    <div class="cta-band-left">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      <div>
+        <p class="cta-band-heading">Stay in the loop. Be part of the second chances.</p>
+        <p class="cta-band-sub">Rescue stories, urgent needs, and ways to help — straight to your inbox.</p>
+      </div>
+    </div>
+    <div class="cta-band-right">
+      <div class="cta-email-form">
+        <input type="email" class="cta-email-input" placeholder="Your email address" aria-label="Email" />
+        <button class="cta-email-btn" type="button">Subscribe</button>
+      </div>
+      <div class="cta-action-row">
+        <a class="cta-action-btn" href="/services">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          Foster a Dog
+        </a>
+        <a class="cta-action-btn" href="/donate">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          Donate Now
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
 </main>
 
 <footer class="site-footer">
   <div class="container">
     <div class="footer-grid">
-
-      <!-- Brand -->
       <div class="footer-brand">
         <img src="/static/global/companionsofcpa-newlogo.webp" alt="Companions of CPAS" />
-        <p class="footer-tagline">
-          A volunteer-run nonprofit helping dogs at Caddo Parish
-          Animal Services receive medical care, transport support,
-          and second chances.
-        </p>
+        <p class="footer-tagline">A volunteer-run nonprofit helping dogs at Caddo Parish Animal Services receive medical care, transport support, and second chances.</p>
       </div>
-
-      <!-- Pages -->
       <div>
         <p class="footer-col-label">Pages</p>
         <ul class="footer-links">
           <li><a href="/">Home</a></li>
           <li><a href="/about">About</a></li>
+          <li><a href="/services">Foster</a></li>
           <li><a href="/adopt">Adopt</a></li>
-          <li><a href="/services">Services</a></li>
+          <li><a href="/community">Community</a></li>
           <li><a href="/donate">Donate</a></li>
         </ul>
       </div>
-
-      <!-- Org Data -->
       <div>
         <p class="footer-col-label">Organization</p>
         <div class="footer-org-row">
           <span><strong>Companions of CPAS</strong></span>
           <span>501(c)(3) Tax-Exempt</span>
           <span>EIN: 88-4156327</span>
-          <span>Parish served: Caddo</span>
-          <span>Operating budget: Under $100,000</span>
-          <span>Email: <a href="mailto:companionsCPAS@gmail.com">companionsCPAS@gmail.com</a></span>
+          <span>Caddo Parish, Louisiana</span>
+          <span><a href="mailto:companionsCPAS@gmail.com">companionsCPAS@gmail.com</a></span>
         </div>
       </div>
-
-      <!-- Developer -->
       <div class="footer-dev">
         <p class="footer-dev-label">Developed by</p>
         <a href="https://inneranimalmedia.com" target="_blank" rel="noopener">
           <img src="https://assets.meauxxx.com/static/global/logo.webp" alt="Inner Animal Media" />
         </a>
       </div>
-
     </div>
-
-    <!-- Bottom bar -->
     <div class="footer-bottom">
-      <p class="footer-ein">
-        Companions of CPAS &nbsp;·&nbsp; 501(c)(3) Tax-Exempt &nbsp;·&nbsp; EIN 88-4156327
-      </p>
+      <p class="footer-ein">Companions of CPAS &nbsp;·&nbsp; 501(c)(3) &nbsp;·&nbsp; EIN 88-4156327</p>
       <div class="footer-socials">
-        <a href="https://www.facebook.com/people/Companions-of-CPAS/100069291576354/?mibextid=hu50Ix"
-           target="_blank" rel="noopener">Facebook</a>
-        <a href="https://www.instagram.com/companionscpas"
-           target="_blank" rel="noopener">Instagram</a>
+        <a href="https://www.facebook.com/people/Companions-of-CPAS/100069291576354/" target="_blank" rel="noopener">Facebook</a>
+        <a href="https://www.instagram.com/companionscpas" target="_blank" rel="noopener">Instagram</a>
       </div>
     </div>
   </div>
 </footer>
 
+<script src="/static/global/shared.js" defer></script>
 </body>
 </html>

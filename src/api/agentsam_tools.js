@@ -199,7 +199,7 @@ async function toolBrowserInspect(env, params) {
   const t0 = Date.now();
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": "PrimeTech-Inspector/1.0 (+https://companionscpas.meauxbility.workers.dev)" },
+      headers: { "User-Agent": "PrimeTech-Inspector/1.0 (+https://companionsofcaddo.org)" },
       cf: { cacheTtl: 0, cacheEverything: false },
     });
     const html = await res.text();
@@ -290,7 +290,7 @@ async function toolDomSectionMap(env, params) {
 
   const [domSections, dbSections] = await Promise.all([
     // Fetch rendered HTML and extract data-section-key attributes
-    fetch(url || `https://companionscpas.meauxbility.workers.dev${route}`)
+    fetch(url || `https://companionsofcaddo.org${route}`)
       .then(r => r.text())
       .then(html => (html.match(/data-section-key="([^"]+)"/g) || [])
         .map(m => m.replace(/data-section-key="|"/g, "")))

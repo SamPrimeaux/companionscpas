@@ -74,13 +74,11 @@ function renderSectionHeader(section, opts = {}) {
   ].join("");
 }
 
-// All images get proper contained sizing
 function renderImage(url, alt, className) {
   const safeSrc = safeUrl(url, "");
   if (!safeSrc) return "";
-  const safeAlt = text(alt).trim() || "Section image";
-  const cls = text(className).trim() || "section-img";
-  return `<img class="${cls}" src="${safeSrc}" alt="${escapeAttribute(safeAlt)}" loading="lazy">`;
+  const safeAlt = pickText({ alt }, ["alt"]) || "Section image";
+  return `<img class="${className}" src="${safeSrc}" alt="${escapeAttribute(safeAlt)}" loading="lazy">`;
 }
 
 function cardParts(block) {
@@ -123,8 +121,8 @@ function renderHero(section) {
       ${body ? `<p>${escapeHtml(body)}</p>` : ""}
       ${ctaPrimary || ctaSecondary ? `<div class="hero-actions">${ctaPrimary}${ctaSecondary}</div>` : ""}
     </div>
-    <div class="hero-img-col">
-      ${renderImage(imageUrl, imageAlt, "hero-img")}
+    <div>
+      ${renderImage(imageUrl, imageAlt, "")}
     </div>
   </div>
 </section>`.trim();
@@ -146,21 +144,15 @@ function renderTextImage(section) {
     "btn btn-ghost"
   );
 
-  const textCol = `
-    <div class="text-col">
-      ${renderSectionHeader(section)}
-      ${cta || secondaryCta ? `<div class="hero-actions mt-md">${cta}${secondaryCta}</div>` : ""}
-    </div>`;
-  const imgCol = `
-    <div class="img-col">
-      ${renderImage(imageUrl, imageAlt, "section-img")}
-    </div>`;
-
   return `
 <section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
   <div class="container">
-    <div class="section-text-image${imagePosition === "left" ? " img-left" : ""}">
-      ${imagePosition === "left" ? imgCol + textCol : textCol + imgCol}
+    <div>
+      ${renderSectionHeader(section)}
+      ${cta || secondaryCta ? `<div class="hero-actions">${cta}${secondaryCta}</div>` : ""}
+    </div>
+    <div>
+      ${renderImage(imageUrl, imageAlt, "")}
     </div>
   </div>
 </section>`.trim();
@@ -184,13 +176,13 @@ function renderTextImageSplit(section, blocks) {
       <article class="card">
         ${leftParts.title ? `<h3>${escapeHtml(leftParts.title)}</h3>` : ""}
         ${leftBody ? `<p class="card-text">${escapeHtml(leftBody)}</p>` : ""}
-        ${renderImage(leftParts.imageUrl || pickText(section, ["image_url"]), leftParts.imageAlt || pickText(section, ["image_alt"]) || "Section image", "card-img")}
+        ${renderImage(leftParts.imageUrl || pickText(section, ["image_url"]), leftParts.imageAlt || pickText(section, ["image_alt"]) || "Section image", "")}
         ${renderCta(leftParts.ctaLabel, leftParts.ctaUrl, "btn btn-ghost")}
       </article>
       <article class="card">
         ${rightParts.title ? `<h3>${escapeHtml(rightParts.title)}</h3>` : ""}
         ${rightBody ? `<p class="card-text">${escapeHtml(rightBody)}</p>` : ""}
-        ${renderImage(rightParts.imageUrl, rightParts.imageAlt || "Section image", "card-img")}
+        ${renderImage(rightParts.imageUrl, rightParts.imageAlt || "Section image", "")}
         ${renderCta(rightParts.ctaLabel, rightParts.ctaUrl, "btn btn-ghost")}
       </article>
     </div>
@@ -203,14 +195,13 @@ function renderCardGrid(section, blocks) {
     const parts = cardParts(block);
     return `
     <article class="card">
-      ${renderImage(parts.imageUrl, parts.imageAlt || parts.title || "Card image", "card-img")}
-      <div class="card-body">
-        ${parts.icon ? `<p class="card-icon">${escapeHtml(parts.icon)}</p>` : ""}
-        ${parts.title ? `<h3 class="card-title">${escapeHtml(parts.title)}</h3>` : ""}
-        ${parts.body ? `<p class="card-text">${escapeHtml(parts.body)}</p>` : ""}
-        ${renderCta(parts.ctaLabel, parts.ctaUrl, "btn btn-ghost")}
-      </div>
-    </article>`.trim();
+      ${parts.icon ? `<p>${escapeHtml(parts.icon)}</p>` : ""}
+      ${renderImage(parts.imageUrl, parts.imageAlt || parts.title || "Card image", "")}
+      ${parts.title ? `<h3>${escapeHtml(parts.title)}</h3>` : ""}
+      ${parts.body ? `<p class="card-text">${escapeHtml(parts.body)}</p>` : ""}
+      ${renderCta(parts.ctaLabel, parts.ctaUrl, "btn btn-ghost")}
+    </article>
+    `.trim();
   }).join("");
 
   return `
@@ -229,12 +220,10 @@ function renderFeatureCards(section, blocks) {
     const parts = cardParts(block);
     return `
     <article class="card">
-      <div class="card-body">
-        ${parts.icon ? `<p class="card-icon">${escapeHtml(parts.icon)}</p>` : ""}
-        ${parts.title ? `<h3 class="card-title">${escapeHtml(parts.title)}</h3>` : ""}
-        ${parts.body ? `<p class="card-text">${escapeHtml(parts.body)}</p>` : ""}
-        ${renderCta(parts.ctaLabel, parts.ctaUrl, "btn btn-ghost")}
-      </div>
+      ${parts.icon ? `<p>${escapeHtml(parts.icon)}</p>` : ""}
+      ${parts.title ? `<h3>${escapeHtml(parts.title)}</h3>` : ""}
+      ${parts.body ? `<p class="card-text">${escapeHtml(parts.body)}</p>` : ""}
+      ${renderCta(parts.ctaLabel, parts.ctaUrl, "btn btn-ghost")}
     </article>`.trim();
   }).join("");
 
@@ -260,7 +249,7 @@ function renderTestimonial(section, blocks) {
   <div class="container">
     ${pickText(section, ["eyebrow"]) ? `<p class="eyebrow">${escapeHtml(pickText(section, ["eyebrow"]))}</p>` : ""}
     ${quote ? `<blockquote class="testimonial-quote">${escapeHtml(quote)}</blockquote>` : ""}
-    ${(author || role) ? `<p class="testimonial-attr">${escapeHtml([author, role].filter(Boolean).join(" • "))}</p>` : ""}
+    ${(author || role) ? `<p class="text-muted mt-sm">${escapeHtml([author, role].filter(Boolean).join(" • "))}</p>` : ""}
   </div>
 </section>`.trim();
 }
@@ -272,10 +261,8 @@ function renderTestimonials(section, blocks) {
     const detail = pickText(block, ["subheading"]);
     return `
     <article class="card">
-      <div class="card-body">
-        ${quote ? `<blockquote class="testimonial-quote">${escapeHtml(quote)}</blockquote>` : ""}
-        ${(author || detail) ? `<p class="testimonial-attr mt-sm">${escapeHtml([author, detail].filter(Boolean).join(" • "))}</p>` : ""}
-      </div>
+      ${quote ? `<blockquote class="testimonial-quote">${escapeHtml(quote)}</blockquote>` : ""}
+      ${(author || detail) ? `<p class="text-muted mt-sm">${escapeHtml([author, detail].filter(Boolean).join(" • "))}</p>` : ""}
     </article>`.trim();
   }).join("");
 
@@ -297,12 +284,10 @@ function renderImpactStats(section, blocks) {
     const label = pickText(block, ["title", "block_key"]) || pickText(config, ["label"]);
     const body = pickText(block, ["body"]) || pickText(config, ["description"]);
     return `
-    <article class="card stat-card">
-      <div class="card-body">
-        ${value ? `<p class="stat-value">${escapeHtml(value)}</p>` : ""}
-        ${label ? `<h3 class="stat-label">${escapeHtml(label)}</h3>` : ""}
-        ${body ? `<p class="card-text">${escapeHtml(body)}</p>` : ""}
-      </div>
+    <article class="card">
+      ${value ? `<p>${escapeHtml(value)}</p>` : ""}
+      ${label ? `<h3>${escapeHtml(label)}</h3>` : ""}
+      ${body ? `<p class="card-text">${escapeHtml(body)}</p>` : ""}
     </article>`.trim();
   }).join("");
 
@@ -333,8 +318,10 @@ function renderCtaBanner(section) {
   return `
 <section class="section section-cta" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
   <div class="container">
-    ${renderSectionHeader(section)}
-    ${primary || secondary ? `<div class="hero-actions mt-md">${primary}${secondary}</div>` : ""}
+    <div>
+      ${renderSectionHeader(section)}
+    </div>
+    ${primary || secondary ? `<div class="hero-actions">${primary}${secondary}</div>` : ""}
   </div>
 </section>`.trim();
 }
@@ -364,9 +351,9 @@ function renderDonationBlock(section, blocks) {
 <section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
   <div class="container">
     ${renderSectionHeader(section)}
-    ${amountItems ? `<ul class="donation-amounts mt-md">${amountItems}</ul>` : ""}
-    ${details ? `<ul class="donation-details mt-sm">${details}</ul>` : ""}
-    ${cta ? `<div class="hero-actions mt-md">${cta}</div>` : ""}
+    ${amountItems ? `<ul>${amountItems}</ul>` : ""}
+    ${details ? `<ul>${details}</ul>` : ""}
+    ${cta ? `<div class="hero-actions">${cta}</div>` : ""}
   </div>
 </section>`.trim();
 }
@@ -383,7 +370,7 @@ function renderOrgInfo(section, _blocks, brand) {
     ["Budget", pickText(orgData, ["budget"])],
     ["Sector", pickText(orgData, ["sector"])],
   ].filter(([, value]) => value);
-  const rowHtml = rows.map(([label, value]) => `<div class="org-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  const rowHtml = rows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
   const contactLines = [
     pickText(contact, ["email"]),
     pickText(contact, ["phone"]),
@@ -395,7 +382,7 @@ function renderOrgInfo(section, _blocks, brand) {
 <section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
   <div class="container">
     ${renderSectionHeader(section)}
-    ${rowHtml ? `<dl class="org-info mt-md">${rowHtml}</dl>` : ""}
+    ${rowHtml ? `<dl>${rowHtml}</dl>` : ""}
     ${contactLines.length ? `<p class="text-muted mt-sm">${escapeHtml(contactLines.join(" • "))}</p>` : ""}
   </div>
 </section>`.trim();
@@ -407,17 +394,17 @@ function renderFaq(section, blocks) {
     const answer = pickText(block, ["body"]);
     if (!question && !answer) return "";
     return `
-    <details class="faq-item">
-      ${question ? `<summary class="faq-q">${escapeHtml(question)}</summary>` : "<summary>Question</summary>"}
-      ${answer ? `<p class="faq-a">${escapeHtml(answer)}</p>` : ""}
+    <details>
+      ${question ? `<summary>${escapeHtml(question)}</summary>` : "<summary>Question</summary>"}
+      ${answer ? `<p>${escapeHtml(answer)}</p>` : ""}
     </details>`.trim();
   }).join("");
 
   return `
-<section class="section section-faq" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
   <div class="container">
     ${renderSectionHeader(section)}
-    <div class="mt-md">
+    <div>
       ${items || `<p class="text-muted mt-sm">${escapeHtml(pickText(section, ["body"]) || "No FAQs available.")}</p>`}
     </div>
   </div>
@@ -428,12 +415,7 @@ function renderAnimalGrid(section, blocks) {
   function sanitizeAnimalImageUrl(value) {
     const raw = text(value).trim();
     if (!raw) return "";
-    if (
-      raw.startsWith("https://assets.meauxxx.com/") ||
-      raw.startsWith("https://imagedelivery.net/") ||
-      raw.startsWith("/static/") ||
-      raw.startsWith("/assets/")
-    ) {
+    if (raw.startsWith("https://assets.meauxxx.com/") || raw.startsWith("/assets/")) {
       return escapeAttribute(raw);
     }
     return "";
@@ -459,17 +441,19 @@ function renderAnimalGrid(section, blocks) {
     const ageLabel = pickText(block, ["age_label"]) || pickText(config, ["age_label"]);
     const meta = [breed, sex, ageLabel].filter(Boolean).join(" · ");
     const bio = truncateText(pickText(block, ["body"]) || pickText(config, ["bio", "description"]), 120);
+
     const rawImage = pickText(block, ["image_url"]) || pickText(config, ["photo_url", "image_url"]);
     const imageUrl = sanitizeAnimalImageUrl(rawImage);
     const altText = pickText(block, ["alt_text", "title"]) || pickText(config, ["alt_text"]) || (name ? `${name} photo` : "Adoptable dog photo");
+
     const labelName = name || "this dog";
     const mailto = `mailto:companionsCPAS@gmail.com?subject=${encodeURIComponent(`Inquiry about ${labelName}`)}`;
 
     return `
-    <article class="card animal-card">
-      ${imageUrl ? `<img class="card-img" src="${imageUrl}" alt="${escapeAttribute(altText)}" loading="lazy">` : ""}
+    <article class="card">
+      ${imageUrl ? `<img src="${imageUrl}" alt="${escapeAttribute(altText)}" loading="lazy">` : ""}
       <div class="card-body">
-        ${name ? `<h3 class="animal-name">${escapeHtml(name)}</h3>` : ""}
+        ${name ? `<h3>${escapeHtml(name)}</h3>` : ""}
         ${meta ? `<p class="text-muted">${escapeHtml(meta)}</p>` : ""}
         ${bio ? `<p class="card-text">${escapeHtml(bio)}</p>` : ""}
         <a href="${escapeAttribute(mailto)}" class="btn btn-ghost">Ask about ${escapeHtml(labelName)}</a>
@@ -493,12 +477,10 @@ function renderCampaignGrid(section, blocks) {
     const parts = cardParts(block);
     return `
     <article class="card">
-      ${renderImage(parts.imageUrl, parts.imageAlt || parts.title || "Campaign image", "card-img")}
-      <div class="card-body">
-        ${parts.title ? `<h3 class="card-title">${escapeHtml(parts.title)}</h3>` : ""}
-        ${parts.body ? `<p class="card-text">${escapeHtml(parts.body)}</p>` : ""}
-        ${renderCta(parts.ctaLabel, parts.ctaUrl, "btn btn-ghost")}
-      </div>
+      ${renderImage(parts.imageUrl, parts.imageAlt || parts.title || "Campaign image", "")}
+      ${parts.title ? `<h3>${escapeHtml(parts.title)}</h3>` : ""}
+      ${parts.body ? `<p class="card-text">${escapeHtml(parts.body)}</p>` : ""}
+      ${renderCta(parts.ctaLabel, parts.ctaUrl, "btn btn-ghost")}
     </article>`.trim();
   }).join("");
 
@@ -513,73 +495,11 @@ function renderCampaignGrid(section, blocks) {
 </section>`.trim();
 }
 
-
-function renderFosterGrid(section, blocks) {
-  const sorted = sortBlocks(blocks);
-  const cards = sorted.map((block, i) => {
-    const parts = cardParts(block);
-    return [
-      '<article class="foster-card' + (i === 0 ? ' foster-card--tall' : '') + '">',
-      renderImage(parts.imageUrl, parts.imageAlt || parts.title || 'Foster image', 'foster-img'),
-      '<div class="foster-card-body">',
-      parts.title ? '<h3>' + escapeHtml(parts.title) + '</h3>' : '',
-      parts.body  ? '<p>'  + escapeHtml(parts.body)  + '</p>'  : '',
-      '</div></article>',
-    ].join('');
-  }).join('');
-
-  const sectionCta = renderCta(
-    pickText(section, ['cta_label']) || 'Apply to Foster',
-    pickText(section, ['cta_href', 'cta_url']) || '/services',
-    'btn btn-primary'
-  );
-
-  return [
-    '<section class="section" data-section-key="' + escapeAttribute(pickText(section, ['section_key'])) + '">',
-    '<div class="container">',
-    '<div class="foster-header">',
-    '<div>' + renderSectionHeader(section) + '</div>',
-    sectionCta ? '<div class="foster-header-cta">' + sectionCta + '</div>' : '',
-    '</div>',
-    '<div class="foster-grid mt-md">',
-    cards || '<p class="text-muted mt-sm">No cards available.</p>',
-    '</div></div></section>',
-  ].join('');
-}
-
-function renderCampaignGridV2(section, blocks) {
-  const cards = sortBlocks(blocks).map((block) => {
-    const parts = cardParts(block);
-    return [
-      '<article class="campaign-card">',
-      '<div class="campaign-img-wrap">',
-      renderImage(parts.imageUrl, parts.imageAlt || parts.title || 'Campaign image', 'campaign-img'),
-      '<div class="campaign-img-overlay"></div>',
-      '</div>',
-      '<div class="campaign-body">',
-      parts.title ? '<h3 class="campaign-title">' + escapeHtml(parts.title) + '</h3>' : '',
-      parts.body  ? '<p class="campaign-text">'  + escapeHtml(parts.body)  + '</p>'  : '',
-      renderCta(parts.ctaLabel, parts.ctaUrl, 'btn btn-primary'),
-      '</div></article>',
-    ].join('');
-  }).join('');
-
-  return [
-    '<section class="section section-campaigns" data-section-key="' + escapeAttribute(pickText(section, ['section_key'])) + '">',
-    '<div class="container">',
-    renderSectionHeader(section),
-    '<div class="campaign-grid mt-md">',
-    cards || '<p class="text-muted mt-sm">Campaign content will appear here.</p>',
-    '</div></div></section>',
-  ].join('');
-}
-
 const SECTION_RENDERERS = {
   hero: renderHero,
   text_image: renderTextImage,
   text_image_split: renderTextImageSplit,
   card_grid: renderCardGrid,
-  foster_grid: renderFosterGrid,
   feature_cards: renderFeatureCards,
   testimonial: renderTestimonial,
   testimonials: renderTestimonials,
@@ -590,8 +510,7 @@ const SECTION_RENDERERS = {
   org_info: renderOrgInfo,
   faq: renderFaq,
   animal_grid: renderAnimalGrid,
-  campaign_grid: renderCampaignGridV2,
-  card_grid_foster: renderFosterGrid,
+  campaign_grid: renderCampaignGrid,
 };
 
 export function escapeHtml(value) {

@@ -175,9 +175,7 @@ export async function getGlobalPartial(name, brand, env) {
   const partialName = sanitizePathSegment(name, "");
   if (!partialName) return "";
 
-  const keyMap = { header: 'cpas-header', footer: 'cpas-footer' };
-  const resolvedName = keyMap[partialName] || partialName;
-  const key = `static/global/${resolvedName}.html`;
+  const key = `static/global/${partialName}.html`;
   const fromR2 = await env?.WEBSITE_ASSETS?.get(key).catch(() => null);
   if (fromR2) {
     const html = await fromR2.text().catch(() => "");
@@ -198,29 +196,8 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
       safeBrand?.seoDefaults?.description ||
       "Companions of CPAS community animal rescue support."
   );
-  const theme = safePage.theme === "light" ? "light" : "dark";
   const route = escapeHtml(safePage.route_path || "/");
-  // Font preset from brand config
-  const fontPresets = Array.isArray(safeBrand?.config?.font_presets) ? safeBrand.config.font_presets : [];
-  const activeFontKey = safeBrand?.config?.active_font_preset || 'fraunces_dm';
-  const activePreset = fontPresets.find(p => p.key === activeFontKey) || null;
-  const fontImportTag = activePreset && Array.isArray(activePreset.imports) && activePreset.imports.length
-    ? activePreset.imports.map(u => '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="' + u + '">').join('')
-    : '';
-  const fontDataAttr = activeFontKey !== 'fraunces_dm' ? ' data-font="' + activeFontKey + '"' : '';
-
   const sectionsMarkup = Array.isArray(sectionHtmls) ? sectionHtmls.join("\n") : "";
-  const brandScript = `<script>window.__BRAND=${JSON.stringify({
-    brand_name: safeBrand.brand_name || "Companions of CPAS",
-    logo_dark_url: safeBrand.logo_dark_url || "/static/global/logo-dark.webp",
-    logo_light_url: safeBrand.logo_light_url || "/static/global/companionsofcpa-newlogo.webp",
-    footer_logo_dark_url: safeBrand.footer_logo_dark_url || "/static/global/companionsofcpa-newlogo.webp",
-    footer_logo_light_url: safeBrand.footer_logo_light_url || "/static/global/logo-dark.webp",
-    developer_logo_dark_url: safeBrand.developer_logo_dark_url || "",
-    developer_logo_light_url: safeBrand.developer_logo_light_url || "",
-    logo_width: safeBrand.logo_width || 140,
-    footer_logo_width: safeBrand.footer_logo_width || 120,
-  })}<\/script>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -230,10 +207,8 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   <title>${title}</title>
   <meta name="description" content="${description}">
   <link rel="stylesheet" href="/static/global/cpas-shell.css">
-${fontImportTag}
-${brandScript}
 </head>
-<body class="theme-${theme}" data-theme="${theme}" data-route="${route}"${fontDataAttr}>
+<body class="theme-dark" data-route="${route}">
 ${headerHtml || ""}
 <main class="site-main">
 ${sectionsMarkup}
