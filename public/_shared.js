@@ -13,7 +13,7 @@
             <h4>Contact</h4>
             <a href="mailto:companionsCPAS@gmail.com">companionsCPAS@gmail.com</a>
             <p>Shreveport, LA 71106</p>
-            <a href="https://www.companionscpas.org">companionscpas.org</a>
+            <a href="https://www.companionsofcaddo.org">companionsofcaddo.org</a>
           </section>
 
           <section>

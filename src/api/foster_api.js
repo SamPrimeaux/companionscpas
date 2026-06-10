@@ -88,7 +88,7 @@ async function sendResend(env, { to, templateKey, vars }) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        from: env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionscpas.org>",
+        from: env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionsofcaddo.org>",
         to: [to],
         subject,
         html: bodyHtml,

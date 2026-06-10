@@ -51,7 +51,7 @@ async function sendResend(env, { to, name, subject, html, text, type, related_ty
   }
 
   const key = env.RESEND_API_KEY || env.RESEND_API_TOKEN;
-  const from = env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionscpas.org>";
+  const from = env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionsofcaddo.org>";
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
