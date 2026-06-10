@@ -26,6 +26,15 @@ async function getRecentContext(env) {
   return { animals: animals.results||[], applications: apps.results||[], fosters: fosters.results||[] };
 }
 
+// Derive canonical provider from model_key — single source of truth
+function deriveProvider(modelKey = "") {
+  if (modelKey.startsWith("@cf/"))      return "workers_ai";
+  if (modelKey.startsWith("openai/") || modelKey.startsWith("gpt-") || modelKey.startsWith("o1-") || modelKey.startsWith("o3-")) return "openai";
+  if (modelKey.startsWith("claude-") || modelKey.startsWith("anthropic/")) return "anthropic";
+  if (modelKey.startsWith("google/") || modelKey.startsWith("gemini-")) return "google";
+  return modelKey.split("/")[0] || "unknown";
+}
+
 // ── Main route handler ────────────────────────────────────────────────────────
 
 // ── Agent Sam KV helpers ───────────────────────────────────────
@@ -154,9 +163,10 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
             `INSERT OR IGNORE INTO agentsam_sessions (id, tenant_id, user_id, route_path, mode, updated_at) VALUES (?, 'tenant_companionscpas', ?, ?, ?, datetime('now'))`
           ).bind(sessionId, userId, routePath, mode).run().catch(() => {});
 
+          // Store session row only — no content written to D1
           await env.DB.prepare(
-            `INSERT INTO agentsam_messages (id, session_id, tenant_id, role, content) VALUES (?, ?, 'tenant_companionscpas', 'user', ?)`
-          ).bind(crypto.randomUUID(), sessionId, prompt).run().catch(() => {});
+            `INSERT INTO agentsam_messages (id, session_id, tenant_id, role, created_at) VALUES (?, ?, 'tenant_companionscpas', 'user', datetime('now'))`
+          ).bind(crypto.randomUUID(), sessionId).run().catch(() => {});
 
           await env.DB.prepare(
             `INSERT INTO agentsam_agent_run (id, tenant_id, user_id, session_id, status, mode, task_type, started_at) VALUES (?, 'tenant_companionscpas', ?, ?, 'running', ?, ?, datetime('now'))`
@@ -168,7 +178,7 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
           const arm    = await thompsonRoute(env, taskType, mode);
           usedArm      = arm.armId;
           usedModel    = arm.modelKey;
-          usedProvider = arm.provider;
+          usedProvider = deriveProvider(arm.modelKey);
 
           // DB-driven intent rules — check agentsam_intent_rules for this prompt
           const intentRules = await env.DB.prepare(`
@@ -229,9 +239,7 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
 
             console.log(`[agentsam] policy escalation: ${usedModel} → ${toolModel} (rule: ${activeRule?.intent_pattern||'model_policy'})`);
             usedModel    = toolModel;
-            usedProvider = toolModel.startsWith("openai/") ? "openai"
-                         : toolModel.startsWith("@cf/")   ? "workers_ai"
-                         : toolModel.split("/")[0];
+            usedProvider = deriveProvider(toolModel);
             usedArm      = toolArm?.id || null;
           }
 
@@ -369,7 +377,7 @@ CRITICAL RULES:
             success      = true;
           }
 
-          // Compute cost
+          // Compute cost from model catalog
           const _cat = await env.DB.prepare(
             `SELECT cost_per_1k_in, cost_per_1k_out FROM agentsam_model_catalog WHERE model_key=? LIMIT 1`
           ).bind(usedModel).first().catch(() => null);
@@ -400,64 +408,27 @@ CRITICAL RULES:
 
           send({ title: "Writing response", status: "running" }, "step");
 
-          // Persist assistant message
+          // Persist assistant message row — no content stored in D1
           await env.DB.prepare(
-            `INSERT INTO agentsam_messages (id, session_id, tenant_id, role, content, metadata_json) VALUES (?, ?, 'tenant_companionscpas', 'assistant', ?, ?)`
-          ).bind(
-            crypto.randomUUID(), sessionId, answer,
-            JSON.stringify({ provider: usedProvider, model_key: usedModel, run_id: runId, cost_usd: callCostUsd })
-          ).run().catch(() => {});
+            `INSERT INTO agentsam_messages (id, session_id, tenant_id, role, created_at) VALUES (?, ?, 'tenant_companionscpas', 'assistant', datetime('now'))`
+          ).bind(crypto.randomUUID(), sessionId).run().catch(() => {});
 
           // Update agent_run
           await env.DB.prepare(
             `UPDATE agentsam_agent_run SET status='completed', model_key=?, latency_ms=?, input_tokens=?, output_tokens=?, cost_usd=? WHERE id=?`
           ).bind(usedModel, Date.now() - started, inputTokens, outputTokens, callCostUsd, agentRunId).run().catch(() => {});
 
-          // Usage event
+          // Usage event — canonical record for rollups, provider derived from model_key
           await env.DB.prepare(
             `INSERT INTO agentsam_usage_events (tenant_id, workspace_id, user_id, session_id, agent_run_id, provider, model_key, task_type, mode, status, succeeded, latency_ms, tokens_in, tokens_out, total_tokens, cost_usd, event_type)
              VALUES ('tenant_companionscpas','ws_companionscpas',?,?,?, ?,?,?,?,'ok',1,?, ?,?,?,?,'chat')`
           ).bind(
             userId, sessionId, agentRunId,
-            usedProvider, usedModel,
+            deriveProvider(usedModel), usedModel,
             classifyIntent(prompt, routePath), mode,
             Date.now() - started,
             inputTokens, outputTokens, inputTokens + outputTokens, callCostUsd
           ).run().catch(() => {});
-
-          // Analytics record — mirrors agent_run with provider/token/cost detail
-          await env.DB.prepare(`
-            INSERT INTO agentsam_analytics
-              (id, tenant_id, user_id, session_id, provider, model_key,
-               runtime_location, mode, status,
-               prompt_tokens, completion_tokens, total_tokens,
-               input_tokens, output_tokens,
-               estimated_cost_usd, latency_ms,
-               input_chars, output_chars,
-               raw_usage_json, started_at, completed_at)
-            VALUES
-              (?, 'tenant_companionscpas', ?, ?, ?, ?,
-               'cloudflare', ?, 'completed',
-               ?, ?, ?,
-               ?, ?,
-               ?, ?,
-               ?, ?,
-               ?, datetime('now'), datetime('now'))
-          `).bind(
-            crypto.randomUUID(),
-            userId,
-            sessionId,
-            usedProvider,
-            usedModel,
-            mode,
-            inputTokens, outputTokens, inputTokens + outputTokens,
-            inputTokens, outputTokens,
-            callCostUsd,
-            Date.now() - started,
-            (prompt  || "").length,
-            (answer  || "").length,
-            JSON.stringify({ prompt_tokens: inputTokens, completion_tokens: outputTokens })
-          ).run().catch(e => console.warn("[analytics] INSERT failed:", e.message));
 
           // Write granular reward event
           await env.DB.prepare(`
