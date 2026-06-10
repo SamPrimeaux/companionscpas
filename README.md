@@ -2,7 +2,8 @@
 
 Companions of CPAS — 501(c)(3) volunteer-powered rescue helping dogs at Caddo Parish Animal Services receive medical care, transport support, and second chances.
 
-- **Live site:** `https://companionscpas.meauxbility.workers.dev` *(domain pending)*
+- **Live site:** `https://companionsofcaddo.org`
+- **Dev URL:** `https://companionscpas.meauxbility.workers.dev` *(internal/testing only)*
 - **Dashboard:** `/dashboard` *(auth-gated, session-enforced at Worker level)*
 - **Repo:** `github.com/SamPrimeaux/companionscpas`
 - **Developed by:** [Inner Animal Media](https://inneranimalmedia.com)
@@ -89,14 +90,16 @@ Wrangler config: `wrangler.toml` (not `wrangler.production.toml`).
 Set in `wrangler.toml` (non-secret) or via `wrangler secret put` (secret):
 
 ```
+APP_DOMAIN            = companionsofcaddo.org
+ALLOWED_ORIGINS       = https://companionsofcaddo.org
 META_APP_ID           — Meta Developer App ID (Facebook/Instagram OAuth)
 META_APP_SECRET       — wrangler secret put META_APP_SECRET
-META_REDIRECT_URI     — OAuth callback URL for Meta
+META_REDIRECT_URI     = https://companionsofcaddo.org/api/social/oauth/meta/callback
 GOOGLE_CLIENT_ID      — Google OAuth client ID (YouTube)
 GOOGLE_CLIENT_SECRET  — wrangler secret put GOOGLE_CLIENT_SECRET
-GOOGLE_REDIRECT_URI   — OAuth callback URL for Google
+GOOGLE_REDIRECT_URI   = https://companionsofcaddo.org/api/social/oauth/youtube/callback
 ADMIN_EMAIL           — Notification recipient
-RESEND_FROM_EMAIL     — Outbound email sender
+RESEND_FROM_EMAIL     — Outbound email sender (pending companionsofcaddo.org DNS on Resend)
 STRIPE_SECRET_KEY     — wrangler secret put STRIPE_SECRET_KEY
 STRIPE_WEBHOOK_SECRET — wrangler secret put STRIPE_WEBHOOK_SECRET
 RESEND_API_KEY        — wrangler secret put RESEND_API_KEY
@@ -228,11 +231,13 @@ AI_USAGE_VISIBLE_TO_ADMIN = true
 
 **Deploy / infra**
 
+- Update `APP_DOMAIN`, `ALLOWED_ORIGINS`, `GOOGLE_REDIRECT_URI`, `META_REDIRECT_URI` in CF dashboard to use `companionsofcaddo.org`
 - Decide AI billing owner before enabling AgentSam social drafting
-- Deploy and verify live Worker after this sprint
+- Deploy and verify live Worker after domain env var updates
 - Sync updated R2 dashboard assets
 - Purge KV cache for all public routes after deploy
 - Verify `/community` route returns 503 gracefully (not 404) before CMS artifact is published
+- Set up Resend account under `companionsofcaddo.org` domain (client approval needed)
 
 **Publish pipeline (separate sprint)**
 
@@ -298,11 +303,15 @@ migration/
 
 ## Client Handoff Notes
 
-**Domain migration:** when client purchases domain, update R2 custom domain, Worker routes, and `cms_brand_settings.site_domain`.
+**Domain:** `companionsofcaddo.org` — registered and active on Cloudflare, custom domain wired to Worker.
+
+**Account transfer:** site is currently hosted under Inner Animal Media's Cloudflare account. Upon final client approval, transfer process: client creates CF account, Worker is redeployed, D1/R2/KV are migrated, domain is transferred via CF dashboard push/accept flow.
 
 **Client self-service (no developer needed):** edit any page content via `/dashboard?view=cms`, upload photos, view donations and applications, use Agent Sam for content writing.
 
 **Not self-service:** deploying Worker code, rotating secrets, running D1 migrations, configuring Meta app credentials.
+
+**Resend:** client will need their own Resend account connected to `companionsofcaddo.org` before transactional emails go live. Free tier (3k/month) is sufficient for their volume.
 
 ---
 
