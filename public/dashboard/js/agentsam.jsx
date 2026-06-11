@@ -123,29 +123,39 @@ function AgentSamDrawer() {
 
   if (!open) return null;
 
-  return React.createElement("aside", { style:{ width:330, borderLeft:`1px solid ${C.border}`, background:C.bg2, display:"flex", flexDirection:"column", minHeight:0 } },
-    React.createElement("div", { style:{ padding:16, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 } },
+  const NV = {
+    bg:      "var(--nav-bg)",
+    bg2:     "rgba(255,255,255,0.04)",
+    border:  "var(--nav-border)",
+    raised:  "rgba(255,255,255,0.06)",
+    text:    "var(--nav-text)",
+    textSec: "var(--nav-text-sec)",
+    textMut: "var(--nav-text-muted)",
+    hover:   "rgba(255,255,255,0.08)",
+  };
+  return React.createElement("aside", { style:{ width:330, borderLeft:`1px solid ${NV.border}`, background:NV.bg, display:"flex", flexDirection:"column", minHeight:0 } },
+    React.createElement("div", { style:{ padding:16, borderBottom:`1px solid ${NV.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 } },
       React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:10 } },
         React.createElement("button", {
           onClick:()=>setOpen(false),
           title:"Collapse Agent Sam",
-          style:{ width:34, height:34, borderRadius:12, border:`1px solid ${C.border}`, background:C.raised, color:C.textSec, display:"grid", placeItems:"center", cursor:"pointer" }
+          style:{ width:34, height:34, borderRadius:12, border:`1px solid ${NV.border}`, background:NV.raised, color:NV.textSec, display:"grid", placeItems:"center", cursor:"pointer" }
         },
           React.createElement(Icon, { name:"panel-right-close", size:17 })
         ),
         React.createElement("div", null,
-          React.createElement("div", { style:{ fontWeight:800, color:C.text } }, "Agent Sam"),
-          React.createElement("div", { style:{ fontSize:11, color:C.textSec } }, busy ? "Working..." : "Dashboard assistant")
+          React.createElement("div", { style:{ fontWeight:800, color:NV.text } }, "Agent Sam"),
+          React.createElement("div", { style:{ fontSize:11, color:NV.textSec } }, busy ? "Working..." : "Dashboard assistant")
         )
       ),
       null
     ),
 
     React.createElement("div", { style:{ flex:1, overflow:"auto", padding:14, display:"flex", flexDirection:"column", gap:10 } },
-      steps.length > 0 && React.createElement("div", { style:{ border:`1px solid ${C.border}`, borderRadius:14, padding:10, background:C.raised } },
-        React.createElement("div", { style:{ fontWeight:800, fontSize:12, marginBottom:8, color:C.text } }, "Live steps"),
+      steps.length > 0 && React.createElement("div", { style:{ border:`1px solid ${NV.border}`, borderRadius:14, padding:10, background:NV.raised } },
+        React.createElement("div", { style:{ fontWeight:800, fontSize:12, marginBottom:8, color:NV.text } }, "Live steps"),
         steps.slice(-5).map((s,i) =>
-          React.createElement("div", { key:i, style:{ display:"flex", gap:8, color:C.textSec, fontSize:12, marginTop:6 } },
+          React.createElement("div", { key:i, style:{ display:"flex", gap:8, color:NV.textSec, fontSize:12, marginTop:6 } },
             React.createElement(Icon, { name:"check", size:13 }),
             React.createElement("span", null, s.title || "Working")
           )
@@ -153,69 +163,140 @@ function AgentSamDrawer() {
       ),
       messages.map((m,i) =>
         React.createElement("div", { key:i, style:{ alignSelf:m.role==="user" ? "flex-end" : "flex-start", maxWidth:"92%" } },
-          React.createElement("div", { style:{ padding:"10px 12px", borderRadius:14, background:m.role==="user" ? "rgba(124,58,237,.28)" : C.raised, border:`1px solid ${C.border}`, color:C.text, fontSize:13, lineHeight:1.5, whiteSpace:"pre-wrap" } }, m.content),
-          m.meta && React.createElement("div", { style:{ color:C.textSec, fontSize:10, marginTop:4 } }, m.meta)
+          React.createElement("div", { style:{ padding:"10px 12px", borderRadius:14, background:m.role==="user" ? "rgba(124,58,237,.30)" : NV.raised, border:`1px solid ${NV.border}`, color:NV.text, fontSize:13, lineHeight:1.5, whiteSpace:"pre-wrap" } }, m.content),
+          m.meta && React.createElement("div", { style:{ color:NV.textSec, fontSize:10, marginTop:4 } }, m.meta)
         )
       )
     ),
 
-    React.createElement("div", { style:{ padding:12, borderTop:`1px solid ${C.border}` } },
+    React.createElement("div", { style:{ padding:12, borderTop:`1px solid ${NV.border}` } },
       React.createElement("div", {
         style:{
           position:"relative",
           display:"flex",
           alignItems:"flex-end",
           gap:8,
-          border:`1px solid ${C.border}`,
-          background:C.bg,
+          border:`1px solid ${NV.border}`,
+          background:"rgba(255,255,255,0.05)",
           borderRadius:24,
           padding:"8px 8px 8px 10px",
-          boxShadow:"0 12px 30px rgba(0,0,0,.18)"
+          boxShadow:"0 12px 30px rgba(0,0,0,.35)"
         }
       },
         React.createElement("button", {
           type:"button",
-          title:"Add files, images, or tools",
+          title:"Add image or file",
           onClick:()=>setMenuOpen(v=>!v),
           style:{
-            width:34, height:34, borderRadius:17, border:`1px solid ${C.border}`,
-            background:C.raised, color:C.textSec, display:"grid", placeItems:"center",
-            cursor:"pointer", flexShrink:0
-          }
+            width:34, height:34, borderRadius:17, border:`1px solid ${NV.border}`,
+            background:NV.raised, color:NV.textSec, display:"grid", placeItems:"center",
+            cursor:"pointer", flexShrink:0, transition:"background .12s"
+          },
+          onMouseEnter:e=>e.currentTarget.style.background=NV.hover,
+          onMouseLeave:e=>e.currentTarget.style.background=NV.raised
         }, React.createElement(Icon, { name:"plus", size:17 })),
 
-        menuOpen && React.createElement("div", {
-          style:{
-            position:"absolute",
-            left:8,
-            bottom:54,
-            width:210,
-            border:`1px solid ${C.border}`,
-            background:C.bg2,
-            borderRadius:16,
-            padding:8,
-            boxShadow:"0 18px 55px rgba(0,0,0,.35)",
-            zIndex:20
-          }
-        },
-          [
-            ["paperclip", "Add file"],
-            ["image", "Add image"],
-            ["edit", "Website edit"],
-            ["edit", "Generate campaign"],
-            ["mail", "Draft response"]
-          ].map(([icon,label]) =>
+        menuOpen && React.createElement(React.Fragment, null,
+          React.createElement("div", {
+            onClick:()=>setMenuOpen(false),
+            style:{ position:"fixed", inset:0, zIndex:19 }
+          }),
+          React.createElement("div", {
+            style:{
+              position:"absolute", left:8, bottom:54, width:220,
+              border:`1px solid ${NV.border}`,
+              background:"#1a1728",
+              borderRadius:16, padding:8,
+              boxShadow:"0 18px 55px rgba(0,0,0,.55)", zIndex:20
+            }
+          },
+            React.createElement("div", { style:{ fontSize:10, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:NV.textMut, padding:"4px 10px 8px" } }, "Add to message"),
+            // Upload from computer → POST /api/cms/asset/upload
+            React.createElement("label", {
+              style:{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"9px 11px", border:"none", borderRadius:12, background:"transparent", color:NV.text, cursor:"pointer", fontWeight:600, fontSize:13, transition:"background .12s" },
+              onMouseEnter:e=>e.currentTarget.style.background=NV.hover,
+              onMouseLeave:e=>e.currentTarget.style.background="transparent"
+            },
+              React.createElement(Icon, { name:"image", size:15, style:{ color:"#a78bfa", flexShrink:0 } }),
+              React.createElement("span", null, "Upload image to R2"),
+              React.createElement("input", {
+                type:"file", accept:"image/*", multiple:true, style:{ display:"none" },
+                onChange: async e => {
+                  setMenuOpen(false);
+                  const files = Array.from(e.target.files || []);
+                  if (!files.length) return;
+                  const names = files.map(f=>f.name).join(", ");
+                  setPrompt(p => (p ? p + " " : "") + `[Uploading: ${names}]`);
+                  let uploaded = 0;
+                  const urls = [];
+                  for (const file of files) {
+                    const fd = new FormData();
+                    fd.append("file", file);
+                    fd.append("usage_context", "cms");
+                    try {
+                      const res = await fetch("/api/cms/asset/upload", { method:"POST", credentials:"include", body:fd });
+                      const d = await res.json();
+                      if (d.success) { uploaded++; urls.push(d.public_url); }
+                    } catch {}
+                  }
+                  if (urls.length) {
+                    setPrompt(p => p.replace(`[Uploading: ${names}]`, `[Uploaded ${uploaded} image${uploaded>1?"s":""}: ${urls.join(", ")}]`));
+                  } else {
+                    setPrompt(p => p.replace(`[Uploading: ${names}]`, "[Upload failed]"));
+                  }
+                  e.target.value = "";
+                }
+              })
+            ),
+            // Pick from Drive
             React.createElement("button", {
-              key:label,
               type:"button",
-              onClick:()=>setMenuOpen(false),
-              style:{
-                width:"100%", display:"flex", alignItems:"center", gap:10,
-                padding:"10px 11px", border:"none", borderRadius:12,
-                background:"transparent", color:C.text, cursor:"pointer", textAlign:"left",
-                fontWeight:700
-              }
-            }, React.createElement(Icon, { name:icon, size:15 }), React.createElement("span", null, label))
+              onClick: async () => {
+                setMenuOpen(false);
+                // Check Drive connection first
+                try {
+                  const st = await fetch("/api/integrations/google-drive/status", { credentials:"include" }).then(r=>r.json());
+                  if (!st.connected) {
+                    setMessages(m => [...m, { role:"assistant", content:"Google Drive isn't connected yet. Go to CMS → Images → Google Drive tab to connect it first." }]);
+                    return;
+                  }
+                  // List recent Drive images and append to prompt for Sam to reference
+                  const files = await fetch("/api/integrations/google-drive/files?pageSize=9", { credentials:"include" }).then(r=>r.json());
+                  if (files.ok && files.files.length) {
+                    const list = files.files.slice(0,9).map(f=>`${f.name} (${f.id})`).join(", ");
+                    setPrompt(p => (p ? p + " " : "") + `[Recent Drive images: ${list}] — which of these should I import?`);
+                  } else {
+                    setMessages(m => [...m, { role:"assistant", content:"No image files found in your connected Drive. Upload some images to Drive first, then try again." }]);
+                  }
+                } catch {
+                  setMessages(m => [...m, { role:"assistant", content:"Couldn't reach Google Drive. Check your connection in CMS → Images." }]);
+                }
+              },
+              style:{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"9px 11px", border:"none", borderRadius:12, background:"transparent", color:NV.text, cursor:"pointer", fontWeight:600, fontSize:13, textAlign:"left", transition:"background .12s" },
+              onMouseEnter:e=>e.currentTarget.style.background=NV.hover,
+              onMouseLeave:e=>e.currentTarget.style.background="transparent"
+            },
+              React.createElement(Icon, { name:"link", size:15, style:{ color:"#4285F4", flexShrink:0 } }),
+              React.createElement("span", null, "Pick from Drive")
+            ),
+            React.createElement("div", { style:{ height:1, background:NV.border, margin:"6px 0" } }),
+            // Context shortcuts
+            ...[
+              ["edit", "#a78bfa", "Website edit mode"],
+              ["edit", "#22c55e", "Generate campaign"],
+              ["mail", "#60a5fa", "Draft response"]
+            ].map(([icon, col, label]) =>
+              React.createElement("button", {
+                key:label, type:"button",
+                onClick:()=>{ setMenuOpen(false); setPrompt(p=>(p?p+" ":"")+"["+label+"] "); },
+                style:{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"9px 11px", border:"none", borderRadius:12, background:"transparent", color:NV.text, cursor:"pointer", fontWeight:600, fontSize:13, textAlign:"left", transition:"background .12s" },
+                onMouseEnter:e=>e.currentTarget.style.background=NV.hover,
+                onMouseLeave:e=>e.currentTarget.style.background="transparent"
+              },
+                React.createElement(Icon, { name:icon, size:15, style:{ color:col, flexShrink:0 } }),
+                React.createElement("span", null, label)
+              )
+            )
           )
         ),
 
@@ -226,18 +307,10 @@ function AgentSamDrawer() {
           placeholder:"Ask Agent Sam anything",
           rows:1,
           style:{
-            flex:1,
-            minHeight:34,
-            maxHeight:110,
-            resize:"none",
-            border:"none",
-            background:"transparent",
-            color:C.text,
-            padding:"8px 2px",
-            outline:"none",
-            fontFamily:"inherit",
-            fontSize:13,
-            lineHeight:1.35
+            flex:1, minHeight:34, maxHeight:110, resize:"none",
+            border:"none", background:"transparent",
+            color:NV.text, padding:"8px 2px", outline:"none",
+            fontFamily:"inherit", fontSize:13, lineHeight:1.35
           }
         }),
 
@@ -247,14 +320,9 @@ function AgentSamDrawer() {
           onClick: busy ? stopPrompt : sendPrompt,
           disabled:!busy && !prompt.trim(),
           style:{
-            width:38,
-            height:38,
-            borderRadius:19,
-            border:"none",
-            background:busy ? "linear-gradient(135deg,#ef4444,#f87171)" : (!prompt.trim() ? C.raised : "linear-gradient(135deg,#7c3aed,#a78bfa)"),
-            color:"#fff",
-            display:"grid",
-            placeItems:"center",
+            width:38, height:38, borderRadius:19, border:"none",
+            background:busy ? "linear-gradient(135deg,#ef4444,#f87171)" : (!prompt.trim() ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg,#7c3aed,#a78bfa)"),
+            color:"#fff", display:"grid", placeItems:"center",
             cursor:(!busy && !prompt.trim()) ? "not-allowed" : "pointer",
             flexShrink:0,
             boxShadow: busy || prompt.trim() ? "0 10px 24px rgba(124,58,237,.25)" : "none"

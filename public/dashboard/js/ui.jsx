@@ -373,14 +373,17 @@ function TopBar({ view, isMobile, navOpen, onOpenNav, navigate, notifCount }) {
     );
   }
   return React.createElement("header", { className:"cpas-topbar" },
-    React.createElement(Input, { value:search, onChange:setSearch, placeholder:"Search animals, people, records…", icon:"search", style:{ flex:1, maxWidth:420 } }),
+    React.createElement("div", { style:{ flex:1, maxWidth:420, "--inp-bg":"rgba(255,255,255,0.07)", "--inp-border":"rgba(255,255,255,0.12)", "--inp-text":"rgba(255,255,255,0.85)", "--inp-placeholder":"rgba(255,255,255,0.38)" } },
+      React.createElement(Input, { value:search, onChange:setSearch, placeholder:"Search animals, people, records…", icon:"search",
+        style:{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", color:"rgba(255,255,255,0.85)", borderRadius:10 } })
+    ),
     React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto" } },
       // Bell → notifications
       React.createElement("button", {
         onClick:()=>navigate("notifications"),
         "aria-label": "Notifications",
-        style:{ position:"relative", background:"none", border:"none", color:C.textSec, cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" },
-        onMouseEnter:e=>e.currentTarget.style.background=C.bg2,
+        style:{ position:"relative", background:"none", border:"none", color:"var(--nav-text-sec)", cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" },
+        onMouseEnter:e=>e.currentTarget.style.background="rgba(255,255,255,0.08)",
         onMouseLeave:e=>e.currentTarget.style.background="none"
       },
         React.createElement(Icon, { name:"bell", size:20 }),
@@ -390,8 +393,8 @@ function TopBar({ view, isMobile, navOpen, onOpenNav, navigate, notifCount }) {
       React.createElement("button", {
         onClick:()=>navigate("email"),
         "aria-label": "Email inbox",
-        style:{ background:"none", border:"none", color:C.textSec, cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" },
-        onMouseEnter:e=>e.currentTarget.style.background=C.bg2,
+        style:{ background:"none", border:"none", color:"var(--nav-text-sec)", cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" },
+        onMouseEnter:e=>e.currentTarget.style.background="rgba(255,255,255,0.08)",
         onMouseLeave:e=>e.currentTarget.style.background="none"
       }, React.createElement(Icon, { name:"mail", size:20 })),
       // Agent Sam

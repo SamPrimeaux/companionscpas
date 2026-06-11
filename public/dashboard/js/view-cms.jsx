@@ -576,13 +576,13 @@ function ImagesLibraryTab({ assets, loading, onReload, copyUrl, notify }) {
                   )
                 ),
                 React.createElement("div", { style: { padding: "10px 12px" } },
-                  React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, a.label || a.filename),
+                  React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.92)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, a.label || a.filename),
                   editAlt?.id === a.id
                     ? React.createElement("div", { style: { marginTop: 6, display: "flex", gap: 4 } },
                         React.createElement("input", { autoFocus: true, defaultValue: a.alt_text || "", placeholder: "Alt text…", onKeyDown: e => { if (e.key === "Enter") saveAltText(a, e.target.value); if (e.key === "Escape") setEditAlt(null); }, style: { flex: 1, padding: "4px 8px", fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 6, background: C.bg, color: C.text, outline: "none" } }),
                         React.createElement("button", { onClick: e => saveAltText(a, e.target.previousSibling?.value || ""), style: { padding: "4px 8px", borderRadius: 6, border: "none", background: C.purple, color: "#fff", fontSize: 11, cursor: "pointer" } }, "Save")
                       )
-                    : React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2, fontStyle: a.alt_text ? "normal" : "italic" } }, a.alt_text || "No alt text"),
+                    : React.createElement("div", { style: { fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 2, fontStyle: a.alt_text ? "normal" : "italic" } }, a.alt_text || "No alt text"),
                   React.createElement("div", { style: { display: "flex", gap: 4, marginTop: 8 } },
                     React.createElement("button", { onClick: () => copyUrl(a.cdn_url || a.public_url), style: { flex: 1, padding: "5px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 11, cursor: "pointer" } }, "Copy URL"),
                     React.createElement("button", { onClick: () => setEditAlt(editAlt?.id === a.id ? null : a), style: { padding: "5px 8px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 11, cursor: "pointer" } }, "Alt")

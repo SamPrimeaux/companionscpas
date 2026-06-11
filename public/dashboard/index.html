@@ -166,8 +166,8 @@
 
   .cpas-topbar {
     height: 56px;
-    background: var(--dash-surface);
-    border-bottom: 1px solid var(--dash-border);
+    background: var(--nav-bg);
+    border-bottom: 1px solid var(--nav-border);
     display: flex; align-items: center;
     padding: 0 24px; gap: 16px;
     position: sticky; top: 0; z-index: 100; flex-shrink: 0;
@@ -217,12 +217,16 @@
 
   .agentsam-launcher {
     width: 36px; height: 36px; border-radius: 9px; border: none;
-    background: transparent; color: var(--dash-text-sec);
+    background: transparent; color: var(--nav-text-sec);
     display: grid; place-items: center; cursor: pointer; padding: 0;
     flex-shrink: 0; transition: background 120ms, color 120ms;
   }
-  .agentsam-launcher:hover { background: var(--dash-bg2); color: var(--dash-text); }
+  .agentsam-launcher:hover { background: rgba(255,255,255,0.08); color: var(--nav-text); }
 
+
+  /* ── Image card text contrast ──────────────────────────── */
+  .cpas-asset-label { color: rgba(255,255,255,0.92) !important; }
+  .cpas-asset-meta  { color: rgba(255,255,255,0.50) !important; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
   }
@@ -232,16 +236,16 @@
 <div id="root"></div>
 <script src="/dashboard/js/config.js"></script>
 <script src="/dashboard/js/data.js"></script>
-<script type="text/babel" src="/dashboard/js/ui.jsx?v=r2a"></script>
-<script type="text/babel" src="/dashboard/js/view-overview.jsx?v=r2a"></script>
-<script type="text/babel" src="/dashboard/js/view-animals.jsx?v=r2a"></script>
-<script type="text/babel" src="/dashboard/js/view-applications.jsx?v=r2a"></script>
-<script type="text/babel" src="/dashboard/js/view-ops.jsx?v=r2a"></script>
-<script type="text/babel" src="/dashboard/js/view-finance.jsx?v=r2a"></script>
-<script type="text/babel" src="/dashboard/js/view-admin.jsx?v=r2a"></script>
-<script type="text/babel" src="/dashboard/js/view-cms.jsx?v=r2a"></script>
-<script type="text/babel" src="/dashboard/js/agentsam.jsx?v=r2a"></script>
-<script type="text/babel" src="/dashboard/js/view-reports.jsx?v=r2a"></script>
-<script type="text/babel" src="/dashboard/js/app.jsx?v=r2a"></script>
+<script type="text/babel" src="/dashboard/js/ui.jsx?v=7222a80"></script>
+<script type="text/babel" src="/dashboard/js/view-overview.jsx?v=7222a80"></script>
+<script type="text/babel" src="/dashboard/js/view-animals.jsx?v=7222a80"></script>
+<script type="text/babel" src="/dashboard/js/view-applications.jsx?v=7222a80"></script>
+<script type="text/babel" src="/dashboard/js/view-ops.jsx?v=7222a80"></script>
+<script type="text/babel" src="/dashboard/js/view-finance.jsx?v=7222a80"></script>
+<script type="text/babel" src="/dashboard/js/view-admin.jsx?v=7222a80"></script>
+<script type="text/babel" src="/dashboard/js/view-cms.jsx?v=7222a80"></script>
+<script type="text/babel" src="/dashboard/js/agentsam.jsx?v=7222a80"></script>
+<script type="text/babel" src="/dashboard/js/view-reports.jsx?v=7222a80"></script>
+<script type="text/babel" src="/dashboard/js/app.jsx?v=7222a80"></script>
 </body>
 </html>
