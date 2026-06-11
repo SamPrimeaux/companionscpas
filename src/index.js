@@ -23,7 +23,6 @@ function json(data, status = 200) {
 }
 
 async function asset(env, request, path) {
-  // Primary: WEBSITE_ASSETS (R2) — DB-driven content
   try {
     const key = path.replace(/^\//, '') || 'index.html';
     const obj = await env.WEBSITE_ASSETS.get(key);
@@ -87,12 +86,27 @@ async function servePublicPage(route, env) {
   }
 }
 
-// Public CMS routes — add new routes here only. KV/R2 pipeline handles the rest.
-// /community: community impact page with Facebook embed config + CMS-driven content.
-// NOTE: /community will return 503 until a CMS artifact is published for that route.
+// Legacy ?view= → canonical /dashboard/* path map
+const LEGACY_VIEW_MAP = {
+  "overview":           "/dashboard/overview",
+  "animals":            "/dashboard/animals",
+  "fosters":            "/dashboard/fosters",
+  "adoptions":          "/dashboard/adoptions",
+  "intakes":            "/dashboard/intakes",
+  "medical":            "/dashboard/medical",
+  "daily-care":         "/dashboard/daily-care",
+  "volunteers":         "/dashboard/volunteers",
+  "applications":       "/dashboard/applications",
+  "donations":          "/dashboard/donations",
+  "fundraising":        "/dashboard/fundraising",
+  "cms":                "/dashboard/cms/website",
+  "reports":            "/dashboard/reports",
+  "settings":           "/dashboard/settings",
+  "notifications":      "/dashboard/notifications",
+};
+
 const PUBLIC_ROUTES = ["/", "/about", "/community", "/adopt", "/services", "/donate"];
 
-// Session validation — delegates to agentsam_sessions via session_api.js
 const getSession = getAuthUser;
 
 export default {
@@ -117,7 +131,6 @@ export default {
 
     // API routes
     if (url.pathname.startsWith("/api/")) {
-      // Foster/application baseline routes
       if (url.pathname === "/api/foster/apply" && request.method === "POST") {
         return handleFosterApply(request, env);
       }
@@ -136,7 +149,6 @@ export default {
       const cmsResult = await cmsRoutes(request, env, url);
       if (cmsResult) return cmsResult;
 
-      // Google OAuth — before generic auth routes
       const googleResult = await googleAuthRoutes(request, env, url);
       if (googleResult) return googleResult;
 
@@ -159,8 +171,7 @@ export default {
       return json({ error: "API route not found", path: url.pathname }, 404);
     }
 
-
-    // Same-origin CMS/R2 static assets
+    // Static assets
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/static/")) {
       const key = url.pathname.slice(1);
 
@@ -223,38 +234,56 @@ export default {
       return asset(env, request, "/admin/reset-password.html");
     }
 
-    // Legacy admin dashboard (keep working)
     if (url.pathname.startsWith("/admin/dashboard")) {
       return asset(env, request, "/admin/dashboard.html");
     }
 
-    // Dashboard: enforce session auth
-    if (url.pathname === "/dashboard" || url.pathname.startsWith("/dashboard")) {
-      // Let JS/CSS/asset sub-paths through without auth check
+    // ── Dashboard — serve shell for all /dashboard/* paths ───────────────────
+    if (url.pathname === "/dashboard" || url.pathname.startsWith("/dashboard/")) {
+      // Pass JS/CSS/image assets through directly
       const isAsset = url.pathname.match(/\.(js|jsx|css|png|webp|jpg|svg|ico|woff2?)$/i);
-      if (!isAsset) {
-        const session = await getSession(request, env);
-        if (!session) {
-          return Response.redirect(`${url.origin}/admin/login`, 302);
+      if (isAsset) {
+        // Assets live under dashboard/ in R2
+        return asset(env, request, url.pathname);
+      }
+
+      // Auth check for all non-asset dashboard routes
+      const session = await getSession(request, env);
+      if (!session) {
+        return Response.redirect(`${url.origin}/admin/login`, 302);
+      }
+
+      // Legacy ?view= redirect → canonical clean URL (302 so browser updates address bar)
+      const legacyView = url.searchParams.get("view");
+      if (legacyView) {
+        const legacyAnimalId = url.searchParams.get("animalId");
+        const legacyAppId    = url.searchParams.get("appId");
+
+        if (legacyView === "animal-profile" && legacyAnimalId) {
+          return Response.redirect(`${url.origin}/dashboard/animals/${legacyAnimalId}`, 302);
+        }
+        if (legacyView === "application-detail" && legacyAppId) {
+          return Response.redirect(`${url.origin}/dashboard/applications/${legacyAppId}`, 302);
+        }
+
+        const canonical = LEGACY_VIEW_MAP[legacyView];
+        if (canonical) {
+          return Response.redirect(`${url.origin}${canonical}`, 302);
         }
       }
-      // Serve dashboard shell for route, but allow JS/CSS/image assets through
-      if (!isAsset) {
-        return asset(env, request, "/dashboard.html");
-      }
-      return asset(env, request, url.pathname);
+
+      // Serve dashboard shell — lives at dashboard/index.html in R2
+      return asset(env, request, "/dashboard/index.html");
     }
 
-    // Public CMS pages: D1 render -> R2 artifact -> KV cache
+    // Public CMS pages
     if (request.method === "GET" && PUBLIC_ROUTES.includes(url.pathname)) {
       return servePublicPage(url.pathname, env);
     }
 
-    // Everything else: 404
     return new Response('Not found', { status: 404 });
   },
 
-  // Cron: 06:00 UTC daily — sync ETO to IAM + roll up yesterday's usage
   async scheduled(event, env, ctx) {
     ctx.waitUntil(syncToIAM(env));
 
