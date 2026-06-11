@@ -4,6 +4,8 @@ const TENANT_ID = "tenant_companionscpas";
 const BRAND_CACHE_KEY = `brand:${TENANT_ID}`;
 const PAGE_CACHE_TTL = 3600;
 
+const SHELL_VERSION = "2026061201";
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -229,7 +231,7 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
   <meta name="description" content="${description}">
-  <link rel="stylesheet" href="/static/global/cpas-shell.css?v=2026061102">
+  <link rel="stylesheet" href="/static/global/cpas-shell.css?v=${SHELL_VERSION}">
 ${fontImportTag}
 ${brandScript}
 </head>
@@ -239,7 +241,7 @@ ${headerHtml || ""}
 ${sectionsMarkup}
 </main>
 ${footerHtml || ""}
-<script src="/static/global/cpas-shell.js"></script>
+<script src="/static/global/cpas-shell.js?v=${SHELL_VERSION}"></script>
 </body>
 </html>`;
 }
