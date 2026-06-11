@@ -473,6 +473,9 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             const sectionBlocks = (pageData.blocks || []).filter(b => b.section_key === s.section_key).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
             const isBlockSection = ["feature_cards","foster_grid","card_grid","card_grid_foster","campaign_grid"].includes(s.section_type);
             const isTextImage = ["text_image","text_image_split"].includes(s.section_type);
+            const isHero = s.section_type === "hero";
+            const previewImageFrame = { width: "100%", aspectRatio: isHero ? "4 / 3" : "16 / 10", objectFit: "cover", borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", display: "block", background: "rgba(255,255,255,.04)" };
+            const blockImageFrame = { width: "100%", aspectRatio: "4 / 3", objectFit: "cover", display: "block", background: "rgba(255,255,255,.04)" };
             return React.createElement("div", { key: s.section_key, onClick: () => setSelectedKey(s.section_key),
               style: { padding: "24px", borderBottom: "1px solid rgba(255,255,255,.06)", cursor: "pointer", outline: selectedKey === s.section_key ? `2px solid ${C.purple}` : "none", outlineOffset: -2, background: selectedKey === s.section_key ? "rgba(124,58,237,.06)" : "transparent" } },
               // Section type badge
@@ -486,15 +489,18 @@ function CmsPageEditorView({ pageId, onNavigate }) {
               // Text+image layout preview
               isTextImage && s.image_url && React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 10 } },
                 React.createElement("div", { style: { background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px", fontSize: 11, color: "rgba(255,255,255,.5)" } }, s.body ? s.body.slice(0, 100) + "…" : "Body text"),
-                React.createElement("img", { src: s.image_url, style: { width: "100%", height: 100, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,.08)" } })
+                React.createElement("img", { src: s.image_url, style: previewImageFrame })
               ),
               // Plain image (hero, etc)
-              !isTextImage && !isBlockSection && s.image_url && React.createElement("img", { src: s.image_url, style: { width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 10, marginTop: 8, border: "1px solid rgba(255,255,255,.08)" } }),
+              !isTextImage && !isBlockSection && s.image_url && React.createElement("div", { style: { marginTop: 10, display: isHero && mode !== "mobile" ? "grid" : "block", gridTemplateColumns: isHero && mode !== "mobile" ? "minmax(0, .9fr) minmax(0, 1.1fr)" : undefined, gap: 14, alignItems: "center" } },
+                isHero && mode !== "mobile" && React.createElement("div", { style: { fontFamily: fontDef.body, fontSize: 12, color: "rgba(255,255,255,.55)", lineHeight: 1.6 } }, s.body ? s.body.slice(0, 180) + (s.body.length > 180 ? "…" : "") : s.subheading || "Hero copy"),
+                React.createElement("img", { src: s.image_url, style: previewImageFrame })
+              ),
               // Block-based section: render mini card grid
-              isBlockSection && sectionBlocks.length > 0 && React.createElement("div", { style: { display: "grid", gridTemplateColumns: `repeat(${Math.min(sectionBlocks.length, 3)}, 1fr)`, gap: 8, marginTop: 10 } },
+              isBlockSection && sectionBlocks.length > 0 && React.createElement("div", { style: { display: "grid", gridTemplateColumns: mode === "mobile" ? "1fr" : `repeat(${Math.min(sectionBlocks.length, 3)}, minmax(0, 1fr))`, gap: 8, marginTop: 10 } },
                 sectionBlocks.slice(0, 4).map(b =>
                   React.createElement("div", { key: b.block_key || b.id, style: { background: "rgba(255,255,255,.05)", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255,255,255,.08)" } },
-                    b.image_url && React.createElement("img", { src: b.image_url, style: { width: "100%", height: 70, objectFit: "cover", display: "block" } }),
+                    b.image_url && React.createElement("img", { src: b.image_url, style: blockImageFrame }),
                     React.createElement("div", { style: { padding: "6px 8px" } },
                       React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#f0ece6", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, b.title || b.block_key),
                       b.body && React.createElement("div", { style: { fontSize: 10, color: "rgba(255,255,255,.45)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } }, b.body.slice(0, 60))
