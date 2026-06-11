@@ -1,4 +1,5 @@
 // ─── App Router — clean path-based routing, legacy ?view= compat ─────────────
+// placeholder
 const MOBILE_BP = 900;
 const mobileQ   = window.matchMedia(`(max-width: ${MOBILE_BP - 1}px)`);
 
@@ -19,11 +20,11 @@ const ROUTE_REGISTRY = [
   { path: "/dashboard/cms/website",      view: "cms-website" },
   { path: "/dashboard/cms/pages/",       view: "cms-page-editor",    paramKey: "pageId" },
   { path: "/dashboard/cms/pages",        view: "cms-pages" },
-  { path: "/dashboard/cms/navigation",   view: "cms-navigation" },
   { path: "/dashboard/cms/images",       view: "cms-images" },
   { path: "/dashboard/cms/brand",        view: "cms-brand" },
-  { path: "/dashboard/cms/publish",      view: "cms-publish" },
+  { path: "/dashboard/cms/templates",    view: "cms-templates" },
   { path: "/dashboard/cms",              view: "cms-website" },
+  { path: "/dashboard/email",            view: "email" },
   { path: "/dashboard/reports",          view: "reports" },
   { path: "/dashboard/settings",         view: "settings" },
   { path: "/dashboard/notifications",    view: "notifications" },
@@ -183,14 +184,10 @@ function App() {
 
   const unreadCount = (window.CPAS.notifications || []).filter(n => !n.read).length;
 
-  const renderView = () => {
-    const cmsShell = (title, desc) => React.createElement("div", { style: { padding: "40px 32px", flex: 1 } },
-      React.createElement("div", { style: { maxWidth: 520, background: "var(--dash-surface)", border: "1px solid var(--dash-border)", borderRadius: 14, padding: "32px 28px" } },
-        React.createElement("div", { style: { fontSize: 22, fontWeight: 700, marginBottom: 8, color: "var(--dash-text)" } }, title),
-        React.createElement("div", { style: { fontSize: 14, color: "var(--dash-text-sec)", lineHeight: 1.6 } }, desc)
-      )
-    );
+  // ── CMS sub-views are full-screen (no scroll padding) ─────────────────────
+  const isCmsEditor = view === "cms-page-editor";
 
+  const renderView = () => {
     switch (view) {
       case "overview":            return React.createElement(OverviewView,          { onNavigate: navigate });
       case "animals":             return React.createElement(AnimalsView,            { onNavigate: navigate });
@@ -205,16 +202,50 @@ function App() {
       case "application-detail":  return React.createElement(ApplicationDetailView,  { appId: params.appId, onNavigate: navigate });
       case "donations":           return React.createElement(DonationsView,          { onNavigate: navigate });
       case "fundraising":         return React.createElement(FundraisingView,        { onNavigate: navigate });
+
+      // CMS sub-views
       case "cms-website":
-        return typeof CMSView === "function"
-          ? React.createElement(CMSView, { onNavigate: navigate })
-          : cmsShell("CMS Website", "Website editor is loading…");
-      case "cms-pages":           return cmsShell("Pages", "Full page CRUD manager — coming next sprint.");
-      case "cms-page-editor":     return cmsShell(`Editing: ${params.pageId || ""}`, "Visual page editor — coming next sprint.");
-      case "cms-navigation":      return cmsShell("Navigation", "Header and footer nav manager — coming next sprint.");
-      case "cms-images":          return cmsShell("Images", "R2-backed media library — coming next sprint.");
-      case "cms-brand":           return cmsShell("Brand & Settings", "Global brand settings — coming next sprint.");
-      case "cms-publish":         return cmsShell("Publish Center", "Pre-publish checklist and history — coming next sprint.");
+        return typeof CmsWebsiteView === "function"
+          ? React.createElement(CmsWebsiteView,   { onNavigate: navigate })
+          : React.createElement(CMSView,          { onNavigate: navigate });
+      case "cms-pages":
+        return typeof CmsPagesView === "function"
+          ? React.createElement(CmsPagesView,     { onNavigate: navigate })
+          : cmsShell("Pages", "Loading…");
+      case "cms-page-editor":
+        return typeof CmsPageEditorView === "function"
+          ? React.createElement(CmsPageEditorView, { pageId: params.pageId, onNavigate: navigate })
+          : cmsShell("Page Editor", "Loading…");
+      case "cms-images":
+        return typeof CmsImagesView === "function"
+          ? React.createElement(CmsImagesView,    { onNavigate: navigate })
+          : cmsShell("Images", "Loading…");
+      case "cms-brand":
+        return typeof CmsBrandView === "function"
+          ? React.createElement(CmsBrandView,     { onNavigate: navigate })
+          : cmsShell("Brand & Settings", "Loading…");
+      case "cms-templates":
+        return typeof CmsTemplatesView === "function"
+          ? React.createElement(CmsTemplatesView, { onNavigate: navigate })
+          : cmsShell("Templates", "Loading…");
+
+      // Email — scaffold for later sprint
+      case "email":
+        return React.createElement("div", { style: { padding: "40px 32px", flex: 1 } },
+          React.createElement("div", { style: { maxWidth: 520, background: "var(--dash-surface)", border: "1px solid var(--dash-border)", borderRadius: 14, padding: "32px 28px" } },
+            React.createElement("div", { style: { fontSize: 22, fontWeight: 700, marginBottom: 8, color: "var(--dash-text)" } }, "Email Inbox"),
+            React.createElement("div", { style: { fontSize: 14, color: "var(--dash-text-sec)", lineHeight: 1.6, marginBottom: 16 } },
+              "Inbound email at ", React.createElement("strong", null, "dashboard@companionsofcaddo.org"),
+              " will appear here. To activate, set up a Resend inbound route pointing to ",
+              React.createElement("code", { style: { background: "var(--dash-bg2)", padding: "2px 6px", borderRadius: 4, fontSize: 12 } }, "/api/email/inbound"),
+              "."
+            ),
+            React.createElement("div", { style: { fontSize: 12, color: "var(--dash-text-muted)", background: "var(--dash-bg2)", padding: "10px 14px", borderRadius: 8 } },
+              "Resend setup: Add an Inbound webhook domain in Resend dashboard → Domains → Inbound → Create Catch-All route → POST to https://companionsofcaddo.org/api/email/inbound"
+            )
+          )
+        );
+
       case "reports":             return React.createElement(ReportsView,            { onNavigate: navigate });
       case "settings":            return React.createElement(SettingsView,           { onNavigate: navigate });
       case "notifications":       return React.createElement(NotificationsView,      { onNavigate: navigate });
@@ -222,13 +253,18 @@ function App() {
     }
   };
 
+  // CMS page editor gets full height with no scroll padding
+  const mainScrollStyle = isCmsEditor
+    ? { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }
+    : { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0 };
+
   return React.createElement("div", { className: "cpas-shell" },
     React.createElement("div", { className: "cpas-desktop-only" },
       React.createElement(Sidebar, { view, navigate, notifCount: unreadCount, onLogout: handleLogout })
     ),
     React.createElement("div", { className: "cpas-main-col" },
       React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => setNavOpen(true), navigate, notifCount: unreadCount }),
-      React.createElement("main", { id: "main-scroll" }, renderView())
+      React.createElement("main", { id: "main-scroll", style: mainScrollStyle }, renderView())
     ),
     isMobile && React.createElement("div", {
       className: `cpas-drawer-backdrop ${navOpen ? "open" : ""}`,
@@ -241,6 +277,15 @@ function App() {
       onLogout: handleLogout
     }),
     React.createElement(AgentSamDrawer, null)
+  );
+}
+
+function cmsShell(title, desc) {
+  return React.createElement("div", { style: { padding: "40px 32px", flex: 1 } },
+    React.createElement("div", { style: { maxWidth: 520, background: "var(--dash-surface)", border: "1px solid var(--dash-border)", borderRadius: 14, padding: "32px 28px" } },
+      React.createElement("div", { style: { fontSize: 22, fontWeight: 700, marginBottom: 8, color: "var(--dash-text)" } }, title),
+      React.createElement("div", { style: { fontSize: 14, color: "var(--dash-text-sec)", lineHeight: 1.6 } }, desc)
+    )
   );
 }
 
