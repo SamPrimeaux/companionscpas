@@ -57,7 +57,7 @@ function CmsWebsiteView({ onNavigate }) {
     { route_path: "/",          title: "Home",      status: "published", sort_order: 10 },
     { route_path: "/about",     title: "About",     status: "published", sort_order: 20 },
     { route_path: "/adopt",     title: "Adopt",     status: "published", sort_order: 30 },
-    { route_path: "/services",  title: "Foster",    status: "published", sort_order: 40 },
+    { route_path: "/services",  title: "Services",  status: "published", sort_order: 40 },
     { route_path: "/donate",    title: "Donate",    status: "published", sort_order: 50 },
     { route_path: "/community", title: "Community", status: "published", sort_order: 60 },
   ];
@@ -340,6 +340,34 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         setActiveFont(cfg.active_font_preset || "fraunces_dm");
       }
     } catch {}
+  };
+
+  const saveBlock = async (block) => {
+    try {
+      const res = await fetch("/api/cms/block/save", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ block }) });
+      const d = await res.json();
+      if (d.success) { notify("Block saved", "ok"); await loadPage(); }
+      else notify(d.error || "Block save failed", "error");
+    } catch (e) { notify("Block save failed: " + e.message, "error"); }
+  };
+
+  const [imgPickerOpen, setImgPickerOpen] = React.useState(false);
+  const [imgPickerField, setImgPickerField] = React.useState(null);
+  const [imgPickerTarget, setImgPickerTarget] = React.useState(null); // "section" | block_key
+  const [assets, setAssets] = React.useState([]);
+  const openImgPicker = (field, target = "section") => {
+    setImgPickerField(field); setImgPickerTarget(target); setImgPickerOpen(true);
+    if (!assets.length) fetch("/api/cms/assets", { credentials: "include" }).then(r => r.json()).then(d => setAssets(d.assets || [])).catch(() => {});
+  };
+  const pickImg = (url) => {
+    if (imgPickerTarget === "section") { setField(imgPickerField, url); }
+    else {
+      // block
+      const sectionBlocks = (pageData.blocks || []).filter(b => b.section_key === selectedKey);
+      const block = sectionBlocks.find(b => b.block_key === imgPickerTarget);
+      if (block) saveBlock({ ...block, image_url: url });
+    }
+    setImgPickerOpen(false);
   };
 
   React.useEffect(() => { loadPage(); }, [route]);
@@ -1091,6 +1119,24 @@ function CmsBrandView({ onNavigate }) {
           F("Donation Link", "donation_url", socials, setSocials, "url", "https://…"),
           F("Announcement Banner", "banner", socials, setSocials, "text", "Optional header banner text")
         )
+      ),
+      // Navigation editor
+      React.createElement(Card, { style: { padding: 24, gridColumn: "1 / -1" } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
+          React.createElement("h3", { style: { fontSize: 14, fontWeight: 700, color: C.text } }, "Header Navigation"),
+          React.createElement("div", { style: { fontSize: 11, color: C.textMut } }, "Saved with brand settings")
+        ),
+        (() => {
+          const navLinks = (() => { try { return JSON.parse(brand.navigation_json || "[]"); } catch { return []; } })();
+          return React.createElement("div", { style: { display: "grid", gap: 8 } },
+            navLinks.map((link, i) => React.createElement("div", { key: i, style: { display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" } },
+              React.createElement("input", { value: link.label || "", onChange: e => { const n = [...navLinks]; n[i] = { ...n[i], label: e.target.value }; setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) })); }, placeholder: "Label", style: fStyle }),
+              React.createElement("input", { value: link.href || "", onChange: e => { const n = [...navLinks]; n[i] = { ...n[i], href: e.target.value }; setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) })); }, placeholder: "/path", style: { ...fStyle, fontFamily: "var(--font-mono)", fontSize: 12 } }),
+              React.createElement("button", { onClick: () => { const n = navLinks.filter((_, j) => j !== i); setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) })); }, style: { padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.redDim}`, background: C.redDim, color: C.red, cursor: "pointer", fontSize: 12 } }, "✕")
+            )),
+            React.createElement("button", { onClick: () => { const n = [...navLinks, { label: "", href: "/", sort_order: (navLinks.length + 1) * 10 }]; setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) })); }, style: { padding: "8px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, cursor: "pointer", fontSize: 12, fontFamily: "var(--font-ui)", marginTop: 4, textAlign: "left" } }, "+ Add Link")
+          );
+        })()
       )
     )
   );
@@ -1144,7 +1190,7 @@ function CmsTemplatesView({ onNavigate }) {
           ),
           React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } },
             React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: col.color, background: col.bg, padding: "2px 8px", borderRadius: 99 } }, t.category),
-            React.createElement(Btn, { size: "sm", variant: "secondary", icon: "plus", onClick: () => onNavigate("cms-pages") }, "Use on Page")
+            React.createElement(Btn, { size: "sm", variant: "secondary", icon: "plus", onClick: () => onNavigate("cms-pages", { addSection: t.type }) }, "Add to Page")
           )
         );
       })
