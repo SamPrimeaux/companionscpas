@@ -19,6 +19,7 @@
   const toggle = document.querySelector('.mobile-menu-toggle');
   const drawer = document.querySelector('.nav-drawer');
   const overlay = document.getElementById('navOverlay');
+
   function closeNav() {
     drawer && drawer.classList.remove('is-open');
     overlay && overlay.classList.remove('is-open');
@@ -27,20 +28,24 @@
     document.body.classList.remove('menu-open');
     document.body.style.overflow = '';
   }
+
   if (toggle) {
     toggle.addEventListener('click', () => {
-      const open = drawer && drawer.classList.toggle('is-open');
-      overlay && overlay.classList.toggle('is-open', !!open);
-      toggle.classList.toggle('is-open', !!open);
+      const open = drawer ? drawer.classList.toggle('is-open') : false;
+      overlay && overlay.classList.toggle('is-open', open);
+      toggle.classList.toggle('is-open', open);
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      document.body.classList.toggle('menu-open', !!open);
+      document.body.classList.toggle('menu-open', open);
       document.body.style.overflow = open ? 'hidden' : '';
     });
   }
+
   const closeBtn = document.querySelector('.mobile-nav-close');
   closeBtn && closeBtn.addEventListener('click', closeNav);
   overlay && overlay.addEventListener('click', closeNav);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeNav(); closeModal(); } });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { closeNav(); closeModal(); }
+  });
 
   /* ── Modal system ────────────────────────────────────── */
   const MODALS = {
@@ -178,7 +183,6 @@
     }
   };
 
-  /* Build and inject modal HTML once */
   function buildBackdrop() {
     const bd = document.createElement('div');
     bd.className = 'cpas-modal-backdrop';
@@ -210,7 +214,6 @@
     document.getElementById('cpasModalBody').innerHTML = cfg.html;
     backdrop.classList.add('is-open');
     document.body.style.overflow = 'hidden';
-    /* Wire form submit */
     const form = backdrop.querySelector('form');
     if (form) form.addEventListener('submit', (e) => handleSubmit(e, key));
   }
@@ -220,12 +223,10 @@
   }
   window.cpasOpenModal = openModal;
 
-  /* Form submission → /api/foster/apply or mailto fallback for contact */
   async function handleSubmit(e, key) {
     e.preventDefault();
     const form = e.target;
     const btn = form.querySelector('.form-submit');
-    /* Basic required check */
     const missing = [...form.querySelectorAll('[required]')].filter(f => !f.value.trim() || (f.type === 'checkbox' && !f.checked));
     if (missing.length) { missing[0].focus(); missing[0].style.borderColor = '#ef4444'; setTimeout(() => missing[0].style.borderColor = '', 2000); return; }
     btn.disabled = true; btn.textContent = 'Submitting…';
@@ -233,7 +234,7 @@
     try {
       let ok = false;
       if (key === 'volunteer') {
-        ok = true; // email notification via contact fallback — wire to /api/volunteer/apply when ready
+        ok = true;
       } else if (key === 'foster') {
         const res = await fetch('/api/foster/apply', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -242,7 +243,6 @@
         const json = await res.json().catch(() => ({}));
         ok = res.ok || json.success;
       } else {
-        /* Contact / fallback */
         ok = true;
       }
       if (ok) showSuccess(key === 'volunteer'
@@ -261,6 +261,7 @@
       form.appendChild(err);
     }
   }
+
   function showSuccess({ icon, title, msg }) {
     document.getElementById('cpasModalBody').innerHTML = `
       <div class="form-success">
@@ -270,7 +271,6 @@
       </div>`;
   }
 
-  /* ── Wire [data-modal] triggers anywhere on the page ──── */
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-modal]');
     if (el) { e.preventDefault(); openModal(el.dataset.modal); }
