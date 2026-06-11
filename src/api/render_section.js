@@ -57,9 +57,15 @@ function safeUrl(value, fallback = "") {
 
 function renderCta(label, url, className = "btn btn-ghost") {
   const safeLabel = text(label).trim();
-  const safeHref = safeUrl(url, "");
-  if (!safeLabel || !safeHref) return "";
-  return `<a class="${className}" href="${safeHref}">${escapeHtml(safeLabel)}</a>`;
+  if (!safeLabel) return "";
+  const rawUrl = text(url).trim();
+  if (rawUrl.startsWith("modal:")) {
+    const key = rawUrl.slice(6).replace(/[^a-z0-9_-]/gi, "");
+    return `<button class="${className}" data-modal="${key}" type="button">${escapeHtml(safeLabel)}</button>`;
+  }
+  const href = safeUrl(rawUrl, "");
+  if (!href) return "";
+  return `<a class="${className}" href="${href}">${escapeHtml(safeLabel)}</a>`;
 }
 
 function renderSectionHeader(section, opts = {}) {
