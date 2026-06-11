@@ -12,6 +12,7 @@ function json(data, status = 200) {
 
 export async function dashboardApiRoutes(request, env, url) {
   const path = url.pathname;
+  const method = request.method;
 
   if (path === "/api/dashboard/overview") {
     // Animals with cms_assets JOIN for canonical CDN URL
@@ -128,7 +129,7 @@ export async function dashboardApiRoutes(request, env, url) {
     });
   }
 
-  if (path === "/api/dashboard/fundraising") {
+  if (path === "/api/dashboard/fundraising" && method === "GET") {
     const campaigns = await env.DB.prepare(
       `
         SELECT
@@ -144,7 +145,28 @@ export async function dashboardApiRoutes(request, env, url) {
     return json({ campaigns: campaigns.results || [] });
   }
 
-  if (path === "/api/dashboard/donations") {
+  if (path === "/api/dashboard/fundraising" && method === "POST") {
+    const b = await request.json().catch(() => ({}));
+    const title = String(b.title || "").trim();
+    if (!title) return json({ ok:false, error:"Campaign title is required" }, 400);
+    const now = new Date().toISOString();
+    const slug = String(b.slug || title).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || "campaign";
+    const id = b.id || `campaign_${slug}_${Date.now()}`;
+    await env.DB.prepare("INSERT INTO fundraising_campaigns (id, organization_id, title, slug, description, goal_amount_cents, raised_amount_cents, status, starts_at, ends_at, is_public, campaign_type, short_description, donor_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 0, ?, ?)").bind(id, b.organization_id || "tenant_companionscpas", title, slug, b.description || "", Math.max(0, Number(b.goal_amount_cents || b.goal_cents || 0)), b.status || "active", b.starts_at || null, b.ends_at || null, b.is_public === 0 ? 0 : 1, b.campaign_type || b.category || "fundraiser", b.short_description || String(b.description || "").slice(0,240), now, now).run();
+    return json({ ok:true, id });
+  }
+
+  if (path === "/api/dashboard/fundraising" && method === "PUT") {
+    const b = await request.json().catch(() => ({}));
+    if (!b.id) return json({ ok:false, error:"Campaign id is required" }, 400);
+    const title = String(b.title || "").trim();
+    if (!title) return json({ ok:false, error:"Campaign title is required" }, 400);
+    const slug = String(b.slug || title).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || "campaign";
+    await env.DB.prepare("UPDATE fundraising_campaigns SET title=?, slug=?, description=?, goal_amount_cents=?, status=?, starts_at=?, ends_at=?, is_public=?, campaign_type=?, short_description=?, updated_at=? WHERE id=?").bind(title, slug, b.description || "", Math.max(0, Number(b.goal_amount_cents || b.goal_cents || 0)), b.status || "active", b.starts_at || null, b.ends_at || null, b.is_public === 0 ? 0 : 1, b.campaign_type || b.category || "fundraiser", b.short_description || String(b.description || "").slice(0,240), new Date().toISOString(), b.id).run();
+    return json({ ok:true, id:b.id });
+  }
+
+  if (path === "/api/dashboard/donations" && method === "GET") {
     const donations = await env.DB.prepare(
       `
         SELECT
@@ -160,6 +182,19 @@ export async function dashboardApiRoutes(request, env, url) {
       `
     ).all().catch(() => ({ results: [] }));
     return json({ donations: donations.results || [] });
+  }
+
+  if (path === "/api/dashboard/donations" && method === "POST") {
+    const b = await request.json().catch(() => ({}));
+    const amount = Math.max(0, Number(b.amount_cents || 0));
+    if (!amount) return json({ ok:false, error:"Donation amount is required" }, 400);
+    const now = new Date().toISOString();
+    const donationId = b.id || `don_${Date.now()}`;
+    await env.DB.prepare("INSERT INTO donations (id, organization_id, donor_id, campaign_id, amount_cents, currency, status, payment_provider, donor_message, is_anonymous, donated_at, created_at) VALUES (?, ?, NULL, ?, ?, 'usd', ?, ?, ?, ?, ?, ?)").bind(donationId, b.organization_id || "tenant_companionscpas", b.campaign_id || null, amount, b.status || "received", b.payment_provider || "manual", b.donor_message || null, String(b.donor_name || "").toLowerCase() === "anonymous" ? 1 : 0, b.donated_at || now, now).run();
+    if (b.campaign_id && ["received","completed","paid","succeeded"].includes(String(b.status || "received").toLowerCase())) {
+      await env.DB.prepare('UPDATE fundraising_campaigns SET raised_amount_cents=COALESCE(raised_amount_cents,0)+?, donor_count=COALESCE(donor_count,0)+1, updated_at=? WHERE id=?').bind(amount, now, b.campaign_id).run();
+    }
+    return json({ ok:true, id:donationId });
   }
 
   if (path === "/api/dashboard/team") {
