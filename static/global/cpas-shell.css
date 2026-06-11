@@ -324,10 +324,34 @@ p  { text-wrap: pretty; }
 .nav-drawer-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 20px 20px 16px;
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .drawer-logo { height: 36px; width: auto; object-fit: contain; }
+
+/* ── DRAWER CLOSE BUTTON ─────────────────────────────────────── */
+.mobile-nav-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.6);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+.mobile-nav-close:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border-color: rgba(255,255,255,0.2);
+}
 
 .nav-drawer-links {
   display: flex;
@@ -678,9 +702,6 @@ p  { text-wrap: pretty; }
 }
 
 /* ── HEADER: LIGHT THEME NAV CONTRAST ───────────────────────── */
-/* On light pages the frosted dark header reads fine BUT nav links
-   are white/72% — invisible on cream. Switch to dark text when scrolled
-   on light theme, keep white when at top (hero area is still light bg) */
 .theme-light .site-header.scrolled .site-nav a {
   color: var(--text-1);
 }
@@ -688,7 +709,6 @@ p  { text-wrap: pretty; }
   color: var(--text-1);
   background: rgba(23,32,51,0.07);
 }
-/* At top of light page — make nav pill bg slightly visible so text is readable */
 .theme-light .site-header:not(.scrolled) {
   background: rgba(245,241,232,0.72);
   border-bottom-color: rgba(23,32,51,0.06);
@@ -700,11 +720,9 @@ p  { text-wrap: pretty; }
   color: var(--text-1);
   background: rgba(23,32,51,0.06);
 }
-/* Donate button stays purple regardless */
 .theme-light .site-header .btn-primary { color: #fff !important; }
 
 /* ── FONT CONSISTENCY: sections use same bold sans as hero ───── */
-/* Hero h1 is already --font-body bold. Section h2s should match weight/feel */
 .theme-light .section h2 {
   font-family: var(--font-body);
   font-weight: 700;
@@ -722,7 +740,6 @@ p  { text-wrap: pretty; }
   font-size: 1rem;
   letter-spacing: -0.01em;
 }
-/* Foster grid section header inherit body font for consistency */
 [data-section-key="service_cards"] h2 {
   font-family: var(--font-body);
   font-weight: 700;
