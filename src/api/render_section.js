@@ -88,6 +88,13 @@ function renderImage(url, alt, className) {
   return `<img class="${cls}" src="${safeSrc}" alt="${escapeAttribute(safeAlt)}" loading="lazy">`;
 }
 
+function renderImageEager(url, alt, className) {
+  const safeSrc = safeUrl(url, "");
+  if (!safeSrc) return "";
+  const safeAlt = text(alt).trim() || "Hero image";
+  const cls = text(className).trim() || "hero-img";
+  return `<img class="${cls}" src="${safeSrc}" alt="${escapeAttribute(safeAlt)}" loading="eager" fetchpriority="high" decoding="async">`;
+
 function cardParts(block) {
   const blockConfig = safeJson(block?.config_json, {});
   const title = pickText(block, ["title", "heading", "block_key"]) || pickText(blockConfig, ["title", "heading"]);
@@ -129,7 +136,7 @@ function renderHero(section) {
       ${ctaPrimary || ctaSecondary ? `<div class="hero-actions">${ctaPrimary}${ctaSecondary}</div>` : ""}
     </div>
     <div class="hero-img-col">
-      ${renderImage(imageUrl, imageAlt, "hero-img")}
+      ${renderImageEager(imageUrl, imageAlt, "hero-img")}
     </div>
   </div>
   <div class="hero-blend-out" aria-hidden="true"></div>
