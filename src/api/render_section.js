@@ -345,8 +345,10 @@ function renderCtaBanner(section) {
     "btn btn-ghost"
   );
 
+  const _sectionKey = pickText(section, ["section_key"]);
+  const _idAttr = _sectionKey ? ` id="${escapeAttribute(_sectionKey)}"` : "";
   return `
-<section class="section section-cta" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+<section class="section section-cta"${_idAttr} data-section-key="${escapeAttribute(_sectionKey)}">
   <div class="container">
     ${renderSectionHeader(section)}
     ${primary || secondary ? `<div class="hero-actions mt-md">${primary}${secondary}</div>` : ""}
