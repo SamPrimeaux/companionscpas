@@ -94,6 +94,7 @@ function renderImageEager(url, alt, className) {
   const safeAlt = text(alt).trim() || "Hero image";
   const cls = text(className).trim() || "hero-img";
   return `<img class="${cls}" src="${safeSrc}" alt="${escapeAttribute(safeAlt)}" loading="eager" fetchpriority="high" decoding="async">`;
+}
 
 function cardParts(block) {
   const blockConfig = safeJson(block?.config_json, {});
