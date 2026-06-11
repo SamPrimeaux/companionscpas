@@ -114,6 +114,22 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+
+  if (url.pathname === "/_internal/publish" && request.method === "POST") {
+    const key = request.headers.get("x-bridge-key") || "";
+    const validKey = env.INTERNAL_PUBLISH_KEY || env.AGENTSAM_BRIDGE_KEY || ""; if (!validKey || key !== validKey) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "content-type": "application/json" } });
+    }
+    try {
+      const { route_path } = await request.json().catch(() => ({}));
+      const route = route_path || "/services";
+      const { renderPage } = await import('./api/render_page.js');
+      await renderPage(route, "internal_cli_" + Date.now(), env);
+      return new Response(JSON.stringify({ success: true, route }), { headers: { "content-type": "application/json" } });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { "content-type": "application/json" } });
+    }
+  }
     if (url.pathname.startsWith("/api/agentsam/tools/")) {
       const session = await getSession(request, env);
       if (!session) return new Response(JSON.stringify({ error: "Not authenticated" }), {
