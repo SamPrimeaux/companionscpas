@@ -1,43 +1,124 @@
-// App Router — with live session + API data loading
+// ─── App Router — clean path-based routing, legacy ?view= compat ─────────────
+const MOBILE_BP = 900;
+const mobileQ   = window.matchMedia(`(max-width: ${MOBILE_BP - 1}px)`);
 
-const MOBILE_BREAKPOINT = 900;
-const mobileQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+const ROUTE_REGISTRY = [
+  { path: "/dashboard/overview",         view: "overview" },
+  { path: "/dashboard/animals/",         view: "animal-profile",     paramKey: "animalId" },
+  { path: "/dashboard/animals",          view: "animals" },
+  { path: "/dashboard/fosters",          view: "fosters" },
+  { path: "/dashboard/adoptions",        view: "adoptions" },
+  { path: "/dashboard/intakes",          view: "intakes" },
+  { path: "/dashboard/medical",          view: "medical" },
+  { path: "/dashboard/daily-care",       view: "daily-care" },
+  { path: "/dashboard/volunteers",       view: "volunteers" },
+  { path: "/dashboard/applications/",    view: "application-detail", paramKey: "appId" },
+  { path: "/dashboard/applications",     view: "applications" },
+  { path: "/dashboard/donations",        view: "donations" },
+  { path: "/dashboard/fundraising",      view: "fundraising" },
+  { path: "/dashboard/cms/website",      view: "cms-website" },
+  { path: "/dashboard/cms/pages/",       view: "cms-page-editor",    paramKey: "pageId" },
+  { path: "/dashboard/cms/pages",        view: "cms-pages" },
+  { path: "/dashboard/cms/navigation",   view: "cms-navigation" },
+  { path: "/dashboard/cms/images",       view: "cms-images" },
+  { path: "/dashboard/cms/brand",        view: "cms-brand" },
+  { path: "/dashboard/cms/publish",      view: "cms-publish" },
+  { path: "/dashboard/cms",              view: "cms-website" },
+  { path: "/dashboard/reports",          view: "reports" },
+  { path: "/dashboard/settings",         view: "settings" },
+  { path: "/dashboard/notifications",    view: "notifications" },
+  { path: "/dashboard",                  view: "overview" },
+];
+
+const LEGACY_MAP = {
+  "overview":           "/dashboard/overview",
+  "animals":            "/dashboard/animals",
+  "fosters":            "/dashboard/fosters",
+  "adoptions":          "/dashboard/adoptions",
+  "intakes":            "/dashboard/intakes",
+  "medical":            "/dashboard/medical",
+  "daily-care":         "/dashboard/daily-care",
+  "volunteers":         "/dashboard/volunteers",
+  "applications":       "/dashboard/applications",
+  "donations":          "/dashboard/donations",
+  "fundraising":        "/dashboard/fundraising",
+  "cms":                "/dashboard/cms/website",
+  "reports":            "/dashboard/reports",
+  "settings":           "/dashboard/settings",
+  "notifications":      "/dashboard/notifications",
+  "animal-profile":     null,
+  "application-detail": null,
+};
+
+function resolveRoute(pathname, searchParams) {
+  const legacyView = searchParams.get("view");
+  if (legacyView) {
+    const legacyAnimalId = searchParams.get("animalId");
+    const legacyAppId    = searchParams.get("appId");
+    if (legacyView === "animal-profile" && legacyAnimalId) {
+      const p = `/dashboard/animals/${legacyAnimalId}`;
+      window.history.replaceState({}, "", p);
+      return { view: "animal-profile", params: { animalId: legacyAnimalId } };
+    }
+    if (legacyView === "application-detail" && legacyAppId) {
+      const p = `/dashboard/applications/${legacyAppId}`;
+      window.history.replaceState({}, "", p);
+      return { view: "application-detail", params: { appId: legacyAppId } };
+    }
+    const canonical = LEGACY_MAP[legacyView];
+    if (canonical) {
+      window.history.replaceState({}, "", canonical);
+      return resolveRoute(canonical, new URLSearchParams());
+    }
+  }
+  for (const route of ROUTE_REGISTRY) {
+    if (route.paramKey) {
+      if (pathname.startsWith(route.path)) {
+        const paramVal = pathname.slice(route.path.length).replace(/\/$/, "");
+        if (paramVal) return { view: route.view, params: { [route.paramKey]: paramVal } };
+      }
+    } else {
+      const norm = pathname.replace(/\/$/, "") || "/dashboard";
+      if (norm === route.path || norm + "/" === route.path) {
+        return { view: route.view, params: {} };
+      }
+    }
+  }
+  return { view: "overview", params: {} };
+}
+
+function buildPath(view, params = {}) {
+  const route = ROUTE_REGISTRY.find(r => r.view === view);
+  if (!route) return "/dashboard/overview";
+  if (route.paramKey && params[route.paramKey]) return `${route.path}${params[route.paramKey]}`;
+  return route.path;
+}
 
 function App() {
-  const [ready,        setReady]        = React.useState(false);
-  const [liveUser,     setLiveUser]     = React.useState(null);
-  const [isMobile,     setIsMobile]     = React.useState(() => mobileQuery.matches);
-  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  const [ready,    setReady]    = React.useState(false);
+  const [liveUser, setLiveUser] = React.useState(null);
+  const [isMobile, setIsMobile] = React.useState(() => mobileQ.matches);
+  const [navOpen,  setNavOpen]  = React.useState(false);
 
-  // Resize listener: update isMobile, close drawer when viewport expands past breakpoint
+  const initRoute = () => resolveRoute(window.location.pathname, new URLSearchParams(window.location.search));
+  const [view,   setView]   = React.useState(() => initRoute().view);
+  const [params, setParams] = React.useState(() => initRoute().params);
+
   React.useEffect(() => {
-    const onResize = () => {
-      const mobile = mobileQuery.matches;
-      setIsMobile(mobile);
-      if (!mobile) setMobileNavOpen(false);
-    };
+    const onResize = () => { const m = mobileQ.matches; setIsMobile(m); if (!m) setNavOpen(false); };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Body scroll lock while mobile drawer is open
   React.useEffect(() => {
-    document.body.style.overflow = mobileNavOpen ? "hidden" : "";
-    if (mobileNavOpen) {
-      document.body.classList.add("cpas-mobile-nav-open");
-    } else {
-      document.body.classList.remove("cpas-mobile-nav-open");
-    }
-    return () => {
-      document.body.style.overflow = "";
-      document.body.classList.remove("cpas-mobile-nav-open");
-    };
-  }, [mobileNavOpen]);
+    if (navOpen) document.body.classList.add("cpas-nav-open");
+    else document.body.classList.remove("cpas-nav-open");
+    return () => document.body.classList.remove("cpas-nav-open");
+  }, [navOpen]);
 
-  // On mount: load session user + hydrate data from API
   React.useEffect(() => {
     async function init() {
-      // 1. Fetch session user
+      if (window.loadDashboardConfig) await window.loadDashboardConfig();
       try {
         const res = await fetch("/api/auth/me", { credentials: "include" });
         if (res.ok) {
@@ -48,209 +129,120 @@ function App() {
             window.CPAS.user = {
               name:     user.full_name || user.email,
               role:     user.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : "Staff",
-              initials: (user.full_name || user.email).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()
+              initials: (user.full_name || user.email).split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
             };
           }
         } else if (res.status === 401) {
-          window.location.href = "/admin/login";
-          return;
+          window.location.href = "/admin/login"; return;
         }
-      } catch(e) {
-        console.warn("[CPAS] Session check failed:", e.message);
-      }
-
-      // 2. Hydrate data from API
-      if (window.__loadDashboardData) {
-        await window.__loadDashboardData();
-      }
-
+      } catch(e) { console.warn("[CPAS] Session check failed:", e.message); }
+      if (window.__loadDashboardData) await window.__loadDashboardData();
       setReady(true);
     }
     init();
   }, []);
 
-  const getViewFromURL = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("view") || "overview";
-  };
-  const getParamsFromURL = () => {
-    const params = new URLSearchParams(window.location.search);
-    const result = {};
-    params.forEach((v, k) => { if (k !== "view") result[k] = v; });
-    return result;
-  };
-
-  const [view,   setView]   = React.useState(getViewFromURL);
-  const [params, setParams] = React.useState(getParamsFromURL);
-
-  const navigate = React.useCallback((newView, newParams = {}) => {
-    const qs = new URLSearchParams({ view: newView, ...newParams }).toString();
-    window.history.pushState({}, "", `?${qs}`);
-    setView(newView);
-    setParams(newParams);
-    const main = document.getElementById("main-scroll");
-    if (main) main.scrollTop = 0;
-  }, []);
-
   React.useEffect(() => {
-    const onPop = () => { setView(getViewFromURL()); setParams(getParamsFromURL()); };
+    const onPop = () => {
+      const { view: v, params: p } = resolveRoute(window.location.pathname, new URLSearchParams(window.location.search));
+      setView(v); setParams(p);
+    };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // Logout handler
+  const navigate = React.useCallback((newView, newParams = {}) => {
+    const path = buildPath(newView, newParams);
+    window.history.pushState({}, "", path);
+    setView(newView); setParams(newParams); setNavOpen(false);
+    const el = document.getElementById("main-scroll");
+    if (el) el.scrollTop = 0;
+  }, []);
+
+  React.useEffect(() => { window.__navigate = navigate; }, [navigate]);
+
   const handleLogout = React.useCallback(async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    } catch(e) {}
+    try { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); } catch {}
     window.location.href = "/admin/login";
   }, []);
 
-  // Loading screen
   if (!ready) {
-    return React.createElement("div", {
-      style:{ height:"100vh", background:"#0b0b14", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16 }
-    },
-      React.createElement("div", { dangerouslySetInnerHTML:{ __html:`
-        <svg width="48" height="48" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="36" height="36" rx="10" fill="#2d1b5e"/>
-          <circle cx="14" cy="11" r="2.5" fill="#a78bfa"/>
-          <circle cx="22" cy="11" r="2.5" fill="#a78bfa"/>
-          <circle cx="10" cy="17" r="2" fill="#a78bfa"/>
-          <circle cx="26" cy="17" r="2" fill="#a78bfa"/>
-          <path d="M18 15c-4 0-8 3.2-8 8 0 2.4 1.6 4 3.2 4 1 0 2.4-.8 3.2-.8h3.2c.8 0 2.2.8 3.2.8 1.6 0 3.2-1.6 3.2-4 0-4.8-4-8-8-8z" fill="#7c3aed"/>
+    return React.createElement("div", { className: "cpas-loading" },
+      React.createElement("div", { dangerouslySetInnerHTML: { __html: `
+        <svg width="44" height="44" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="36" height="36" rx="10" fill="#1a0f2e"/>
+          <circle cx="14" cy="11" r="2.5" fill="#8664B7"/>
+          <circle cx="22" cy="11" r="2.5" fill="#8664B7"/>
+          <circle cx="10" cy="17" r="2" fill="#8664B7"/>
+          <circle cx="26" cy="17" r="2" fill="#8664B7"/>
+          <path d="M18 15c-4 0-8 3.2-8 8 0 2.4 1.6 4 3.2 4 1 0 2.4-.8 3.2-.8h3.2c.8 0 2.2.8 3.2.8 1.6 0 3.2-1.6 3.2-4 0-4.8-4-8-8-8z" fill="#6a30b0"/>
         </svg>` } }),
-      React.createElement("div", { style:{ color:"#8888aa", fontSize:13 } }, "Loading dashboard…")
+      React.createElement("div", { className: "cpas-loading-text" }, "Loading dashboard…")
     );
   }
 
   const unreadCount = (window.CPAS.notifications || []).filter(n => !n.read).length;
 
   const renderView = () => {
+    const cmsShell = (title, desc) => React.createElement("div", { style: { padding: "40px 32px", flex: 1 } },
+      React.createElement("div", { style: { maxWidth: 520, background: "var(--dash-surface)", border: "1px solid var(--dash-border)", borderRadius: 14, padding: "32px 28px" } },
+        React.createElement("div", { style: { fontSize: 22, fontWeight: 700, marginBottom: 8, color: "var(--dash-text)" } }, title),
+        React.createElement("div", { style: { fontSize: 14, color: "var(--dash-text-sec)", lineHeight: 1.6 } }, desc)
+      )
+    );
+
     switch (view) {
-      case "overview":           return React.createElement(OverviewView,         { onNavigate:navigate });
-      case "animals":            return React.createElement(AnimalsView,           { onNavigate:navigate });
-      case "animal-profile":     return React.createElement(AnimalProfileView,     { animalId:params.animalId, onNavigate:navigate });
-      case "fosters":            return React.createElement(FostersView,           { onNavigate:navigate });
-      case "adoptions":          return React.createElement(AdoptionsView,         { onNavigate:navigate });
-      case "intakes":            return React.createElement(IntakesView,           { onNavigate:navigate });
-      case "medical":            return React.createElement(MedicalView,           { onNavigate:navigate });
-      case "daily-care":         return React.createElement(DailyCareView,         { onNavigate:navigate });
-      case "volunteers":         return React.createElement(VolunteersView,        { onNavigate:navigate });
-      case "applications":       return React.createElement(ApplicationsView,      { onNavigate:navigate });
-      case "application-detail": return React.createElement(ApplicationDetailView, { appId:params.appId, onNavigate:navigate });
-      case "donations":          return React.createElement(DonationsView,         { onNavigate:navigate });
-      case "fundraising":        return React.createElement(FundraisingView,       { onNavigate:navigate });
-      case "cms":
+      case "overview":            return React.createElement(OverviewView,          { onNavigate: navigate });
+      case "animals":             return React.createElement(AnimalsView,            { onNavigate: navigate });
+      case "animal-profile":      return React.createElement(AnimalProfileView,      { animalId: params.animalId, onNavigate: navigate });
+      case "fosters":             return React.createElement(FostersView,            { onNavigate: navigate });
+      case "adoptions":           return React.createElement(AdoptionsView,          { onNavigate: navigate });
+      case "intakes":             return React.createElement(IntakesView,            { onNavigate: navigate });
+      case "medical":             return React.createElement(MedicalView,            { onNavigate: navigate });
+      case "daily-care":          return React.createElement(DailyCareView,          { onNavigate: navigate });
+      case "volunteers":          return React.createElement(VolunteersView,         { onNavigate: navigate });
+      case "applications":        return React.createElement(ApplicationsView,       { onNavigate: navigate });
+      case "application-detail":  return React.createElement(ApplicationDetailView,  { appId: params.appId, onNavigate: navigate });
+      case "donations":           return React.createElement(DonationsView,          { onNavigate: navigate });
+      case "fundraising":         return React.createElement(FundraisingView,        { onNavigate: navigate });
+      case "cms-website":
         return typeof CMSView === "function"
-          ? React.createElement(CMSView, { onNavigate:navigate })
-          : React.createElement("div", { style:{ padding:28, color:"#f0f0f5" } }, "CMS is loading...");
-      case "reports":            return React.createElement(ReportsView,           { onNavigate:navigate });
-      case "settings":           return React.createElement(SettingsView,          { onNavigate:navigate });
-      case "notifications":      return React.createElement(NotificationsView,     { onNavigate:navigate });
-      default:                   return React.createElement(OverviewView,          { onNavigate:navigate });
+          ? React.createElement(CMSView, { onNavigate: navigate })
+          : cmsShell("CMS Website", "Website editor is loading…");
+      case "cms-pages":           return cmsShell("Pages", "Full page CRUD manager — coming next sprint.");
+      case "cms-page-editor":     return cmsShell(`Editing: ${params.pageId || ""}`, "Visual page editor — coming next sprint.");
+      case "cms-navigation":      return cmsShell("Navigation", "Header and footer nav manager — coming next sprint.");
+      case "cms-images":          return cmsShell("Images", "R2-backed media library — coming next sprint.");
+      case "cms-brand":           return cmsShell("Brand & Settings", "Global brand settings — coming next sprint.");
+      case "cms-publish":         return cmsShell("Publish Center", "Pre-publish checklist and history — coming next sprint.");
+      case "reports":             return React.createElement(ReportsView,            { onNavigate: navigate });
+      case "settings":            return React.createElement(SettingsView,           { onNavigate: navigate });
+      case "notifications":       return React.createElement(NotificationsView,      { onNavigate: navigate });
+      default:                    return React.createElement(OverviewView,           { onNavigate: navigate });
     }
   };
 
-  // Desktop: flex row with sidebar + main column
-  // Mobile: no sidebar, full-width main, mobile drawer overlay
-  const shellStyle = isMobile
-    ? {
-        display: "flex",
-        flexDirection: "column",
-        minHeight: "100vh",
-        background: C.bg,
-        color: C.text,
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-        fontSize: 14,
-        overflowX: "hidden",
-      }
-    : {
-        display: "flex",
-        height: "100vh",
-        background: C.bg,
-        color: C.text,
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-        fontSize: 14,
-        overflow: "hidden",
-      };
-
-  const mainColStyle = isMobile
-    ? {
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        minWidth: 0,
-        overflowX: "hidden",
-      }
-    : {
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        minWidth: 0,
-        overflow: "hidden",
-      };
-
-  const mainScrollStyle = isMobile
-    ? {
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-        overflowX: "hidden",
-      }
-    : {
-        flex: 1,
-        overflowY: "auto",
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-      };
-
-  return React.createElement("div", {
-    className: "cpas-dashboard-shell",
-    style: shellStyle
-  },
-    // Desktop sidebar (hidden on mobile)
-    !isMobile && React.createElement(Sidebar, {
-      view,
-      onNavigate: navigate,
-      notifCount: unreadCount,
+  return React.createElement("div", { className: "cpas-shell" },
+    React.createElement("div", { className: "cpas-desktop-only" },
+      React.createElement(Sidebar, { view, navigate, notifCount: unreadCount, onLogout: handleLogout })
+    ),
+    React.createElement("div", { className: "cpas-main-col" },
+      React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => setNavOpen(true), navigate, notifCount: unreadCount }),
+      React.createElement("main", { id: "main-scroll" }, renderView())
+    ),
+    isMobile && React.createElement("div", {
+      className: `cpas-drawer-backdrop ${navOpen ? "open" : ""}`,
+      onClick: () => setNavOpen(false),
+      "aria-hidden": "true"
+    }),
+    isMobile && React.createElement(MobileDrawer, {
+      open: navOpen, view, navigate,
+      onClose: () => setNavOpen(false),
       onLogout: handleLogout
     }),
-
-    // Main column: TopBar + scrollable content
-    React.createElement("div", { className:"cpas-dashboard-main", style: mainColStyle },
-      React.createElement(TopBar, {
-        view,
-        isMobile,
-        mobileNavOpen,
-        onOpenMobileNav: () => setMobileNavOpen(true),
-        onNavigate: navigate,
-        notifCount: unreadCount
-      }),
-      React.createElement("main", {
-        id: "main-scroll",
-        style: mainScrollStyle
-      },
-        renderView()
-      )
-    ),
-
-    // Mobile nav drawer (only rendered on mobile)
-    isMobile && React.createElement(MobileNavDrawer, {
-      open: mobileNavOpen,
-      view,
-      onClose: () => setMobileNavOpen(false),
-      onNavigate: (nextView, nextParams) => {
-        navigate(nextView, nextParams || {});
-        setMobileNavOpen(false);
-      }
-    }),
-
     React.createElement(AgentSamDrawer, null)
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(React.createElement(App));
+const _root = ReactDOM.createRoot(document.getElementById("root"));
+_root.render(React.createElement(App));
