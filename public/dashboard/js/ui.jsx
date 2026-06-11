@@ -29,6 +29,7 @@ const C = window.__C_OBJ__ = {
 const LOGO_LIGHT = "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar";
 const LOGO_DARK  = "/static/global/companionsofcpa-newlogo.webp";
 
+// ── CMS sub-nav — swapped navigation/publish for templates ───────────────────
 const NAV_STRUCTURE = [
   { group: "Core", items: [
     { key: "overview",  label: "Overview",   icon: "dashboard", path: "/dashboard/overview" }
@@ -54,12 +55,11 @@ const NAV_STRUCTURE = [
   { group: "Website", items: [
     { key: "cms-website", label: "CMS Website", icon: "edit", path: "/dashboard/cms/website",
       children: [
-        { key: "cms-website",    label: "Website Overview", path: "/dashboard/cms/website" },
-        { key: "cms-pages",      label: "Pages",            path: "/dashboard/cms/pages" },
-        { key: "cms-navigation", label: "Navigation",       path: "/dashboard/cms/navigation" },
-        { key: "cms-images",     label: "Images",           path: "/dashboard/cms/images" },
-        { key: "cms-brand",      label: "Brand & Settings", path: "/dashboard/cms/brand" },
-        { key: "cms-publish",    label: "Publish Center",   path: "/dashboard/cms/publish" },
+        { key: "cms-website",   label: "Website Overview", path: "/dashboard/cms/website" },
+        { key: "cms-pages",     label: "Pages",            path: "/dashboard/cms/pages" },
+        { key: "cms-images",    label: "Images",           path: "/dashboard/cms/images" },
+        { key: "cms-brand",     label: "Brand & Settings", path: "/dashboard/cms/brand" },
+        { key: "cms-templates", label: "Templates",        path: "/dashboard/cms/templates" },
       ]
     }
   ]},
@@ -117,6 +117,7 @@ const ICONS = {
   publish:  `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13V4m-4 5l4-5 4 5"/><path d="M4 17h12"/></svg>`,
   tag:      `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h6l8 8a2 2 0 0 1 0 2.83l-4.17 4.17a2 2 0 0 1-2.83 0L2 9V3z"/><circle cx="7" cy="7" r="1"/></svg>`,
   link:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11a4 4 0 0 0 5.66.01l2-2a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M12 9a4 4 0 0 0-5.66 0l-2 2a4 4 0 0 0 5.66 5.66l1-1"/></svg>`,
+  layers:   `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2l8 4-8 4-8-4 8-4z"/><path d="M2 10l8 4 8-4"/><path d="M2 14l8 4 8-4"/></svg>`,
 };
 
 function Icon({ name, size = 16, style: extra = {} }) {
@@ -162,6 +163,8 @@ const BADGE_MAP = {
   Poor:          {bg:"#fee2e2",color:"#991b1b",border:"#fca5a5"},
   Fair:          {bg:"#fef3c7",color:"#92400e",border:"#fcd34d"},
   Good:          {bg:"#d1fae5",color:"#065f46",border:"#6ee7b7"},
+  "Medical Watch":{bg:"#fee2e2",color:"#991b1b",border:"#fca5a5"},
+  "Medical watch":{bg:"#fee2e2",color:"#991b1b",border:"#fca5a5"},
 };
 
 function Badge({ label, dot = false }) {
@@ -350,6 +353,8 @@ function Sidebar({ view, navigate, notifCount, onLogout }) {
   );
 }
 
+// TopBar — desktop light, mobile dark (matches nav)
+// Mail icon now routes to /dashboard/email
 function TopBar({ view, isMobile, navOpen, onOpenNav, navigate, notifCount }) {
   const [search, setSearch] = useState("");
   if (isMobile) {
@@ -361,22 +366,40 @@ function TopBar({ view, isMobile, navOpen, onOpenNav, navigate, notifCount }) {
         React.createElement("span", { style:{ width:navOpen?18:15 } })
       ),
       React.createElement("span", { style:{ flex:1, fontSize:15, fontWeight:600, color:"rgba(255,255,255,0.92)", textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" } }, label),
-      React.createElement("button", { onClick:()=>{ if(typeof window.__toggleAgentSam==="function") window.__toggleAgentSam(); else window.dispatchEvent(new Event("agentsam:toggle")); }, className:"agentsam-launcher", style:{ color:"rgba(255,255,255,0.6)" }, title:"Toggle Agent Sam" },
-        React.createElement(Icon, { name:"bot", size:20 }))
+      React.createElement("button", {
+        onClick:()=>{ if(typeof window.__toggleAgentSam==="function") window.__toggleAgentSam(); else window.dispatchEvent(new Event("agentsam:toggle")); },
+        className:"agentsam-launcher", style:{ color:"rgba(255,255,255,0.6)" }, title:"Toggle Agent Sam"
+      }, React.createElement(Icon, { name:"bot", size:20 }))
     );
   }
   return React.createElement("header", { className:"cpas-topbar" },
     React.createElement(Input, { value:search, onChange:setSearch, placeholder:"Search animals, people, records…", icon:"search", style:{ flex:1, maxWidth:420 } }),
     React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto" } },
-      React.createElement("button", { onClick:()=>navigate("notifications"), style:{ position:"relative", background:"none", border:"none", color:C.textSec, cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" }, onMouseEnter:e=>e.currentTarget.style.background=C.bg2, onMouseLeave:e=>e.currentTarget.style.background="none" },
+      // Bell → notifications
+      React.createElement("button", {
+        onClick:()=>navigate("notifications"),
+        "aria-label": "Notifications",
+        style:{ position:"relative", background:"none", border:"none", color:C.textSec, cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" },
+        onMouseEnter:e=>e.currentTarget.style.background=C.bg2,
+        onMouseLeave:e=>e.currentTarget.style.background="none"
+      },
         React.createElement(Icon, { name:"bell", size:20 }),
         notifCount>0 && React.createElement("span", { style:{ position:"absolute", top:6, right:6, width:7, height:7, borderRadius:"50%", background:C.red, border:`2px solid ${C.surface}` } })
       ),
-      React.createElement("button", { onClick:()=>navigate("notifications"), style:{ background:"none", border:"none", color:C.textSec, cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" }, onMouseEnter:e=>e.currentTarget.style.background=C.bg2, onMouseLeave:e=>e.currentTarget.style.background="none" },
-        React.createElement(Icon, { name:"mail", size:20 })
-      ),
-      React.createElement("button", { className:"agentsam-launcher", onClick:()=>{ if(typeof window.__toggleAgentSam==="function") window.__toggleAgentSam(); else window.dispatchEvent(new Event("agentsam:toggle")); }, title:"Toggle Agent Sam" },
-        React.createElement(Icon, { name:"bot", size:20 }))
+      // Mail → /dashboard/email
+      React.createElement("button", {
+        onClick:()=>navigate("email"),
+        "aria-label": "Email inbox",
+        style:{ background:"none", border:"none", color:C.textSec, cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" },
+        onMouseEnter:e=>e.currentTarget.style.background=C.bg2,
+        onMouseLeave:e=>e.currentTarget.style.background="none"
+      }, React.createElement(Icon, { name:"mail", size:20 })),
+      // Agent Sam
+      React.createElement("button", {
+        className:"agentsam-launcher",
+        onClick:()=>{ if(typeof window.__toggleAgentSam==="function") window.__toggleAgentSam(); else window.dispatchEvent(new Event("agentsam:toggle")); },
+        title:"Toggle Agent Sam"
+      }, React.createElement(Icon, { name:"bot", size:20 }))
     )
   );
 }
