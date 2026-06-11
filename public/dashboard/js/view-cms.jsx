@@ -303,6 +303,7 @@ function CmsPagesView({ onNavigate }) {
 }
 
 // ── /dashboard/cms/pages/:pageId — Page Editor ────────────────────────────────
+
 const FONT_PRESETS_CMS = [
   { key: "fraunces_dm",    label: "Editorial",  sub: "Fraunces + DM Sans",            display: "Fraunces, Georgia, serif",          body: "DM Sans, system-ui, sans-serif" },
   { key: "playfair_inter", label: "Classic",    sub: "Playfair Display + Inter",       display: "Playfair Display, Georgia, serif",   body: "Inter, system-ui, sans-serif" },
@@ -311,278 +312,407 @@ const FONT_PRESETS_CMS = [
   { key: "cormorant_jost", label: "Luxury",     sub: "Cormorant Garamond + Jost",      display: "Cormorant Garamond, Georgia, serif",  body: "Jost, system-ui, sans-serif" },
 ];
 
+const CMS_TYPE_COLOR = {
+  hero: '#a78bfa', text_image: '#60a5fa', text_image_split: '#60a5fa', feature_cards: '#34d399',
+  foster_grid: '#fbbf24', campaign_grid: '#f87171', testimonial: '#94a3b8', cta_banner: '#fb923c',
+  animal_grid: '#4ade80', content: '#94a3b8', service_cards: '#34d399', donate_tiers: '#fbbf24'
+};
+
+const CMS_SECTION_TYPES = [
+  { type:'hero', label:'Hero', desc:'Large page opener with headline, image, and CTAs' },
+  { type:'text_image', label:'Text + Image', desc:'Balanced story block with optional media' },
+  { type:'feature_cards', label:'Feature Cards', desc:'Reusable card grid for services or benefits' },
+  { type:'foster_grid', label:'Foster Grid', desc:'Animal/foster focused grid section' },
+  { type:'campaign_grid', label:'Campaign Grid', desc:'Donation or fundraising campaign grid' },
+  { type:'testimonial', label:'Testimonial', desc:'Quote, story, or social proof block' },
+  { type:'cta_banner', label:'CTA Banner', desc:'High-emphasis call to action strip' },
+  { type:'animal_grid', label:'Animal Grid', desc:'Adoptable or foster-needed animals' },
+  { type:'content', label:'Content', desc:'Simple copy section for flexible text' },
+];
+
+function useBp() {
+  const [bp, setBp] = React.useState(() => window.innerWidth < 768 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop');
+  React.useEffect(() => {
+    const h = () => setBp(window.innerWidth < 768 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop');
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  return bp;
+}
+
+function cmsRouteFromPageId(pageId) {
+  if (!pageId || pageId === '_home' || pageId === '_' || pageId === 'home') return '/';
+  if (String(pageId).startsWith('new_')) return '/' + pageId;
+  return '/' + String(pageId).replace(/^_/, '').replace(/_/g, '/');
+}
+
+function cmsSlugForKey(route) {
+  return route === '/' ? 'home' : route.replace(/^\//, '').replace(/\//g, '_') || 'home';
+}
+
+function cmsTypeBadge(type) {
+  const color = CMS_TYPE_COLOR[type] || CMS_TYPE_COLOR.content;
+  return React.createElement('span', { style:{ fontSize:10, fontWeight:800, padding:'2px 8px', borderRadius:99, background:color + '22', color, border:'1px solid ' + color + '44', whiteSpace:'nowrap' } }, type || 'content');
+}
+
+function cmsFieldLabel(label) {
+  return React.createElement('label', { style:{ display:'block', fontSize:11, fontWeight:800, color:C.textSec, marginBottom:6, textTransform:'uppercase', letterSpacing:'.06em' } }, label);
+}
+
+function cmsTextInput(value, onChange, onBlur, placeholder, mono) {
+  return React.createElement('input', { value:value || '', onChange:e=>onChange(e.target.value), onBlur, placeholder:placeholder || '', style:{ width:'100%', boxSizing:'border-box', padding:'9px 11px', border:`1px solid ${C.border}`, borderRadius:9, background:C.bg, color:C.text, fontSize:13, outline:'none', fontFamily:mono ? 'var(--font-mono)' : 'var(--font-ui)' } });
+}
+
+function cmsTextArea(value, onChange, onBlur, rows) {
+  return React.createElement('textarea', { value:value || '', rows:rows || 5, onChange:e=>onChange(e.target.value), onBlur, style:{ width:'100%', boxSizing:'border-box', padding:'10px 11px', border:`1px solid ${C.border}`, borderRadius:9, background:C.bg, color:C.text, fontSize:13, lineHeight:1.65, resize:'vertical', outline:'none', fontFamily:'var(--font-ui)' } });
+}
+
 function CmsPageEditorView({ pageId, onNavigate }) {
-  const route = React.useMemo(() => {
-    if (!pageId || pageId === "_home" || pageId === "_" || pageId === "home") return "/";
-    return "/" + pageId.replace(/^_/, "").replace(/_/g, "/");
-  }, [pageId]);
+  const bp = useBp();
+  const isDesktop = bp === 'desktop';
+  const isTablet = bp === 'tablet';
+  const isMobile = bp === 'mobile';
+  const route = React.useMemo(() => cmsRouteFromPageId(pageId), [pageId]);
 
-  const [pageData, setPageData] = React.useState({ page: null, sections: [], blocks: [] });
+  const [pageData, setPageData] = React.useState({ page:null, sections:[], blocks:[] });
   const [selectedKey, setSelectedKey] = React.useState(null);
-  const [mode, setMode] = React.useState("desktop");
-  const [busy, setBusy] = React.useState(false);
+  const [previewMode, setPreviewMode] = React.useState('desktop');
+  const [mobileTab, setMobileTab] = React.useState('sections');
   const [notice, setNotice] = React.useState({});
-  const [activeFont, setActiveFont] = React.useState("fraunces_dm");
+  const [busy, setBusy] = React.useState(false);
+  const [dragKey, setDragKey] = React.useState(null);
+  const [dragOverKey, setDragOverKey] = React.useState(null);
+  const [showImagePicker, setShowImagePicker] = React.useState(false);
+  const [imageSearch, setImageSearch] = React.useState('');
+  const [assets, setAssets] = React.useState([]);
+  const [showAddSection, setShowAddSection] = React.useState(false);
+  const [activeFont, setActiveFont] = React.useState('fraunces_dm');
   const [showFontPicker, setShowFontPicker] = React.useState(false);
-  const notify = (t, type) => cmsNotify(setNotice, t, type);
+  const [uploadingAsset, setUploadingAsset] = React.useState(false);
+  const notify = (t, type='ok') => cmsNotify(setNotice, t, type);
 
-  const loadPage = async () => {
+  const sortedSections = React.useMemo(() => [...(pageData.sections || [])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)), [pageData.sections]);
+  const selected = React.useMemo(() => sortedSections.find(s => s.section_key === selectedKey) || sortedSections[0] || null, [sortedSections, selectedKey]);
+  const fontDef = FONT_PRESETS_CMS.find(p => p.key === activeFont) || FONT_PRESETS_CMS[0];
+
+  const loadPage = React.useCallback(async () => {
     try {
       const [pageRes, bootRes] = await Promise.all([
-        fetch(`/api/cms/page?route=${encodeURIComponent(route)}`, { credentials: "include" }),
-        fetch("/api/cms/bootstrap", { credentials: "include" })
+        fetch(`/api/cms/page?route=${encodeURIComponent(route)}`, { credentials:'include' }),
+        fetch('/api/cms/bootstrap', { credentials:'include' })
       ]);
-      const pd = await pageRes.json();
-      const bd = await bootRes.json();
-      if (pd.success) { setPageData(pd); setSelectedKey((pd.sections || [])[0]?.section_key || null); }
-      if (bd.success) {
-        const cfg = (() => { try { return JSON.parse(bd.brand?.config_json || "{}"); } catch { return {}; } })();
-        setActiveFont(cfg.active_font_preset || "fraunces_dm");
+      const pd = await pageRes.json().catch(() => ({}));
+      const bd = await bootRes.json().catch(() => ({}));
+      if (pd.success || pd.page || pd.sections) {
+        const secs = [...(pd.sections || [])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+        setPageData({ page:pd.page || { title:route, route_path:route }, sections:secs, blocks:pd.blocks || [] });
+        setSelectedKey(current => current && secs.some(s => s.section_key === current) ? current : secs[0]?.section_key || null);
+      } else {
+        setPageData({ page:{ title:route, route_path:route, status:'draft' }, sections:[], blocks:[] });
+        setSelectedKey(null);
       }
-    } catch {}
+      if (bd.success || bd.brand) {
+        let cfg = {}; try { cfg = JSON.parse(bd.brand?.config_json || '{}'); } catch {}
+        setActiveFont(cfg.active_font_preset || 'fraunces_dm');
+      }
+    } catch (e) { notify('Could not load page editor', 'error'); }
+  }, [route]);
+
+  React.useEffect(() => { loadPage(); }, [loadPage]);
+
+  const saveSectionObject = async (section, silent=false) => {
+    const res = await fetch('/api/cms/section/save', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ section }) });
+    const d = await res.json().catch(() => ({}));
+    if (!d.success && d.success !== true) throw new Error(d.error || 'Section save failed');
+    if (!silent) notify('Section saved as draft');
+    return d;
   };
 
-  const saveBlock = async (block) => {
-    try {
-      const res = await fetch("/api/cms/block/save", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ block }) });
-      const d = await res.json();
-      if (d.success) { notify("Block saved", "ok"); await loadPage(); }
-      else notify(d.error || "Block save failed", "error");
-    } catch (e) { notify("Block save failed: " + e.message, "error"); }
+  const saveSelected = async (silent=false) => {
+    if (!selected) return;
+    setBusy(true);
+    try { await saveSectionObject(selected, silent); if (!silent) await loadPage(); }
+    catch (e) { notify(e.message, 'error'); }
+    setBusy(false);
   };
-
-  const [imgPickerOpen, setImgPickerOpen] = React.useState(false);
-  const [imgPickerField, setImgPickerField] = React.useState(null);
-  const [imgPickerTarget, setImgPickerTarget] = React.useState(null); // "section" | block_key
-  const [assets, setAssets] = React.useState([]);
-  const openImgPicker = (field, target = "section") => {
-    setImgPickerField(field); setImgPickerTarget(target); setImgPickerOpen(true);
-    if (!assets.length) fetch("/api/cms/assets", { credentials: "include" }).then(r => r.json()).then(d => setAssets(d.assets || [])).catch(() => {});
-  };
-  const pickImg = (url) => {
-    if (imgPickerTarget === "section") { setField(imgPickerField, url); }
-    else {
-      // block
-      const sectionBlocks = (pageData.blocks || []).filter(b => b.section_key === selectedKey);
-      const block = sectionBlocks.find(b => b.block_key === imgPickerTarget);
-      if (block) saveBlock({ ...block, image_url: url });
-    }
-    setImgPickerOpen(false);
-  };
-
-  React.useEffect(() => { loadPage(); }, [route]);
-
-  const selected = React.useMemo(() => (pageData.sections || []).find(s => s.section_key === selectedKey) || null, [pageData, selectedKey]);
 
   const setField = (key, val) => {
     if (!selected) return;
-    setPageData(prev => ({ ...prev, sections: prev.sections.map(s => s.section_key === selected.section_key ? { ...s, [key]: val } : s) }));
+    setPageData(prev => ({ ...prev, sections:(prev.sections || []).map(s => s.section_key === selected.section_key ? { ...s, [key]:val } : s) }));
   };
 
-  const saveSection = async () => {
+  const setFieldAndSave = async (key, val) => {
     if (!selected) return;
-    setBusy(true);
-    try {
-      const res = await fetch("/api/cms/section/save", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ section: selected }) });
-      const d = await res.json();
-      notify(d.success ? "Section saved as draft" : (d.error || "Save failed"), d.success ? "ok" : "error");
-      if (d.success) await loadPage();
-    } catch (e) { notify("Save failed: " + e.message, "error"); }
-    setBusy(false);
+    const next = { ...selected, [key]:val };
+    setPageData(prev => ({ ...prev, sections:(prev.sections || []).map(s => s.section_key === selected.section_key ? next : s) }));
+    try { await saveSectionObject(next, true); } catch (e) { notify(e.message, 'error'); }
   };
 
   const publishPage = async () => {
     setBusy(true);
     try {
-      const res = await fetch("/api/cms/publish", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ route_path: route }) });
-      const d = await res.json();
-      notify(d.success ? `Published ${route} — live in ~5s` : (d.error || "Publish failed"), d.success ? "ok" : "error");
+      const res = await fetch('/api/cms/publish', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ route_path:route }) });
+      const d = await res.json().catch(() => ({}));
+      notify(d.success ? `Published ${route} — live in ~5s` : (d.error || 'Publish failed'), d.success ? 'ok' : 'error');
       if (d.success) await loadPage();
-    } catch (e) { notify("Publish failed: " + e.message, "error"); }
+    } catch (e) { notify('Publish failed: ' + e.message, 'error'); }
     setBusy(false);
   };
 
-  const saveFont = async (key) => {
-    setActiveFont(key);
-    try { await fetch("/api/cms/brand/config", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ active_font_preset: key }) }); notify(`Font changed to "${FONT_PRESETS_CMS.find(p => p.key === key)?.label}" — re-publish to apply`); } catch {}
-    setShowFontPicker(false);
+  const toggleVisible = async (section) => {
+    const next = { ...section, is_visible: section.is_visible === 0 ? 1 : 0 };
+    setPageData(prev => ({ ...prev, sections:(prev.sections || []).map(s => s.section_key === section.section_key ? next : s) }));
+    try { await saveSectionObject(next, true); notify(next.is_visible === 0 ? 'Section hidden' : 'Section visible'); } catch(e) { notify(e.message, 'error'); }
   };
 
-  const fontDef = FONT_PRESETS_CMS.find(p => p.key === activeFont) || FONT_PRESETS_CMS[0];
-  const previewWidth = mode === "mobile" ? 390 : mode === "tablet" ? 768 : "100%";
+  const deleteSection = async () => {
+    if (!selected || !confirm('Delete this section?')) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/cms/section/delete', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ section_key:selected.section_key, page_route:route }) });
+      const d = await res.json().catch(() => ({}));
+      notify(d.success ? 'Section deleted' : (d.error || 'Delete failed'), d.success ? 'ok' : 'error');
+      await loadPage();
+    } catch(e) { notify('Delete failed: ' + e.message, 'error'); }
+    setBusy(false);
+  };
+
+  const reorderSections = async (fromKey, toKey) => {
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    const list = [...sortedSections];
+    const from = list.findIndex(s => s.section_key === fromKey);
+    const to = list.findIndex(s => s.section_key === toKey);
+    if (from < 0 || to < 0) return;
+    const [moved] = list.splice(from, 1);
+    list.splice(to, 0, moved);
+    const reordered = list.map((s,i) => ({ ...s, sort_order:(i+1)*10 }));
+    setPageData(prev => ({ ...prev, sections:reordered }));
+    setDragKey(null); setDragOverKey(null);
+    try { await Promise.all(reordered.map(s => saveSectionObject(s, true))); notify('Section order saved'); }
+    catch(e) { notify('Reorder failed: ' + e.message, 'error'); }
+  };
+
+  const addSection = async (type) => {
+    const maxOrder = sortedSections.reduce((m,s)=>Math.max(m, Number(s.sort_order)||0), 0);
+    const newKey = `${type}_${cmsSlugForKey(route)}_${Date.now()}`;
+    const section = { section_key:newKey, section_type:type, page_route:route, heading:'New ' + type.replace(/_/g,' '), subheading:'', body:'', sort_order:maxOrder+10, is_visible:1, tenant_id:'tenant_companionscpas' };
+    setBusy(true);
+    try { await saveSectionObject(section, true); setShowAddSection(false); await loadPage(); setSelectedKey(newKey); setMobileTab('edit'); notify('Section added'); }
+    catch(e) { notify(e.message, 'error'); }
+    setBusy(false);
+  };
+
+  const loadAssets = async () => {
+    try { const res = await fetch('/api/cms/assets', { credentials:'include' }); const d = await res.json(); setAssets(d.assets || []); }
+    catch { setAssets([]); }
+  };
+  const openImagePicker = () => { setShowImagePicker(true); if (!assets.length) loadAssets(); };
+  const pickImage = (url) => { setFieldAndSave('image_url', url); setShowImagePicker(false); };
+  const uploadAsset = async (file) => {
+    if (!file) return;
+    setUploadingAsset(true);
+    try { const fd = new FormData(); fd.append('file', file); const res = await fetch('/api/cms/asset/upload', { method:'POST', credentials:'include', body:fd }); const d = await res.json().catch(() => ({})); if (d.success || d.asset || d.url) { await loadAssets(); notify('Image uploaded'); } else notify(d.error || 'Upload failed', 'error'); }
+    catch(e) { notify('Upload failed: ' + e.message, 'error'); }
+    setUploadingAsset(false);
+  };
+
+  const saveFont = async (key) => {
+    setActiveFont(key); setShowFontPicker(false);
+    try { await fetch('/api/cms/brand/config', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ active_font_preset:key }) }); notify('Font changed — publish to apply'); } catch {}
+  };
+
+  const askAgent = () => {
+    window.dispatchEvent(new CustomEvent('agentsam:open', { detail:{ prompt:`Improve the ${selected?.section_type || 'section'} copy for ${route}: ${selected?.heading || ''}` } }));
+  };
+
   const pageTitle = pageData.page?.title || route;
+  const liveUrl = `https://companionsofcaddo.org${route}`;
 
-  const inpStyle = { width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 8, background: C.bg, color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "var(--font-ui)" };
-  const lblStyle = { display: "block", fontSize: 11, fontWeight: 700, color: C.textSec, marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em" };
-
-  return React.createElement("div", { style: { display: "flex", flexDirection: "column", flex: 1, height: "100%", overflow: "hidden" } },
-    // Editor topbar
-    React.createElement("div", { style: { height: 52, background: C.surface, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 16px", gap: 10, flexShrink: 0 } },
-      React.createElement("button", { onClick: () => onNavigate("cms-pages"), style: { background: "none", border: "none", color: C.textSec, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontFamily: "var(--font-ui)" } }, React.createElement(Icon, { name: "chevL", size: 14 }), "Pages"),
-      React.createElement("div", { style: { width: 1, height: 20, background: C.border } }),
-      React.createElement("div", { style: { flex: 1, fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, pageTitle),
-      notice.text && React.createElement("div", { style: { fontSize: 11, color: notice.type === "error" ? C.red : C.green, fontWeight: 500 } }, notice.text),
-      ...["desktop", "tablet", "mobile"].map(m => React.createElement("button", { key: m, onClick: () => setMode(m), style: { padding: "5px 10px", borderRadius: 7, border: `1px solid ${mode === m ? C.purple : C.border}`, background: mode === m ? C.purpleDim : "transparent", color: mode === m ? C.purpleL : C.textSec, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-ui)" } }, m.charAt(0).toUpperCase() + m.slice(1))),
-      React.createElement("button", { onClick: () => setShowFontPicker(v => !v), style: { padding: "5px 10px", borderRadius: 7, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-ui)" } }, "Aa"),
-      React.createElement("button", { onClick: () => window.open(route, "_blank"), style: { padding: "5px 10px", borderRadius: 7, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-ui)" } }, "Preview"),
-      React.createElement(Btn, { size: "sm", variant: "secondary", onClick: saveSection, disabled: busy || !selected }, "Save Draft"),
-      React.createElement(Btn, { size: "sm", onClick: publishPage, disabled: busy }, busy ? "Publishing…" : "Publish")
-    ),
-
-    // Font picker
-    showFontPicker && React.createElement("div", { style: { position: "absolute", top: 112, right: 16, zIndex: 300, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, width: 340, boxShadow: "0 8px 32px rgba(0,0,0,.12)" } },
-      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.textSec, marginBottom: 12 } }, "FONT PRESETS"),
-      FONT_PRESETS_CMS.map(p => React.createElement("div", { key: p.key, onClick: () => saveFont(p.key), style: { padding: "10px 12px", borderRadius: 9, cursor: "pointer", border: `2px solid ${activeFont === p.key ? C.purple : C.border}`, background: activeFont === p.key ? C.purpleDim : "transparent", marginBottom: 6, transition: "all .12s" } },
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 } },
-          React.createElement("span", { style: { fontWeight: 700, fontSize: 12, color: C.text } }, p.label),
-          React.createElement("span", { style: { fontSize: 10, color: C.textSec } }, p.sub)
-        ),
-        React.createElement("div", { style: { fontFamily: p.display, fontSize: 17, color: C.text } }, "Every dog deserves a way out."),
-        activeFont === p.key && React.createElement("div", { style: { fontSize: 10, color: C.purple, fontWeight: 700, marginTop: 3 } }, "ACTIVE")
-      ))
-    ),
-
-    // 3-panel
-    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "210px 1fr 290px", flex: 1, overflow: "hidden" } },
-
-      // Sections list
-      React.createElement("div", { style: { borderRight: `1px solid ${C.border}`, overflowY: "auto", padding: 12, background: C.surface } },
-        React.createElement("div", { style: { fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textMut, marginBottom: 10, padding: "2px 4px" } }, "Sections"),
-        (pageData.sections || []).length === 0
-          ? React.createElement("p", { style: { fontSize: 12, color: C.textMut, padding: 8 } }, "No sections found")
-          : (pageData.sections || []).map(s =>
-              React.createElement("div", { key: s.section_key, onClick: () => setSelectedKey(s.section_key),
-                style: { padding: "10px 12px", borderRadius: 9, marginBottom: 6, cursor: "pointer", border: `1px solid ${selectedKey === s.section_key ? C.purple : C.border}`, background: selectedKey === s.section_key ? C.purpleDim : C.bg, transition: "all .12s" } },
-                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
-                  React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 130 } }, s.heading || s.title || s.section_key),
-                  s.is_visible === 0 && React.createElement("span", { style: { fontSize: 10, color: C.red } }, "Hidden")
-                ),
-                React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginTop: 3 } }, `${s.section_type} · ${s.section_key}`)
-              )
-            )
+  function renderTopbar() {
+    return React.createElement('div', { style:{ height:52, background:C.surface, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 14px', gap:10, flexShrink:0 } },
+      React.createElement('button', { onClick:()=>onNavigate('cms-pages'), style:{ background:'none', border:'none', color:C.textSec, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--font-ui)' } }, React.createElement(Icon, { name:'chevL', size:14 }), 'Pages'),
+      React.createElement('div', { style:{ width:1, height:20, background:C.border } }),
+      React.createElement('div', { style:{ flex:1, minWidth:0 } },
+        React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, pageTitle),
+        React.createElement('div', { style:{ fontSize:10, color:C.textMut, fontFamily:'var(--font-mono)' } }, route)
       ),
+      notice.text && !isMobile && React.createElement('div', { style:{ fontSize:11, color:notice.type === 'error' ? C.red : C.green, fontWeight:700 } }, notice.text),
+      isDesktop && ['desktop','tablet','mobile'].map(m => React.createElement('button', { key:m, onClick:()=>setPreviewMode(m), style:{ padding:'5px 10px', borderRadius:7, border:`1px solid ${previewMode === m ? C.purple : C.border}`, background:previewMode === m ? C.purpleDim : 'transparent', color:previewMode === m ? C.purpleL : C.textSec, fontSize:11, cursor:'pointer', textTransform:'capitalize' } }, m)),
+      !isDesktop && React.createElement(Btn, { size:'sm', variant:'secondary', icon:'eye', onClick:()=>window.open(liveUrl, '_blank') }, 'Preview'),
+      React.createElement(Btn, { size:'sm', icon:'publish', disabled:busy, onClick:publishPage }, isMobile ? 'Publish' : 'Publish Live')
+    );
+  }
 
-      // Preview
-      React.createElement("div", { style: { overflowY: "auto", padding: 16, background: C.bg2 } },
-        React.createElement("div", { style: { width: previewWidth, maxWidth: "100%", margin: "0 auto", border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden", background: "#f5f1e8", minHeight: 500, transition: "width .2s ease", boxShadow: "0 18px 70px rgba(0,0,0,.18)" } },
-          React.createElement("div", { style: { minHeight: mode === "mobile" ? 66 : 72, padding: mode === "mobile" ? "12px 18px" : "14px 56px", borderBottom: "1px solid rgba(20,16,32,.10)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(245,241,232,.88)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", color: "#171321" } },
-            React.createElement("img", { src: "https://assets.companionsofcaddo.org/static/global/companionsofcpa-newlogo.webp", style: { width: mode === "mobile" ? 34 : 42, height: mode === "mobile" ? 34 : 42, objectFit: "contain" } }),
-            mode !== "mobile" ? React.createElement("div", { style: { display: "flex", alignItems: "center", gap: mode === "tablet" ? 18 : 28, fontSize: 13, color: "rgba(23,19,33,.74)", fontWeight: 600, fontFamily: fontDef.body } },
-              React.createElement("span", null, "Home"), React.createElement("span", null, "About"), React.createElement("span", null, "Foster"), React.createElement("span", null, "Adopt"), React.createElement("span", null, "Community"), React.createElement("span", { style: { padding: "10px 18px", borderRadius: 14, color: "#fff", background: "linear-gradient(135deg,#a267ff,#6f3fd7)", boxShadow: "0 14px 32px rgba(124,58,237,.22)" } }, "Donate")
-            ) : React.createElement("div", { style: { width: 42, height: 42, borderRadius: 14, border: "1px solid rgba(23,19,33,.12)", background: "rgba(255,255,255,.35)", display: "grid", placeItems: "center" } },
-              React.createElement("div", { style: { display: "grid", gap: 5 } },
-                React.createElement("span", { style: { width: 20, height: 2, background: "#171321", borderRadius: 2, display: "block" } }),
-                React.createElement("span", { style: { width: 20, height: 2, background: "#171321", borderRadius: 2, display: "block" } }),
-                React.createElement("span", { style: { width: 20, height: 2, background: "#171321", borderRadius: 2, display: "block" } })
-              )
-            )
-          ),
-          (pageData.sections || []).map(s => {
-            const sectionBlocks = (pageData.blocks || []).filter(b => b.section_key === s.section_key).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
-            const isBlockSection = ["feature_cards","foster_grid","card_grid","card_grid_foster","campaign_grid"].includes(s.section_type);
-            const isTextImage = ["text_image","text_image_split"].includes(s.section_type);
-            const isHero = s.section_type === "hero";
-            const previewImageFrame = { width: "100%", aspectRatio: isHero ? "4 / 3" : "16 / 10", objectFit: "cover", borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", display: "block", background: "rgba(255,255,255,.04)" };
-            const blockImageFrame = { width: "100%", aspectRatio: "4 / 3", objectFit: "cover", display: "block", background: "rgba(255,255,255,.04)" };
-            return React.createElement("div", { key: s.section_key, onClick: () => setSelectedKey(s.section_key),
-              style: { padding: mode === "mobile" ? "28px 22px" : "36px", borderBottom: "1px solid rgba(23,19,33,.08)", cursor: "pointer", outline: selectedKey === s.section_key ? `2px solid ${C.purple}` : "none", outlineOffset: -2, background: selectedKey === s.section_key ? "rgba(124,58,237,.08)" : "transparent", color: "#171321" } },
-              // Section type badge
-              React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
-                s.eyebrow && React.createElement("div", { style: { color: "#7c3aed", fontSize: 10, fontWeight: 900, letterSpacing: ".15em", textTransform: "uppercase" } }, s.eyebrow),
-                React.createElement("span", { style: { fontSize: 10, color: "rgba(23,19,33,.55)", background: "rgba(23,19,33,.06)", padding: "2px 7px", borderRadius: 5 } }, s.section_type)
-              ),
-              React.createElement("div", { style: { fontFamily: fontDef.display, fontSize: mode === "mobile" ? 20 : 24, fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1.15, color: "#171321", marginBottom: 8 } }, s.heading || s.title || s.section_key),
-              s.subheading && React.createElement("div", { style: { fontFamily: fontDef.body, fontSize: 13, color: "rgba(23,19,33,.68)", marginBottom: 8, lineHeight: 1.5 } }, s.subheading.slice(0, 120) + (s.subheading.length > 120 ? "…" : "")),
-              s.body && !isBlockSection && React.createElement("p", { style: { fontFamily: fontDef.body, fontSize: 12, color: "rgba(23,19,33,.64)", lineHeight: 1.6, maxWidth: 560, margin: "0 0 10px" } }, s.body.slice(0, 160) + (s.body.length > 160 ? "…" : "")),
-              // Text+image layout preview
-              isTextImage && s.image_url && React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 10 } },
-                React.createElement("div", { style: { background: "rgba(23,19,33,.045)", borderRadius: 12, padding: "12px 14px", fontSize: 11, color: "rgba(23,19,33,.62)" } }, s.body ? s.body.slice(0, 100) + "…" : "Body text"),
-                React.createElement("img", { src: s.image_url, style: previewImageFrame })
-              ),
-              // Plain image (hero, etc)
-              !isTextImage && !isBlockSection && s.image_url && React.createElement("div", { style: { marginTop: 10, display: isHero && mode !== "mobile" ? "grid" : "block", gridTemplateColumns: isHero && mode !== "mobile" ? "minmax(0, .9fr) minmax(0, 1.1fr)" : undefined, gap: 14, alignItems: "center" } },
-                isHero && mode !== "mobile" && React.createElement("div", { style: { fontFamily: fontDef.body, fontSize: 12, color: "rgba(23,19,33,.62)", lineHeight: 1.6 } }, s.body ? s.body.slice(0, 180) + (s.body.length > 180 ? "…" : "") : s.subheading || "Hero copy"),
-                React.createElement("img", { src: s.image_url, style: previewImageFrame })
-              ),
-              // Block-based section: render mini card grid
-              isBlockSection && sectionBlocks.length > 0 && React.createElement("div", { style: { display: "grid", gridTemplateColumns: mode === "mobile" ? "1fr" : `repeat(${Math.min(sectionBlocks.length, 3)}, minmax(0, 1fr))`, gap: 8, marginTop: 10 } },
-                sectionBlocks.slice(0, 4).map(b =>
-                  React.createElement("div", { key: b.block_key || b.id, style: { background: "rgba(255,255,255,.58)", borderRadius: 12, overflow: "hidden", border: "1px solid rgba(23,19,33,.08)", boxShadow: "0 10px 28px rgba(23,19,33,.08)" } },
-                    b.image_url && React.createElement("img", { src: b.image_url, style: blockImageFrame }),
-                    React.createElement("div", { style: { padding: "6px 8px" } },
-                      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#171321", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, b.title || b.block_key),
-                      b.body && React.createElement("div", { style: { fontSize: 10, color: "rgba(23,19,33,.58)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } }, b.body.slice(0, 60))
-                    )
-                  )
-                ),
-                sectionBlocks.length > 4 && React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(23,19,33,.04)", borderRadius: 8, fontSize: 11, color: "rgba(23,19,33,.42)" } }, `+${sectionBlocks.length - 4} more`)
-              ),
-              isBlockSection && sectionBlocks.length === 0 && React.createElement("div", { style: { marginTop: 8, padding: "10px", borderRadius: 8, border: "1px dashed rgba(23,19,33,.16)", fontSize: 11, color: "rgba(23,19,33,.42)", textAlign: "center" } }, "No blocks yet — add via block editor"),
-              // CTAs
-              (s.cta_label || s.cta_secondary_label) && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12 } },
-                s.cta_label && React.createElement("span", { style: { padding: "6px 14px", borderRadius: 8, background: "#7c3aed", color: "#fff", fontSize: 12, fontWeight: 700 } }, s.cta_label),
-                s.cta_secondary_label && React.createElement("span", { style: { padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(23,19,33,.18)", fontSize: 12, color: "rgba(23,19,33,.78)" } }, s.cta_secondary_label)
-              )
-            );
-          }),
-          React.createElement("div", { style: { padding: mode === "mobile" ? "28px 22px" : "34px 36px", background: "#171321", color: "#f5f1e8", borderTop: "1px solid rgba(255,255,255,.08)" } },
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: mode === "mobile" ? "1fr" : "1.3fr 1fr 1fr", gap: 18, alignItems: "start" } },
-              React.createElement("div", null,
-                React.createElement("img", { src: "https://assets.companionsofcaddo.org/static/global/companionsofcpa-newlogo.webp", style: { width: 54, height: 54, objectFit: "contain", marginBottom: 10 } }),
-                React.createElement("div", { style: { fontSize: 13, lineHeight: 1.6, color: "rgba(245,241,232,.72)", maxWidth: 340 } }, "Volunteer-powered second chances for Caddo Parish dogs through foster support, medical care, transport, and rescue visibility.")
-              ),
-              React.createElement("div", { style: { fontSize: 12, lineHeight: 1.9, color: "rgba(245,241,232,.68)" } },
-                React.createElement("strong", { style: { display: "block", color: "#fff", marginBottom: 4, fontSize: 11, letterSpacing: ".12em", textTransform: "uppercase" } }, "Pages"),
-                React.createElement("div", null, "Home"), React.createElement("div", null, "About"), React.createElement("div", null, "Foster"), React.createElement("div", null, "Adopt"), React.createElement("div", null, "Donate")
-              ),
-              React.createElement("div", { style: { fontSize: 12, lineHeight: 1.9, color: "rgba(245,241,232,.68)" } },
-                React.createElement("strong", { style: { display: "block", color: "#fff", marginBottom: 4, fontSize: 11, letterSpacing: ".12em", textTransform: "uppercase" } }, "Organization"),
-                React.createElement("div", null, "Companions of CPAS"), React.createElement("div", null, "EIN 88-4156327"), React.createElement("div", null, "Caddo Parish")
-              )
-            )
-          )
+  function renderSectionList() {
+    return React.createElement('div', { style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface } },
+      React.createElement('div', { style:{ padding:'14px 14px 10px', borderBottom:`1px solid ${C.border}` } },
+        React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 } },
+          React.createElement('div', { style:{ fontSize:11, fontWeight:800, color:C.textMut, letterSpacing:'.1em', textTransform:'uppercase' } }, 'Sections'),
+          React.createElement(Btn, { size:'sm', variant:'secondary', icon:'plus', onClick:()=>setShowAddSection(true) }, 'Add')
         )
       ),
+      React.createElement('div', { style:{ overflowY:'auto', padding:10, flex:1 } },
+        sortedSections.length === 0
+          ? React.createElement('div', { style:{ padding:16, border:`1px dashed ${C.border}`, borderRadius:12, color:C.textMut, fontSize:12, textAlign:'center' } }, 'No sections yet. Add the first section.')
+          : sortedSections.map(s => {
+              const active = selected?.section_key === s.section_key;
+              const hidden = s.is_visible === 0;
+              const color = CMS_TYPE_COLOR[s.section_type] || CMS_TYPE_COLOR.content;
+              return React.createElement('div', {
+                key:s.section_key,
+                id:'cms-section-row-' + s.section_key,
+                draggable:true,
+                onDragStart:()=>setDragKey(s.section_key),
+                onDragOver:e=>{ e.preventDefault(); setDragOverKey(s.section_key); },
+                onDrop:e=>{ e.preventDefault(); reorderSections(dragKey, s.section_key); },
+                onClick:()=>{ setSelectedKey(s.section_key); if (isMobile) setMobileTab('edit'); },
+                style:{ display:'grid', gridTemplateColumns:'18px minmax(0,1fr) auto 28px', alignItems:'center', gap:8, padding:'10px 8px', marginBottom:6, borderRadius:12, cursor:'pointer', border:`1px solid ${active ? C.purple + '88' : dragOverKey === s.section_key ? C.purple + '55' : C.border}`, borderLeft:`3px solid ${active ? C.purple : color}`, background:active ? C.purpleDim : C.bg, opacity:hidden ? .55 : 1 }
+              },
+                React.createElement('span', { style:{ color:C.textMut, fontSize:14, cursor:'grab' } }, '≡'),
+                React.createElement('div', { style:{ minWidth:0 } },
+                  React.createElement('div', { style:{ color:C.text, fontSize:12, fontWeight:800, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:hidden ? 'line-through' : 'none' } }, s.heading || s.section_key),
+                  React.createElement('div', { style:{ color:C.textMut, fontSize:10, fontFamily:'var(--font-mono)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, s.section_key)
+                ),
+                cmsTypeBadge(s.section_type),
+                React.createElement('button', { title:hidden ? 'Show section' : 'Hide section', onClick:e=>{ e.stopPropagation(); toggleVisible(s); }, style:{ width:28, height:28, border:`1px solid ${C.border}`, borderRadius:8, background:C.surface, color:hidden ? C.textMut : C.purpleL, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' } }, React.createElement(Icon, { name:hidden ? 'eyeOff' : 'eye', size:13 }))
+              );
+            })
+      )
+    );
+  }
 
-      // Inspector
-      React.createElement("div", { style: { borderLeft: `1px solid ${C.border}`, overflowY: "auto", padding: 16, background: C.surface } },
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
-          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textMut } }, "Inspector"),
-          selected && React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textSec, cursor: "pointer" } },
-            React.createElement("input", { type: "checkbox", checked: selected.is_visible !== 0, onChange: e => setField("is_visible", e.target.checked ? 1 : 0) }),
-            "Visible"
+  function renderPreview() {
+    if (!isDesktop && mobileTab !== 'preview') return null;
+    const mode = isMobile ? 'mobile' : previewMode;
+    const previewWidth = mode === 'mobile' ? 390 : mode === 'tablet' ? 768 : '100%';
+    if (isMobile && mobileTab === 'preview') {
+      return React.createElement('iframe', { src:liveUrl, style:{ width:'100%', height:'calc(100vh - 110px)', border:0, borderRadius:0, background:'#fff' } });
+    }
+    return React.createElement('div', { style:{ height:'100%', overflowY:'auto', background:'#ebe8f0', padding:mode === 'desktop' ? 18 : '18px 0' } },
+      React.createElement('div', { style:{ width:previewWidth, maxWidth:'100%', margin:'0 auto', background:'#fff', borderRadius:16, overflow:'hidden', boxShadow:'0 22px 60px rgba(20,16,32,.14)', fontFamily:fontDef.body } },
+        React.createElement('div', { style:{ height:58, padding:'0 24px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid rgba(23,19,33,.08)' } },
+          React.createElement('img', { src:'https://assets.companionsofcaddo.org/static/global/logo-dark.webp', style:{ height:34, objectFit:'contain' } }),
+          mode !== 'mobile' && React.createElement('div', { style:{ display:'flex', gap:18, fontSize:12, color:'rgba(23,19,33,.62)', fontWeight:700 } }, 'Home', 'About', 'Foster', 'Adopt', 'Donate')
+        ),
+        sortedSections.map(s => renderPreviewSection(s, mode)),
+        React.createElement('div', { style:{ padding:mode === 'mobile' ? '28px 22px' : '34px 36px', background:'#171321', color:'#f5f1e8', borderTop:'1px solid rgba(255,255,255,.08)' } },
+          React.createElement('div', { style:{ fontSize:12, lineHeight:1.8, color:'rgba(245,241,232,.72)' } }, 'Companions of CPAS — volunteer-powered second chances for Caddo Parish dogs.')
+        )
+      )
+    );
+  }
+
+  function renderPreviewSection(s, mode) {
+    const active = selected?.section_key === s.section_key;
+    const isMobileMode = mode === 'mobile';
+    const blockItems = (pageData.blocks || []).filter(b => b.section_key === s.section_key).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+    const isGrid = ['feature_cards','foster_grid','campaign_grid','animal_grid','service_cards','donate_tiers'].includes(s.section_type);
+    return React.createElement('section', { key:s.section_key, onClick:e=>{ e.stopPropagation(); setSelectedKey(s.section_key); }, style:{ position:'relative', padding:isMobileMode ? '34px 22px' : '54px 46px', borderBottom:'1px solid rgba(23,19,33,.08)', outline:active ? `2px solid ${C.purple}` : 'none', outlineOffset:-2, opacity:s.is_visible === 0 ? .5 : 1, background:s.section_type === 'cta_banner' ? '#171321' : '#fff', color:s.section_type === 'cta_banner' ? '#fff' : '#171321', cursor:'pointer' } },
+      s.eyebrow && React.createElement('div', { style:{ fontSize:11, letterSpacing:'.14em', textTransform:'uppercase', color:s.section_type === 'cta_banner' ? 'rgba(255,255,255,.62)' : '#7c3aed', fontWeight:900, marginBottom:8 } }, s.eyebrow),
+      React.createElement('div', { style:{ display:(s.image_url && !isMobileMode && ['hero','text_image','text_image_split'].includes(s.section_type)) ? 'grid' : 'block', gridTemplateColumns:'1.1fr .9fr', gap:28, alignItems:'center' } },
+        React.createElement('div', null,
+          React.createElement('h2', { style:{ margin:'0 0 10px', fontSize:s.section_type === 'hero' ? (isMobileMode ? 32 : 48) : (isMobileMode ? 24 : 34), lineHeight:1.02, letterSpacing:'-.04em', fontFamily:fontDef.display } }, s.heading || 'Untitled section'),
+          s.subheading && React.createElement('div', { style:{ fontSize:isMobileMode ? 15 : 18, lineHeight:1.55, color:s.section_type === 'cta_banner' ? 'rgba(255,255,255,.78)' : 'rgba(23,19,33,.68)', marginBottom:10 } }, s.subheading),
+          s.body && React.createElement('p', { style:{ margin:0, fontSize:14, lineHeight:1.7, color:s.section_type === 'cta_banner' ? 'rgba(255,255,255,.68)' : 'rgba(23,19,33,.64)' } }, s.body),
+          (s.cta_label || s.cta_secondary_label) && React.createElement('div', { style:{ display:'flex', flexWrap:'wrap', gap:8, marginTop:16 } },
+            s.cta_label && React.createElement('span', { style:{ padding:'8px 14px', borderRadius:10, background:'#7c3aed', color:'#fff', fontSize:12, fontWeight:800 } }, s.cta_label),
+            s.cta_secondary_label && React.createElement('span', { style:{ padding:'8px 14px', borderRadius:10, border:`1px solid ${s.section_type === 'cta_banner' ? 'rgba(255,255,255,.28)' : 'rgba(23,19,33,.18)'}`, fontSize:12, fontWeight:800 } }, s.cta_secondary_label)
           )
         ),
-        selected ? React.createElement("div", { style: { display: "grid", gap: 12 } },
-          React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 } }, selected.heading || selected.section_key),
-          ...["eyebrow", "heading", "subheading"].map(key =>
-            React.createElement("div", { key },
-              React.createElement("label", { style: lblStyle }, key.charAt(0).toUpperCase() + key.slice(1)),
-              React.createElement("input", { value: selected[key] || "", onChange: e => setField(key, e.target.value), style: inpStyle })
-            )
-          ),
-          React.createElement("div", null,
-            React.createElement("label", { style: lblStyle }, "Body"),
-            React.createElement("textarea", { value: selected.body || "", rows: 4, onChange: e => setField("body", e.target.value), style: { ...inpStyle, resize: "vertical" } })
-          ),
-          React.createElement("div", null,
-            React.createElement("label", { style: lblStyle }, "Image URL"),
-            React.createElement("input", { value: selected.image_url || "", onChange: e => setField("image_url", e.target.value), placeholder: "https://assets.companionsofcaddo.org/…", style: { ...inpStyle, fontSize: 11, fontFamily: "var(--font-mono)" } })
-          ),
-          ...["cta_label", "cta_href", "cta_secondary_label", "cta_secondary_href"].map(key =>
-            React.createElement("div", { key },
-              React.createElement("label", { style: lblStyle }, key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())),
-              React.createElement("input", { value: selected[key] || "", onChange: e => setField(key, e.target.value), style: inpStyle })
-            )
-          ),
-          React.createElement("div", { style: { display: "grid", gap: 6, marginTop: 4 } },
-            React.createElement(Btn, { onClick: saveSection, disabled: busy, icon: "check2", variant: "secondary" }, busy ? "Saving…" : "Save Draft"),
-            React.createElement(Btn, { onClick: publishPage, disabled: busy, icon: "publish" }, busy ? "Publishing…" : "Publish Live"),
-            React.createElement("button", { onClick: () => window.dispatchEvent(new CustomEvent("agentsam:open")), style: { padding: "9px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.purpleDim, color: C.purpleL, fontWeight: 600, cursor: "pointer", fontSize: 12, fontFamily: "var(--font-ui)" } }, "Ask Agent Sam to improve this section")
-          )
-        ) : React.createElement("div", { style: { color: C.textMut, fontSize: 13 } }, "Click a section to edit.")
+        s.image_url && ['hero','text_image','text_image_split'].includes(s.section_type) && React.createElement('img', { src:s.image_url, style:{ width:'100%', height:isMobileMode ? 210 : 300, objectFit:'cover', borderRadius:18, marginTop:isMobileMode ? 18 : 0 } })
+      ),
+      isGrid && React.createElement('div', { style:{ display:'grid', gridTemplateColumns:isMobileMode ? '1fr' : 'repeat(3,minmax(0,1fr))', gap:12, marginTop:22 } },
+        (blockItems.length ? blockItems : [{ title:'Card title', body:'Card content preview' }, { title:'Card title', body:'Card content preview' }, { title:'Card title', body:'Card content preview' }]).slice(0,6).map((b,i)=>React.createElement('div', { key:b.block_key || i, style:{ padding:16, borderRadius:14, background:'rgba(23,19,33,.04)', border:'1px solid rgba(23,19,33,.08)' } },
+          b.image_url && React.createElement('img', { src:b.image_url, style:{ width:'100%', height:90, objectFit:'cover', borderRadius:10, marginBottom:10 } }),
+          React.createElement('div', { style:{ fontWeight:900, marginBottom:5 } }, b.title || b.heading || 'Card title'),
+          React.createElement('div', { style:{ fontSize:12, lineHeight:1.55, color:'rgba(23,19,33,.62)' } }, b.body || 'Card content preview')
+        ))
       )
-    )
+    );
+  }
+
+  function renderInspector(compact=false) {
+    if (!selected) return React.createElement('div', { style:{ padding:18, color:C.textMut, fontSize:13 } }, 'Select a section to edit.');
+    const needsImage = ['hero','text_image','text_image_split'].includes(selected.section_type);
+    const field = (label, key, type='text', opts={}) => React.createElement('div', { key }, cmsFieldLabel(label), type === 'textarea' ? cmsTextArea(selected[key], v=>setField(key,v), ()=>saveSelected(true), opts.rows || 5) : cmsTextInput(selected[key], v=>setField(key,v), ()=>saveSelected(true), opts.placeholder, opts.mono));
+    return React.createElement('div', { style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface } },
+      React.createElement('div', { style:{ padding:16, borderBottom:`1px solid ${C.border}` } },
+        React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 } },
+          React.createElement('div', { style:{ minWidth:0 } }, cmsTypeBadge(selected.section_type), React.createElement('div', { style:{ marginTop:8, color:C.text, fontSize:15, fontWeight:900, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, selected.heading || selected.section_key)),
+          React.createElement('label', { style:{ display:'flex', alignItems:'center', gap:6, color:C.textSec, fontSize:12, cursor:'pointer' } }, React.createElement('input', { type:'checkbox', checked:selected.is_visible !== 0, onChange:e=>setFieldAndSave('is_visible', e.target.checked ? 1 : 0) }), 'Visible')
+        )
+      ),
+      React.createElement('div', { style:{ padding:16, overflowY:'auto', flex:1, display:'grid', gap:16 } },
+        React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Content'), field('Eyebrow','eyebrow'), field('Heading','heading'), field('Subheading','subheading'), field('Body','body','textarea',{ rows:5 })),
+        needsImage && React.createElement('div', { style:{ display:'grid', gap:12 } },
+          React.createElement('h4', { style:groupTitleStyle() }, 'Media'),
+          React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } }, React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)), React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick'))),
+          selected.image_url && React.createElement('img', { src:selected.image_url, style:{ width:'100%', height:86, objectFit:'cover', borderRadius:12, border:`1px solid ${C.border}` } })
+        ),
+        React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Links'), field('Primary CTA label','cta_label'), field('Primary CTA href','cta_href','text',{ placeholder:'/foster' }), field('Secondary CTA label','cta_secondary_label'), field('Secondary CTA href','cta_secondary_href','text',{ placeholder:'/donate' }))
+      ),
+      React.createElement('div', { style:{ position:'sticky', bottom:0, padding:12, background:C.surface, borderTop:`1px solid ${C.border}`, display:'grid', gap:8 } },
+        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:compact ? '1fr 1fr' : '1fr', gap:8 } },
+          React.createElement(Btn, { onClick:()=>saveSelected(false), disabled:busy, icon:'check2', variant:'secondary' }, busy ? 'Saving...' : 'Save Draft'),
+          React.createElement(Btn, { onClick:publishPage, disabled:busy, icon:'publish' }, busy ? 'Publishing...' : 'Publish Live')
+        ),
+        React.createElement('button', { onClick:askAgent, style:{ padding:'10px 12px', borderRadius:10, border:`1px solid ${C.border}`, background:C.purpleDim, color:C.purpleL, fontWeight:800, cursor:'pointer', fontSize:12, fontFamily:'var(--font-ui)' } }, 'Ask Agent Sam to improve this section'),
+        React.createElement('button', { onClick:deleteSection, style:{ padding:'9px 12px', borderRadius:10, border:`1px solid ${C.red}55`, background:'transparent', color:C.red, fontWeight:800, cursor:'pointer', fontSize:12, fontFamily:'var(--font-ui)' } }, 'Delete Section')
+      )
+    );
+  }
+
+  function groupTitleStyle() { return { margin:'0 0 2px', fontSize:11, fontWeight:900, color:C.textMut, letterSpacing:'.12em', textTransform:'uppercase' }; }
+
+  function renderMobileTabs() {
+    return React.createElement('div', { style:{ display:'flex', borderBottom:`1px solid ${C.border}`, background:C.surface } }, ['sections','edit','preview'].map(t => React.createElement('button', { key:t, onClick:()=>setMobileTab(t), style:{ flex:1, height:42, border:'none', borderBottom:`2px solid ${mobileTab === t ? C.purple : 'transparent'}`, background:'transparent', color:mobileTab === t ? C.purpleL : C.textSec, fontWeight:900, fontSize:13, textTransform:'capitalize' } }, t)));
+  }
+
+  function renderImagePicker() {
+    if (!showImagePicker) return null;
+    const filtered = (assets || []).filter(a => !imageSearch || (a.filename || a.r2_key || a.public_url || '').toLowerCase().includes(imageSearch.toLowerCase()));
+    return React.createElement('div', { style:{ position:'fixed', inset:0, zIndex:260, background:'rgba(0,0,0,.52)', display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? 0 : 24 } },
+      React.createElement('div', { style:{ width:isMobile ? '100%' : 760, height:isMobile ? '100%' : '82vh', background:C.surface, border:`1px solid ${C.border}`, borderRadius:isMobile ? 0 : 18, overflow:'hidden', display:'flex', flexDirection:'column' } },
+        React.createElement('div', { style:{ padding:16, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:10 } }, React.createElement('div', { style:{ flex:1, color:C.text, fontWeight:900 } }, 'Pick from Library'), React.createElement(Btn, { size:'sm', variant:'secondary', onClick:()=>setShowImagePicker(false) }, 'Close')),
+        React.createElement('div', { style:{ padding:14, display:'grid', gridTemplateColumns:isMobile ? '1fr' : '1fr 180px', gap:10, borderBottom:`1px solid ${C.border}` } },
+          cmsTextInput(imageSearch, setImageSearch, null, 'Search filename...'),
+          React.createElement('label', { style:{ height:38, border:`1px dashed ${C.border}`, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', color:C.textSec, fontSize:12, fontWeight:800, cursor:'pointer' } }, uploadingAsset ? 'Uploading...' : 'Upload new', React.createElement('input', { type:'file', accept:'image/*', style:{ display:'none' }, onChange:e=>uploadAsset(e.target.files?.[0]) }))
+        ),
+        React.createElement('div', { style:{ padding:14, overflowY:'auto', flex:1, display:'grid', gridTemplateColumns:isMobile ? 'repeat(2,minmax(0,1fr))' : 'repeat(4,minmax(0,1fr))', gap:10 } },
+          filtered.map(a => { const url = a.public_url || a.url || a.image_url || (a.r2_key ? `${R2_CDN_BASE}/${a.r2_key}` : ''); return React.createElement('button', { key:a.id || a.r2_key || url, onClick:()=>pickImage(url), style:{ border:`1px solid ${C.border}`, background:C.bg, borderRadius:12, overflow:'hidden', padding:0, textAlign:'left', cursor:'pointer' } }, React.createElement('img', { src:url, style:{ width:'100%', height:100, objectFit:'cover', display:'block' } }), React.createElement('div', { style:{ padding:8, color:C.textSec, fontSize:10, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, a.filename || a.r2_key || 'Asset')); })
+        )
+      )
+    );
+  }
+
+  function renderAddSectionModal() {
+    if (!showAddSection) return null;
+    return React.createElement('div', { style:{ position:'fixed', inset:0, zIndex:250, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? 0 : 24 } },
+      React.createElement('div', { style:{ width:isMobile ? '100%' : 720, maxHeight:isMobile ? '100%' : '82vh', overflowY:'auto', background:C.surface, border:`1px solid ${C.border}`, borderRadius:isMobile ? 0 : 18, padding:18 } },
+        React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:16 } }, React.createElement('h3', { style:{ margin:0, color:C.text } }, 'Add Section'), React.createElement(Btn, { size:'sm', variant:'secondary', onClick:()=>setShowAddSection(false) }, 'Close')),
+        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(3,minmax(0,1fr))', gap:12 } }, CMS_SECTION_TYPES.map(t => { const color = CMS_TYPE_COLOR[t.type] || CMS_TYPE_COLOR.content; return React.createElement('button', { key:t.type, onClick:()=>addSection(t.type), style:{ textAlign:'left', padding:16, borderRadius:14, border:`1px solid ${color}55`, background:color + '12', cursor:'pointer' } }, React.createElement('div', { style:{ color, fontWeight:900, fontSize:14, marginBottom:6 } }, t.label), React.createElement('div', { style:{ color:C.textSec, fontSize:12, lineHeight:1.45 } }, t.desc)); }))
+      )
+    );
+  }
+
+  return React.createElement('div', { style:{ display:'flex', flexDirection:'column', flex:1, height:'100%', overflow:'hidden' } },
+    renderTopbar(),
+    isMobile && renderMobileTabs(),
+    notice.text && isMobile && React.createElement('div', { style:{ padding:'8px 12px', color:notice.type === 'error' ? C.red : C.green, background:C.surface, borderBottom:`1px solid ${C.border}`, fontSize:12, fontWeight:800 } }, notice.text),
+    isMobile
+      ? React.createElement('div', { style:{ flex:1, minHeight:0, overflow:'hidden' } },
+          mobileTab === 'sections' && renderSectionList(),
+          mobileTab === 'edit' && React.createElement('div', { style:{ height:'100%', overflow:'auto' } }, renderInspector(true)),
+          mobileTab === 'preview' && renderPreview()
+        )
+      : React.createElement('div', { style:{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:isDesktop ? '240px minmax(400px,1fr) 320px' : '220px minmax(0,1fr)' } },
+          React.createElement('div', { style:{ borderRight:`1px solid ${C.border}`, minHeight:0, overflow:'hidden' } }, renderSectionList()),
+          isDesktop ? React.createElement('div', { style:{ minHeight:0, overflow:'hidden' } }, renderPreview()) : React.createElement('div', { style:{ minHeight:0, overflow:'hidden' } }, renderInspector(true)),
+          isDesktop && React.createElement('div', { style:{ borderLeft:`1px solid ${C.border}`, minHeight:0, overflow:'hidden' } }, renderInspector(false))
+        ),
+    showFontPicker && React.createElement('div', { style:{ position:'fixed', top:60, right:16, zIndex:240, width:260, background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:10, boxShadow:'0 20px 50px rgba(0,0,0,.2)' } }, FONT_PRESETS_CMS.map(p => React.createElement('button', { key:p.key, onClick:()=>saveFont(p.key), style:{ width:'100%', padding:10, marginBottom:6, borderRadius:10, border:`1px solid ${activeFont === p.key ? C.purple : C.border}`, background:activeFont === p.key ? C.purpleDim : C.bg, color:C.text, textAlign:'left', cursor:'pointer' } }, React.createElement('div', { style:{ fontWeight:900 } }, p.label), React.createElement('div', { style:{ color:C.textMut, fontSize:11 } }, p.sub)))) ,
+    renderImagePicker(),
+    renderAddSectionModal()
   );
 }
 
