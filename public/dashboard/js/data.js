@@ -187,19 +187,19 @@ function transformVolunteer(row) {
   };
 }
 
-// ── Transform API fundraising_campaigns_demo row → campaign shape ─────────────
+// ── Transform API fundraising_campaigns row → campaign shape ─────────────
 function transformCampaign(row) {
   return {
     id:        row.id,
     title:     row.title,
     desc:      row.description || "",
-    goal:      Math.round((row.goal_cents || 0) / 100),
-    raised:    Math.round((row.raised_cents || 0) / 100),
+    goal:      Math.round((row.goal_amount_cents ?? row.goal_cents ?? 0) / 100),
+    raised:    Math.round((row.raised_amount_cents ?? row.raised_cents ?? 0) / 100),
     donors:    row.donor_count || 0,
     startDate: row.starts_at?.slice(0,10) || "—",
     endDate:   row.ends_at?.slice(0,10) || "—",
     status:    row.status === "active" ? "Active" : "Completed",
-    category:  row.category || "General",
+    category:  row.campaign_type || row.category || "General",
     color:     "#7c3aed"
   };
 }

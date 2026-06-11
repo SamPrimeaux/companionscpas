@@ -42,7 +42,16 @@ export async function dashboardApiRoutes(request, env, url) {
     `).all().catch(() => ({ results: [] }));
 
     const campaigns = await env.DB.prepare(
-      "SELECT * FROM fundraising_campaigns_demo ORDER BY created_at DESC"
+      `
+        SELECT
+          *,
+          goal_amount_cents AS goal_cents,
+          raised_amount_cents AS raised_cents,
+          COALESCE(campaign_type, 'fundraiser') AS category
+        FROM fundraising_campaigns
+        WHERE is_public = 1
+        ORDER BY updated_at DESC, created_at DESC
+      `
     ).all().catch(() => ({ results: [] }));
 
     const volunteers = await env.DB.prepare(
@@ -121,7 +130,16 @@ export async function dashboardApiRoutes(request, env, url) {
 
   if (path === "/api/dashboard/fundraising") {
     const campaigns = await env.DB.prepare(
-      "SELECT * FROM fundraising_campaigns_demo ORDER BY created_at DESC"
+      `
+        SELECT
+          *,
+          goal_amount_cents AS goal_cents,
+          raised_amount_cents AS raised_cents,
+          COALESCE(campaign_type, 'fundraiser') AS category
+        FROM fundraising_campaigns
+        WHERE is_public = 1
+        ORDER BY updated_at DESC, created_at DESC
+      `
     ).all().catch(() => ({ results: [] }));
     return json({ campaigns: campaigns.results || [] });
   }
