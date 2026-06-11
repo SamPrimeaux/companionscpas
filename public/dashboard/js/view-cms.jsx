@@ -103,7 +103,7 @@ function CmsWebsiteView({ onNavigate }) {
           ),
           p.updated_at && React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 10 } }, "Updated " + new Date(p.updated_at).toLocaleDateString()),
           React.createElement("div", { style: { display: "flex", gap: 6 } },
-            React.createElement(Btn, { size: "sm", variant: "secondary", icon: "edit", onClick: () => onNavigate("cms-page-editor", { pageId: p.route_path.replace(/\//g, "_") || "_home" }) }, "Edit"),
+            React.createElement(Btn, { size: "sm", variant: "secondary", icon: "edit", onClick: () => onNavigate("cms-page-editor", { pageId: p.route_path === "/" ? "home" : p.route_path.replace(/^\//, "").replace(/\//g, "_") || "home" }) }, "Edit"),
             React.createElement(Btn, { size: "sm", variant: "ghost", icon: "publish", disabled: publishing === p.route_path, onClick: () => publishPage(p.route_path) }, publishing === p.route_path ? "Publishing…" : "Publish")
           )
         )
@@ -253,7 +253,7 @@ function CmsPagesView({ onNavigate }) {
     { key: "published_at", label: "Published", render: v => React.createElement("span", { style: { fontSize: 12, color: C.textSec } }, v ? new Date(v).toLocaleDateString() : "—") },
     { key: "route_path", label: "",
       render: (v, row) => React.createElement("div", { style: { display: "flex", gap: 6, justifyContent: "flex-end" } },
-        React.createElement(Btn, { size: "sm", variant: "secondary", icon: "edit", onClick: (e) => { e.stopPropagation(); onNavigate("cms-page-editor", { pageId: v.replace(/\//g, "_") || "_home" }); } }, "Edit"),
+        React.createElement(Btn, { size: "sm", variant: "secondary", icon: "edit", onClick: (e) => { e.stopPropagation(); onNavigate("cms-page-editor", { pageId: v === "/" ? "home" : v.replace(/^\//, "").replace(/\//g, "_") || "home" }); } }, "Edit"),
         React.createElement(Btn, { size: "sm", icon: "publish", disabled: publishing === v, onClick: (e) => { e.stopPropagation(); publishPage(v); } }, publishing === v ? "…" : "Publish")
       )
     },
@@ -264,7 +264,7 @@ function CmsPagesView({ onNavigate }) {
     React.createElement(CmsNotice, { n: notice }),
     loading
       ? React.createElement("div", { style: { color: C.textSec, fontSize: 13, padding: 20 } }, "Loading pages…")
-      : React.createElement(Card, { style: { overflow: "hidden" } }, React.createElement(Table, { cols: PAGE_COLS, rows: pages, onRowClick: row => onNavigate("cms-page-editor", { pageId: row.route_path.replace(/\//g, "_") || "_home" }), emptyMsg: "No pages found" })),
+      : React.createElement(Card, { style: { overflow: "hidden" } }, React.createElement(Table, { cols: PAGE_COLS, rows: pages, onRowClick: row => onNavigate("cms-page-editor", { pageId: row.route_path === "/" ? "home" : row.route_path.replace(/^\//, "").replace(/\//g, "_") || "home" }), emptyMsg: "No pages found" })),
     React.createElement(Modal, { open: showAdd, onClose: () => setShowAdd(false), title: "Add New Page", width: 520 },
       React.createElement("div", { style: { display: "grid", gap: 16 } },
         React.createElement("div", null,
@@ -313,7 +313,7 @@ const FONT_PRESETS_CMS = [
 
 function CmsPageEditorView({ pageId, onNavigate }) {
   const route = React.useMemo(() => {
-    if (!pageId || pageId === "_home" || pageId === "_") return "/";
+    if (!pageId || pageId === "_home" || pageId === "_" || pageId === "home") return "/";
     return "/" + pageId.replace(/^_/, "").replace(/_/g, "/");
   }, [pageId]);
 

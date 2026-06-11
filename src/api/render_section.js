@@ -32,9 +32,14 @@ function escapeAttribute(value) {
   return escapeHtml(value);
 }
 
+const CDN = "https://assets.companionsofcaddo.org";
 function safeUrl(value, fallback = "") {
   const raw = text(value).trim();
   if (!raw) return fallback;
+  // Normalise relative /media/* paths to full CDN URL
+  if (raw.startsWith("/media/") || raw.startsWith("/static/")) {
+    return escapeAttribute(CDN + raw);
+  }
   if (raw.startsWith("/") || raw.startsWith("#") || raw.startsWith("./") || raw.startsWith("../")) {
     return escapeAttribute(raw);
   }
@@ -127,6 +132,7 @@ function renderHero(section) {
       ${renderImage(imageUrl, imageAlt, "hero-img")}
     </div>
   </div>
+  <div class="hero-blend-out" aria-hidden="true"></div>
 </section>`.trim();
 }
 
