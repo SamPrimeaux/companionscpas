@@ -7,20 +7,30 @@
   let lastY = window.scrollY;
   let ticking = false;
 
+  // Apply scrolled class immediately if page loads mid-scroll
+  if (window.scrollY > 10) header.classList.add('scrolled');
+
   window.addEventListener('scroll', () => {
     if (!ticking) {
       requestAnimationFrame(() => {
         const y = window.scrollY;
+
+        // Scrolled state — glass background kicks in after 10px
+        if (y > 10) {
+          header.classList.add('scrolled');
+        } else {
+          header.classList.remove('scrolled');
+        }
+
+        // Hide on scroll down, reveal on scroll up
         if (y < 80) {
           header.classList.remove('header-hidden');
-          header.classList.remove('scrolled');
-        } else if (y > lastY + 4) {
+        } else if (y > lastY + 6) {
           header.classList.add('header-hidden');
-        } else if (y < lastY - 4) {
+        } else if (y < lastY - 6) {
           header.classList.remove('header-hidden');
-          header.classList.add('scrolled');
         }
-        if (y > 80) header.classList.add('scrolled');
+
         lastY = y;
         ticking = false;
       });
