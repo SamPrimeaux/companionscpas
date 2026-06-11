@@ -49,7 +49,7 @@ export async function socialRoutes(request, env, url) {
           platform: "youtube",
           label: "YouTube Channel",
           status: env.GOOGLE_CLIENT_ID ? "configurable" : "missing_keys",
-          required_env: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"]
+          required_env: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
         }
       ]
     });
@@ -185,8 +185,8 @@ export async function socialRoutes(request, env, url) {
   }
 
   if (path === "/api/social/oauth/youtube/start" && method === "GET") {
-    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_REDIRECT_URI) {
-      return json({ error: "Google OAuth env vars missing" }, 501);
+    if (!env.GOOGLE_CLIENT_ID) {
+      return json({ error: "GOOGLE_CLIENT_ID not configured" }, 501);
     }
 
     const state = crypto.randomUUID();
@@ -195,9 +195,11 @@ export async function socialRoutes(request, env, url) {
       "https://www.googleapis.com/auth/youtube"
     ].join(" ");
 
+    const youtubeRedirectUri = `${url.origin}/api/social/oauth/youtube/callback`;
+
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authUrl.searchParams.set("client_id", env.GOOGLE_CLIENT_ID);
-    authUrl.searchParams.set("redirect_uri", env.GOOGLE_REDIRECT_URI);
+    authUrl.searchParams.set("redirect_uri", youtubeRedirectUri);
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("access_type", "offline");
     authUrl.searchParams.set("prompt", "consent");
@@ -241,7 +243,7 @@ export async function socialRoutes(request, env, url) {
         },
         google: {
           configured: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
-          redirectUri: env.GOOGLE_REDIRECT_URI || null
+          redirectUri: null  // derived dynamically from request origin
         }
       }
     });
