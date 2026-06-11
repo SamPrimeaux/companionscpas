@@ -150,19 +150,32 @@ function CmsPagesView({ onNavigate }) {
   const [publishing, setPublishing] = React.useState(null);
   const notify = (t, type) => cmsNotify(setNotice, t, type);
 
+  const [sections, setSections] = React.useState({});  // keyed by route_path
+
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/cms/bootstrap", { credentials: "include" });
-      const d = await res.json();
-      if (d.success) setPages(d.pages?.length ? d.pages : [
-        { route_path: "/", slug: "home", title: "Home", status: "published", sort_order: 10, is_homepage: 1, updated_at: new Date().toISOString() },
-        { route_path: "/about", slug: "about", title: "About", status: "published", sort_order: 20, updated_at: new Date().toISOString() },
-        { route_path: "/adopt", slug: "adopt", title: "Adopt", status: "published", sort_order: 30, updated_at: new Date().toISOString() },
-        { route_path: "/services", slug: "services", title: "Foster", status: "published", sort_order: 40, updated_at: new Date().toISOString() },
-        { route_path: "/donate", slug: "donate", title: "Donate", status: "published", sort_order: 50, updated_at: new Date().toISOString() },
-        { route_path: "/community", slug: "community", title: "Community", status: "published", sort_order: 60, updated_at: new Date().toISOString() },
+      const [bootRes, secRes] = await Promise.all([
+        fetch("/api/cms/bootstrap", { credentials: "include" }),
+        fetch("/api/cms/sections", { credentials: "include" }),
       ]);
+      const boot = await bootRes.json();
+      const sec  = await secRes.json().catch(() => ({}));
+
+      if (boot.success && boot.pages?.length) {
+        setPages(boot.pages);
+      }
+      // Build sections map: { "/about": [{section_key, section_type, heading, sort_order}] }
+      if (sec.success && sec.sections) {
+        const map = {};
+        for (const s of sec.sections) {
+          if (!map[s.page_route]) map[s.page_route] = [];
+          map[s.page_route].push(s);
+        }
+        // Sort each page's sections by sort_order
+        for (const k of Object.keys(map)) map[k].sort((a,b) => a.sort_order - b.sort_order);
+        setSections(map);
+      }
     } catch {}
     setLoading(false);
   };
@@ -193,22 +206,54 @@ function CmsPagesView({ onNavigate }) {
     setPublishing(null);
   };
 
+  const SECTION_TYPE_COLORS = {
+    hero: "#a78bfa", text_image: "#60a5fa", cta_banner: "#34d399",
+    animal_grid: "#f59e0b", feature_cards: "#f472b6", campaign_grid: "#fb923c",
+    testimonial: "#a3e635", org_info: "#67e8f9", content: "#94a3b8",
+  };
+
   const PAGE_COLS = [
     { key: "title", label: "Page",
-      render: (v, row) => React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
-        React.createElement("div", { style: { width: 6, height: 6, borderRadius: "50%", background: row.is_homepage ? C.purple : C.border, flexShrink: 0 } }),
-        React.createElement("div", null,
-          React.createElement("div", { style: { fontWeight: 600, fontSize: 13, color: C.text } }, v || row.route_path),
-          React.createElement("div", { style: { fontSize: 11, color: C.textMut, fontFamily: "var(--font-mono)" } }, row.route_path)
-        )
-      )
+      render: (v, row) => {
+        const pageSecs = sections[row.route_path] || [];
+        return React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 10 } },
+          React.createElement("div", { style: { width: 6, height: 6, borderRadius: "50%", background: row.is_homepage ? C.purple : C.teal, flexShrink: 0, marginTop: 5 } }),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontWeight: 600, fontSize: 13, color: C.text, display: "flex", alignItems: "center", gap: 8 } },
+              v || row.route_path,
+              React.createElement("a", { href: `https://companionsofcaddo.org${row.route_path}`, target: "_blank", onClick: e => e.stopPropagation(), style: { color: C.textMut, display: "inline-flex", lineHeight: 1 } },
+                React.createElement(Icon, { name: "eye", size: 12 })
+              )
+            ),
+            React.createElement("div", { style: { fontSize: 11, color: C.textMut, fontFamily: "var(--font-mono)", marginBottom: pageSecs.length ? 6 : 0 } }, row.route_path),
+            pageSecs.length > 0 && React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 4 } },
+              pageSecs.slice(0, 6).map(s =>
+                React.createElement("span", { key: s.id, style: {
+                  fontSize: 10, padding: "2px 7px", borderRadius: 99, fontWeight: 600,
+                  background: (SECTION_TYPE_COLORS[s.section_type] || "#94a3b8") + "22",
+                  color: SECTION_TYPE_COLORS[s.section_type] || "#94a3b8",
+                  border: "1px solid " + (SECTION_TYPE_COLORS[s.section_type] || "#94a3b8") + "44",
+                }}, s.section_type)
+              ),
+              pageSecs.length > 6 && React.createElement("span", { style: { fontSize: 10, color: C.textMut } }, `+${pageSecs.length - 6} more`)
+            )
+          )
+        );
+      }
     },
     { key: "status", label: "Status", render: v => React.createElement(PageStatusBadge, { status: v }) },
-    { key: "updated_at", label: "Last Updated", render: v => React.createElement("span", { style: { fontSize: 12, color: C.textSec } }, v ? new Date(v).toLocaleDateString() : "—") },
+    { key: "route_path", label: "Sections",
+      render: (v) => {
+        const count = (sections[v] || []).length;
+        return React.createElement("span", { style: { fontSize: 12, color: count ? C.text : C.textMut, fontWeight: count ? 600 : 400 } },
+          count ? `${count} section${count > 1 ? "s" : ""}` : "—"
+        );
+      }
+    },
+    { key: "published_at", label: "Published", render: v => React.createElement("span", { style: { fontSize: 12, color: C.textSec } }, v ? new Date(v).toLocaleDateString() : "—") },
     { key: "route_path", label: "",
       render: (v, row) => React.createElement("div", { style: { display: "flex", gap: 6, justifyContent: "flex-end" } },
         React.createElement(Btn, { size: "sm", variant: "secondary", icon: "edit", onClick: (e) => { e.stopPropagation(); onNavigate("cms-page-editor", { pageId: v.replace(/\//g, "_") || "_home" }); } }, "Edit"),
-        React.createElement(Btn, { size: "sm", variant: "ghost", icon: "eye", onClick: (e) => { e.stopPropagation(); window.open(v, "_blank"); } }, ""),
         React.createElement(Btn, { size: "sm", icon: "publish", disabled: publishing === v, onClick: (e) => { e.stopPropagation(); publishPage(v); } }, publishing === v ? "…" : "Publish")
       )
     },
@@ -497,15 +542,46 @@ function CmsImagesView({ onNavigate }) {
       subtitle: `${assets.length} assets in R2 · assets.companionsofcaddo.org`,
     }),
     React.createElement(CmsNotice, { n: notice }),
-    // Tab bar
-    React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 24, background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, width: "fit-content" } },
-      React.createElement("button", { style: tabStyle("library"),  onClick: () => setTab("library")  }, "R2 Library"),
-      React.createElement("button", { style: tabStyle("upload"),   onClick: () => setTab("upload")   }, "Upload"),
-      React.createElement("button", { style: tabStyle("drive"),    onClick: () => setTab("drive")    }, "Google Drive"),
-      React.createElement("button", { style: tabStyle("cleanup"),  onClick: () => setTab("cleanup")  }, "Usage / Cleanup"),
+    // Tab bar + inline + upload button
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 24 } },
+      React.createElement("div", { style: { display: "flex", gap: 4, background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4 } },
+        React.createElement("button", { style: tabStyle("library"),  onClick: () => setTab("library")  }, "R2 Library"),
+        React.createElement("button", { style: tabStyle("drive"),    onClick: () => setTab("drive")    }, "Google Drive"),
+        React.createElement("button", { style: tabStyle("cleanup"),  onClick: () => setTab("cleanup")  }, "Usage / Cleanup"),
+      ),
+      // Inline + upload button — always accessible regardless of tab
+      React.createElement("label", {
+        title: "Upload images to R2",
+        style: { display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 8, border: `1px solid ${C.purple}`, background: C.purple, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-ui)", marginLeft: "auto", flexShrink: 0, transition: "opacity .12s" },
+        onMouseEnter: e => e.currentTarget.style.opacity = ".85",
+        onMouseLeave: e => e.currentTarget.style.opacity = "1",
+      },
+        React.createElement(Icon, { name: "plus", size: 14 }),
+        "Upload",
+        React.createElement("input", {
+          type: "file", accept: "image/*", multiple: true, style: { display: "none" },
+          onChange: async e => {
+            const files = Array.from(e.target.files || []);
+            if (!files.length) return;
+            let ok = 0;
+            for (const file of files) {
+              const fd = new FormData();
+              fd.append("file", file);
+              fd.append("usage_context", "cms");
+              try {
+                const res = await fetch("/api/cms/asset/upload", { method: "POST", credentials: "include", body: fd });
+                const d = await res.json();
+                if (d.success) ok++;
+                else notify(`Failed: ${file.name}`, "error");
+              } catch { notify(`Error: ${file.name}`, "error"); }
+            }
+            if (ok > 0) { notify(`${ok} image${ok > 1 ? "s" : ""} uploaded`); loadAssets(); setTab("library"); }
+            e.target.value = "";
+          }
+        })
+      ),
     ),
     tab === "library"  && React.createElement(ImagesLibraryTab,  { assets, loading: assetsLoading, onReload: loadAssets, copyUrl, notify }),
-    tab === "upload"   && React.createElement(ImagesUploadTab,   { onUploaded: () => { loadAssets(); setTab("library"); }, notify }),
     tab === "drive"    && React.createElement(ImagesDriveTab,    { onImported: () => { loadAssets(); setTab("library"); }, notify }),
     tab === "cleanup"  && React.createElement(ImagesCleanupTab,  { assets, loading: assetsLoading }),
   );

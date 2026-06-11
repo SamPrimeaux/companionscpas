@@ -394,7 +394,42 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     });
   }
 
-  // GET /api/cms/assets
+  // GET /api/cms/sections — all sections for this tenant, keyed for the pages view
+  if (path === "/api/cms/sections" && method === "GET") {
+    const pageRoute = url.searchParams.get("route") || null;
+    let q = `SELECT id, page_route, section_key, section_type, heading, subheading,
+                     eyebrow, body, image_url, cta_label, cta_href,
+                     sort_order, is_visible, config_json, created_at, updated_at
+              FROM cms_page_sections
+              WHERE tenant_id = ?`;
+    const binds = [TENANT_ID];
+    if (pageRoute) { q += " AND page_route = ?"; binds.push(pageRoute); }
+    q += " ORDER BY page_route, sort_order";
+    const { results } = await env.DB.prepare(q).bind(...binds).all().catch(() => ({ results: [] }));
+    return json({ success: true, sections: results || [] });
+  }
+
+  // PATCH /api/cms/section/:id — update a single section field (inline editing)
+  if (path.match(/^\/api\/cms\/section\/[^/]+$/) && method === "PATCH") {
+    const sectionId = path.split("/")[4];
+    const data = await body(request);
+    const allowed = ["heading","subheading","eyebrow","body","image_url","cta_label","cta_href","cta_secondary_label","cta_secondary_href","is_visible","sort_order","config_json"];
+    const updates = Object.keys(data).filter(k => allowed.includes(k));
+    if (!updates.length) return json({ success: false, error: "No valid fields" }, 400);
+    const setClauses = updates.map(k => `${k} = ?`).join(", ");
+    const vals = updates.map(k => data[k]);
+    await env.DB.prepare(
+      `UPDATE cms_page_sections SET ${setClauses}, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
+    ).bind(...vals, sectionId, TENANT_ID).run();
+    if (env.CMS_CACHE) {
+      // Bust cache for the page this section belongs to
+      const sec = await env.DB.prepare("SELECT page_route FROM cms_page_sections WHERE id = ?").bind(sectionId).first().catch(() => null);
+      if (sec?.page_route) await bustCache(env, `page:${sec.page_route}`);
+    }
+    return json({ success: true, id: sectionId });
+  }
+
+    // GET /api/cms/assets
   if (path === "/api/cms/assets" && method === "GET") {
     const context = url.searchParams.get("context") || null;
     const category = url.searchParams.get("category") || null;
