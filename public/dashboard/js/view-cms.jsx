@@ -456,127 +456,462 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 }
 
 // ── /dashboard/cms/images ─────────────────────────────────────────────────────
+// 4-tab media command center: Library | Upload | Google Drive | Cleanup
+// Backend: GET /api/cms/assets, POST /api/cms/asset/upload
+//          GET/POST /api/integrations/google-drive/*
+
 function CmsImagesView({ onNavigate }) {
-  const [assets, setAssets] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [filter, setFilter] = React.useState("all");
-  const [search, setSearch] = React.useState("");
-  const [uploading, setUploading] = React.useState(false);
-  const [notice, setNotice] = React.useState({});
-  const [editAlt, setEditAlt] = React.useState(null);
-  const [viewMode, setViewMode] = React.useState("grid");
+  const TABS = ["library", "upload", "drive", "cleanup"];
+  const [tab, setTab]           = React.useState("library");
+  // ── shared state
+  const [assets, setAssets]     = React.useState([]);
+  const [assetsLoading, setAssetsLoading] = React.useState(true);
+  const [notice, setNotice]     = React.useState({});
   const notify = (t, type) => cmsNotify(setNotice, t, type);
-  const fileInputRef = React.useRef(null);
 
-  const load = async () => {
-    setLoading(true);
-    try { const res = await fetch("/api/cms/assets", { credentials: "include" }); const d = await res.json(); if (d.success) setAssets(d.assets || []); } catch {}
-    setLoading(false);
+  const loadAssets = async () => {
+    setAssetsLoading(true);
+    try {
+      const res = await fetch("/api/cms/assets", { credentials: "include" });
+      const d   = await res.json();
+      if (d.success) setAssets(d.assets || []);
+    } catch {}
+    setAssetsLoading(false);
   };
+  React.useEffect(() => { loadAssets(); }, []);
 
-  React.useEffect(() => { load(); }, []);
+  const copyUrl = (url) => navigator.clipboard.writeText(url || "").then(() => notify("URL copied"));
+
+  // ── tab button style helper
+  const tabStyle = (t) => ({
+    padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+    fontSize: 13, fontWeight: 600, fontFamily: "var(--font-ui)",
+    background: tab === t ? C.purple : "transparent",
+    color: tab === t ? "#fff" : C.textSec,
+    transition: "background .15s",
+  });
+
+  return React.createElement(CmsPageWrapper, null,
+    React.createElement(PageHeader, {
+      title: "Media Library",
+      subtitle: `${assets.length} assets in R2 · assets.companionsofcaddo.org`,
+    }),
+    React.createElement(CmsNotice, { n: notice }),
+    // Tab bar
+    React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 24, background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, width: "fit-content" } },
+      React.createElement("button", { style: tabStyle("library"),  onClick: () => setTab("library")  }, "R2 Library"),
+      React.createElement("button", { style: tabStyle("upload"),   onClick: () => setTab("upload")   }, "Upload"),
+      React.createElement("button", { style: tabStyle("drive"),    onClick: () => setTab("drive")    }, "Google Drive"),
+      React.createElement("button", { style: tabStyle("cleanup"),  onClick: () => setTab("cleanup")  }, "Usage / Cleanup"),
+    ),
+    tab === "library"  && React.createElement(ImagesLibraryTab,  { assets, loading: assetsLoading, onReload: loadAssets, copyUrl, notify }),
+    tab === "upload"   && React.createElement(ImagesUploadTab,   { onUploaded: () => { loadAssets(); setTab("library"); }, notify }),
+    tab === "drive"    && React.createElement(ImagesDriveTab,    { onImported: () => { loadAssets(); setTab("library"); }, notify }),
+    tab === "cleanup"  && React.createElement(ImagesCleanupTab,  { assets, loading: assetsLoading }),
+  );
+}
+
+// ── Tab: R2 Library ──────────────────────────────────────────────────────────
+function ImagesLibraryTab({ assets, loading, onReload, copyUrl, notify }) {
+  const [filter, setFilter]   = React.useState("all");
+  const [search, setSearch]   = React.useState("");
+  const [viewMode, setViewMode] = React.useState("grid");
+  const [editAlt, setEditAlt] = React.useState(null);
 
   const contexts = ["all", ...Array.from(new Set(assets.map(a => a.usage_context).filter(Boolean)))];
   const filtered = assets.filter(a => {
     const matchCtx = filter === "all" || a.usage_context === filter;
-    const matchSearch = !search || (a.label || a.filename || "").toLowerCase().includes(search.toLowerCase());
-    return matchCtx && matchSearch;
+    const matchQ   = !search || (a.label || a.filename || "").toLowerCase().includes(search.toLowerCase());
+    return matchCtx && matchQ;
   });
-
-  const handleUpload = async (files) => {
-    if (!files?.length) return;
-    setUploading(true);
-    let uploaded = 0;
-    for (const file of Array.from(files)) {
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("usage_context", filter === "all" ? "general" : filter);
-        const res = await fetch("/api/cms/asset/upload", { method: "POST", credentials: "include", body: formData });
-        const d = await res.json();
-        if (d.success) uploaded++; else notify(`Failed: ${file.name}`, "error");
-      } catch { notify(`Error uploading ${file.name}`, "error"); }
-    }
-    if (uploaded > 0) { notify(`${uploaded} image${uploaded > 1 ? "s" : ""} uploaded`); await load(); }
-    setUploading(false);
-  };
 
   const saveAltText = async (asset, altText) => {
     try {
-      const res = await fetch("/api/cms/asset/save", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ asset: { ...asset, alt_text: altText } }) });
+      const res = await fetch("/api/cms/asset/save", {
+        method: "POST", credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ asset: { ...asset, alt_text: altText } }),
+      });
       const d = await res.json();
-      if (d.success) { notify("Alt text saved"); await load(); } else notify(d.error || "Save failed", "error");
+      if (d.success) { notify("Alt text saved"); onReload(); }
+      else notify(d.error || "Save failed", "error");
     } catch { notify("Save failed", "error"); }
     setEditAlt(null);
   };
 
-  const copyUrl = (url) => { navigator.clipboard.writeText(url).then(() => notify("URL copied")); };
-
-  return React.createElement(CmsPageWrapper, null,
-    React.createElement(PageHeader, {
-      title: "Images", subtitle: `${assets.length} images in your media library`,
-      action: React.createElement("div", { style: { display: "flex", gap: 8 } },
-        React.createElement("button", { onClick: () => fileInputRef.current?.click(), disabled: uploading, style: { display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 8, border: `1px solid ${C.purple}`, background: C.purple, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-ui)" } }, React.createElement(Icon, { name: "plus", size: 14 }), uploading ? "Uploading…" : "Upload Images"),
-        React.createElement("input", { ref: fileInputRef, type: "file", accept: "image/*", multiple: true, style: { display: "none" }, onChange: e => handleUpload(e.target.files) })
-      )
-    }),
-    React.createElement(CmsNotice, { n: notice }),
-    React.createElement("div", { style: { marginBottom: 16, padding: "10px 14px", borderRadius: 10, background: C.bg2, border: `1px solid ${C.border}`, fontSize: 12, color: C.textSec, display: "flex", alignItems: "center", gap: 8 } },
-      React.createElement(Icon, { name: "link", size: 14 }), "Google Drive integration coming soon — drag files directly from Drive."
-    ),
-    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" } },
-      React.createElement(Input, { value: search, onChange: setSearch, placeholder: "Search images…", icon: "search", style: { width: 240 } }),
+  return React.createElement("div", null,
+    // Toolbar
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" } },
+      React.createElement(Input, { value: search, onChange: setSearch, placeholder: "Search images…", icon: "search", style: { width: 220 } }),
       React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap" } },
-        contexts.map(ctx => React.createElement("button", { key: ctx, onClick: () => setFilter(ctx),
-          style: { padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${filter === ctx ? C.purple : C.border}`, background: filter === ctx ? C.purpleDim : "transparent", color: filter === ctx ? C.purpleL : C.textSec, fontFamily: "var(--font-ui)" }
+        contexts.map(ctx => React.createElement("button", {
+          key: ctx, onClick: () => setFilter(ctx),
+          style: { padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-ui)",
+                   border: `1px solid ${filter === ctx ? C.purple : C.border}`,
+                   background: filter === ctx ? C.purpleDim : "transparent",
+                   color: filter === ctx ? C.purpleL : C.textSec }
         }, ctx === "all" ? `All (${assets.length})` : `${ctx} (${assets.filter(a => a.usage_context === ctx).length})`))
       ),
       React.createElement("div", { style: { marginLeft: "auto", display: "flex", gap: 2, background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, padding: 3 } },
-        [["grid", "image"], ["list", "docs"]].map(([m, icon]) => React.createElement("button", { key: m, onClick: () => setViewMode(m), style: { padding: "4px 8px", borderRadius: 6, border: "none", background: viewMode === m ? C.purple : "none", color: viewMode === m ? "#fff" : C.textSec, cursor: "pointer" } }, React.createElement(Icon, { name: icon, size: 14 })))
+        [["grid","image"],["list","docs"]].map(([m,icon]) => React.createElement("button", {
+          key: m, onClick: () => setViewMode(m),
+          style: { padding: "4px 8px", borderRadius: 6, border: "none", cursor: "pointer",
+                   background: viewMode === m ? C.purple : "none",
+                   color: viewMode === m ? "#fff" : C.textSec }
+        }, React.createElement(Icon, { name: icon, size: 14 })))
+      ),
+    ),
+    loading
+      ? React.createElement("div", { style: { color: C.textSec, fontSize: 13, padding: 20 } }, "Loading images…")
+      : filtered.length === 0
+        ? React.createElement(EmptyState, { message: "No images found", icon: "image" })
+        : viewMode === "grid"
+          ? React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(175px,1fr))", gap: 12 } },
+              filtered.map(a => React.createElement("div", { key: a.id, style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" } },
+                React.createElement("div", { style: { height: 140, background: C.bg2, overflow: "hidden", position: "relative" } },
+                  React.createElement("img", { src: a.cdn_url || a.public_url, alt: a.alt_text || a.label, style: { width: "100%", height: "100%", objectFit: "cover" }, onError: e => { e.target.style.opacity = 0; } }),
+                  a.source_provider === "google_drive" && React.createElement("div", { style: { position: "absolute", top: 6, left: 6, fontSize: 10, padding: "2px 6px", borderRadius: 99, background: "rgba(66,133,244,.9)", color: "#fff" } }, "Drive"),
+                  React.createElement("div", { style: { position: "absolute", top: 6, right: 6 } },
+                    React.createElement("span", { style: { fontSize: 10, padding: "2px 6px", borderRadius: 99, background: "rgba(0,0,0,.6)", color: "#fff" } }, a.usage_context || "general")
+                  )
+                ),
+                React.createElement("div", { style: { padding: "10px 12px" } },
+                  React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, a.label || a.filename),
+                  editAlt?.id === a.id
+                    ? React.createElement("div", { style: { marginTop: 6, display: "flex", gap: 4 } },
+                        React.createElement("input", { autoFocus: true, defaultValue: a.alt_text || "", placeholder: "Alt text…", onKeyDown: e => { if (e.key === "Enter") saveAltText(a, e.target.value); if (e.key === "Escape") setEditAlt(null); }, style: { flex: 1, padding: "4px 8px", fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 6, background: C.bg, color: C.text, outline: "none" } }),
+                        React.createElement("button", { onClick: e => saveAltText(a, e.target.previousSibling?.value || ""), style: { padding: "4px 8px", borderRadius: 6, border: "none", background: C.purple, color: "#fff", fontSize: 11, cursor: "pointer" } }, "Save")
+                      )
+                    : React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2, fontStyle: a.alt_text ? "normal" : "italic" } }, a.alt_text || "No alt text"),
+                  React.createElement("div", { style: { display: "flex", gap: 4, marginTop: 8 } },
+                    React.createElement("button", { onClick: () => copyUrl(a.cdn_url || a.public_url), style: { flex: 1, padding: "5px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 11, cursor: "pointer" } }, "Copy URL"),
+                    React.createElement("button", { onClick: () => setEditAlt(editAlt?.id === a.id ? null : a), style: { padding: "5px 8px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 11, cursor: "pointer" } }, "Alt")
+                  )
+                )
+              ))
+            )
+          : React.createElement(Card, { style: { overflow: "hidden" } },
+              React.createElement(Table, {
+                cols: [
+                  { key: "filename", label: "File", render: (v, row) => React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                      React.createElement("img", { src: row.cdn_url || row.public_url, style: { width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: `1px solid ${C.border}` }, onError: e => e.target.style.opacity = 0 }),
+                      React.createElement("div", null, React.createElement("div", { style: { fontWeight: 600, fontSize: 13 } }, row.label || v), React.createElement("div", { style: { fontSize: 11, color: C.textMut, fontFamily: "var(--font-mono)" } }, v))) },
+                  { key: "usage_context", label: "Context", render: v => React.createElement(Badge, { label: v || "general" }) },
+                  { key: "alt_text", label: "Alt Text", render: v => React.createElement("span", { style: { fontSize: 12, color: v ? C.text : C.textMut, fontStyle: v ? "normal" : "italic" } }, v || "None") },
+                  { key: "source_provider", label: "Source", render: v => React.createElement("span", { style: { fontSize: 11, color: v === "google_drive" ? "#4285F4" : C.textMut } }, v || "upload") },
+                  { key: "cdn_url", label: "URL", render: v => React.createElement("button", { onClick: () => copyUrl(v), style: { fontSize: 11, background: "none", border: "none", color: C.purple, cursor: "pointer", fontFamily: "var(--font-mono)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, v?.replace("https://assets.companionsofcaddo.org/", "…/") || "—") },
+                ],
+                rows: filtered, emptyMsg: "No images",
+              })
+            )
+  );
+}
+
+// ── Tab: Upload ──────────────────────────────────────────────────────────────
+function ImagesUploadTab({ onUploaded, notify }) {
+  const [uploading, setUploading] = React.useState(false);
+  const [queue, setQueue]         = React.useState([]);
+  const [altInputs, setAltInputs] = React.useState({});
+  const fileInputRef = React.useRef(null);
+
+  const addFiles = (fileList) => {
+    const newFiles = Array.from(fileList || []).map(f => ({ file: f, id: `${f.name}-${Date.now()}` }));
+    setQueue(q => [...q, ...newFiles]);
+  };
+
+  const removeFromQueue = (id) => setQueue(q => q.filter(f => f.id !== id));
+
+  const doUpload = async () => {
+    if (!queue.length) return;
+    setUploading(true);
+    let ok = 0;
+    for (const { file, id } of queue) {
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("alt_text", altInputs[id] || "");
+        fd.append("usage_context", "cms");
+        const res = await fetch("/api/cms/asset/upload", { method: "POST", credentials: "include", body: fd });
+        const d   = await res.json();
+        if (d.success) ok++;
+        else notify(`Failed: ${file.name} — ${d.error || "unknown error"}`, "error");
+      } catch { notify(`Error uploading ${file.name}`, "error"); }
+    }
+    setUploading(false);
+    if (ok > 0) {
+      notify(`${ok} image${ok > 1 ? "s" : ""} uploaded`);
+      setQueue([]);
+      setAltInputs({});
+      onUploaded();
+    }
+  };
+
+  return React.createElement("div", null,
+    // Drop zone
+    React.createElement("div", {
+      onDragOver: e => { e.preventDefault(); e.currentTarget.style.borderColor = C.purple; },
+      onDragLeave: e => { e.currentTarget.style.borderColor = C.border; },
+      onDrop: e => { e.preventDefault(); e.currentTarget.style.borderColor = C.border; addFiles(e.dataTransfer.files); },
+      onClick: () => fileInputRef.current?.click(),
+      style: { border: `2px dashed ${C.border}`, borderRadius: 12, padding: 36, textAlign: "center", marginBottom: 20, color: C.textMut, fontSize: 13, cursor: "pointer", transition: "border-color .15s" }
+    },
+      React.createElement(Icon, { name: "image", size: 28, style: { opacity: .35, display: "block", margin: "0 auto 10px" } }),
+      React.createElement("div", { style: { fontWeight: 600, color: C.text, marginBottom: 4 } }, "Drag images here or click to browse"),
+      React.createElement("div", { style: { fontSize: 12 } }, "JPG, PNG, WebP, GIF, SVG, AVIF · Max 10 MB · Saves to assets.companionsofcaddo.org"),
+      React.createElement("input", { ref: fileInputRef, type: "file", accept: "image/*", multiple: true, style: { display: "none" }, onChange: e => addFiles(e.target.files) })
+    ),
+    // Queue
+    queue.length > 0 && React.createElement("div", { style: { marginBottom: 16 } },
+      React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 10 } }, `${queue.length} file${queue.length > 1 ? "s" : ""} ready to upload`),
+      React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+        queue.map(({ file, id }) => React.createElement("div", { key: id, style: { display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10 } },
+          React.createElement("div", { style: { width: 48, height: 48, borderRadius: 8, overflow: "hidden", background: C.bg2, flexShrink: 0 } },
+            React.createElement("img", { src: URL.createObjectURL(file), style: { width: "100%", height: "100%", objectFit: "cover" } })
+          ),
+          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, file.name),
+            React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2 } }, `${(file.size / 1024).toFixed(0)} KB · ${file.type}`),
+            React.createElement("input", {
+              placeholder: "Alt text (recommended)…",
+              value: altInputs[id] || "",
+              onChange: e => setAltInputs(prev => ({ ...prev, [id]: e.target.value })),
+              style: { marginTop: 6, width: "100%", padding: "5px 8px", fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 6, background: C.bg, color: C.text, outline: "none", boxSizing: "border-box" }
+            })
+          ),
+          React.createElement("button", { onClick: () => removeFromQueue(id), style: { padding: "6px", borderRadius: 6, border: "none", background: "transparent", color: C.textMut, cursor: "pointer", fontSize: 16, lineHeight: 1 } }, "×")
+        ))
+      ),
+      React.createElement("button", {
+        onClick: doUpload, disabled: uploading,
+        style: { marginTop: 12, padding: "10px 24px", borderRadius: 8, border: "none", background: C.purple, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-ui)", display: "inline-flex", alignItems: "center", gap: 8 }
+      },
+        React.createElement(Icon, { name: "plus", size: 14 }),
+        uploading ? "Uploading…" : `Upload ${queue.length} file${queue.length > 1 ? "s" : ""}`
+      )
+    )
+  );
+}
+
+// ── Tab: Google Drive ─────────────────────────────────────────────────────────
+function ImagesDriveTab({ onImported, notify }) {
+  const [status, setStatus]       = React.useState(null);   // null = loading
+  const [files, setFiles]         = React.useState([]);
+  const [filesLoading, setFilesLoading] = React.useState(false);
+  const [search, setSearch]       = React.useState("");
+  const [selected, setSelected]   = React.useState(new Set());
+  const [importing, setImporting] = React.useState(false);
+  const [nextPageToken, setNextPageToken] = React.useState(null);
+  const [disconnecting, setDisconnecting] = React.useState(false);
+
+  const loadStatus = async () => {
+    try {
+      const res = await fetch("/api/integrations/google-drive/status", { credentials: "include" });
+      const d   = await res.json();
+      setStatus(d);
+    } catch { setStatus({ connected: false }); }
+  };
+
+  const loadFiles = async (reset = false) => {
+    setFilesLoading(true);
+    const params = new URLSearchParams({ pageSize: "30" });
+    if (search) params.set("q", search);
+    if (!reset && nextPageToken) params.set("pageToken", nextPageToken);
+    try {
+      const res = await fetch(`/api/integrations/google-drive/files?${params}`, { credentials: "include" });
+      const d   = await res.json();
+      if (d.ok) {
+        setFiles(reset ? d.files : prev => [...prev, ...d.files]);
+        setNextPageToken(d.nextPageToken || null);
+      } else {
+        notify(d.error || "Could not load Drive files", "error");
+      }
+    } catch { notify("Failed to load Drive files", "error"); }
+    setFilesLoading(false);
+  };
+
+  React.useEffect(() => { loadStatus(); }, []);
+  React.useEffect(() => {
+    if (status?.connected) { setFiles([]); setNextPageToken(null); loadFiles(true); }
+  }, [status?.connected]);
+
+  const toggleSelect = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const doImport = async () => {
+    if (!selected.size) return;
+    setImporting(true);
+    try {
+      const res = await fetch("/api/integrations/google-drive/import", {
+        method: "POST", credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fileIds: Array.from(selected) }),
+      });
+      const d = await res.json();
+      if (d.imported > 0) {
+        notify(`${d.imported} image${d.imported > 1 ? "s" : ""} imported to R2`);
+        setSelected(new Set());
+        onImported();
+      }
+      if (d.errors?.length) notify(`${d.errors.length} file(s) failed to import`, "error");
+    } catch { notify("Import failed", "error"); }
+    setImporting(false);
+  };
+
+  const doDisconnect = async () => {
+    if (!confirm("Disconnect Google Drive? Imported R2 assets will not be deleted.")) return;
+    setDisconnecting(true);
+    try {
+      await fetch("/api/integrations/google-drive/disconnect", { method: "POST", credentials: "include" });
+      notify("Google Drive disconnected");
+      setStatus({ connected: false });
+      setFiles([]);
+    } catch { notify("Disconnect failed", "error"); }
+    setDisconnecting(false);
+  };
+
+  // Not connected state
+  if (status === null) {
+    return React.createElement("div", { style: { color: C.textSec, fontSize: 13, padding: 20 } }, "Checking Google Drive connection…");
+  }
+
+  if (!status.connected) {
+    return React.createElement(Card, { style: { maxWidth: 480 } },
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 } },
+        React.createElement("div", { style: { width: 44, height: 44, borderRadius: 10, background: "#1a73e8", display: "flex", alignItems: "center", justifyContent: "center" } },
+          React.createElement(Icon, { name: "link", size: 22, style: { color: "#fff" } })
+        ),
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontWeight: 700, fontSize: 15, color: C.text } }, "Connect Google Drive"),
+          React.createElement("div", { style: { fontSize: 12, color: C.textMut, marginTop: 2 } }, "Import images directly into the R2 media library")
+        )
+      ),
+      React.createElement("div", { style: { fontSize: 13, color: C.textSec, marginBottom: 20, lineHeight: 1.6 } },
+        "Connect your Google Drive account to browse and import images. ",
+        React.createElement("strong", null, "Imported images are copied to R2"), " — the website uses R2 URLs, not Drive URLs, so images remain available if Drive is later disconnected."
+      ),
+      React.createElement("div", { style: { fontSize: 12, color: C.textMut, marginBottom: 16, padding: "8px 12px", background: C.bg2, borderRadius: 8 } },
+        "Requested scope: ", React.createElement("code", null, "drive.file"), " — only files this app creates or opens."
+      ),
+      React.createElement("a", {
+        href: "/api/integrations/google-drive/connect",
+        style: { display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 22px", borderRadius: 8, background: "#1a73e8", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none" }
+      },
+        React.createElement(Icon, { name: "link", size: 14 }), "Connect Google Drive"
+      )
+    );
+  }
+
+  // Connected state
+  return React.createElement("div", null,
+    // Connected banner
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20, padding: "12px 16px", background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 10 } },
+      React.createElement("div", { style: { width: 8, height: 8, borderRadius: "50%", background: "#22c55e", flexShrink: 0 } }),
+      React.createElement("div", { style: { flex: 1 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.text } }, "Google Drive connected"),
+        status.account_email && React.createElement("div", { style: { fontSize: 12, color: C.textMut } }, status.account_email)
+      ),
+      React.createElement("button", { onClick: doDisconnect, disabled: disconnecting, style: { padding: "6px 12px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 12, cursor: "pointer" } },
+        disconnecting ? "Disconnecting…" : "Disconnect"
       )
     ),
-    React.createElement("div", { onDragOver: e => e.preventDefault(), onDrop: e => { e.preventDefault(); handleUpload(e.dataTransfer.files); }, style: { border: `2px dashed ${C.border}`, borderRadius: 12, padding: 24, textAlign: "center", marginBottom: 20, color: C.textMut, fontSize: 13, cursor: "pointer", transition: "border-color .15s" }, onMouseEnter: e => e.currentTarget.style.borderColor = C.purple, onMouseLeave: e => e.currentTarget.style.borderColor = C.border, onClick: () => fileInputRef.current?.click() },
-      React.createElement(Icon, { name: "image", size: 24, style: { opacity: .4, display: "block", margin: "0 auto 8px" } }),
-      "Drag and drop images here, or click to upload",
-      React.createElement("div", { style: { fontSize: 11, marginTop: 4 } }, "Uploads to assets.companionsofcaddo.org/media/")
+    // Search + Browse toolbar
+    React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16, alignItems: "center" } },
+      React.createElement(Input, { value: search, onChange: setSearch, placeholder: "Search Drive files…", icon: "search", style: { width: 240 }, onKeyDown: e => e.key === "Enter" && loadFiles(true) }),
+      React.createElement("button", { onClick: () => loadFiles(true), style: { padding: "8px 16px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 13, cursor: "pointer" } }, "Refresh"),
+      selected.size > 0 && React.createElement("button", {
+        onClick: doImport, disabled: importing,
+        style: { marginLeft: "auto", padding: "8px 20px", borderRadius: 8, border: "none", background: C.purple, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }
+      },
+        React.createElement(Icon, { name: "plus", size: 14 }),
+        importing ? "Importing…" : `Import ${selected.size} to R2`
+      )
     ),
-    loading ? React.createElement("div", { style: { color: C.textSec, fontSize: 13, padding: 20 } }, "Loading images…")
-    : filtered.length === 0 ? React.createElement(EmptyState, { message: "No images found", icon: "image" })
-    : viewMode === "grid"
-      ? React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(175px,1fr))", gap: 12 } },
-          filtered.map(a => React.createElement("div", { key: a.id, style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" } },
-            React.createElement("div", { style: { height: 140, background: C.bg2, overflow: "hidden", position: "relative" } },
-              React.createElement("img", { src: a.cdn_url || a.public_url, alt: a.alt_text || a.label, style: { width: "100%", height: "100%", objectFit: "cover" }, onError: e => { e.target.style.opacity = 0; } }),
-              React.createElement("div", { style: { position: "absolute", top: 6, right: 6 } },
-                React.createElement("span", { style: { fontSize: 10, padding: "2px 6px", borderRadius: 99, background: "rgba(0,0,0,.6)", color: "#fff" } }, a.usage_context || "general")
-              )
+    // Drive file grid
+    filesLoading && files.length === 0
+      ? React.createElement("div", { style: { color: C.textSec, fontSize: 13, padding: 20 } }, "Loading Drive files…")
+      : files.length === 0
+        ? React.createElement(EmptyState, { message: "No image files found in Drive", icon: "image" })
+        : React.createElement("div", null,
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 10, marginBottom: 16 } },
+              files.map(f => React.createElement("div", {
+                key: f.id,
+                onClick: () => toggleSelect(f.id),
+                style: { background: C.surface, border: `2px solid ${selected.has(f.id) ? C.purple : C.border}`, borderRadius: 10, overflow: "hidden", cursor: "pointer", transition: "border-color .15s", position: "relative" }
+              },
+                selected.has(f.id) && React.createElement("div", {
+                  style: { position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: "50%", background: C.purple, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }
+                }, React.createElement("span", { style: { color: "#fff", fontSize: 12, lineHeight: 1 } }, "✓")),
+                React.createElement("div", { style: { height: 120, background: C.bg2, overflow: "hidden" } },
+                  f.thumbnailLink
+                    ? React.createElement("img", { src: f.thumbnailLink, alt: f.name, style: { width: "100%", height: "100%", objectFit: "cover" } })
+                    : React.createElement("div", { style: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" } },
+                        React.createElement(Icon, { name: "image", size: 24, style: { opacity: .3 } })
+                      )
+                ),
+                React.createElement("div", { style: { padding: "8px 10px" } },
+                  React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, f.name),
+                  React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginTop: 2 } }, f.size ? `${(f.size / 1024).toFixed(0)} KB` : f.mimeType?.split("/")[1])
+                )
+              ))
             ),
-            React.createElement("div", { style: { padding: "10px 12px" } },
-              React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, a.label || a.filename),
-              editAlt?.id === a.id
-                ? React.createElement("div", { style: { marginTop: 6, display: "flex", gap: 4 } },
-                    React.createElement("input", { autoFocus: true, defaultValue: a.alt_text || "", placeholder: "Alt text…", onKeyDown: e => { if (e.key === "Enter") saveAltText(a, e.target.value); if (e.key === "Escape") setEditAlt(null); }, style: { flex: 1, padding: "4px 8px", fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 6, background: C.bg, color: C.text, outline: "none" } }),
-                    React.createElement("button", { onClick: e => saveAltText(a, e.target.previousSibling?.value || ""), style: { padding: "4px 8px", borderRadius: 6, border: "none", background: C.purple, color: "#fff", fontSize: 11, cursor: "pointer" } }, "Save")
-                  )
-                : React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2, fontStyle: a.alt_text ? "normal" : "italic" } }, a.alt_text || "No alt text"),
-              React.createElement("div", { style: { display: "flex", gap: 4, marginTop: 8 } },
-                React.createElement("button", { onClick: () => copyUrl(a.cdn_url || a.public_url), style: { flex: 1, padding: "5px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 11, cursor: "pointer" } }, "Copy URL"),
-                React.createElement("button", { onClick: () => setEditAlt(editAlt?.id === a.id ? null : a), style: { padding: "5px 8px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 11, cursor: "pointer" } }, "Alt")
-              )
-            )
-          ))
-        )
-      : React.createElement(Card, { style: { overflow: "hidden" } },
-          React.createElement(Table, {
-            cols: [
-              { key: "filename", label: "File", render: (v, row) => React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } }, React.createElement("img", { src: row.cdn_url || row.public_url, style: { width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: `1px solid ${C.border}` }, onError: e => e.target.style.opacity = 0 }), React.createElement("div", null, React.createElement("div", { style: { fontWeight: 600, fontSize: 13 } }, row.label || v), React.createElement("div", { style: { fontSize: 11, color: C.textMut, fontFamily: "var(--font-mono)" } }, v))) },
-              { key: "usage_context", label: "Context", render: v => React.createElement(Badge, { label: v || "general" }) },
-              { key: "alt_text", label: "Alt Text", render: v => React.createElement("span", { style: { fontSize: 12, color: v ? C.text : C.textMut, fontStyle: v ? "normal" : "italic" } }, v || "None") },
-              { key: "cdn_url", label: "URL", render: v => React.createElement("button", { onClick: () => copyUrl(v), style: { fontSize: 11, background: "none", border: "none", color: C.purple, cursor: "pointer", fontFamily: "var(--font-mono)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, v?.replace("https://assets.companionsofcaddo.org/", "…/") || "—") },
-            ],
-            rows: filtered, emptyMsg: "No images"
-          })
-        )
+            nextPageToken && React.createElement("button", {
+              onClick: () => loadFiles(false), disabled: filesLoading,
+              style: { padding: "8px 16px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 12, cursor: "pointer" }
+            }, filesLoading ? "Loading…" : "Load more")
+          )
+  );
+}
+
+// ── Tab: Usage / Cleanup ─────────────────────────────────────────────────────
+function ImagesCleanupTab({ assets, loading }) {
+  const driveImports = assets.filter(a => a.source_provider === "google_drive");
+  const noAlt        = assets.filter(a => !a.alt_text);
+  const archived     = assets.filter(a => a.status === "archived");
+
+  const statCard = (label, count, color) =>
+    React.createElement("div", { style: { flex: "1 1 160px", padding: "18px 20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12 } },
+      React.createElement("div", { style: { fontSize: 28, fontWeight: 700, color } }, count),
+      React.createElement("div", { style: { fontSize: 13, color: C.textSec, marginTop: 4 } }, label)
+    );
+
+  return React.createElement("div", null,
+    React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 } },
+      statCard("Total assets", assets.length, C.purple),
+      statCard("Drive imports", driveImports.length, "#4285F4"),
+      statCard("Missing alt text", noAlt.length, noAlt.length > 0 ? "#f59e0b" : "#22c55e"),
+      statCard("Archived", archived.length, C.textMut),
+    ),
+    noAlt.length > 0 && React.createElement(Card, { style: { marginBottom: 16 } },
+      React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 12 } }, "Missing alt text"),
+      React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginBottom: 12 } }, "These images are missing alt text. Add descriptions in the R2 Library tab."),
+      React.createElement(Table, {
+        cols: [
+          { key: "filename", label: "File", render: (v, row) => React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, React.createElement("img", { src: row.cdn_url || row.public_url, style: { width: 32, height: 32, objectFit: "cover", borderRadius: 4 }, onError: e => e.target.style.opacity = 0 }), v) },
+          { key: "usage_context", label: "Context", render: v => React.createElement(Badge, { label: v || "general" }) },
+        ],
+        rows: noAlt.slice(0, 20),
+        emptyMsg: "All images have alt text",
+      })
+    ),
+    driveImports.length > 0 && React.createElement(Card, null,
+      React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 12 } }, "Google Drive imports"),
+      React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginBottom: 12 } }, "These images were imported from Google Drive. They are stored in R2 and remain available even if Drive is disconnected."),
+      React.createElement(Table, {
+        cols: [
+          { key: "filename", label: "File", render: (v, row) => React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, React.createElement("img", { src: row.cdn_url || row.public_url, style: { width: 32, height: 32, objectFit: "cover", borderRadius: 4 }, onError: e => e.target.style.opacity = 0 }), v) },
+          { key: "source_file_id", label: "Drive ID", render: v => React.createElement("code", { style: { fontSize: 10 } }, v || "—") },
+          { key: "imported_at", label: "Imported", render: v => React.createElement("span", { style: { fontSize: 12 } }, v ? v.slice(0, 10) : "—") },
+        ],
+        rows: driveImports,
+        emptyMsg: "No Drive imports",
+      })
+    ),
+    loading && React.createElement("div", { style: { color: C.textSec, fontSize: 13, padding: 20 } }, "Loading…")
   );
 }
 

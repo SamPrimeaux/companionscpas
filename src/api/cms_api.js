@@ -407,7 +407,94 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     return json({ success: true, assets: results || [] });
   }
 
-  // POST /api/cms/asset/save
+  // POST /api/cms/asset/upload — multipart file upload → R2 → cms_assets
+  if (path === "/api/cms/asset/upload" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const CDN_ORIGIN = "https://assets.companionsofcaddo.org";
+    const ALLOWED_UPLOAD_MIME = new Set([
+      "image/jpeg","image/jpg","image/png","image/webp",
+      "image/gif","image/svg+xml","image/avif",
+    ]);
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+
+    let formData;
+    try { formData = await request.formData(); }
+    catch { return json({ success: false, error: "Invalid multipart body" }, 400); }
+
+    const file     = formData.get("file");
+    const altText  = formData.get("alt_text")      || "";
+    const label    = formData.get("label")         || "";
+    const context  = formData.get("usage_context") || "cms";
+    const category = formData.get("category")      || "image";
+
+    if (!file || typeof file.arrayBuffer !== "function") {
+      return json({ success: false, error: "No file provided" }, 400);
+    }
+    if (!ALLOWED_UPLOAD_MIME.has(file.type)) {
+      return json({ success: false, error: `MIME type not allowed: ${file.type}` }, 400);
+    }
+
+    const fileBytes = await file.arrayBuffer();
+    if (fileBytes.byteLength > MAX_SIZE) {
+      return json({ success: false, error: "File exceeds 10 MB limit" }, 400);
+    }
+
+    // Sanitise filename
+    const safeName = file.name
+      .normalize("NFC")
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .slice(0, 120);
+    const now    = new Date();
+    const yr     = now.getUTCFullYear();
+    const mo     = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const r2Key  = `static/cms/uploads/${yr}/${mo}/${Date.now()}-${safeName}`;
+    const pubUrl = `${CDN_ORIGIN}/${r2Key}`;
+
+    // Write to R2
+    try {
+      await env.WEBSITE_ASSETS.put(r2Key, fileBytes, {
+        httpMetadata: {
+          contentType:  file.type,
+          cacheControl: "public, max-age=31536000, immutable",
+        },
+        customMetadata: { tenant_id: TENANT_ID, uploaded_by: cmsUser.id || "unknown" },
+      });
+    } catch (err) {
+      console.error("[cms-upload] R2 put failed:", err?.message);
+      return json({ success: false, error: "R2 upload failed" }, 500);
+    }
+
+    // Insert cms_assets row
+    const assetId  = id("asset");
+    const assetKey = `upload_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,6)}`;
+    await env.DB.prepare(
+      `INSERT INTO cms_assets
+         (id, tenant_id, project_id, asset_key, label, filename, original_filename,
+          mime_type, size, category, asset_type, r2_key, r2_bucket,
+          pub_url, cdn_url, public_url, alt_text,
+          usage_context, status, is_live, created_by, created_at, updated_at)
+       VALUES (?, ?, 'proj_companionscpas', ?, ?, ?, ?,
+               ?, ?, ?, 'image', ?, 'companionscpas',
+               ?, ?, ?, ?,
+               ?, 'active', 1, ?, datetime('now'), datetime('now'))`
+    ).bind(
+      assetId, TENANT_ID, assetKey,
+      label || safeName, safeName, file.name,
+      file.type, fileBytes.byteLength,
+      category,
+      r2Key,
+      pubUrl, pubUrl, pubUrl,
+      altText,
+      context,
+      cmsUser.id || "unknown"
+    ).run();
+
+    return json({ success: true, asset_key: assetKey, public_url: pubUrl, r2_key: r2Key, id: assetId });
+  }
+
+    // POST /api/cms/asset/save
   if (path === "/api/cms/asset/save" && method === "POST") {
     const cmsUser = await requireCmsUser(request, env, sessionUser);
     if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);

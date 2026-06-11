@@ -11,6 +11,7 @@ import { contactApiRoutes } from './api/contact_api.js';
 import { donationApiRoutes } from './api/donation_api.js';
 import { paymentsEmailRoutes } from './api/payments_email.js';
 import { socialRoutes } from './api/social.js';
+import { driveRoutes } from './api/drive_api.js';
 import { renderPage, getBrand } from "./api/render_page.js";
 import { handleFosterApply, handleFosterList, handleFosterUpdate } from './api/foster_api.js';
 
@@ -160,6 +161,7 @@ export default {
         contactApiRoutes,
         donationApiRoutes,
         paymentsEmailRoutes,
+        driveRoutes,
         socialRoutes
       ];
 
