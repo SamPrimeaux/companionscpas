@@ -445,13 +445,13 @@ p  { text-wrap: pretty; }
 .hero-blend-out {
   position: absolute;
   bottom: -1px; left: 0; right: 0;
-  height: 220px;
+  height: 240px;
   pointer-events: none;
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(9,13,24,0.18) 30%,
-    rgba(9,13,24,0.55) 60%,
+    color-mix(in srgb, var(--bg) 18%, transparent) 30%,
+    color-mix(in srgb, var(--bg) 55%, transparent) 60%,
     var(--bg) 100%
   );
   z-index: 3;
@@ -462,7 +462,7 @@ p  { text-wrap: pretty; }
 .card:hover { transform: translateY(-4px); border-color: rgba(124, 58, 237, 0.28); box-shadow: 0 20px 50px rgba(0,0,0,0.2); }
 .card-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; }
 .card-body { padding: 1.25rem 1.5rem 1.5rem; }
-.card-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 400; color: var(--text-1); margin-bottom: 0.4rem; }
+.card-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 600; color: var(--text-1); margin-bottom: 0.5rem; }
 .card-text { font-size: 13px; color: var(--text-2); margin-bottom: 1rem; }
 
 /* ── SECTION LAYOUTS ─────────────────────────────────────────── */
@@ -538,13 +538,20 @@ p  { text-wrap: pretty; }
   object-fit: cover;
   object-position: center 25%;
   border-radius: var(--radius-xl);
-  border: 1px solid rgba(255,255,255,0.10);
+  border: 1px solid var(--border-md);
+  box-shadow:
+    0 4px 8px rgba(0,0,0,0.08),
+    0 20px 50px rgba(0,0,0,0.22),
+    0 0 0 1px rgba(0,0,0,0.04);
+  transform: rotate(1.2deg);
+  transition: transform 0.4s var(--ease);
+}
+.theme-dark .hero-img {
+  border-color: rgba(255,255,255,0.10);
   box-shadow:
     0 4px 8px rgba(0,0,0,0.12),
     0 20px 50px rgba(0,0,0,0.40),
     0 0 0 1px rgba(255,255,255,0.04);
-  transform: rotate(1.2deg);
-  transition: transform 0.4s var(--ease);
 }
 .hero-img-col:hover .hero-img { transform: rotate(0.4deg) scale(1.01); }
 .section-hero img.hero-img { max-height: 680px; }
@@ -610,4 +617,60 @@ p  { text-wrap: pretty; }
   .foster-grid { grid-template-columns: 1fr; }
   .foster-card--tall .foster-img { aspect-ratio: 3/4; }
   .campaign-grid { grid-template-columns: 1fr; }
+}
+
+/* ── SERVICES PAGE ───────────────────────────────────────────── */
+[data-section-key="service_cards"] .card-img {
+  aspect-ratio: 3/2;
+  object-fit: cover;
+  object-position: center 30%;
+}
+[data-section-key="service_cards"] .card {
+  border-color: var(--border);
+}
+[data-section-key="service_cards"] .card:hover {
+  border-color: rgba(124,58,237,0.30);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.12);
+}
+.theme-light [data-section-key="service_cards"] .card-text {
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* ── CTA BANNER ─────────────────────────────────────────────── */
+.section-cta-banner {
+  text-align: center;
+  padding-block: clamp(60px, 7vw, 100px);
+  border-top: 1px solid var(--border);
+}
+.theme-light .section-cta-banner {
+  background: var(--bg-2);
+}
+
+/* ── LIGHT THEME SECTION HEADER ─────────────────────────────── */
+.theme-light .section h2 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text-1);
+}
+.theme-light .section .eyebrow {
+  color: var(--purple);
+}
+.theme-light .section-hero h1 {
+  color: var(--text-1);
+}
+
+/* ── HERO IMAGE LIGHT THEME: gentler tilt, warm shadow ─────── */
+.theme-light .hero-img {
+  transform: rotate(0.8deg);
+  object-position: center 20%;
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.10),
+    0 32px 64px rgba(0,0,0,0.14);
+  border-color: rgba(23,32,51,0.10);
+}
+.theme-light .hero-img-col:hover .hero-img {
+  transform: rotate(0.2deg) scale(1.01);
 }

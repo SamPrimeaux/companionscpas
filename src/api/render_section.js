@@ -243,6 +243,7 @@ function renderFeatureCards(section, blocks) {
     const parts = cardParts(block);
     return `
     <article class="card">
+      ${parts.imageUrl ? `<img src="${escapeAttribute(parts.imageUrl)}" alt="${escapeAttribute(parts.imageAlt || parts.title || '')}" class="card-img" loading="lazy">` : ""}
       <div class="card-body">
         ${parts.icon ? `<p class="card-icon">${escapeHtml(parts.icon)}</p>` : ""}
         ${parts.title ? `<h3 class="card-title">${escapeHtml(parts.title)}</h3>` : ""}
