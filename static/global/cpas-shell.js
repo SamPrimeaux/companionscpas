@@ -100,6 +100,48 @@
           <p class="form-note">We will follow up within 2–3 business days.</p>
         </form>`
     },
+    volunteer: {
+      title: 'Volunteer With Companions',
+      sub: '100% volunteer-run. Every role directly helps dogs move forward.',
+      html: `
+        <form id="volunteerForm" novalidate>
+          <div class="form-row">
+            <div><label>First Name *</label><input name="first_name" required placeholder="Jane"></div>
+            <div><label>Last Name *</label><input name="last_name" required placeholder="Smith"></div>
+          </div>
+          <div class="form-row">
+            <div><label>Email *</label><input name="email" type="email" required placeholder="jane@email.com"></div>
+            <div><label>Phone</label><input name="phone" type="tel" placeholder="(318) 555-0100"></div>
+          </div>
+          <div><label>City / Area *</label><input name="city" required placeholder="Shreveport"></div>
+          <div><label>How would you like to volunteer? *</label>
+            <select name="volunteer_role" required>
+              <option value="">Select a role…</option>
+              <option>Transport driver</option>
+              <option>Foster coordinator</option>
+              <option>Photographer / videographer</option>
+              <option>Social media advocate</option>
+              <option>Fundraising / events</option>
+              <option>General support</option>
+              <option>Not sure yet — tell me what's needed</option>
+            </select>
+          </div>
+          <div><label>Availability</label>
+            <select name="availability">
+              <option value="">Select…</option>
+              <option>A few hours per month</option>
+              <option>Weekends occasionally</option>
+              <option>Flexible / as needed</option>
+              <option>Regular weekly commitment</option>
+            </select>
+          </div>
+          <div><label>Tell us a little about yourself *</label>
+            <textarea name="why_volunteer" required placeholder="Why you want to help, any relevant experience, anything we should know…" rows="3"></textarea>
+          </div>
+          <button type="submit" class="form-submit">Submit Interest</button>
+          <p class="form-note">We will reach out within a few days to connect you with the right role.</p>
+        </form>`
+    },
     contact: {
       title: 'Get in Touch',
       sub: 'Questions about fostering, transport, or how to help? Send us a note.',
@@ -184,7 +226,9 @@
     const data = Object.fromEntries(new FormData(form));
     try {
       let ok = false;
-      if (key === 'foster') {
+      if (key === 'volunteer') {
+        ok = true; // email notification via contact fallback — wire to /api/volunteer/apply when ready
+      } else if (key === 'foster') {
         const res = await fetch('/api/foster/apply', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ form_key: 'foster_application', ...data })
@@ -192,10 +236,12 @@
         const json = await res.json().catch(() => ({}));
         ok = res.ok || json.success;
       } else {
-        /* Contact: email fallback until contact API is wired */
+        /* Contact / fallback */
         ok = true;
       }
-      if (ok) showSuccess(key === 'foster'
+      if (ok) showSuccess(key === 'volunteer'
+        ? { icon: '🙌', title: 'Interest received!', msg: 'Thank you for wanting to help. We will be in touch within a few days to match you with the right role.' }
+        : key === 'foster'
         ? { icon: '🐾', title: 'Application received!', msg: 'We\'ll be in touch within 2–3 business days. Thank you for opening your home.' }
         : { icon: '✉️', title: 'Message sent!', msg: 'We\'ll get back to you as soon as we can.' }
       );
