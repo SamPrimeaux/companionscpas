@@ -13,18 +13,25 @@
       </ul>
     </nav>
     <div class="header-actions">
-      <a class="nav-donate" href="/donate">Donate</a>
+      <a class="nav-donate btn btn-primary" href="/donate">Donate</a>
     </div>
     <button class="mobile-menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false">
       <span></span><span></span><span></span>
     </button>
   </div>
 </header>
-<div class="mobile-menu-panel" id="mobileMenuPanel">
-  <a href="/">Home</a>
-  <a href="/about">About</a>
-  <a href="/services">Foster</a>
-  <a href="/adopt">Adopt</a>
-  <a href="/community">Community</a>
-  <a href="/donate" class="mobile-donate">Donate</a>
-</div>
+<div class="nav-overlay" id="navOverlay" aria-hidden="true"></div>
+<nav class="nav-drawer" id="navDrawer" aria-label="Mobile navigation">
+  <div class="nav-drawer-header">
+    <img class="drawer-logo" src="/static/global/companionsofcpa-newlogo.webp" alt="Companions of CPAS" />
+    <button class="drawer-close" id="drawerClose" aria-label="Close navigation">&#x2715;</button>
+  </div>
+  <div class="nav-drawer-links">
+    <a class="drawer-link" href="/">Home</a>
+    <a class="drawer-link" href="/about">About</a>
+    <a class="drawer-link" href="/services">Foster</a>
+    <a class="drawer-link" href="/adopt">Adopt</a>
+    <a class="drawer-link" href="/community">Community</a>
+    <a class="drawer-link" href="/donate">Donate</a>
+  </div>
+</nav>
