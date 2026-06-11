@@ -229,7 +229,7 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
   <meta name="description" content="${description}">
-  <link rel="stylesheet" href="/static/global/cpas-shell.css">
+  <link rel="stylesheet" href="/static/global/cpas-shell.css?v=2026061102">
 ${fontImportTag}
 ${brandScript}
 </head>
