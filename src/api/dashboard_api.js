@@ -14,7 +14,20 @@ export async function dashboardApiRoutes(request, env, url) {
   const path = url.pathname;
 
   if (path === "/api/dashboard/overview") {
-    const animals = await env.DB.prepare("SELECT * FROM animal_profiles ORDER BY created_at DESC").all();
+    // Animals with cms_assets JOIN for canonical CDN URL
+    const animals = await env.DB.prepare(`
+      SELECT
+        ap.*,
+        ca.cdn_url   AS asset_cdn_url,
+        ca.public_url AS asset_public_url
+      FROM animal_profiles ap
+      LEFT JOIN cms_assets ca
+        ON ca.asset_key = REPLACE(ap.id, 'animal_', 'animal_')
+        AND ca.tenant_id = 'tenant_companionscpas'
+      WHERE ap.tenant_id = 'tenant_companionscpas'
+      ORDER BY ap.featured DESC, ap.sort_order ASC, ap.updated_at DESC
+    `).all().catch(() => ({ results: [] }));
+
     const apps = await env.DB.prepare(`
       SELECT
         id,
@@ -26,76 +39,56 @@ export async function dashboardApiRoutes(request, env, url) {
       FROM cpas_foster_applications
       WHERE tenant_id = 'companions_cpas'
       ORDER BY submitted_at DESC
-    `).all();
-    const campaigns = await env.DB.prepare("SELECT * FROM fundraising_campaigns_demo ORDER BY created_at DESC").all();
-    const volunteers = await env.DB.prepare("SELECT * FROM volunteer_records ORDER BY hours_month DESC").all();
-    const events = await env.DB.prepare("SELECT * FROM dashboard_calendar_events ORDER BY starts_at ASC").all();
+    `).all().catch(() => ({ results: [] }));
+
+    const campaigns = await env.DB.prepare(
+      "SELECT * FROM fundraising_campaigns_demo ORDER BY created_at DESC"
+    ).all().catch(() => ({ results: [] }));
+
+    const volunteers = await env.DB.prepare(
+      "SELECT * FROM volunteer_records ORDER BY hours_month DESC"
+    ).all().catch(() => ({ results: [] }));
 
     const raised = (campaigns.results || []).reduce((sum, c) => sum + Number(c.raised_cents || 0), 0);
-    const goal = (campaigns.results || []).reduce((sum, c) => sum + Number(c.goal_cents || 0), 0);
+    const goal   = (campaigns.results || []).reduce((sum, c) => sum + Number(c.goal_cents  || 0), 0);
 
     return json({
       kpis: {
-        animals: animals.results?.length || 0,
+        animals:      animals.results?.length || 0,
         applications: apps.results?.length || 0,
-        volunteers: volunteers.results?.length || 0,
+        volunteers:   volunteers.results?.length || 0,
         raised_cents: raised,
-        goal_cents: goal
+        goal_cents:   goal
       },
-      animals: animals.results || [],
+      animals:      animals.results || [],
       applications: apps.results || [],
-      campaigns: campaigns.results || [],
-      volunteers: volunteers.results || [],
-      events: events.results || []
+      campaigns:    campaigns.results || [],
+      volunteers:   volunteers.results || [],
     });
   }
-
 
   if (path === "/api/dashboard/animals") {
     const rows = await env.DB.prepare(`
       SELECT
-        id,
-        animal_key,
-        name,
-        species,
-        breed,
-        sex,
-        age_label,
-        weight_label,
-        status,
-        location,
-        intake_date,
-        photo_url,
-        bio,
-        energy_level,
-        good_with_dogs,
-        good_with_cats,
-        good_with_kids,
-        medical_notes,
-        foster_needed,
-        adoption_fee_cents,
-        featured,
-        sort_order,
-        asset_id,
-        public_visible,
-        tags_json,
-        metadata_json,
-        created_at,
-        updated_at
-      FROM animal_profiles
-      WHERE tenant_id = 'tenant_companionscpas'
-      ORDER BY featured DESC, sort_order ASC, updated_at DESC
-    `).all();
+        ap.*,
+        ca.cdn_url    AS asset_cdn_url,
+        ca.public_url AS asset_public_url,
+        ca.alt_text   AS asset_alt_text
+      FROM animal_profiles ap
+      LEFT JOIN cms_assets ca
+        ON ca.asset_key = ap.id
+        AND ca.tenant_id = 'tenant_companionscpas'
+      WHERE ap.tenant_id = 'tenant_companionscpas'
+      ORDER BY ap.featured DESC, ap.sort_order ASC, ap.updated_at DESC
+    `).all().catch(() => ({ results: [] }));
 
     return json({
       animals: (rows.results || []).map(a => ({
         ...a,
-        type: a.species,
-        image: a.photo_url,
-        photo: a.photo_url,
+        photo:  a.asset_cdn_url || a.photo_url,
+        image:  a.asset_cdn_url || a.photo_url,
         status: a.status || "available",
-        tags: safeJson(a.tags_json, []),
-        metadata: safeJson(a.metadata_json, {})
+        tags:   safeJson(a.tags_json, []),
       }))
     });
   }
@@ -127,31 +120,53 @@ export async function dashboardApiRoutes(request, env, url) {
   }
 
   if (path === "/api/dashboard/fundraising") {
-    const campaigns = await env.DB.prepare("SELECT * FROM fundraising_campaigns_demo ORDER BY created_at DESC").all();
+    const campaigns = await env.DB.prepare(
+      "SELECT * FROM fundraising_campaigns_demo ORDER BY created_at DESC"
+    ).all().catch(() => ({ results: [] }));
     return json({ campaigns: campaigns.results || [] });
   }
 
   if (path === "/api/dashboard/team") {
-    const rows = await env.DB.prepare("SELECT * FROM volunteer_records ORDER BY role, full_name").all();
+    const rows = await env.DB.prepare(
+      "SELECT * FROM volunteer_records ORDER BY role, full_name"
+    ).all().catch(() => ({ results: [] }));
     return json({ members: rows.results || [] });
   }
 
   if (path === "/api/dashboard/calendar") {
-    const rows = await env.DB.prepare("SELECT * FROM dashboard_calendar_events ORDER BY starts_at ASC").all();
+    const rows = await env.DB.prepare(
+      "SELECT * FROM dashboard_calendar_events ORDER BY starts_at ASC"
+    ).all().catch(() => ({ results: [] }));
     return json({ events: rows.results || [] });
   }
 
-
   if (path === "/api/dashboard/cms") {
-    const pages = await env.DB.prepare("SELECT * FROM cms_pages ORDER BY sort_order, updated_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
-    const assets = await env.DB.prepare("SELECT * FROM cms_assets ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
-    const themes = await env.DB.prepare("SELECT * FROM cms_themes ORDER BY updated_at DESC LIMIT 20").all().catch(() => ({ results: [] }));
-    const nav = await env.DB.prepare("SELECT * FROM cms_navigation_items ORDER BY sort_order LIMIT 100").all().catch(() => ({ results: [] }));
+    const [pages, assets, themes, nav] = await Promise.all([
+      env.DB.prepare("SELECT * FROM cms_pages ORDER BY sort_order, updated_at DESC LIMIT 100").all().catch(() => ({ results: [] })),
+      env.DB.prepare("SELECT * FROM cms_assets ORDER BY created_at DESC LIMIT 200").all().catch(() => ({ results: [] })),
+      env.DB.prepare("SELECT * FROM cms_themes ORDER BY updated_at DESC LIMIT 20").all().catch(() => ({ results: [] })),
+      env.DB.prepare("SELECT * FROM cms_navigation_items ORDER BY sort_order LIMIT 100").all().catch(() => ({ results: [] })),
+    ]);
     return json({ pages: pages.results || [], assets: assets.results || [], themes: themes.results || [], navigation: nav.results || [] });
   }
 
+  if (path === "/api/dashboard/config") {
+    const brand = await env.DB.prepare(
+      "SELECT * FROM cms_brand_settings WHERE tenant_id = 'tenant_companionscpas' LIMIT 1"
+    ).first().catch(() => null);
+    const theme = await env.DB.prepare(
+      "SELECT * FROM cms_themes WHERE tenant_id = 'tenant_companionscpas' AND is_active = 1 LIMIT 1"
+    ).first().catch(() => null);
+    const assets = await env.DB.prepare(
+      "SELECT * FROM cms_assets WHERE tenant_id = 'tenant_companionscpas' AND status = 'active' ORDER BY created_at DESC LIMIT 200"
+    ).all().catch(() => ({ results: [] }));
+    return json({ brand, theme, assets: assets.results || [] });
+  }
+
   if (path === "/api/dashboard/tasks") {
-    const rows = await env.DB.prepare("SELECT * FROM agentsam_todo ORDER BY sort_order, created_at").all().catch(() => ({ results: [] }));
+    const rows = await env.DB.prepare(
+      "SELECT * FROM agentsam_todo ORDER BY sort_order, created_at"
+    ).all().catch(() => ({ results: [] }));
     return json({ todos: rows.results || [] });
   }
 
@@ -159,47 +174,60 @@ export async function dashboardApiRoutes(request, env, url) {
     const rows = await env.DB.prepare(`
       SELECT
         f.*,
-        a.name AS animal_name,
+        a.name       AS animal_name,
         a.species,
         a.breed,
         a.sex,
         a.age_label,
-        a.status AS animal_status,
-        a.photo_url
+        a.status     AS animal_status,
+        a.photo_url,
+        ca.cdn_url   AS asset_cdn_url
       FROM foster_records f
-      LEFT JOIN animal_profiles a ON a.id = f.animal_id
+      LEFT JOIN animal_profiles a  ON a.id = f.animal_id
+      LEFT JOIN cms_assets ca
+        ON ca.asset_key = a.id
+        AND ca.tenant_id = 'tenant_companionscpas'
       WHERE f.tenant_id = 'tenant_companionscpas'
       ORDER BY f.created_at DESC
       LIMIT 100
     `).all().catch(() => ({ results: [] }));
-
     return json({ fosters: rows.results || [] });
   }
 
   if (path === "/api/dashboard/adoptions") {
-    const rows = await env.DB.prepare("SELECT * FROM applications ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
+    const rows = await env.DB.prepare(
+      "SELECT * FROM applications ORDER BY created_at DESC LIMIT 100"
+    ).all().catch(() => ({ results: [] }));
     return json({ adoptions: rows.results || [] });
   }
 
   if (path === "/api/dashboard/intakes") {
-    const rows = await env.DB.prepare("SELECT * FROM animal_profiles WHERE status = 'available' ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
+    const rows = await env.DB.prepare(
+      "SELECT * FROM animal_profiles WHERE tenant_id = 'tenant_companionscpas' ORDER BY created_at DESC LIMIT 100"
+    ).all().catch(() => ({ results: [] }));
     return json({ intakes: rows.results || [] });
   }
 
   if (path === "/api/dashboard/medical") {
-    const rows = await env.DB.prepare("SELECT * FROM care_tasks WHERE lower(category) LIKE '%medical%' OR lower(title) LIKE '%vaccine%' OR lower(title) LIKE '%med%' ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
+    const rows = await env.DB.prepare(
+      "SELECT * FROM care_tasks WHERE lower(category) LIKE '%medical%' OR lower(title) LIKE '%vaccine%' OR lower(title) LIKE '%med%' ORDER BY created_at DESC LIMIT 100"
+    ).all().catch(() => ({ results: [] }));
     return json({ medical: rows.results || [] });
   }
 
   if (path === "/api/dashboard/daily-care") {
-    const rows = await env.DB.prepare("SELECT * FROM care_tasks ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
+    const rows = await env.DB.prepare(
+      "SELECT * FROM care_tasks ORDER BY created_at DESC LIMIT 100"
+    ).all().catch(() => ({ results: [] }));
     return json({ care_tasks: rows.results || [] });
   }
 
   if (path === "/api/dashboard/reports") {
-    const donations = await env.DB.prepare("SELECT * FROM donations ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
-    const animals = await env.DB.prepare("SELECT * FROM animal_profiles WHERE status = 'available' ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
-    const apps = await env.DB.prepare("SELECT * FROM applications ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] }));
+    const [donations, animals, apps] = await Promise.all([
+      env.DB.prepare("SELECT * FROM donations ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] })),
+      env.DB.prepare("SELECT * FROM animal_profiles WHERE tenant_id = 'tenant_companionscpas' ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] })),
+      env.DB.prepare("SELECT * FROM applications ORDER BY created_at DESC LIMIT 100").all().catch(() => ({ results: [] })),
+    ]);
     return json({ donations: donations.results || [], animals: animals.results || [], applications: apps.results || [] });
   }
 
