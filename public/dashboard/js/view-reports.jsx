@@ -96,14 +96,15 @@ function ReportsView({ onNavigate }) {
   useEffect(() => {
     async function load() {
       try {
-        const [animals, apps, donations, volunteers, aiRuns] = await Promise.all([
+        const [animals, apps, donations, fundraising, volunteers, aiRuns] = await Promise.all([
           fetch("/api/dashboard/animals?limit=100").then(r=>r.json()).catch(()=>null),
           fetch("/api/dashboard/applications?limit=100").then(r=>r.json()).catch(()=>null),
           fetch("/api/dashboard/donations").then(r=>r.json()).catch(()=>null),
+          fetch("/api/dashboard/fundraising").then(r=>r.json()).catch(()=>null),
           fetch("/api/dashboard/volunteers").then(r=>r.json()).catch(()=>null),
           fetch("/api/agentsam/runs?limit=50").then(r=>r.json()).catch(()=>null),
         ]);
-        setData({ animals, apps, donations, volunteers, aiRuns });
+        setData({ animals, apps, donations, fundraising, volunteers, aiRuns });
       } catch(e) {
         setData({});
       } finally {
@@ -129,14 +130,30 @@ function ReportsView({ onNavigate }) {
       { id:"App #1",   status:"Approved",        badge:"approved" },
     ],
   };
+  const financeCampaigns = (data?.fundraising?.campaigns || []).map((c, i) => {
+    const raised = Number(c.raised_amount_cents ?? c.raised_cents ?? 0);
+    const goal = Number(c.goal_amount_cents ?? c.goal_cents ?? 0);
+    return {
+      id: c.id || c.slug || c.title,
+      title: c.title || "Untitled campaign",
+      raised,
+      goal,
+      donors: Number(c.donor_count || 0),
+      status: c.status || "draft",
+      color: [C.red, C.green, C.blue, C.amber, C.purple][i % 5]
+    };
+  });
+  const financeDonations = data?.donations?.donations || [];
+  const financeReceived = financeDonations.filter(d => !d.status || ["completed", "received", "paid", "succeeded"].includes(String(d.status).toLowerCase()));
+  const financeRaisedFromDonations = financeReceived.reduce((sum, d) => sum + Number(d.amount_cents || 0), 0);
+  const financeRaisedFromCampaigns = financeCampaigns.reduce((sum, c) => sum + c.raised, 0);
   const finance = {
-    totalRaised: 2430, monthlyDonors: 1, monthlyAmt: 50,
-    campaigns: [
-      { title:"Emergency Medical Fund", raised:1240, goal:3000, color: C.red },
-      { title:"Feed the Shelter",        raised:820,  goal:1500, color: C.green },
-      { title:"Transport Support",       raised:370,  goal:1000, color: C.blue },
-    ],
-    totalGoal: 5500,
+    totalRaised: (financeRaisedFromCampaigns || financeRaisedFromDonations) / 100,
+    totalGoal: financeCampaigns.reduce((sum, c) => sum + c.goal, 0) / 100,
+    donorCount: financeCampaigns.reduce((sum, c) => sum + c.donors, 0) || new Set(financeReceived.map(d => d.donor_id || d.donor_email || d.id).filter(Boolean)).size,
+    activeCampaigns: financeCampaigns.filter(c => String(c.status).toLowerCase() === "active").length,
+    pendingRecords: financeDonations.filter(d => String(d.status || "").toLowerCase() === "pending").length,
+    campaigns: financeCampaigns
   };
   const vols = {
     total: 3, active: 3, totalHours: 54,
@@ -255,15 +272,15 @@ function ReportsView({ onNavigate }) {
       {tab === "financial" && (
         <div>
           <div style={grid4}>
-            <StatCard label="Total raised"     value={fmt.usd(finance.totalRaised)} sub="3 active campaigns" subColor={C.green} />
-            <StatCard label="Goal total"       value={fmt.usd(finance.totalGoal)}   sub={fmt.pct(finance.totalRaised/finance.totalGoal*100)+" to goal"} subColor={C.amber} />
-            <StatCard label="Monthly donors"   value={finance.monthlyDonors}        sub={"$"+finance.monthlyAmt+"/mo recurring"} subColor={C.green} />
-            <StatCard label="Remaining gap"    value={fmt.usd(finance.totalGoal-finance.totalRaised)} sub="across campaigns" subColor={C.amber} />
+            <StatCard label="Total raised"     value={fmt.usd(finance.totalRaised)} sub={`${finance.activeCampaigns} active campaigns`} subColor={C.green} />
+            <StatCard label="Goal total"       value={fmt.usd(finance.totalGoal)}   sub={fmt.pct(finance.totalGoal ? finance.totalRaised/finance.totalGoal*100 : 0)+" to goal"} subColor={C.amber} />
+            <StatCard label="Donors"   value={finance.donorCount}        sub={`${finance.pendingRecords} pending records`} subColor={C.green} />
+            <StatCard label="Remaining gap"    value={fmt.usd(Math.max(0, finance.totalGoal-finance.totalRaised))} sub="across campaigns" subColor={C.amber} />
           </div>
           <div style={card}>
-            <SectionHeader title="Campaign progress" sub="Active · May 2026" />
+            <SectionHeader title="Campaign progress" sub="fundraising_campaigns" />
             {finance.campaigns.map(c => (
-              <ProgressBar key={c.title} label={c.title} value={c.raised} max={c.goal} color={c.color} formatVal={v=>"$"+(v/100).toFixed(0)} />
+              <ProgressBar key={c.title} label={c.title} value={c.raised} max={c.goal} color={c.color} formatVal={v=>"$"+(Number(v || 0)/100).toFixed(0)} />
             ))}
           </div>
           <div style={grid2}>

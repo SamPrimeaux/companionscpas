@@ -144,6 +144,24 @@ export async function dashboardApiRoutes(request, env, url) {
     return json({ campaigns: campaigns.results || [] });
   }
 
+  if (path === "/api/dashboard/donations") {
+    const donations = await env.DB.prepare(
+      `
+        SELECT
+          d.*,
+          dn.full_name AS donor_name,
+          dn.email AS donor_email,
+          fc.title AS campaign_title
+        FROM donations d
+        LEFT JOIN donors dn ON dn.id = d.donor_id
+        LEFT JOIN fundraising_campaigns fc ON fc.id = d.campaign_id
+        ORDER BY COALESCE(d.donated_at, d.created_at) DESC
+        LIMIT 250
+      `
+    ).all().catch(() => ({ results: [] }));
+    return json({ donations: donations.results || [] });
+  }
+
   if (path === "/api/dashboard/team") {
     const rows = await env.DB.prepare(
       "SELECT * FROM volunteer_records ORDER BY role, full_name"
