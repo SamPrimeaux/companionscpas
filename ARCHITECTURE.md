@@ -1,7 +1,8 @@
 # Companions of CPAS — Architecture Reference
 
 > **Canonical reference for AI agents, developers, and future sprints.**
-> When in doubt about how this app is wired, read this first.
+> Read this before writing any code or querying any database on this project.
+> Last verified: 2026-06-11 against live remote D1.
 
 ---
 
@@ -55,211 +56,273 @@ Defined in `wrangler.toml`. **Never hardcode these — always use `env.BINDING_N
 | `RESEND_FROM_EMAIL` | `Companions of CPAS <no-reply@companionsofcaddo.org>` |
 | `META_REDIRECT_URI` | `https://companionsofcaddo.org/api/social/oauth/meta/callback` |
 
-**Note:** `GOOGLE_REDIRECT_URI` in wrangler.toml is dead — all Google OAuth redirect URIs are now built dynamically from `url.origin` in the Worker. Do not add new static redirect URI vars for Google flows.
+**Dead var:** `GOOGLE_REDIRECT_URI` in wrangler.toml is unused — all Google OAuth redirect URIs are built dynamically from `url.origin`. Do not add new static redirect URI vars for Google flows.
 
 ---
 
 ## R2 Bucket Structure (`companionscpas`)
 
-**Public access is ENABLED** on this bucket. CDN: `https://assets.companionsofcaddo.org/`
+**Public access ENABLED.** CDN root: `https://assets.companionsofcaddo.org/`
 
 ```
-companionscpas/                          ← R2 bucket root
-│
-├── static/                              ← All static site assets
-│   ├── pages/                           ← CMS-published public page HTML (SSOT for public site)
-│   │   ├── index.html                   ← Homepage (route: /)
-│   │   ├── about/index.html             ← /about
-│   │   ├── adopt/index.html             ← /adopt
-│   │   ├── community/index.html         ← /community
-│   │   ├── donate/index.html            ← /donate
-│   │   ├── services/index.html          ← /services
-│   │   │
-│   │   ├── [section partials]           ← Written by renderPage() alongside full pages
-│   │   │   ├── hero_main.html
-│   │   │   ├── mission.html
-│   │   │   ├── campaigns.html
-│   │   │   ├── foster_grid.html
-│   │   │   ├── crisis_care.html
-│   │   │   ├── testimonial.html
-│   │   │   └── org_info.html
-│   │   └── ...
-│   │
-│   └── global/                          ← Shared static files (CSS, fonts, logos)
-│       ├── cpas-shell.css               ← Main public site stylesheet
+companionscpas/
+├── static/
+│   ├── pages/                    ← CMS-published HTML (build artifacts, never hand-edit)
+│   │   ├── index.html            ← Homepage /
+│   │   ├── about/index.html      ← /about
+│   │   ├── adopt/index.html      ← /adopt
+│   │   ├── community/index.html  ← /community
+│   │   ├── donate/index.html     ← /donate
+│   │   ├── services/index.html   ← /services
+│   │   └── [section partials]    ← hero_main.html, mission.html, campaigns.html, etc.
+│   └── global/
+│       ├── cpas-shell.css        ← Main public site stylesheet
 │       ├── logo-dark.webp
 │       ├── companionsofcpa-newlogo.webp
 │       └── companionsofcpa-newlogo-512x512.png
-│
-├── media/                               ← All uploaded media assets
-│   ├── animals/                         ← Animal photos (served at assets.companionsofcaddo.org/media/animals/*)
-│   │   ├── 2cutepups.webp
-│   │   ├── bigsmiles.webp
-│   │   ├── upclose.webp
-│   │   ├── goinhomejustadopted.webp
-│   │   └── [17+ animal images]
-│   │
-│   └── team/                            ← Team/founder photos
+├── media/
+│   ├── animals/                  ← All animal photos (17+ .webp files)
+│   │   └── [2cutepups, bigsmiles, upclose, goinhomejustadopted, etc.]
+│   └── team/
 │       ├── thefounders.webp
 │       └── theteam.webp
-│
-├── dashboard/                           ← Admin dashboard SPA (served at companionsofcaddo.org/dashboard)
-│   ├── index.html                       ← Dashboard shell HTML (imports JS files below)
-│   └── js/                              ← All dashboard React JSX files (raw, no build)
-│       ├── app.jsx                      ← Router + layout shell
-│       ├── ui.jsx                       ← Shared components (topbar, sidebar, StatCard, Input, Modal)
-│       ├── config.js                    ← Color tokens (C), theme constants
-│       ├── data.js                      ← Shared data helpers
-│       ├── agentsam.jsx                 ← Agent Sam drawer + chat
-│       ├── view-overview.jsx            ← /dashboard/overview
-│       ├── view-animals.jsx             ← /dashboard/animals, /dashboard/fosters, /dashboard/adoptions
-│       ├── view-ops.jsx                 ← /dashboard/intakes, /dashboard/medical, /dashboard/daily-care, /dashboard/volunteers
-│       ├── view-finance.jsx             ← /dashboard/donations, /dashboard/fundraising
-│       ├── view-applications.jsx        ← /dashboard/applications
-│       ├── view-reports.jsx             ← /dashboard/reports (6 sub-tabs)
-│       ├── view-admin.jsx               ← /dashboard/settings, /dashboard/notifications
-│       └── view-cms.jsx                 ← All /dashboard/cms/* views
-│
-└── admin/                               ← Legacy admin files (mostly superseded by dashboard)
+├── dashboard/
+│   ├── index.html                ← Dashboard SPA shell
+│   └── js/                       ← All dashboard JSX files (no build step)
+│       └── [app, ui, config, data, agentsam, view-*.jsx]
+└── admin/                        ← Legacy, mostly superseded
 ```
 
-### R2 Key Rules
-- **Never reference R2 paths as `companionsofcaddo.org/animals/...`** — that's a Worker route, not R2. All R2 media is served via `assets.companionsofcaddo.org/media/...`
-- **Published pages live at `static/pages/{route}/index.html`** — homepage is `static/pages/index.html`
-- **Dashboard JS deploys via `sync:js` script** — always pushes `index.html` too (fixed in sync-r2.sh)
-- **After any CSS change**, push `static/global/cpas-shell.css` directly to R2 and bust KV
+### R2 Rules
+- Media is **always** `https://assets.companionsofcaddo.org/media/...` — never `companionsofcaddo.org/animals/...`
+- Page HTML under `static/pages/` is a **build artifact** regenerated on every publish — never edit directly
+- `sync:js` script deploys dashboard JS **and** `index.html` (both)
+- After any CSS change: push `static/global/cpas-shell.css` to R2 + bust KV
 
 ---
 
 ## KV Cache (`CMS_CACHE`)
 
-| Key Pattern | Contents | Busted when |
+| Key | Contents | Busted when |
 |---|---|---|
-| `page:/` | Rendered HTML for homepage | `POST /api/cms/publish` with `route_path: "/"` |
-| `page:/about` | Rendered HTML for /about | publish for that route |
-| `page:/adopt` | etc. | publish |
-| `page:/community` | etc. | publish |
-| `page:/donate` | etc. | publish |
-| `page:/services` | etc. | publish |
+| `page:/` | Homepage HTML | publish `/` |
+| `page:/about` | /about HTML | publish `/about` |
+| `page:/adopt` | /adopt HTML | publish `/adopt` |
+| `page:/community` | /community HTML | publish `/community` |
+| `page:/donate` | /donate HTML | publish `/donate` |
+| `page:/services` | /services HTML | publish `/services` |
 | `bootstrap:tenant_companionscpas` | CMS bootstrap JSON | any section/page save |
-| `sections:tenant_companionscpas:/` | Section data JSON | section save for that route |
+| `sections:tenant_companionscpas:/{route}` | Section data JSON | section save for that route |
 
-**KV bust command (manual):**
 ```bash
+# Manual KV bust
 npx wrangler kv key delete --binding=CMS_CACHE "page:/" --remote
 ```
-
----
-
-## D1 Database (`companionscpas`) — CMS Tables
-
-These are the tables the CMS pipeline reads and writes. **This is the SSOT for all public page content.**
-
-### Core CMS Tables (actively used)
-
-| Table | Purpose | Key columns |
-|---|---|---|
-| `cms_pages` | One row per public page | `route_path` (e.g. `/about`), `slug` (e.g. `about`), `title`, `status`, `theme` (`dark`\|`light`), `is_homepage` |
-| `cms_page_sections` | One row per section within a page | `page_route` (FK → cms_pages.route_path), `section_key`, `section_type`, `heading`, `subheading`, `eyebrow`, `body`, `image_url`, `cta_label`, `cta_href`, `cta_secondary_label`, `cta_secondary_href`, `sort_order`, `is_visible`, `config_json` |
-| `cms_page_content_blocks` | Repeating items inside a section (cards, tiers, testimonials) | `page_route`, `section_key`, `block_key`, `block_type`, `title`, `body`, `image_url`, `action_label`, `action_value`, `sort_order`, `is_visible` |
-| `cms_brand_settings` | Single row, global brand config | `brand_name`, `logo_light_url`, `logo_dark_url`, `navigation_json`, `footer_json`, `header_json`, `socials_json`, `organization_json`, `primary_color`, `config_json` |
-| `cms_assets` | Media library index | `r2_key`, `public_url`, `filename`, `alt_text`, `source_provider`, `source_file_id` |
-| `cms_publish_jobs` | Publish history log | `route_path`, `status`, `artifact_key`, `triggered_by` |
-| `cms_publish_artifacts` | Per-publish rendered artifact record | links to publish job |
-
-### CMS Tables That Exist But Are NOT Actively Used
-
-| Table | Status | Notes |
-|---|---|---|
-| `cms_navigation_items` | Dead | Nav lives in `cms_brand_settings.navigation_json` |
-| `cms_navigation_menus` | Dead | Same |
-| `cms_themes` | Dead | Theme is a column on `cms_pages.theme` |
-| `cms_revisions` | Future | No revision history wired yet |
-| `cms_page_versions` | Future | `published_version_id`/`draft_version_id` on cms_pages point nowhere yet |
-| `cms_section_schemas` | Future | Intended for Templates tab |
-| `cms_editor_sessions` | Dead | Never written |
-| `cms_editor_events` | Dead | Never written |
-
----
-
-## D1 Database — App Data Tables (Animal Care, Users, etc.)
-
-| Table | Purpose | Dashboard view |
-|---|---|---|
-| `animal_profiles` | All animals, tenant-scoped (`tenant_id = 'tenant_companionscpas'`) | Animals, Intakes, Overview |
-| `animals` | Legacy/duplicate animal table — audit needed, `animal_profiles` is canonical | — |
-| `care_tasks` | Daily care + medical tasks | Daily Care, Medical |
-| `foster_records` | Active foster placements | Fosters |
-| `applications` | Foster/adopt applications | Applications, Adoptions |
-| `cpas_foster_applications` | CPAS-specific foster application form submissions | Applications |
-| `cpas_application_forms/steps/fields` | Dynamic form builder for public application forms | — |
-| `volunteer_records` | Volunteer roster | Volunteers |
-| `donations` | Individual donation records | Donations, Reports |
-| `donors` | Donor profiles | Donations |
-| `donation_payments` | Stripe payment records | Donations |
-| `donation_intents` | Stripe payment intents (pre-payment) | — |
-| `fundraising_campaigns` | Campaigns | Fundraising |
-| `organizations` | Org profile (settings) | Settings → Organization |
-| `users` | Dashboard user accounts | Settings → Users |
-| `sessions` | Auth sessions | — |
-| `social_provider_connections` | Google Drive, YouTube, Meta OAuth tokens (AES-GCM encrypted) | Settings → Integrations |
-| `integration_oauth_states` | CSRF state tokens for OAuth flows | — |
 
 ---
 
 ## CMS Publish Pipeline (end-to-end)
 
 ```
-Editor (dashboard) → section/save → D1 cms_page_sections (SSOT)
-                                         ↓
-                    publish button → POST /api/cms/publish
-                                         ↓
-                              renderPage(route) reads:
-                                - cms_pages (page meta, theme)
-                                - cms_page_sections (sections, is_visible=1)
-                                - cms_page_content_blocks (block items per section)
-                                - cms_brand_settings (header, footer, nav, colors)
-                                         ↓
-                              renders full HTML string
-                                         ↓
-                              WEBSITE_ASSETS.put(static/pages{route}/index.html)
-                                         ↓
-                              CMS_CACHE.delete(page:{route})
-                                         ↓
-                              live at companionsofcaddo.org{route}  ✅
+Dashboard editor
+  → POST /api/cms/section/save
+  → D1 cms_page_sections (SSOT for all content)
+
+  → POST /api/cms/publish { route_path }
+  → renderPage(route) reads:
+      cms_pages            (page meta, theme)
+      cms_page_sections    (sections where is_visible=1, ordered by sort_order)
+      cms_page_content_blocks  (repeating block items per section)
+      cms_brand_settings   (header, footer, nav, colors, logos)
+  → renders full HTML string
+  → WEBSITE_ASSETS.put("static/pages{route}/index.html")
+  → CMS_CACHE.delete("page:{route}")
+  → live at companionsofcaddo.org{route} ✅
+
+Public request:
+  GET companionsofcaddo.org/about
+  → Worker checks CMS_CACHE["page:/about"]
+  → HIT: return cached HTML instantly
+  → MISS: fetch R2 static/pages/about/index.html → write KV → return
 ```
 
-**Public request path:**
-```
-GET companionsofcaddo.org/about
-  → Worker checks CMS_CACHE["page:/about"]
-  → HIT: return cached HTML
-  → MISS: Worker.fetch R2 static/pages/about/index.html → cache in KV → return
-```
+---
+
+## D1 Table Contracts — Verified Against Live DB 2026-06-11
+
+### CMS Tables (actively used by the publish pipeline)
+
+| Table | Row count | Key columns | Status |
+|---|---|---|---|
+| `cms_pages` | 6 | `route_path`, `slug`, `title`, `status`, `theme`, `is_homepage`, `seo_title`, `meta_description` | ✅ SSOT for pages |
+| `cms_page_sections` | 25+ | `page_route` (FK→route_path), `section_key`, `section_type`, `heading`, `subheading`, `eyebrow`, `body`, `image_url`, `cta_label`, `cta_href`, `cta_secondary_label`, `cta_secondary_href`, `sort_order`, `is_visible`, `config_json` | ✅ SSOT for section content |
+| `cms_page_content_blocks` | 59 | `page_route`, `section_key`, `block_key`, `block_type`, `title`, `body`, `image_url`, `alt_text`, `action_label`, `action_type`, `action_value`, `sort_order`, `is_visible` | ⚠️ Seeded, render reads it, editor doesn't write to it yet |
+| `cms_brand_settings` | 1 | `brand_name`, `logo_light_url`, `logo_dark_url`, `navigation_json`, `footer_json`, `header_json`, `socials_json`, `organization_json`, `primary_color`, `config_json` | ✅ Rich data populated |
+| `cms_assets` | active | `r2_key`, `public_url`, `filename`, `alt_text`, `source_provider`, `source_file_id`, `imported_at` | ✅ Wired via /dashboard/cms/images |
+| `cms_publish_jobs` | active | `route_path`, `status`, `artifact_key`, `triggered_by` | ✅ Written on every publish |
+| `cms_publish_artifacts` | active | links to publish job | ✅ |
+
+### CMS Tables — Future / Dead (do not query unless building that feature)
+
+| Table | Verdict | Notes |
+|---|---|---|
+| `cms_navigation_items` | **Dead** | Nav lives in `cms_brand_settings.navigation_json` |
+| `cms_navigation_menus` | **Dead** | Same |
+| `cms_themes` | **Dead** | Theme is a column on `cms_pages.theme` |
+| `cms_section_schemas` | Future | Templates tab |
+| `cms_revisions` | Future | No revision history wired yet |
+| `cms_page_versions` | Future | `published_version_id`/`draft_version_id` on cms_pages point nowhere |
+| `cms_editor_sessions` | **Dead** | Never written |
+| `cms_editor_events` | **Dead** | Never written |
+| `cms_modals` | Unverified | Not referenced in current code |
+
+---
+
+### Animal Care Tables — Verified Schemas
+
+#### `animal_profiles` — **CANONICAL. 17 rows. Use this, not `animals`.**
+Columns: `id | tenant_id | name | species | breed | sex | age_label | status | location | intake_date | photo_url | bio | created_at | updated_at | animal_key | weight_label | energy_level | good_with_dogs | good_with_cats | good_with_kids | medical_notes | foster_needed | adoption_fee_cents | featured | sort_order | asset_id | public_visible | tags_json | metadata_json`
+
+Always filter: `WHERE tenant_id = 'tenant_companionscpas'`
+
+#### `animals` — **DEAD. 0 rows. Stub schema (id, name, breed, age, status, created_at). Drop or ignore.**
+
+#### `care_tasks` — **0 rows currently. Schema uses `organization_id`, not `tenant_id`.**
+Columns: `id | organization_id | animal_id | task_type | title | description | status | priority | due_at | completed_at | assigned_to_user_id | created_at | updated_at`
+
+Note: filter by `organization_id = 'tenant_companionscpas'` for CPAS tasks. Backend `daily-care` and `medical` queries use this table — it's empty because no tasks have been created yet, not because it's broken.
+
+#### `foster_records` — **5 rows. Rich schema.**
+Columns: `id | tenant_id | animal_id | foster_name | foster_email | status | start_date | notes | created_at | foster_phone | application_id | end_date | expected_end_date | foster_type | placement_reason | home_visit_status | check_in_frequency | last_check_in_at | next_check_in_at | emergency_contact_name | emergency_contact_phone | supplies_needed_json | care_notes_json | updated_at`
+
+---
+
+### Applications — Source of Truth Decision (verified)
+
+#### `applications` — **4 rows. LEGACY STUB. 6 columns only: id, applicant_name, applicant_email, animal_name, status, created_at.**
+This is a thin placeholder. It does NOT have tenant_id, address, answers_json, review workflow, or any CPAS-specific fields. Do NOT build new features on this table.
+
+#### `cpas_foster_applications` — **4 rows. CANONICAL. Full production schema.**
+Columns: `id | form_id | tenant_id | status | review_status | source | first_name | last_name | email | phone | street_address | apartment_suite | city | state_province | postal_code | answers_json | resend_message_id | submitted_at | reviewed_at | approved_at | denied_at | assigned_to | internal_notes | ip_hash | user_agent | created_at | updated_at`
+
+**All application work goes through `cpas_foster_applications`.** The `applications` view and its API should be migrated to query `cpas_foster_applications`.
+
+---
+
+### Users / Auth — Source of Truth Decision (verified)
+
+#### `users` — **6 rows. CANONICAL for dashboard users.**
+Columns: `id | email | full_name | display_name | avatar_url | status | created_at | updated_at | last_login_at`
+
+#### `admin_users` — **5 rows. LEGACY. Has `password_hash` and `role` columns.**
+This was the original auth table. It still powers `/admin/login` via `auth_login.js`. The migration path: `users` + `user_credentials` + `sessions` takes over fully, `admin_users` becomes read-only then dropped. For now, both exist and `/admin/login` uses `admin_users`.
+
+#### Supporting auth tables (active):
+- `user_credentials` — password/credential auth linked to `users`
+- `sessions` — active dashboard sessions
+- `password_reset_tokens` — reset flow
+- `user_security_events` — login/security audit log
+- `role_permissions` — role-based access
+- `tenant_memberships` — user↔org membership
+- `tenants` — tenant/org records
+- `organizations` — org profile data (Settings → Organization)
+
+---
+
+### Donations / Fundraising
+
+| Table | Rows | Status | Use for |
+|---|---|---|---|
+| `donations` | 0 | Empty, schema ready | /dashboard/donations, Reports → Financial |
+| `donors` | 0 | Empty, schema ready | /dashboard/donations |
+| `donation_payments` | active | Stripe payment records | Donations detail |
+| `donation_intents` | active | Stripe payment intents | Pre-payment tracking |
+| `donation_settings` | config | Donation config | Stripe setup |
+| `stripe_webhooks` | log | Stripe webhook events | Debug/audit |
+| `fundraising_campaigns` | **0 rows** | Empty, schema ready | /dashboard/fundraising — use this |
+| `fundraising_campaigns_demo` | **3 rows** | **DEMO DATA — never drive production UI from this** | Discard or clearly label |
+| `campaign_updates` | active | Campaign update posts | Fundraising detail |
+
+---
+
+### Volunteers
+
+#### `volunteer_records` — **3 rows.**
+Columns: `id | tenant_id | full_name | email | role | status | hours_month | created_at`
+
+Backend has `/api/dashboard/team` querying this but frontend calls `/api/dashboard/volunteers`. Add the volunteers endpoint alias in `dashboard_api.js`.
+
+---
+
+### Social / Integrations
+
+| Table | Purpose |
+|---|---|
+| `social_provider_connections` | Google Drive, YouTube, Meta OAuth tokens (AES-GCM encrypted) — /dashboard/settings Integrations |
+| `integration_oauth_states` | CSRF state tokens for all OAuth flows |
+| `oauth_accounts` | OAuth account records |
+| `oauth_integrations` | OAuth provider config |
+| `social_embed_settings` | Facebook Page embed config for /community |
+| `social_post_drafts_v2` | Draft social posts |
+| `scheduled_posts` | Scheduled content |
+| `secret_vault_items` | Secret references — never expose in UI |
+| `secret_vault_access_log` | Secret access audit |
+
+---
+
+### Agent Sam Tables (in this CPAS D1 — these are IAM platform tables shared here)
+
+**Important:** `agentsam_tools` (34 rows) is the canonical MCP tool registry. `agentsam_mcp_tools` (25 rows) is a legacy/parallel table from before the refactor — `agentsam_tools` wins. GPT's suggestion that `agentsam_mcp_tools` is the current registry is **incorrect**.
+
+`agentsam_tools` schema: `id | tenant_id | tool_key | tool_name | category | description | function_schema | is_enabled | requires_approval | allowed_roles | min_model_tier | usage_count | last_used_at | sort_order | created_at | updated_at`
+
+`agentsam_mcp_tools` schema: `id | tenant_id | tool_key | tool_name | display_name | tool_category | description | input_schema | output_schema | intent_tags | modes_json | handler_type | handler_config | provider | requires_auth | requires_secret_keys | safety_level | is_enabled | sort_order | created_at | updated_at`
+
+For `/dashboard/reports → AI Usage`: query `agentsam_usage_events` and `agentsam_usage_rollups_daily`.
+
+Similarly: `agentsam_workflows` (17 rows) is the canonical workflow table. `agentsam_mcp_workflows` (33 rows) is a legacy/parallel structure — do not build new features on `agentsam_mcp_workflows`.
+
+---
+
+## Dashboard → API → D1 Contracts (sprint target)
+
+| Dashboard route | API endpoint(s) | D1 table(s) | Current status |
+|---|---|---|---|
+| `/dashboard/overview` | `GET /api/dashboard/overview` | `animal_profiles`, `cpas_foster_applications`, `donations`, `volunteer_records` | ✅ wired |
+| `/dashboard/animals` | `GET /api/dashboard/animals` | `animal_profiles` (tenant filter) | ✅ wired |
+| `/dashboard/intakes` | `GET /api/dashboard/intakes` | `animal_profiles` (intake_date, status) | ⚠️ API exists, frontend not fetching |
+| `/dashboard/medical` | `GET /api/dashboard/medical` | `care_tasks` (organization_id, type=medical) | ⚠️ 0 rows — empty, not broken |
+| `/dashboard/daily-care` | `GET /api/dashboard/daily-care` | `care_tasks` (organization_id) | ⚠️ 0 rows — empty, not broken |
+| `/dashboard/fosters` | `GET /api/dashboard/fosters` | `foster_records` | ⚠️ API exists, frontend stub |
+| `/dashboard/adoptions` | `GET /api/dashboard/adoptions` | `cpas_foster_applications` (status=adopted) | ⚠️ stub |
+| `/dashboard/applications` | `GET /api/dashboard/applications` | **`cpas_foster_applications`** (not `applications`) | ⚠️ currently queries wrong table |
+| `/dashboard/volunteers` | `GET /api/dashboard/volunteers` | `volunteer_records` | ⚠️ endpoint missing (exists as `/api/dashboard/team`) |
+| `/dashboard/donations` | `GET /api/dashboard/donations` | `donations`, `donors`, `donation_payments` | ⚠️ endpoint missing |
+| `/dashboard/fundraising` | `GET /api/dashboard/fundraising` | `fundraising_campaigns` (NOT demo table) | ⚠️ backburner — Stripe setup pending |
+| `/dashboard/reports` | multiple | animals, applications, donations, volunteers, `agentsam_usage_events` | ✅ fetches 5 endpoints, sub-tab render pending |
+| `/dashboard/settings` | org/users/integrations | `organizations`, `users`, `social_provider_connections` | ⚠️ stub shell |
+| `/dashboard/cms/*` | `/api/cms/*` | `cms_pages`, `cms_page_sections`, `cms_page_content_blocks`, `cms_brand_settings`, `cms_assets` | ✅ mostly wired — block editor UI pending |
 
 ---
 
 ## Backend API Route Map
 
-All routes in `src/index.js` dispatching to handlers in `src/api/`.
-
-| Handler file | Routes |
+| File | Routes |
 |---|---|
-| `dashboard_api.js` | `GET /api/dashboard/overview|animals|applications|intakes|medical|daily-care|fosters|adoptions|fundraising|volunteers|reports` |
-| `cms_api.js` | `GET /api/cms/bootstrap|page|sections|assets|brand` — `POST /api/cms/section/save|block/save|page/save|publish|asset/upload|asset/save|brand/save|brand/config|section/delete` |
-| `drive_api.js` | `GET /api/integrations/google-drive/status|connect|files|test` — `POST /api/integrations/google-drive/import|disconnect` |
-| `auth_google.js` | `GET /api/auth/google/login|callback|debug` |
-| `auth_login.js` | `POST /api/auth/login|logout` |
-| `social.js` | `GET /api/social/oauth/google/callback|youtube/callback` |
+| `dashboard_api.js` | `GET /api/dashboard/overview\|animals\|applications\|intakes\|medical\|daily-care\|fosters\|adoptions\|fundraising\|team\|reports` |
+| `cms_api.js` | `GET /api/cms/bootstrap\|page\|sections\|assets\|brand` — `POST /api/cms/section/save\|block/save\|page/save\|publish\|asset/upload\|asset/save\|brand/save\|brand/config\|section/delete` |
+| `drive_api.js` | `GET /api/integrations/google-drive/status\|connect\|files\|test` — `POST /api/integrations/google-drive/import\|disconnect` |
+| `auth_google.js` | `GET /api/auth/google/login\|callback\|debug` |
+| `auth_login.js` | `POST /api/auth/login\|logout` |
+| `social.js` | `GET /api/social/oauth/google/callback\|youtube/callback` |
 | `foster_api.js` | Foster-specific endpoints |
 | `agentsam_api.js` | `POST /api/agentsam/chat` — `GET /api/agentsam/runs` |
-| `render_page.js` | Public page rendering (called internally by publish, not directly routed) |
 
 ---
 
 ## Dashboard Route → View → File Map
 
-| URL | View component | File |
+| URL | View | File |
 |---|---|---|
 | `/dashboard/overview` | `OverviewView` | `view-overview.jsx` |
 | `/dashboard/animals` | `AnimalsView` | `view-animals.jsx` |
@@ -288,7 +351,7 @@ All routes in `src/index.js` dispatching to handlers in `src/api/`.
 
 ## Public Pages → D1 Mapping
 
-| URL | `cms_pages.slug` | `cms_pages.theme` | Sections in `cms_page_sections` |
+| URL | slug | theme | section_keys in cms_page_sections |
 |---|---|---|---|
 | `/` | `home` | `dark` | `home_hero`, `home_mission`, `home_impact`, `home_animal_grid`, `home_foster_cta`, `home_donate_cta`, `home_testimonial` |
 | `/about` | `about` | `light` | `about_hero`, `about_mission`, `about_team`, `about_stats`, `about_cta` |
@@ -296,68 +359,68 @@ All routes in `src/index.js` dispatching to handlers in `src/api/`.
 | `/services` | `services` | `light` | `services_hero`, `service_cards`, `services_cta` |
 | `/donate` | `donate` | `dark` | `donate_hero`, `donate_intro`, `donate_tiers`, `donate_cta` |
 | `/community` | `community` | `dark` | `community_hero`, `community_connect`, `community_volunteer`, `community_testimonial`, `community_cta` |
-| `global` | — | — | `header` (nav), `footer` |
+| `global` | — | — | `header` (nav type), `footer` |
 
 ---
 
 ## Deploy Commands
 
 ```bash
-# Full deploy (Worker + all bindings)
+# Full Worker deploy
 cd /Users/samprimeaux/companionscpas && wrangler deploy
 
-# Sync dashboard JS to R2 (also pushes index.html)
+# Sync dashboard JS + index.html to R2
 npm run sync:js
 
-# Push a single CSS file to R2
+# Push CSS to R2
 npx wrangler r2 object put companionscpas/static/global/cpas-shell.css \
-  --file=public/static/global/cpas-shell.css \
-  --content-type=text/css --remote
+  --file=public/static/global/cpas-shell.css --content-type=text/css --remote
 
-# Bust KV cache for a page
+# Bust KV for a page
 npx wrangler kv key delete --binding=CMS_CACHE "page:/" --remote
-npx wrangler kv key delete --binding=CMS_CACHE "page:/about" --remote
-# etc.
 
-# Run a D1 query (remote)
+# Remote D1 query
 npx wrangler d1 execute companionscpas --remote --command "SELECT ..."
 ```
 
 ---
 
-## Rules for AI Agents Working on This Project
+## Rules for AI Agents
 
-1. **Never clone the repo.** Use `agentsam_terminal_local` to run commands on the actual repo at `/Users/samprimeaux/companionscpas`. The PTY runs on Sam's iMac.
-2. **Always read before editing.** Use `agentsam_github_read` or terminal `cat`/`sed` to read the exact current file content before writing.
-3. **Never hardcode tenant IDs, binding names, or IDs.** The tenant is always `tenant_companionscpas`. Binding names are `DB`, `WEBSITE_ASSETS`, `CMS_CACHE`.
-4. **D1 is the SSOT for all content.** Never edit R2 HTML directly to change page content — edit D1 via the CMS API or wrangler, then publish.
-5. **R2 HTML is a build artifact.** It is always regenerated by `renderPage()` on publish. Manual R2 HTML edits will be overwritten.
+1. **Never clone the repo.** Run commands via `agentsam_terminal_local` on the actual repo at `/Users/samprimeaux/companionscpas`.
+2. **Always read before editing.** Use `agentsam_github_read` or terminal `cat`/`sed` before any write.
+3. **Never hardcode IDs or tenant strings in code.** Tenant = `tenant_companionscpas`. Bindings = `DB`, `WEBSITE_ASSETS`, `CMS_CACHE`.
+4. **D1 is SSOT for all content.** Never edit R2 HTML directly — edit D1, then publish.
+5. **R2 page HTML is a build artifact.** renderPage() regenerates it on publish. Manual edits get overwritten.
 6. **Two repos, never mixed:**
-   - CPAS site: `/Users/samprimeaux/companionscpas` → deploy: `wrangler deploy`
-   - IAM platform: `/Users/samprimeaux/inneranimalmedia` → deploy: `npm run deploy:full`
-7. **Every change must be committed and pushed to `main`** before deploying.
-8. **KV cache must be busted after any publish** or the live site serves stale HTML.
-9. **`cms_page_sections.image_url` must always be a full `https://assets.companionsofcaddo.org/...` URL**, never a relative path like `/animals/...`.
-10. **D1 queries for CPAS data must always include `WHERE tenant_id = 'tenant_companionscpas'`** — this is a shared multi-tenant D1 database.
+   - CPAS: `/Users/samprimeaux/companionscpas` → `wrangler deploy`
+   - IAM: `/Users/samprimeaux/inneranimalmedia` → `npm run deploy:full`
+7. **Every change: commit → push main → deploy.**
+8. **Bust KV after every publish.**
+9. **`image_url` in cms_page_sections must always be full `https://assets.companionsofcaddo.org/...` URL.**
+10. **All CPAS D1 queries must include `WHERE tenant_id = 'tenant_companionscpas'`** (except CMS tables which use their own tenant column).
 
 ---
 
-## For ChatGPT: How to Query This Project's D1
+## For ChatGPT: D1 Access Pattern
 
-This project does NOT use the IAM platform's MCP D1 helper (`agentsam_d1_query`) — that tool is scoped to the IAM platform workspace, not CPAS. To query the CPAS D1 database, use the terminal tool to run wrangler from the CPAS repo:
+`agentsam_d1_query` is scoped to the IAM platform — it will NOT find CPAS tables. Always use the terminal tool:
 
 ```bash
-# Always run from the CPAS repo directory
 cd /Users/samprimeaux/companionscpas
-
-# Read-only query
-npx wrangler d1 execute companionscpas --remote --command "SELECT * FROM cms_pages"
-
-# Schema inspection
-npx wrangler d1 execute companionscpas --remote --command "PRAGMA table_info(cms_page_sections)"
-
-# Write (use with care)
-npx wrangler d1 execute companionscpas --remote --command "UPDATE cms_page_sections SET image_url = '...' WHERE section_key = '...'"
+npx wrangler d1 execute companionscpas --remote --command "YOUR SQL"
 ```
 
-The D1 database ID is `fd6dd6fb-156b-4b6a-8ff0-505422652391`. The binding name in the Worker is `DB`. The tenant ID for all CPAS data is `tenant_companionscpas`.
+DB ID: `fd6dd6fb-156b-4b6a-8ff0-505422652391`. Worker binding: `DB`. Tenant: `tenant_companionscpas`.
+
+### GPT Corrections (verified against live DB)
+
+| GPT said | Reality |
+|---|---|
+| "`animals` may be an alternate animal table" | `animals` has 0 rows and a 6-column stub schema. It is dead. `animal_profiles` (17 rows, 29 columns) is canonical. |
+| "`applications` may be source of truth for adoptions" | `applications` is a 6-column legacy stub with 4 rows and no tenant_id. `cpas_foster_applications` is canonical (4 rows, 27 columns, full review workflow). |
+| "`agentsam_mcp_tools` is the MCP tool registry" | `agentsam_tools` (34 rows) is canonical. `agentsam_mcp_tools` (25 rows) is legacy from pre-refactor. Build on `agentsam_tools`. |
+| "`agentsam_mcp_workflows` for workflow definitions" | `agentsam_workflows` (17 rows) is canonical. `agentsam_mcp_workflows` (33 rows) is legacy. |
+| "`fundraising_campaigns` is production" | `fundraising_campaigns` has 0 rows. `fundraising_campaigns_demo` has 3 rows but is demo data — never drive production UI from it. Both are backburner until Stripe setup completes. |
+| "`care_tasks` filters by tenant_id" | `care_tasks` uses `organization_id`, not `tenant_id`. Filter: `WHERE organization_id = 'tenant_companionscpas'`. Currently 0 rows (empty, not broken). |
+| "Add `/api/dashboard/volunteers` as new endpoint" | Endpoint already exists as `/api/dashboard/team` in `dashboard_api.js`. Frontend needs to call `/api/dashboard/team` or the backend needs an alias. |
