@@ -269,6 +269,7 @@ p  { text-wrap: pretty; }
   position: relative;
 }
 .mobile-menu-toggle:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+.mobile-menu-toggle.is-open { position: relative; z-index: 520; background: rgba(124,58,237,0.22); border-color: rgba(124,58,237,0.42); }
 .mobile-menu-toggle span {
   position: absolute;
   left: 50%;
@@ -307,10 +308,10 @@ p  { text-wrap: pretty; }
   right: 0;
   bottom: 0;
   z-index: 510;
-  width: min(52vw, 320px);
+  width: min(86vw, 360px);
   display: flex;
   flex-direction: column;
-  background: rgba(10, 12, 26, 0.88);
+  background: rgba(10, 12, 26, 0.92);
   border-left: 1px solid rgba(255,255,255,0.08);
   box-shadow: -32px 0 80px rgba(0,0,0,0.6);
   backdrop-filter: blur(32px) saturate(160%);

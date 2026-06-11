@@ -17,17 +17,23 @@
 
   /* ── Mobile nav ──────────────────────────────────────── */
   const toggle = document.querySelector('.mobile-menu-toggle');
-  const drawer = document.querySelector('.mobile-nav-drawer');
+  const drawer = document.querySelector('.nav-drawer');
   const overlay = document.getElementById('navOverlay');
   function closeNav() {
     drawer && drawer.classList.remove('is-open');
     overlay && overlay.classList.remove('is-open');
+    toggle && toggle.classList.remove('is-open');
+    toggle && toggle.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('menu-open');
     document.body.style.overflow = '';
   }
   if (toggle) {
     toggle.addEventListener('click', () => {
       const open = drawer && drawer.classList.toggle('is-open');
       overlay && overlay.classList.toggle('is-open', !!open);
+      toggle.classList.toggle('is-open', !!open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      document.body.classList.toggle('menu-open', !!open);
       document.body.style.overflow = open ? 'hidden' : '';
     });
   }

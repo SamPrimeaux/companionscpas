@@ -464,10 +464,18 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
       // Preview
       React.createElement("div", { style: { overflowY: "auto", padding: 16, background: C.bg2 } },
-        React.createElement("div", { style: { width: previewWidth, maxWidth: "100%", margin: "0 auto", border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden", background: "#090d18", minHeight: 500, transition: "width .2s ease" } },
-          React.createElement("div", { style: { padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", justifyContent: "space-between", alignItems: "center" } },
-            React.createElement("img", { src: "https://assets.companionsofcaddo.org/static/global/companionsofcpa-newlogo.webp", style: { height: 30, objectFit: "contain" } }),
-            mode !== "mobile" && React.createElement("div", { style: { display: "flex", gap: 16, fontSize: 12, color: "rgba(255,255,255,.6)", fontFamily: fontDef.body } }, "Home", "About", "Foster", "Adopt", "Donate")
+        React.createElement("div", { style: { width: previewWidth, maxWidth: "100%", margin: "0 auto", border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden", background: "#f5f1e8", minHeight: 500, transition: "width .2s ease", boxShadow: "0 18px 70px rgba(0,0,0,.18)" } },
+          React.createElement("div", { style: { minHeight: mode === "mobile" ? 66 : 72, padding: mode === "mobile" ? "12px 18px" : "14px 56px", borderBottom: "1px solid rgba(20,16,32,.10)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(245,241,232,.88)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", color: "#171321" } },
+            React.createElement("img", { src: "https://assets.companionsofcaddo.org/static/global/companionsofcpa-newlogo.webp", style: { width: mode === "mobile" ? 34 : 42, height: mode === "mobile" ? 34 : 42, objectFit: "contain" } }),
+            mode !== "mobile" ? React.createElement("div", { style: { display: "flex", alignItems: "center", gap: mode === "tablet" ? 18 : 28, fontSize: 13, color: "rgba(23,19,33,.74)", fontWeight: 600, fontFamily: fontDef.body } },
+              React.createElement("span", null, "Home"), React.createElement("span", null, "About"), React.createElement("span", null, "Foster"), React.createElement("span", null, "Adopt"), React.createElement("span", null, "Community"), React.createElement("span", { style: { padding: "10px 18px", borderRadius: 14, color: "#fff", background: "linear-gradient(135deg,#a267ff,#6f3fd7)", boxShadow: "0 14px 32px rgba(124,58,237,.22)" } }, "Donate")
+            ) : React.createElement("div", { style: { width: 42, height: 42, borderRadius: 14, border: "1px solid rgba(23,19,33,.12)", background: "rgba(255,255,255,.35)", display: "grid", placeItems: "center" } },
+              React.createElement("div", { style: { display: "grid", gap: 5 } },
+                React.createElement("span", { style: { width: 20, height: 2, background: "#171321", borderRadius: 2, display: "block" } }),
+                React.createElement("span", { style: { width: 20, height: 2, background: "#171321", borderRadius: 2, display: "block" } }),
+                React.createElement("span", { style: { width: 20, height: 2, background: "#171321", borderRadius: 2, display: "block" } })
+              )
+            )
           ),
           (pageData.sections || []).map(s => {
             const sectionBlocks = (pageData.blocks || []).filter(b => b.section_key === s.section_key).sort((a,b) => (a.sort_order||0)-(b.sort_order||0));
@@ -477,46 +485,62 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             const previewImageFrame = { width: "100%", aspectRatio: isHero ? "4 / 3" : "16 / 10", objectFit: "cover", borderRadius: 10, border: "1px solid rgba(255,255,255,.08)", display: "block", background: "rgba(255,255,255,.04)" };
             const blockImageFrame = { width: "100%", aspectRatio: "4 / 3", objectFit: "cover", display: "block", background: "rgba(255,255,255,.04)" };
             return React.createElement("div", { key: s.section_key, onClick: () => setSelectedKey(s.section_key),
-              style: { padding: "24px", borderBottom: "1px solid rgba(255,255,255,.06)", cursor: "pointer", outline: selectedKey === s.section_key ? `2px solid ${C.purple}` : "none", outlineOffset: -2, background: selectedKey === s.section_key ? "rgba(124,58,237,.06)" : "transparent" } },
+              style: { padding: mode === "mobile" ? "28px 22px" : "36px", borderBottom: "1px solid rgba(23,19,33,.08)", cursor: "pointer", outline: selectedKey === s.section_key ? `2px solid ${C.purple}` : "none", outlineOffset: -2, background: selectedKey === s.section_key ? "rgba(124,58,237,.08)" : "transparent", color: "#171321" } },
               // Section type badge
               React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
-                s.eyebrow && React.createElement("div", { style: { color: "#a78bfa", fontSize: 10, fontWeight: 800, letterSpacing: ".15em", textTransform: "uppercase" } }, s.eyebrow),
-                React.createElement("span", { style: { fontSize: 10, color: "rgba(255,255,255,.3)", background: "rgba(255,255,255,.06)", padding: "2px 7px", borderRadius: 5 } }, s.section_type)
+                s.eyebrow && React.createElement("div", { style: { color: "#7c3aed", fontSize: 10, fontWeight: 900, letterSpacing: ".15em", textTransform: "uppercase" } }, s.eyebrow),
+                React.createElement("span", { style: { fontSize: 10, color: "rgba(23,19,33,.55)", background: "rgba(23,19,33,.06)", padding: "2px 7px", borderRadius: 5 } }, s.section_type)
               ),
-              React.createElement("div", { style: { fontFamily: fontDef.display, fontSize: mode === "mobile" ? 20 : 24, fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1.15, color: "#f0ece6", marginBottom: 8 } }, s.heading || s.title || s.section_key),
-              s.subheading && React.createElement("div", { style: { fontFamily: fontDef.body, fontSize: 13, color: "rgba(255,255,255,.6)", marginBottom: 8, lineHeight: 1.5 } }, s.subheading.slice(0, 120) + (s.subheading.length > 120 ? "…" : "")),
-              s.body && !isBlockSection && React.createElement("p", { style: { fontFamily: fontDef.body, fontSize: 12, color: "#9ca3af", lineHeight: 1.6, maxWidth: 560, margin: "0 0 10px" } }, s.body.slice(0, 160) + (s.body.length > 160 ? "…" : "")),
+              React.createElement("div", { style: { fontFamily: fontDef.display, fontSize: mode === "mobile" ? 20 : 24, fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1.15, color: "#171321", marginBottom: 8 } }, s.heading || s.title || s.section_key),
+              s.subheading && React.createElement("div", { style: { fontFamily: fontDef.body, fontSize: 13, color: "rgba(23,19,33,.68)", marginBottom: 8, lineHeight: 1.5 } }, s.subheading.slice(0, 120) + (s.subheading.length > 120 ? "…" : "")),
+              s.body && !isBlockSection && React.createElement("p", { style: { fontFamily: fontDef.body, fontSize: 12, color: "rgba(23,19,33,.64)", lineHeight: 1.6, maxWidth: 560, margin: "0 0 10px" } }, s.body.slice(0, 160) + (s.body.length > 160 ? "…" : "")),
               // Text+image layout preview
               isTextImage && s.image_url && React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 10 } },
-                React.createElement("div", { style: { background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px", fontSize: 11, color: "rgba(255,255,255,.5)" } }, s.body ? s.body.slice(0, 100) + "…" : "Body text"),
+                React.createElement("div", { style: { background: "rgba(23,19,33,.045)", borderRadius: 12, padding: "12px 14px", fontSize: 11, color: "rgba(23,19,33,.62)" } }, s.body ? s.body.slice(0, 100) + "…" : "Body text"),
                 React.createElement("img", { src: s.image_url, style: previewImageFrame })
               ),
               // Plain image (hero, etc)
               !isTextImage && !isBlockSection && s.image_url && React.createElement("div", { style: { marginTop: 10, display: isHero && mode !== "mobile" ? "grid" : "block", gridTemplateColumns: isHero && mode !== "mobile" ? "minmax(0, .9fr) minmax(0, 1.1fr)" : undefined, gap: 14, alignItems: "center" } },
-                isHero && mode !== "mobile" && React.createElement("div", { style: { fontFamily: fontDef.body, fontSize: 12, color: "rgba(255,255,255,.55)", lineHeight: 1.6 } }, s.body ? s.body.slice(0, 180) + (s.body.length > 180 ? "…" : "") : s.subheading || "Hero copy"),
+                isHero && mode !== "mobile" && React.createElement("div", { style: { fontFamily: fontDef.body, fontSize: 12, color: "rgba(23,19,33,.62)", lineHeight: 1.6 } }, s.body ? s.body.slice(0, 180) + (s.body.length > 180 ? "…" : "") : s.subheading || "Hero copy"),
                 React.createElement("img", { src: s.image_url, style: previewImageFrame })
               ),
               // Block-based section: render mini card grid
               isBlockSection && sectionBlocks.length > 0 && React.createElement("div", { style: { display: "grid", gridTemplateColumns: mode === "mobile" ? "1fr" : `repeat(${Math.min(sectionBlocks.length, 3)}, minmax(0, 1fr))`, gap: 8, marginTop: 10 } },
                 sectionBlocks.slice(0, 4).map(b =>
-                  React.createElement("div", { key: b.block_key || b.id, style: { background: "rgba(255,255,255,.05)", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255,255,255,.08)" } },
+                  React.createElement("div", { key: b.block_key || b.id, style: { background: "rgba(255,255,255,.58)", borderRadius: 12, overflow: "hidden", border: "1px solid rgba(23,19,33,.08)", boxShadow: "0 10px 28px rgba(23,19,33,.08)" } },
                     b.image_url && React.createElement("img", { src: b.image_url, style: blockImageFrame }),
                     React.createElement("div", { style: { padding: "6px 8px" } },
-                      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#f0ece6", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, b.title || b.block_key),
-                      b.body && React.createElement("div", { style: { fontSize: 10, color: "rgba(255,255,255,.45)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } }, b.body.slice(0, 60))
+                      React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#171321", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, b.title || b.block_key),
+                      b.body && React.createElement("div", { style: { fontSize: 10, color: "rgba(23,19,33,.58)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } }, b.body.slice(0, 60))
                     )
                   )
                 ),
-                sectionBlocks.length > 4 && React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,.04)", borderRadius: 8, fontSize: 11, color: "rgba(255,255,255,.35)" } }, `+${sectionBlocks.length - 4} more`)
+                sectionBlocks.length > 4 && React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(23,19,33,.04)", borderRadius: 8, fontSize: 11, color: "rgba(23,19,33,.42)" } }, `+${sectionBlocks.length - 4} more`)
               ),
-              isBlockSection && sectionBlocks.length === 0 && React.createElement("div", { style: { marginTop: 8, padding: "10px", borderRadius: 8, border: "1px dashed rgba(255,255,255,.12)", fontSize: 11, color: "rgba(255,255,255,.3)", textAlign: "center" } }, "No blocks yet — add via block editor"),
+              isBlockSection && sectionBlocks.length === 0 && React.createElement("div", { style: { marginTop: 8, padding: "10px", borderRadius: 8, border: "1px dashed rgba(23,19,33,.16)", fontSize: 11, color: "rgba(23,19,33,.42)", textAlign: "center" } }, "No blocks yet — add via block editor"),
               // CTAs
               (s.cta_label || s.cta_secondary_label) && React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12 } },
                 s.cta_label && React.createElement("span", { style: { padding: "6px 14px", borderRadius: 8, background: "#7c3aed", color: "#fff", fontSize: 12, fontWeight: 700 } }, s.cta_label),
-                s.cta_secondary_label && React.createElement("span", { style: { padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,.18)", fontSize: 12, color: "rgba(255,255,255,.65)" } }, s.cta_secondary_label)
+                s.cta_secondary_label && React.createElement("span", { style: { padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(23,19,33,.18)", fontSize: 12, color: "rgba(23,19,33,.78)" } }, s.cta_secondary_label)
               )
             );
-          })
+          }),
+          React.createElement("div", { style: { padding: mode === "mobile" ? "28px 22px" : "34px 36px", background: "#171321", color: "#f5f1e8", borderTop: "1px solid rgba(255,255,255,.08)" } },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: mode === "mobile" ? "1fr" : "1.3fr 1fr 1fr", gap: 18, alignItems: "start" } },
+              React.createElement("div", null,
+                React.createElement("img", { src: "https://assets.companionsofcaddo.org/static/global/companionsofcpa-newlogo.webp", style: { width: 54, height: 54, objectFit: "contain", marginBottom: 10 } }),
+                React.createElement("div", { style: { fontSize: 13, lineHeight: 1.6, color: "rgba(245,241,232,.72)", maxWidth: 340 } }, "Volunteer-powered second chances for Caddo Parish dogs through foster support, medical care, transport, and rescue visibility.")
+              ),
+              React.createElement("div", { style: { fontSize: 12, lineHeight: 1.9, color: "rgba(245,241,232,.68)" } },
+                React.createElement("strong", { style: { display: "block", color: "#fff", marginBottom: 4, fontSize: 11, letterSpacing: ".12em", textTransform: "uppercase" } }, "Pages"),
+                React.createElement("div", null, "Home"), React.createElement("div", null, "About"), React.createElement("div", null, "Foster"), React.createElement("div", null, "Adopt"), React.createElement("div", null, "Donate")
+              ),
+              React.createElement("div", { style: { fontSize: 12, lineHeight: 1.9, color: "rgba(245,241,232,.68)" } },
+                React.createElement("strong", { style: { display: "block", color: "#fff", marginBottom: 4, fontSize: 11, letterSpacing: ".12em", textTransform: "uppercase" } }, "Organization"),
+                React.createElement("div", null, "Companions of CPAS"), React.createElement("div", null, "EIN 88-4156327"), React.createElement("div", null, "Caddo Parish")
+              )
+            )
+          )
         )
       ),
 
