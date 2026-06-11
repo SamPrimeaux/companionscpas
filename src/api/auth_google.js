@@ -159,6 +159,11 @@ export async function googleAuthRoutes(request, env, url) {
       has_client_secret: !!env.GOOGLE_CLIENT_SECRET,
       client_id_length: env.GOOGLE_CLIENT_ID?.length || 0,
       client_secret_length: env.GOOGLE_CLIENT_SECRET?.length || 0,
+      request_url: request.url,
+      url_origin: url.origin,
+      redirect_uri_would_be: `${url.origin}/api/auth/google/callback`,
+      host_header: request.headers.get("host"),
+      cf_visitor: request.headers.get("cf-visitor"),
     });
   }
   return null;
