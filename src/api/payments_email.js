@@ -385,6 +385,9 @@ export async function paymentsEmailRoutes(request, env, url) {
 
     // ── payment_intent.succeeded (Elements flow) ──────────────────────────
     if (event.type === "payment_intent.succeeded") {
+      // Defer to checkout.session.completed to avoid double-write
+      const _meta = event.data?.object?.metadata || {};
+      if (_meta.local_checkout_id) return json({ received: true, deferred: true });
       const pi = event.data?.object || {};
       const meta = pi.metadata || {};
       const amountCents = pi.amount_received || pi.amount || 0;
