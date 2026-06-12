@@ -129,7 +129,9 @@
       clock: [h('circle', { key:'a', cx:'12', cy:'12', r:'9' }), h('path', { key:'b', d:'M12 7v5l3 2' })],
       file: [h('path', { key:'a', d:'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z' }), h('path', { key:'b', d:'M14 2v6h6' })],
       alert: [h('path', { key:'a', d:'M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z' }), h('path', { key:'b', d:'M12 9v4' }), h('path', { key:'c', d:'M12 17h.01' })],
-      send: [h('path', { key:'a', d:'M22 2L11 13' }), h('path', { key:'b', d:'M22 2l-7 20-4-9-9-4z' })]
+      send: [h('path', { key:'a', d:'M22 2L11 13' }), h('path', { key:'b', d:'M22 2l-7 20-4-9-9-4z' })],
+      phone: [h('path', { key:'a', d:'M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10a19.79 19.79 0 01-3.07-8.67A2 2 0 012 .18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z' })],
+      mail: [h('path', { key:'a', d:'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z' }), h('polyline', { key:'b', points:'22,6 12,13 2,6' })]
     };
     return h('svg', common, paths[name] || paths.file);
   }
@@ -444,6 +446,7 @@
     );
   }
 
+  // ── AnimalCard — image uses cover + top anchor so faces are always visible ──
   function AnimalCard(props) {
     var a = props.animal;
     var isMobile = props.isMobile;
@@ -452,8 +455,8 @@
     var completion = percentProfile(a);
     var needsFosterBadge = Number(a.foster_needed) === 1 && a.status !== 'foster';
     return h('div', { onClick:function(){ if (props.onOpen) props.onOpen(a); }, onMouseEnter:function(){ setHover(true); }, onMouseLeave:function(){ setHover(false); }, style:{ position:'relative', background:'linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.012)), ' + u.surface, border:'1px solid ' + (hover ? u.purple + '77' : u.border), borderRadius:18, overflow:'hidden', cursor:'pointer', transition:'all .16s ease', transform:hover && !isMobile ? 'translateY(-2px)' : 'none', boxShadow:hover && !isMobile ? '0 22px 58px rgba(12,12,28,.18)' : '0 14px 34px rgba(12,12,28,.08)' } },
-      h('div', { style:{ height:isMobile ? 138 : 160, background:u.raised, overflow:'hidden', position:'relative' } },
-        a.photo ? h('img', { src:a.photo, alt:a.name || 'Animal photo', style:{ width:'100%', height:'100%', objectFit:'cover', display:'block' }, onError:function(e){ e.currentTarget.style.display='none'; } }) : h(EmptyPanel, { compact:true, iconName:'file', message:'No photo', style:{ height:'100%', border:'none', borderRadius:0 } }),
+      h('div', { style:{ height:isMobile ? 160 : 190, background:u.raised, overflow:'hidden', position:'relative' } },
+        a.photo ? h('img', { src:a.photo, alt:a.name || 'Animal photo', style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' }, onError:function(e){ e.currentTarget.style.display='none'; } }) : h(EmptyPanel, { compact:true, iconName:'file', message:'No photo', style:{ height:'100%', border:'none', borderRadius:0 } }),
         h('div', { style:{ position:'absolute', top:8, right:8 } }, h(StatusPill, { status:a.status, style:{ background:'rgba(15,15,30,.72)', backdropFilter:'blur(10px)' } })),
         needsFosterBadge ? h('div', { style:{ position:'absolute', top:8, left:8 } }, h(StatusPill, { label:'Foster Needed', color:u.yellow, dot:true, style:{ background:'rgba(15,15,30,.72)', backdropFilter:'blur(10px)' } })) : null,
         hover && !isMobile ? h('div', { style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.42)', display:'flex', alignItems:'center', justifyContent:'center' } }, h(Button, { size:'sm', iconName:'edit' }, 'Edit Profile')) : null
@@ -556,7 +559,7 @@
     return h('table', { style:{ width:'100%', borderCollapse:'collapse', minWidth:720 } },
       h('thead', null, h('tr', null, ['Animal','Species','Breed','Age','Sex','Status','Profile'].map(function(hd){ return h('th', { key:hd, style:{ textAlign:'left', padding:'12px 14px', color:u.textMut, fontSize:11, textTransform:'uppercase', letterSpacing:'.06em', borderBottom:'1px solid ' + u.border } }, hd); }))),
       h('tbody', null, rows.map(function(a){ return h('tr', { key:a.id, onClick:function(){ if (onNavigate) onNavigate('animal-profile', { animalId:a.id }); }, style:{ cursor:'pointer' } },
-        h('td', { style:tdStyle() }, h('div', { style:{ display:'flex', alignItems:'center', gap:10 } }, a.photo ? h('img', { src:a.photo, alt:a.name, style:{ width:38, height:38, borderRadius:9, objectFit:'cover' } }) : null, h('div', null, h('div', { style:{ color:u.text, fontWeight:800 } }, a.name), h('div', { style:{ color:u.textMut, fontSize:11 } }, a.id)))),
+        h('td', { style:tdStyle() }, h('div', { style:{ display:'flex', alignItems:'center', gap:10 } }, a.photo ? h('img', { src:a.photo, alt:a.name, style:{ width:38, height:38, borderRadius:9, objectFit:'cover', objectPosition:'top center' } }) : null, h('div', null, h('div', { style:{ color:u.text, fontWeight:800 } }, a.name), h('div', { style:{ color:u.textMut, fontSize:11 } }, a.id)))),
         h('td', { style:tdStyle() }, a.species || '-'), h('td', { style:tdStyle() }, a.breed || '-'), h('td', { style:tdStyle() }, a.age_label || '-'), h('td', { style:tdStyle() }, a.sex || '-'), h('td', { style:tdStyle() }, h(StatusPill, { status:a.status })), h('td', { style:tdStyle() }, percentProfile(a) + '%')
       ); }))
     );
@@ -567,7 +570,7 @@
     var u = ui();
     return h(SoftCard, { style:{ padding:isMobile ? 16 : 22, marginBottom:18 } },
       h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '160px 1fr', gap:isMobile ? 14 : 22, alignItems:'start' } },
-        h('div', { style:{ width:isMobile ? '100%' : 160, height:isMobile ? 220 : 160, borderRadius:16, overflow:'hidden', border:'1px solid ' + u.border, background:u.raised } }, a.photo ? h('img', { src:a.photo, alt:a.name, style:{ width:'100%', height:'100%', objectFit:'cover', display:'block' } }) : h(EmptyPanel, { compact:true, iconName:'file', message:'No photo', style:{ height:'100%', border:'none' } })),
+        h('div', { style:{ width:isMobile ? '100%' : 160, height:isMobile ? 220 : 200, borderRadius:16, overflow:'hidden', border:'1px solid ' + u.border, background:u.raised } }, a.photo ? h('img', { src:a.photo, alt:a.name, style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' } }) : h(EmptyPanel, { compact:true, iconName:'file', message:'No photo', style:{ height:'100%', border:'none' } })),
         h('div', null,
           h('div', { style:{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:6 } }, h('h2', { style:{ margin:0, color:u.text, fontSize:isMobile ? 24 : 28, fontWeight:950, letterSpacing:'-.04em' } }, a.name || 'Unnamed'), h(StatusPill, { status:a.status })),
           h('div', { style:{ color:u.textSec, fontSize:13, marginBottom:12 } }, [a.breed, a.species].filter(Boolean).join(' - ') || 'Animal profile'),
@@ -837,20 +840,161 @@
     );
   }
 
-  function GenericListView(props) {
-    var title = props.title, subtitle = props.subtitle, endpoint = props.endpoint, empty = props.empty;
+  // ── FosterCard — clean profile card for each foster record ────────────────
+  function FosterCard(props) {
+    var item = props.item;
+    var onViewAnimal = props.onViewAnimal;
+    var u = ui();
+    var isActive = item.status === 'active';
+    var accentColor = isActive ? u.purple : u.textMut;
+
+    return h(SoftCard, { style:{ padding:0, overflow:'hidden' } },
+      // Photo + animal header
+      h('div', { style:{ display:'flex', alignItems:'stretch', gap:0 } },
+        h('div', { style:{ width:88, height:88, flexShrink:0, background:u.raised, overflow:'hidden' } },
+          item.asset_cdn_url ? h('img', { src:item.asset_cdn_url, alt:item.animal_name || 'Animal', style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center' } }) :
+          h('div', { style:{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:u.textMut, fontSize:11 } }, 'No photo')
+        ),
+        h('div', { style:{ flex:1, padding:'14px 16px', minWidth:0 } },
+          h('div', { style:{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8, marginBottom:4 } },
+            h('div', null,
+              h('div', { style:{ color:u.text, fontWeight:900, fontSize:15, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, item.animal_name || 'Animal'),
+              h('div', { style:{ color:u.textSec, fontSize:12, marginTop:1 } }, [item.species, item.breed].filter(Boolean).join(' - ') || '-')
+            ),
+            h(StatusPill, { label:isActive ? 'Active' : labelize(item.status || 'inactive'), color:accentColor })
+          ),
+          h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginTop:6 } },
+            h('div', { style:{ width:28, height:28, borderRadius:'50%', background:u.purpleDim, border:'1px solid ' + u.purple + '44', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:900, color:u.purpleL, flexShrink:0 } },
+              (item.foster_name || '?').split(' ').map(function(w){ return w[0]; }).join('').slice(0, 2).toUpperCase()
+            ),
+            h('div', { style:{ color:u.text, fontSize:13, fontWeight:700 } }, item.foster_name || 'Unknown foster')
+          )
+        )
+      ),
+      // Details row
+      h('div', { style:{ borderTop:'1px solid ' + u.border, padding:'12px 16px', display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:'8px 16px' } },
+        h('div', null,
+          h('div', { style:{ color:u.textMut, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Foster type'),
+          h('div', { style:{ color:u.textSec, fontSize:12 } }, labelize(item.foster_type || 'standard'))
+        ),
+        h('div', null,
+          h('div', { style:{ color:u.textMut, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Check-ins'),
+          h('div', { style:{ color:u.textSec, fontSize:12 } }, labelize(item.check_in_frequency || '-'))
+        ),
+        h('div', null,
+          h('div', { style:{ color:u.textMut, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Started'),
+          h('div', { style:{ color:u.textSec, fontSize:12 } }, fmtDate(item.start_date) || '-')
+        ),
+        h('div', null,
+          h('div', { style:{ color:u.textMut, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Expected return'),
+          h('div', { style:{ color:item.expected_end_date ? u.yellow : u.textSec, fontSize:12 } }, fmtDate(item.expected_end_date) || 'Open-ended')
+        )
+      ),
+      // Contact + notes footer
+      (item.foster_email || item.foster_phone || item.notes) ? h('div', { style:{ borderTop:'1px solid ' + u.border, padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' } },
+        h('div', { style:{ display:'flex', gap:12, flexWrap:'wrap' } },
+          item.foster_phone ? h('span', { style:{ color:u.textSec, fontSize:12, display:'inline-flex', alignItems:'center', gap:5 } }, appIcon('phone', 12, { color:u.textMut }), item.foster_phone) : null,
+          item.foster_email ? h('span', { style:{ color:u.textSec, fontSize:12, display:'inline-flex', alignItems:'center', gap:5 } }, appIcon('mail', 12, { color:u.textMut }), item.foster_email) : null
+        ),
+        item.animal_id ? h('button', { onClick:function(){ if (onViewAnimal) onViewAnimal(item.animal_id); }, style:{ background:'none', border:'none', color:u.purpleL, fontSize:12, fontWeight:700, cursor:'pointer', padding:0 } }, 'View animal →') : null
+      ) : null,
+      item.notes ? h('div', { style:{ borderTop:'1px solid ' + u.border, padding:'8px 16px', color:u.textMut, fontSize:12, fontStyle:'italic' } }, item.notes) : null
+    );
+  }
+
+  // ── FostersView — live API-powered foster profile cards ───────────────────
+  function FostersView(props) {
+    var onNavigate = props.onNavigate;
+    var itemsState = useState(null), items = itemsState[0], setItems = itemsState[1];
+    var filterState = useState('all'), filter = filterState[0], setFilter = filterState[1];
+    var bp = useBreakpoint();
+    var isMobile = bp === 'mobile';
+    var u = ui();
+
+    useEffect(function(){
+      apiJSON('/api/dashboard/fosters')
+        .then(function(d){ setItems(d.fosters || []); })
+        .catch(function(){ setItems([]); });
+    }, []);
+
+    var filtered = (items || []).filter(function(f){
+      if (filter === 'active') return f.status === 'active';
+      if (filter === 'ended') return f.status !== 'active';
+      return true;
+    });
+
+    var activeCount = (items || []).filter(function(f){ return f.status === 'active'; }).length;
+
+    return h('div', { style:{ padding:isMobile ? '18px 12px 40px' : '28px 28px 40px', flex:1, overflowY:'auto', boxSizing:'border-box' } },
+      h('div', { style:{ display:'flex', alignItems:isMobile ? 'flex-start' : 'center', justifyContent:'space-between', gap:16, marginBottom:22, flexWrap:'wrap' } },
+        h('div', null,
+          h('h1', { style:{ margin:'0 0 4px', color:u.text, fontSize:isMobile ? 24 : 28, fontWeight:900, letterSpacing:'-.04em' } }, 'Fosters'),
+          h('div', { style:{ color:u.textSec, fontSize:13 } }, items === null ? 'Loading...' : activeCount + ' active placements')
+        )
+      ),
+      // Summary stats
+      items !== null && h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:24 } },
+        h(SoftCard, { style:{ padding:'16px 20px' } },
+          h('div', { style:{ color:u.textMut, fontSize:11, textTransform:'uppercase', letterSpacing:'.06em', fontWeight:800, marginBottom:4 } }, 'Active'),
+          h('div', { style:{ color:u.text, fontSize:26, fontWeight:900 } }, activeCount)
+        ),
+        h(SoftCard, { style:{ padding:'16px 20px' } },
+          h('div', { style:{ color:u.textMut, fontSize:11, textTransform:'uppercase', letterSpacing:'.06em', fontWeight:800, marginBottom:4 } }, 'Total'),
+          h('div', { style:{ color:u.text, fontSize:26, fontWeight:900 } }, (items || []).length)
+        ),
+        h(SoftCard, { style:{ padding:'16px 20px' } },
+          h('div', { style:{ color:u.textMut, fontSize:11, textTransform:'uppercase', letterSpacing:'.06em', fontWeight:800, marginBottom:4 } }, 'Ended'),
+          h('div', { style:{ color:u.text, fontSize:26, fontWeight:900 } }, (items || []).length - activeCount)
+        )
+      ),
+      // Filter tabs
+      h('div', { style:{ display:'flex', gap:4, marginBottom:20, borderBottom:'1px solid ' + u.border } },
+        [['all','All'],['active','Active'],['ended','Ended']].map(function(pair){
+          var active = filter === pair[0];
+          return h('button', { key:pair[0], onClick:function(){ setFilter(pair[0]); }, style:{ border:'none', background:'transparent', color:active ? u.purpleL : u.textSec, padding:'10px 14px', borderBottom:'2px solid ' + (active ? u.purple : 'transparent'), fontWeight:active ? 900 : 700, fontSize:13, cursor:'pointer', marginBottom:-1 } }, pair[1]);
+        })
+      ),
+      items === null ? h(LoadingBlock, null, 'Loading foster records...') :
+      !filtered.length ? h(EmptyPanel, { iconName:'heart', message:filter === 'active' ? 'No active foster placements.' : 'No foster records yet.' }) :
+      h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(2,minmax(0,1fr))', gap:16 } },
+        filtered.map(function(item, idx){
+          return h(FosterCard, { key:item.id || idx, item:item, onViewAnimal:function(animalId){ if (onNavigate) onNavigate('animal-profile', { animalId:animalId }); } });
+        })
+      )
+    );
+  }
+
+  // ── AdoptionsView — clean table (unchanged logic, kept minimal) ────────────
+  function AdoptionsView(props) {
     var itemsState = useState(null), items = itemsState[0], setItems = itemsState[1];
     var bp = useBreakpoint();
     var isMobile = bp === 'mobile';
     var u = ui();
-    useEffect(function(){ apiJSON(endpoint).then(function(d){ setItems(d.fosters || d.adoptions || d.items || d.records || []); }).catch(function(){ setItems([]); }); }, [endpoint]);
+    useEffect(function(){ apiJSON('/api/dashboard/adoptions').then(function(d){ setItems(d.adoptions || []); }).catch(function(){ setItems([]); }); }, []);
     return h('div', { style:{ padding:isMobile ? '18px 12px 40px' : '28px 28px 40px', flex:1, overflowY:'auto' } },
-      h('div', { style:{ marginBottom:22 } }, h('h1', { style:{ margin:'0 0 6px', color:u.text, fontSize:isMobile ? 24 : 28, fontWeight:900 } }, title), h('div', { style:{ color:u.textSec, fontSize:13 } }, subtitle)),
-      items === null ? h(LoadingBlock, null, 'Loading...') : !items.length ? h(EmptyPanel, { iconName:'file', message:empty }) : h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(2,minmax(0,1fr))', gap:14 } }, items.map(function(item, idx){ return h(SoftCard, { key:item.id || idx, style:{ padding:16 } }, h('div', { style:{ color:u.text, fontWeight:900 } }, item.animal_name || item.name || item.foster_name || item.id || 'Record'), h('pre', { style:{ margin:'10px 0 0', whiteSpace:'pre-wrap', color:u.textMut, fontSize:11, lineHeight:1.5, fontFamily:'inherit' } }, JSON.stringify(item, null, 2))); }))
+      h('div', { style:{ marginBottom:22 } },
+        h('h1', { style:{ margin:'0 0 4px', color:u.text, fontSize:isMobile ? 24 : 28, fontWeight:900 } }, 'Adoptions'),
+        h('div', { style:{ color:u.textSec, fontSize:13 } }, 'Approved adoption placements')
+      ),
+      items === null ? h(LoadingBlock, null, 'Loading...') :
+      !items.length ? h(EmptyPanel, { iconName:'check', message:'No adoption records yet.' }) :
+      h('div', { style:{ display:'flex', flexDirection:'column', gap:12 } }, items.map(function(item, idx){
+        var name = [item.first_name, item.last_name].filter(Boolean).join(' ') || item.applicant_name || 'Applicant';
+        return h(SoftCard, { key:item.id || idx, style:{ padding:16 } },
+          h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' } },
+            h('div', null,
+              h('div', { style:{ color:u.text, fontWeight:900, fontSize:15 } }, name),
+              h('div', { style:{ color:u.textSec, fontSize:12, marginTop:2 } }, [item.email || item.applicant_email, item.phone].filter(Boolean).join(' - ') || '-')
+            ),
+            h('div', { style:{ display:'flex', gap:8, alignItems:'center' } },
+              h(StatusPill, { label:labelize(item.review_status || item.status || 'approved'), color:u.green }),
+              h('div', { style:{ color:u.textMut, fontSize:11 } }, fmtDate(item.submitted_at || item.created_at))
+            )
+          )
+        );
+      }))
     );
   }
-  function FostersView(props) { return h(GenericListView, { title:'Fosters', subtitle:'Active and historical foster placements', endpoint:'/api/dashboard/fosters', empty:'No foster records yet.' }); }
-  function AdoptionsView(props) { return h(GenericListView, { title:'Adoptions', subtitle:'Adoption outcomes and approved placements', endpoint:'/api/dashboard/adoptions', empty:'No adoption records yet.' }); }
 
   Object.assign(window, { AnimalsView:AnimalsView, AnimalProfileView:AnimalProfileView, FostersView:FostersView, AdoptionsView:AdoptionsView });
 })();
