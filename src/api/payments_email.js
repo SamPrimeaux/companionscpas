@@ -383,30 +383,27 @@ export async function paymentsEmailRoutes(request, env, url) {
     const event = verified.event;
     const rawEvent = JSON.stringify(event);
 
-    // ── payment_intent.succeeded (Elements flow) ──────────────────────────
+    // ── payment_intent.succeeded (Elements flow only) ─────────────────────
+    // If a donation already exists for this PI (written by checkout.session.completed), skip.
     if (event.type === "payment_intent.succeeded") {
-      // Defer to checkout.session.completed to avoid double-write
-      const _meta = event.data?.object?.metadata || {};
-      if (_meta.local_checkout_id) return json({ received: true, deferred: true });
       const pi = event.data?.object || {};
       const meta = pi.metadata || {};
-      const amountCents = pi.amount_received || pi.amount || 0;
-      const currency = pi.currency || "usd";
 
-      // Idempotency: skip if already processed
-      const existingPayment = await env.DB.prepare(
-        "SELECT id FROM donation_payments WHERE provider_payment_id = ? LIMIT 1"
+      // Idempotency: skip if donations table already has a row for this PI
+      const existingDonation = await env.DB.prepare(
+        "SELECT id FROM donations WHERE stripe_payment_intent_id = ? LIMIT 1"
       ).bind(pi.id).first();
 
-      if (existingPayment?.id) {
-        try {
-          await env.DB.prepare(
-            `INSERT INTO stripe_webhooks (id, tenant_id, event_type, status, related_id, payload_json, processed_at)
-             VALUES (?, ?, ?, 'duplicate', ?, ?, datetime('now'))`
-          ).bind(id("stripewh"), TENANT_ID, event.type, existingPayment.id, rawEvent).run();
-        } catch {}
-        return json({ received: true, duplicate: true });
+      if (existingDonation?.id) {
+        await env.DB.prepare(
+          `INSERT INTO stripe_webhooks (id, tenant_id, event_type, status, related_id, payload_json, processed_at)
+           VALUES (?, ?, ?, 'deferred', ?, ?, datetime('now'))`
+        ).bind(id("stripewh"), TENANT_ID, event.type, existingDonation.id, rawEvent).run();
+        return json({ received: true, deferred: true });
       }
+
+      const amountCents = pi.amount_received || pi.amount || 0;
+      const currency = pi.currency || "usd";
 
       // Resolve intent row
       const intentRow = await env.DB.prepare(
@@ -415,7 +412,6 @@ export async function paymentsEmailRoutes(request, env, url) {
         ? await env.DB.prepare("SELECT * FROM donation_intents WHERE id = ? LIMIT 1").bind(meta.local_checkout_id).first()
         : null);
 
-      // Billing details land on the charge, but PI has them via latest_charge expand — use metadata fallback
       const donorEmail = pi.receipt_email || intentRow?.donor_email || null;
       const donorName  = meta.donor_name  || intentRow?.donor_name  || null;
       const campaignIdRaw = meta.campaign_id || intentRow?.campaign_id || null;
