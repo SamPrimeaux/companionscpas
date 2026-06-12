@@ -61,12 +61,13 @@
     overflow-x: hidden;
   }
 
-  /* ── Prevent browser text-selection highlight on headings & nav ── */
-  h1, h2, h3, h4, h5, h6,
-  .cpas-nav-item, .cpas-nav-group-label, .cpas-topbar {
-    user-select: none;
-    -webkit-user-select: none;
+  /* ── Page title contrast — always dark on light content bg ── */
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--dash-text);
   }
+
+  /* ── Clear selection on nav clicks so titles don't appear highlighted ── */
+  ::selection { background: transparent; }
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
