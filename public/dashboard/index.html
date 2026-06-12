@@ -61,6 +61,13 @@
     overflow-x: hidden;
   }
 
+  /* ── Prevent browser text-selection highlight on headings & nav ── */
+  h1, h2, h3, h4, h5, h6,
+  .cpas-nav-item, .cpas-nav-group-label, .cpas-topbar {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--dash-border-strong); border-radius: 99px; }
@@ -222,7 +229,6 @@
     flex-shrink: 0; transition: background 120ms, color 120ms;
   }
   .agentsam-launcher:hover { background: rgba(255,255,255,0.08); color: var(--nav-text); }
-
 
   /* ── Image card text contrast ──────────────────────────── */
   .cpas-asset-label { color: rgba(255,255,255,0.92) !important; }
