@@ -21,6 +21,82 @@ function cents(amount) {
   return Math.round(n * 100);
 }
 
+
+function timingSafeEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+function parseStripeSignatureHeader(header) {
+  const parts = String(header || "").split(",").map((part) => part.trim());
+  const timestamp = parts.find((part) => part.startsWith("t="))?.slice(2) || null;
+  const signatures = parts
+    .filter((part) => part.startsWith("v1="))
+    .map((part) => part.slice(3))
+    .filter(Boolean);
+
+  return { timestamp, signatures };
+}
+
+async function hmacSha256Hex(secret, payload) {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+  return Array.from(new Uint8Array(signature))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function verifyStripeWebhook(request, env) {
+  if (!env.STRIPE_WEBHOOK_SECRET) {
+    return { ok: false, status: 501, error: "Stripe webhook secret is not configured" };
+  }
+
+  const signatureHeader = request.headers.get("stripe-signature");
+  if (!signatureHeader) {
+    return { ok: false, status: 400, error: "Missing Stripe-Signature header" };
+  }
+
+  const rawBody = await request.text();
+  const { timestamp, signatures } = parseStripeSignatureHeader(signatureHeader);
+
+  if (!timestamp || signatures.length === 0) {
+    return { ok: false, status: 400, error: "Invalid Stripe-Signature header" };
+  }
+
+  const timestampNumber = Number(timestamp);
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(timestampNumber) || Math.abs(now - timestampNumber) > 300) {
+    return { ok: false, status: 400, error: "Stripe webhook timestamp outside tolerance" };
+  }
+
+  const signedPayload = `${timestamp}.${rawBody}`;
+  const expectedSignature = await hmacSha256Hex(env.STRIPE_WEBHOOK_SECRET, signedPayload);
+  const verified = signatures.some((sig) => timingSafeEqual(sig, expectedSignature));
+
+  if (!verified) {
+    return { ok: false, status: 400, error: "Invalid Stripe webhook signature" };
+  }
+
+  try {
+    return { ok: true, event: JSON.parse(rawBody) };
+  } catch {
+    return { ok: false, status: 400, error: "Invalid Stripe event JSON" };
+  }
+}
+
+
 async function logEmail(env, row) {
   const emailId = id("email");
   await env.DB.prepare(
@@ -178,14 +254,27 @@ export async function paymentsEmailRoutes(request, env, url) {
   }
 
   if (path === "/api/webhooks/stripe" && method === "POST") {
-    const event = await request.json().catch(() => null);
-    if (!event) return json({ error: "Invalid Stripe event" }, 400);
+    const verified = await verifyStripeWebhook(request, env);
+    if (!verified.ok) return json({ error: verified.error }, verified.status || 400);
+    const event = verified.event;
 
     if (event.type === "checkout.session.completed") {
       const s = event.data?.object || {};
       const meta = s.metadata || {};
       const donationId = id("donation");
       const amount = s.amount_total || 0;
+
+      const existing = await env.DB.prepare(
+        "SELECT id FROM donations WHERE stripe_checkout_session_id = ? LIMIT 1"
+      ).bind(s.id).first();
+
+      if (existing?.id) {
+        await env.DB.prepare(
+          "UPDATE donation_checkout_sessions SET status = 'completed', stripe_payment_intent_id = ?, updated_at = datetime('now') WHERE stripe_checkout_session_id = ?"
+        ).bind(s.payment_intent || null, s.id).run();
+
+        return json({ received: true, duplicate: true });
+      }
 
       await env.DB.prepare(
         `INSERT INTO donations
