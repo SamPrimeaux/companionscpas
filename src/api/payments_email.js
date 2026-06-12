@@ -173,7 +173,7 @@ async function sendResend(env, { to, name, subject, html, text, type, related_ty
   return { ok: true, id: parsed.id || null };
 }
 
-// ── Shared receipt sender (used by both webhook handlers) ─────────────────────
+// ── Shared receipt sender ─────────────────────────────────────────────────────
 async function sendDonationReceipt(env, { donorEmail, donorName, amountCents, donationId, intentId, piId }) {
   if (!donorEmail) return;
   const receipt = await sendResend(env, {
@@ -191,7 +191,6 @@ async function sendDonationReceipt(env, { donorEmail, donorName, amountCents, do
     </div>`
   });
 
-  // Update intent receipt status — match by intent id or pi id, non-fatal
   try {
     await env.DB.prepare(
       `UPDATE donation_intents
@@ -256,8 +255,6 @@ export async function paymentsEmailRoutes(request, env, url) {
   }
 
   // ── POST /api/donations/checkout ─────────────────────────────────────────
-  // mode: 'elements' → PaymentIntent → returns { client_secret }
-  // mode: default    → Checkout Session → returns { checkout_url }
   if (path === "/api/donations/checkout" && method === "POST") {
     const data = await body(request);
     const amountCents = data.amount_cents || cents(data.amount);
@@ -294,7 +291,6 @@ export async function paymentsEmailRoutes(request, env, url) {
 
       if (!piRes.ok) return json({ error: "Stripe PaymentIntent failed", details: pi }, 500);
 
-      // Insert intent row — donor fields nullable (filled after payment confirms via webhook)
       try {
         await env.DB.prepare(
           `INSERT INTO donation_intents
@@ -383,85 +379,26 @@ export async function paymentsEmailRoutes(request, env, url) {
     const event = verified.event;
     const rawEvent = JSON.stringify(event);
 
-    // ── payment_intent.succeeded (Elements flow only) ─────────────────────
-    // If a donation already exists for this PI (written by checkout.session.completed), skip.
+    // ── payment_intent.succeeded — log only, no DB writes ─────────────────
+    // checkout.session.completed owns all donation record creation.
+    // This handler exists only to acknowledge the event and avoid Stripe retries.
     if (event.type === "payment_intent.succeeded") {
       const pi = event.data?.object || {};
-      const meta = pi.metadata || {};
-
-      // Idempotency: skip if donations table already has a row for this PI
-      const existingDonation = await env.DB.prepare(
-        "SELECT id FROM donations WHERE stripe_payment_intent_id = ? LIMIT 1"
-      ).bind(pi.id).first();
-
-      if (existingDonation?.id) {
-        await env.DB.prepare(
-          `INSERT INTO stripe_webhooks (id, tenant_id, event_type, status, related_id, payload_json, processed_at)
-           VALUES (?, ?, ?, 'deferred', ?, ?, datetime('now'))`
-        ).bind(id("stripewh"), TENANT_ID, event.type, existingDonation.id, rawEvent).run();
-        return json({ received: true, deferred: true });
-      }
-
-      const amountCents = pi.amount_received || pi.amount || 0;
-      const currency = pi.currency || "usd";
-
-      // Resolve intent row
-      const intentRow = await env.DB.prepare(
-        "SELECT * FROM donation_intents WHERE provider_checkout_id = ? LIMIT 1"
-      ).bind(pi.id).first() || (meta.local_checkout_id
-        ? await env.DB.prepare("SELECT * FROM donation_intents WHERE id = ? LIMIT 1").bind(meta.local_checkout_id).first()
-        : null);
-
-      const donorEmail = pi.receipt_email || intentRow?.donor_email || null;
-      const donorName  = meta.donor_name  || intentRow?.donor_name  || null;
-      const campaignIdRaw = meta.campaign_id || intentRow?.campaign_id || null;
-      const campaignId = campaignIdRaw && campaignIdRaw !== "general" ? campaignIdRaw : null;
-      const note = meta.message || intentRow?.note || null;
-
-      const donorId = await upsertDonor(env, { donorEmail, donorName, amountCents, isRecurring: false });
-
-      const donationId = id("donation");
-      await env.DB.prepare(
-        `INSERT INTO donations
-         (id, organization_id, donor_id, campaign_id, amount_cents, currency, status, payment_provider, stripe_payment_intent_id, donor_message, is_anonymous, donated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'succeeded', 'stripe', ?, ?, 0, datetime('now'))`
-      ).bind(donationId, TENANT_ID, donorId, campaignId, amountCents, currency, pi.id, note).run();
-
-      await env.DB.prepare(
-        `INSERT INTO donation_payments
-         (id, tenant_id, donation_id, provider, provider_payment_id, provider_checkout_session_id, amount_cents, currency, status, raw_json, updated_at)
-         VALUES (?, ?, ?, 'stripe', ?, NULL, ?, ?, 'succeeded', ?, datetime('now'))`
-      ).bind(id("payment"), TENANT_ID, donationId, pi.id, amountCents, currency, JSON.stringify(pi)).run();
-
-      try {
-        await env.DB.prepare(
-          `UPDATE donation_intents
-           SET status = 'completed', resend_receipt_status = 'processing', updated_at = datetime('now')
-           WHERE provider_checkout_id = ? OR id = ?`
-        ).bind(pi.id, meta.local_checkout_id || "").run();
-      } catch {}
-
       await env.DB.prepare(
         `INSERT INTO stripe_webhooks (id, tenant_id, event_type, status, related_id, payload_json, processed_at)
-         VALUES (?, ?, ?, 'processed', ?, ?, datetime('now'))`
-      ).bind(id("stripewh"), TENANT_ID, event.type, donationId, rawEvent).run();
-
-      await sendDonationReceipt(env, {
-        donorEmail, donorName, amountCents, donationId,
-        intentId: meta.local_checkout_id || intentRow?.id,
-        piId: pi.id
-      });
-
-      return json({ received: true });
+         VALUES (?, ?, ?, 'acknowledged', ?, ?, datetime('now'))`
+      ).bind(id("stripewh"), TENANT_ID, event.type, pi.id || null, rawEvent).run();
+      return json({ received: true, acknowledged: true });
     }
 
-    // ── checkout.session.completed (hosted Checkout flow) ─────────────────
+    // ── checkout.session.completed — owns all donation writes ─────────────
     if (event.type === "checkout.session.completed") {
       const s = event.data?.object || {};
       const meta = s.metadata || {};
       const amount = s.amount_total || 0;
       const currency = s.currency || "usd";
 
+      // Idempotency: skip if already processed
       const existingPayment = await env.DB.prepare(
         "SELECT id FROM donation_payments WHERE provider_checkout_session_id = ? LIMIT 1"
       ).bind(s.id).first();
