@@ -129,7 +129,6 @@ function resolvePhoto(url, fallbackId) {
 
 // ── Transform API animal_profiles row → dashboard animal shape ────────────────
 function transformAnimal(row) {
-  // Priority: asset_cdn_url (from JOIN) > photo_url > fallback
   const rawPhoto = row.asset_cdn_url || row.cdn_url || row.photo_url || null;
   return {
     id:          row.id,
@@ -187,7 +186,7 @@ function transformVolunteer(row) {
   };
 }
 
-// ── Transform API fundraising_campaigns row → campaign shape ─────────────
+// ── Transform API fundraising_campaigns row → campaign shape ──────────────────
 function transformCampaign(row) {
   return {
     id:        row.id,
@@ -202,6 +201,50 @@ function transformCampaign(row) {
     category:  row.campaign_type || row.category || "General",
     color:     "#7c3aed"
   };
+}
+
+// ── Build financialBreakdown from real campaign rows ──────────────────────────
+// Groups raised_amount_cents by campaign_type, maps to donut slices.
+// Falls back gracefully if no data.
+function buildFinancialBreakdown(campaigns) {
+  const CATEGORY_META = {
+    medical:    { label: "Medical",    color: "#7c3aed" },
+    transport:  { label: "Transport",  color: "#06b6d4" },
+    foster:     { label: "Foster",     color: "#10b981" },
+    fundraiser: { label: "Fundraiser", color: "#a78bfa" },
+    general:    { label: "General",    color: "#f59e0b" },
+    events:     { label: "Events",     color: "#10b981" },
+    operations: { label: "Operations", color: "#06b6d4" },
+  };
+  const DEFAULT_COLORS = ["#7c3aed","#10b981","#06b6d4","#f59e0b","#ef4444","#a78bfa"];
+
+  // Sum raised cents per category
+  const totals = {};
+  for (const c of campaigns) {
+    const cat = (c.campaign_type || c.category || "general").toLowerCase();
+    const cents = Number(c.raised_amount_cents ?? c.raised_cents ?? 0);
+    totals[cat] = (totals[cat] || 0) + cents;
+  }
+
+  // Filter out zero-raised categories, sort descending
+  const entries = Object.entries(totals)
+    .filter(([, v]) => v > 0)
+    .sort(([, a], [, b]) => b - a);
+
+  if (!entries.length) return null; // signal to keep mock
+
+  const labels = [];
+  const values = [];
+  const colors = [];
+
+  entries.forEach(([cat, cents], i) => {
+    const meta = CATEGORY_META[cat];
+    labels.push(meta ? meta.label : cat.charAt(0).toUpperCase() + cat.slice(1));
+    values.push(Math.round(cents / 100));
+    colors.push(meta ? meta.color : DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
+  });
+
+  return { labels, values, colors };
 }
 
 // ── Initialize CPAS global with mock data, then hydrate from API ──────────────
@@ -232,6 +275,15 @@ window.__loadDashboardData = async function() {
     // Campaigns
     if (overview.campaigns?.length) {
       window.CPAS.campaigns = overview.campaigns.map(transformCampaign);
+
+      // Financial Overview donut — built from real campaign data
+      const breakdown = buildFinancialBreakdown(overview.campaigns);
+      if (breakdown) {
+        window.CPAS.chartData = {
+          ...window.CPAS.chartData,
+          financialBreakdown: breakdown
+        };
+      }
     }
 
     // Volunteers
