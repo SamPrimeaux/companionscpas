@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adopt a Dog &middot; Companions of CPAS</title>
+  <meta name="description" content="Meet dogs at Caddo Parish Animal Services who need forever homes. Browse available dogs and apply to adopt through Companions of CPAS." />
+  <meta name="theme-color" content="#090d18" />
+  <link rel="icon" href="/companionsofcpa-newlogo-512x512.png" />
+  <link rel="stylesheet" href="/static/global/shared.css?v=nav-p0-20260613" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" />
+</head>
+<body data-page="adopt">
+
+  <main id="main-content">
+    <div id="adopt-section-hero"      data-section="adopt/hero"></div>
+    <div id="adopt-section-animals"   data-section="adopt/animals"></div>
+    <div id="adopt-section-community" data-section="adopt/community"></div>
+  </main>
+
+  <script src="/static/global/shared.js?v=nav-p0-20260613" defer></script>
+  <script src="/static/js/donate-modal.js?v=donate-p1-20260613" defer></script>
+
+  <script>
+  (function () {
+    'use strict';
+    const SECTIONS = [
+      { id: 'adopt-section-hero',      path: '/static/pages/adopt/sections/hero.html' },
+      { id: 'adopt-section-animals',   path: '/static/pages/adopt/sections/animals.html' },
+      { id: 'adopt-section-community', path: '/static/pages/adopt/sections/community.html' },
+    ];
+
+    async function loadSection(id, path) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      try {
+        const res = await fetch(path);
+        if (!res.ok) throw new Error(res.status);
+        const html = await res.text();
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const scripts = Array.from(tmp.querySelectorAll('script'));
+        scripts.forEach(s => s.parentNode.removeChild(s));
+        el.replaceWith(...Array.from(tmp.childNodes));
+        scripts.forEach(s => {
+          const live = document.createElement('script');
+          if (s.src) { live.src = s.src; live.defer = true; }
+          else { live.textContent = s.textContent; }
+          document.body.appendChild(live);
+        });
+      } catch (err) {
+        console.warn('[adopt] section load failed:', path, err);
+        const dead = document.getElementById(id);
+        if (dead) dead.remove();
+      }
+    }
+
+    Promise.all(SECTIONS.map(s => loadSection(s.id, s.path)));
+
+    // Global click delegation for adopt/donate actions
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('[data-action="apply-adopt"]');
+      if (btn) {
+        e.preventDefault();
+        const animal = btn.dataset.animal || '';
+        if (window.FosterModal && window.FosterModal.openAdopt) window.FosterModal.openAdopt(animal);
+        else if (window.openAdoptionForm) window.openAdoptionForm(null, animal);
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('[data-action="donate"]');
+      if (btn) { e.preventDefault(); if (window.DonateModal) window.DonateModal.open(); }
+    });
+  })();
+  </script>
+
+</body>
+</html>
