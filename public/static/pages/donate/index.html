@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Donate &middot; Companions of CPAS</title>
+  <meta name="description" content="Support dogs at Caddo Parish Animal Services through medical care, transport, and rescue pathways. Every dollar helps a dog move from crisis to care." />
+  <meta name="theme-color" content="#090d18" />
+  <link rel="icon" href="/companionsofcpa-newlogo-512x512.png" />
+  <link rel="stylesheet" href="/static/global/shared.css?v=nav-p0-20260613" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" />
+
+  <style>
+    /* ── /donate page styles ── */
+    .donate-hero {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: calc(100vh - 72px);
+      background: #090d18;
+      overflow: hidden;
+    }
+    .donate-hero__left {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 72px 56px;
+      background: linear-gradient(135deg, #0b1020 60%, #12183a 100%);
+    }
+    .donate-hero__eyebrow {
+      font-size: 10px; font-weight: 800; letter-spacing: .14em;
+      text-transform: uppercase; color: #a78bfa; margin-bottom: 18px;
+    }
+    .donate-hero__title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: clamp(2.4rem, 4vw, 3.4rem);
+      font-weight: 700; color: #f4efe8;
+      line-height: 1.07; letter-spacing: -.03em; margin: 0 0 20px;
+    }
+    .donate-hero__sub {
+      font-size: .95rem; color: #8a94a6;
+      line-height: 1.65; max-width: 440px; margin: 0 0 36px;
+    }
+    .donate-hero__actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .donate-hero__btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 13px 24px; border-radius: 10px; border: none;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      font-size: .9rem; font-weight: 700; cursor: pointer;
+      transition: opacity .15s, transform .12s; white-space: nowrap;
+      text-decoration: none;
+    }
+    .donate-hero__btn:hover { opacity: .88; transform: translateY(-1px); }
+    .donate-hero__btn--primary { background: #7c3aed; color: #fff; }
+    .donate-hero__btn--ghost {
+      background: rgba(255,255,255,.07);
+      border: 1.5px solid rgba(255,255,255,.12) !important;
+      color: #d1d5db;
+    }
+    .donate-hero__right { position: relative; overflow: hidden; }
+    .donate-hero__img {
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center; display: block;
+    }
+    .donate-hero__img-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to right, rgba(9,13,24,.4) 0%, transparent 50%);
+    }
+
+    /* Impact section */
+    .donate-impact {
+      background: #f5f2ee; padding: 80px 0;
+    }
+    .donate-impact__inner {
+      max-width: 1180px; margin: 0 auto; padding: 0 32px;
+    }
+    .donate-impact__eyebrow {
+      font-size: 10px; font-weight: 800; letter-spacing: .14em;
+      text-transform: uppercase; color: #7c3aed; margin-bottom: 12px;
+    }
+    .donate-impact__title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: clamp(1.7rem, 3vw, 2.4rem); font-weight: 700;
+      color: #0f1623; line-height: 1.1; letter-spacing: -.02em;
+      margin: 0 0 40px; max-width: 640px;
+    }
+    .donate-impact__grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    }
+    .donate-impact__card {
+      background: #fff; border-radius: 16px; padding: 28px 24px;
+      box-shadow: 0 2px 12px rgba(15,22,35,.07);
+    }
+    .donate-impact__card-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: rgba(124,58,237,.1); border: 1px solid rgba(124,58,237,.18);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; margin-bottom: 16px;
+    }
+    .donate-impact__card h3 {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 1.1rem; font-weight: 700; color: #0f1623;
+      margin: 0 0 8px; letter-spacing: -.01em;
+    }
+    .donate-impact__card p {
+      font-size: .84rem; color: #5e6b7f; line-height: 1.55; margin: 0;
+    }
+
+    /* Donation widget section */
+    .donate-widget {
+      background: #090d18; padding: 80px 0;
+    }
+    .donate-widget__inner {
+      max-width: 1180px; margin: 0 auto; padding: 0 32px;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 64px; align-items: center;
+    }
+    .donate-widget__eyebrow {
+      font-size: 10px; font-weight: 800; letter-spacing: .14em;
+      text-transform: uppercase; color: #a78bfa; margin-bottom: 12px;
+    }
+    .donate-widget__title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: clamp(1.8rem, 3vw, 2.6rem); font-weight: 700;
+      color: #f4efe8; line-height: 1.08; letter-spacing: -.025em;
+      margin: 0 0 16px;
+    }
+    .donate-widget__sub {
+      font-size: .9rem; color: #8a94a6; line-height: 1.6; margin: 0 0 32px;
+    }
+    /* Tier grid */
+    .donate-widget__tiers {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;
+    }
+    .donate-widget__tier {
+      background: rgba(255,255,255,.04);
+      border: 1.5px solid rgba(255,255,255,.08);
+      border-radius: 12px; padding: 18px 16px;
+      cursor: pointer; transition: all .14s; text-align: left;
+      font-family: 'DM Sans', system-ui, sans-serif;
+    }
+    .donate-widget__tier:hover,
+    .donate-widget__tier:focus {
+      border-color: rgba(124,58,237,.5);
+      background: rgba(124,58,237,.1);
+    }
+    .donate-widget__tier-amount {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 1.4rem; font-weight: 700; color: #f4efe8;
+      display: block; margin-bottom: 3px;
+    }
+    .donate-widget__tier-label {
+      font-size: .75rem; color: #6b7280; font-weight: 500;
+    }
+    .donate-widget__cta {
+      width: 100%; padding: 14px;
+      background: #7c3aed; border: none; border-radius: 11px;
+      color: #fff; font-family: 'DM Sans', system-ui, sans-serif;
+      font-size: .95rem; font-weight: 800; cursor: pointer;
+      transition: opacity .15s, transform .1s; margin-bottom: 12px;
+    }
+    .donate-widget__cta:hover { opacity: .88; transform: translateY(-1px); }
+    .donate-widget__note {
+      font-size: .75rem; color: #4b5563; text-align: center; line-height: 1.4;
+    }
+
+    /* Trust section */
+    .donate-trust {
+      background: #f5f2ee; padding: 72px 0;
+    }
+    .donate-trust__inner {
+      max-width: 1180px; margin: 0 auto; padding: 0 32px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    }
+    .donate-trust__card {
+      background: #fff; border-radius: 16px; padding: 28px 24px;
+      box-shadow: 0 2px 12px rgba(15,22,35,.06);
+    }
+    .donate-trust__eyebrow {
+      font-size: 9.5px; font-weight: 800; letter-spacing: .13em;
+      text-transform: uppercase; color: #7c3aed; margin-bottom: 8px;
+    }
+    .donate-trust__card h3 {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 1rem; font-weight: 700; color: #0f1623;
+      margin: 0 0 8px; letter-spacing: -.01em;
+    }
+    .donate-trust__card p {
+      font-size: .82rem; color: #5e6b7f; line-height: 1.55; margin: 0;
+    }
+
+    /* CTA banner */
+    .donate-cta-banner {
+      background: #7c3aed; padding: 64px 0;
+    }
+    .donate-cta-banner__inner {
+      max-width: 1180px; margin: 0 auto; padding: 0 32px;
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 32px; flex-wrap: wrap;
+    }
+    .donate-cta-banner__eyebrow {
+      font-size: 10px; font-weight: 800; letter-spacing: .14em;
+      text-transform: uppercase; color: rgba(255,255,255,.65); margin-bottom: 8px;
+    }
+    .donate-cta-banner__title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: clamp(1.5rem, 2.5vw, 2rem); font-weight: 700;
+      color: #fff; margin: 0 0 8px; letter-spacing: -.02em;
+    }
+    .donate-cta-banner__sub { font-size: .88rem; color: rgba(255,255,255,.75); margin: 0; }
+    .donate-cta-banner__actions { display: flex; gap: 12px; flex-shrink: 0; flex-wrap: wrap; }
+    .donate-cta-banner__btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 22px; border-radius: 10px; border: none;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      font-size: .88rem; font-weight: 700; cursor: pointer;
+      transition: opacity .15s; text-decoration: none; white-space: nowrap;
+    }
+    .donate-cta-banner__btn--white { background: #fff; color: #6d28d9; }
+    .donate-cta-banner__btn--white:hover { opacity: .9; }
+    .donate-cta-banner__btn--outline {
+      background: rgba(255,255,255,.12);
+      border: 1.5px solid rgba(255,255,255,.3) !important;
+      color: #fff;
+    }
+    .donate-cta-banner__btn--outline:hover { background: rgba(255,255,255,.2); }
+
+    /* Mobile */
+    @media (max-width: 767px) {
+      .donate-hero { grid-template-columns: 1fr; grid-template-rows: 52vw auto; min-height: unset; }
+      .donate-hero__right { order: -1; height: 52vw; }
+      .donate-hero__left { padding: 36px 24px 48px; justify-content: flex-start; }
+      .donate-hero__title { font-size: 2rem; }
+      .donate-impact__grid { grid-template-columns: 1fr; }
+      .donate-widget__inner { grid-template-columns: 1fr; gap: 40px; }
+      .donate-trust__inner { grid-template-columns: 1fr; }
+      .donate-impact__inner, .donate-widget__inner,
+      .donate-trust__inner, .donate-cta-banner__inner { padding: 0 20px; }
+      .donate-impact, .donate-widget, .donate-trust { padding: 56px 0; }
+      .donate-cta-banner { padding: 48px 0; }
+      .donate-cta-banner__inner { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body data-page="donate">
+
+  <main id="main-content">
+
+    <!-- ── Hero ── -->
+    <section class="donate-hero" aria-label="Donate to Companions of CPAS">
+      <div class="donate-hero__left">
+        <p class="donate-hero__eyebrow">Give Caddo dogs a second chance</p>
+        <h1 class="donate-hero__title">Help fund medical care, transport, and rescue pathways.</h1>
+        <p class="donate-hero__sub">Your donation helps dogs at Caddo Parish Animal Services receive urgent care, lifesaving treatment, transport support, and the visibility they need to reach safe outcomes.</p>
+        <div class="donate-hero__actions">
+          <button class="donate-hero__btn donate-hero__btn--primary" data-action="donate">
+            Donate Now
+          </button>
+          <a class="donate-hero__btn donate-hero__btn--ghost" href="/services">
+            See how funds are used
+          </a>
+        </div>
+      </div>
+      <div class="donate-hero__right">
+        <img
+          class="donate-hero__img"
+          src="https://assets.companionsofcaddo.org/media/animals/thinboy.webp"
+          alt="A dog supported by Companions of CPAS"
+          loading="eager"
+          onerror="this.src='/assets/animals/goinhome.webp'"
+        />
+        <div class="donate-hero__img-overlay" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <!-- ── Impact ── -->
+    <section class="donate-impact" aria-label="Where your gift goes">
+      <div class="donate-impact__inner">
+        <p class="donate-impact__eyebrow">Every gift has a job</p>
+        <h2 class="donate-impact__title">Donations go directly toward practical rescue support.</h2>
+        <div class="donate-impact__grid">
+          <div class="donate-impact__card">
+            <div class="donate-impact__card-icon">+</div>
+            <h3>Medical Care</h3>
+            <p>Diagnostics, urgent treatment, surgery support, heartworm care, and recovery needs for dogs in the shelter.</p>
+          </div>
+          <div class="donate-impact__card">
+            <div class="donate-impact__card-icon">&#8594;</div>
+            <h3>Transport Support</h3>
+            <p>Fuel, coordination, and transfer support when rescue partners can provide a safer path forward for a dog.</p>
+          </div>
+          <div class="donate-impact__card">
+            <div class="donate-impact__card-icon">&#9825;</div>
+            <h3>Rescue Pathways</h3>
+            <p>Visibility, partnership support, and resources that help dogs move from uncertainty to opportunity.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Donation widget ── -->
+    <section class="donate-widget" id="donation-options" aria-label="Choose a donation amount">
+      <div class="donate-widget__inner">
+        <div>
+          <p class="donate-widget__eyebrow">Make a gift</p>
+          <h2 class="donate-widget__title">Choose an amount or give what you can.</h2>
+          <p class="donate-widget__sub">One-time or monthly — every dollar goes toward the dogs. Our donation modal lets you pick a preset amount or enter your own, and set up recurring giving in just a few clicks.</p>
+        </div>
+        <div>
+          <div class="donate-widget__tiers" id="donate-tier-btns">
+            <!-- Populated from D1 via donate-modal.js fallback tiers, or click triggers modal -->
+            <button class="donate-widget__tier" data-action="donate" data-amount="25">
+              <span class="donate-widget__tier-amount">$25</span>
+              <span class="donate-widget__tier-label">A Part of the Pack</span>
+            </button>
+            <button class="donate-widget__tier" data-action="donate" data-amount="50">
+              <span class="donate-widget__tier-amount">$50</span>
+              <span class="donate-widget__tier-label">Loyal Companion</span>
+            </button>
+            <button class="donate-widget__tier" data-action="donate" data-amount="100">
+              <span class="donate-widget__tier-amount">$100</span>
+              <span class="donate-widget__tier-label">Pack Leader</span>
+            </button>
+            <button class="donate-widget__tier" data-action="donate" data-amount="250">
+              <span class="donate-widget__tier-amount">$250</span>
+              <span class="donate-widget__tier-label">Guardian Angel</span>
+            </button>
+          </div>
+          <button class="donate-widget__cta" data-action="donate">
+            Donate &amp; Choose Frequency
+          </button>
+          <p class="donate-widget__note">Secured by Stripe &middot; One-time or monthly &middot; Receipt emailed automatically</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Trust ── -->
+    <section class="donate-trust" aria-label="About Companions of CPAS">
+      <div class="donate-trust__inner">
+        <div class="donate-trust__card">
+          <p class="donate-trust__eyebrow">Nonprofit Status</p>
+          <h3>501(c)(3) tax-exempt organization</h3>
+          <p>Companions of CPAS is a registered nonprofit. EIN: 88-4156327. All donations are tax-deductible to the extent permitted by law.</p>
+        </div>
+        <div class="donate-trust__card">
+          <p class="donate-trust__eyebrow">Local Mission</p>
+          <h3>Caddo Parish Animal Services support</h3>
+          <p>Funds support dogs connected to Caddo Parish Animal Services through medical care, transport, and rescue partnerships.</p>
+        </div>
+        <div class="donate-trust__card">
+          <p class="donate-trust__eyebrow">Volunteer Powered</p>
+          <h3>Focused, practical help</h3>
+          <p>100% volunteer-run. The mission is simple: create more chances for shelter dogs who need timely support to survive and thrive.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CTA Banner ── -->
+    <section class="donate-cta-banner" aria-label="Contact Companions of CPAS">
+      <div class="donate-cta-banner__inner">
+        <div>
+          <p class="donate-cta-banner__eyebrow">Questions before giving?</p>
+          <h2 class="donate-cta-banner__title">We're happy to talk.</h2>
+          <p class="donate-cta-banner__sub">Reach out to confirm current campaign needs, medical cases, or transport needs.</p>
+        </div>
+        <div class="donate-cta-banner__actions">
+          <a class="donate-cta-banner__btn donate-cta-banner__btn--white"
+             href="mailto:companionsCPAS@gmail.com">
+            Email Companions
+          </a>
+          <a class="donate-cta-banner__btn donate-cta-banner__btn--outline" href="/about">
+            Learn About Us
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/global/shared.js?v=nav-p0-20260613" defer></script>
+  <script src="/static/js/donate-modal.js?v=donate-p1-20260613" defer></script>
+
+  <script>
+  (function () {
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('[data-action="donate"]');
+      if (!btn) return;
+      e.preventDefault();
+      if (window.DonateModal) window.DonateModal.open();
+    });
+  })();
+  </script>
+
+</body>
+</html>
