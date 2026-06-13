@@ -254,6 +254,188 @@ export async function paymentsEmailRoutes(request, env, url) {
     });
   }
 
+
+  // ── GET /api/donations/tiers ─────────────────────────────────────────────
+  if (path === "/api/donations/tiers" && method === "GET") {
+    try {
+      const rows = await env.DB.prepare(
+        `SELECT label, amount_cents, description,
+                stripe_price_id_onetime, stripe_price_id_monthly, display_order
+         FROM donation_tiers WHERE active = 1 ORDER BY display_order ASC`
+      ).all();
+      return json({ tiers: rows.results || [] });
+    } catch (err) {
+      console.warn("donation_tiers fetch failed:", err?.message);
+      return json({ tiers: [] });
+    }
+  }
+
+  // ── POST /api/donations/intent ────────────────────────────────────────────
+  if (path === "/api/donations/intent" && method === "POST") {
+    const data = await body(request);
+    if (!env.STRIPE_SECRET_KEY) return json({ error: "Stripe not configured" }, 501);
+    const isSetup = data.mode === "setup";
+
+    if (isSetup) {
+      const form = new URLSearchParams();
+      form.set("usage", "off_session");
+      form.set("automatic_payment_methods[enabled]", "true");
+      form.set("metadata[tenant_id]", TENANT_ID);
+      const res = await fetch("https://api.stripe.com/v1/setup_intents", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: form,
+      });
+      const raw = await res.text();
+      let si = {};
+      try { si = JSON.parse(raw); } catch {}
+      if (!res.ok) return json({ error: "SetupIntent failed", details: si }, 500);
+      return json({ success: true, client_secret: si.client_secret, mode: "setup" }, 201);
+    } else {
+      const amountCents = data.amount_cents || cents(data.amount);
+      if (!amountCents || amountCents < 100) return json({ error: "Minimum donation is $1.00" }, 400);
+      const intentId = id("intent");
+      const form = new URLSearchParams();
+      form.set("amount", String(amountCents));
+      form.set("currency", "usd");
+      form.set("automatic_payment_methods[enabled]", "true");
+      form.set("metadata[tenant_id]", TENANT_ID);
+      form.set("metadata[local_intent_id]", intentId);
+      const res = await fetch("https://api.stripe.com/v1/payment_intents", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: form,
+      });
+      const raw = await res.text();
+      let pi = {};
+      try { pi = JSON.parse(raw); } catch {}
+      if (!res.ok) return json({ error: "PaymentIntent failed", details: pi }, 500);
+      try {
+        await env.DB.prepare(
+          `INSERT INTO donation_intents
+           (id, tenant_id, donor_name, donor_email, amount_cents, frequency, campaign_id, note, provider,
+            provider_checkout_id, provider_checkout_url, status, resend_receipt_status, metadata_json, updated_at)
+           VALUES (?, ?, NULL, NULL, ?, 'one_time', NULL, NULL, 'stripe', ?, NULL, 'intent_created', 'pending', ?, datetime('now'))`
+        ).bind(intentId, TENANT_ID, amountCents, pi.id, JSON.stringify({ stripe_pi_id: pi.id })).run();
+      } catch (err) { console.warn("intent insert skipped:", err?.message); }
+      return json({ success: true, client_secret: pi.client_secret, id: intentId, mode: "payment" }, 201);
+    }
+  }
+
+  // ── POST /api/donations/subscribe ────────────────────────────────────────
+  if (path === "/api/donations/subscribe" && method === "POST") {
+    const data = await body(request);
+    if (!env.STRIPE_SECRET_KEY) return json({ error: "Stripe not configured" }, 501);
+    if (!data.payment_method_id) return json({ error: "payment_method_id required" }, 400);
+    if (!data.price_id && !data.amount_cents) return json({ error: "price_id or amount_cents required" }, 400);
+    try {
+      let customerId = null;
+      if (data.donor_email) {
+        const searchRes = await fetch(
+          `https://api.stripe.com/v1/customers/search?query=email:'${encodeURIComponent(data.donor_email)}'&limit=1`,
+          { headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}` } }
+        );
+        const searchData = await searchRes.json().catch(() => ({}));
+        customerId = searchData.data?.[0]?.id || null;
+      }
+      if (!customerId) {
+        const custForm = new URLSearchParams();
+        if (data.donor_email) custForm.set("email", data.donor_email);
+        custForm.set("metadata[tenant_id]", TENANT_ID);
+        const custRes = await fetch("https://api.stripe.com/v1/customers", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: custForm,
+        });
+        const custData = await custRes.json().catch(() => ({}));
+        if (!custRes.ok) return json({ error: "Could not create customer", details: custData }, 500);
+        customerId = custData.id;
+      }
+      const attachForm = new URLSearchParams();
+      attachForm.set("customer", customerId);
+      await fetch(`https://api.stripe.com/v1/payment_methods/${data.payment_method_id}/attach`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: attachForm,
+      });
+      const custUpdateForm = new URLSearchParams();
+      custUpdateForm.set("invoice_settings[default_payment_method]", data.payment_method_id);
+      await fetch(`https://api.stripe.com/v1/customers/${customerId}`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: custUpdateForm,
+      });
+      const subForm = new URLSearchParams();
+      subForm.set("customer", customerId);
+      subForm.set("default_payment_method", data.payment_method_id);
+      subForm.set("metadata[tenant_id]", TENANT_ID);
+      if (data.price_id) {
+        subForm.set("items[0][price]", data.price_id);
+      } else {
+        subForm.set("items[0][price_data][currency]", "usd");
+        subForm.set("items[0][price_data][recurring][interval]", "month");
+        subForm.set("items[0][price_data][unit_amount]", String(data.amount_cents));
+        subForm.set("items[0][price_data][product_data][name]", "Monthly donation to Companions of CPAS");
+      }
+      const subRes = await fetch("https://api.stripe.com/v1/subscriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: subForm,
+      });
+      const subRaw = await subRes.text();
+      let sub = {};
+      try { sub = JSON.parse(subRaw); } catch {}
+      if (!subRes.ok) return json({ error: "Subscription failed", details: sub }, 500);
+      try {
+        await upsertDonor(env, { donorEmail: data.donor_email, donorName: null, amountCents: data.amount_cents || 0, isRecurring: true });
+        const intentId = id("intent");
+        await env.DB.prepare(
+          `INSERT INTO donation_intents
+           (id, tenant_id, donor_name, donor_email, amount_cents, frequency, campaign_id, note, provider,
+            provider_checkout_id, provider_checkout_url, status, resend_receipt_status, metadata_json, updated_at)
+           VALUES (?, ?, NULL, ?, ?, 'month', NULL, NULL, 'stripe', ?, NULL, 'subscription_active', 'pending', ?, datetime('now'))`
+        ).bind(intentId, TENANT_ID, data.donor_email || null, data.amount_cents || 0, sub.id,
+          JSON.stringify({ stripe_subscription_id: sub.id, stripe_customer_id: customerId, price_id: data.price_id || null })).run();
+        if (data.nl_opt_in && data.donor_email) {
+          await env.DB.prepare(
+            `INSERT OR IGNORE INTO newsletter_subscribers (id, tenant_id, email, name, status, source)
+             VALUES (?, ?, ?, NULL, 'subscribed', 'donate_modal')`
+          ).bind(id("sub"), TENANT_ID, String(data.donor_email).toLowerCase().trim()).run();
+        }
+      } catch (err) { console.warn("subscribe post-write skipped:", err?.message); }
+      return json({ success: true, subscription_id: sub.id, status: sub.status }, 201);
+    } catch (err) {
+      console.error("subscribe error:", err?.message);
+      return json({ error: err.message || "Subscription could not be created" }, 500);
+    }
+  }
+
+  // ── POST /api/donations/after-payment ────────────────────────────────────
+  if (path === "/api/donations/after-payment" && method === "POST") {
+    const data = await body(request);
+    if (!data.donor_email) return json({ ok: true });
+    try {
+      if (data.nl_opt_in) {
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO newsletter_subscribers (id, tenant_id, email, name, status, source)
+           VALUES (?, ?, ?, NULL, 'subscribed', 'donate_modal')`
+        ).bind(id("sub"), TENANT_ID, String(data.donor_email).toLowerCase().trim()).run();
+      }
+      await sendResend(env, {
+        to: data.donor_email, name: null,
+        subject: "Thank you for supporting Companions of CPAS",
+        type: "donation_receipt", related_type: "donation", related_id: null,
+        html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px">
+          <h2>Thank you for your donation</h2>
+          <p>Your support helps Companions of CPAS care for dogs at Caddo Parish Animal Services.</p>
+          ${data.amount_cents ? `<p><strong>Amount:</strong> $${(data.amount_cents / 100).toFixed(2)}</p>` : ""}
+        </div>`,
+      });
+    } catch (err) { console.warn("after-payment skipped:", err?.message); }
+    return json({ ok: true });
+  }
+
+
   // ── POST /api/donations/checkout ─────────────────────────────────────────
   if (path === "/api/donations/checkout" && method === "POST") {
     const data = await body(request);
@@ -315,8 +497,6 @@ export async function paymentsEmailRoutes(request, env, url) {
     }
 
     // ── Hosted Checkout Session path (default) ────────────────────────────
-    if (!data.donor_name || !data.donor_email) return json({ error: "Donor name and email are required" }, 400);
-
     const checkoutId = id("checkout");
     const origin = url.origin;
 
@@ -324,10 +504,11 @@ export async function paymentsEmailRoutes(request, env, url) {
     form.set("mode", data.recurring ? "subscription" : "payment");
     form.set("success_url", data.success_url || `${origin}/donate?success=1`);
     form.set("cancel_url", data.cancel_url || `${origin}/donate?canceled=1`);
-    form.set("customer_email", data.donor_email || "");
+    if (data.donor_email) form.set("customer_email", data.donor_email);
     form.set("metadata[tenant_id]", TENANT_ID);
     form.set("metadata[local_checkout_id]", checkoutId);
     if (data.donor_name) form.set("metadata[donor_name]", data.donor_name);
+    form.set("allow_promotion_codes", "false");
     if (data.animal_id) form.set("metadata[animal_id]", data.animal_id);
     if (data.campaign_id) form.set("metadata[campaign_id]", data.campaign_id);
     if (data.message) form.set("metadata[message]", data.message);
@@ -361,7 +542,7 @@ export async function paymentsEmailRoutes(request, env, url) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'stripe', ?, ?, 'checkout_created', 'pending_after_payment', ?, datetime('now'))`
     ).bind(
       checkoutId, TENANT_ID,
-      data.donor_name, data.donor_email, amountCents,
+      data.donor_name || null, data.donor_email || null, amountCents,
       data.recurring ? (data.interval || "month") : "one_time",
       data.campaign_id || "general",
       data.message || null,
@@ -441,13 +622,13 @@ export async function paymentsEmailRoutes(request, env, url) {
         `INSERT INTO donations
          (id, organization_id, donor_id, campaign_id, amount_cents, currency, status, payment_provider, stripe_payment_intent_id, donor_message, is_anonymous, donated_at)
          VALUES (?, ?, ?, ?, ?, ?, 'succeeded', 'stripe', ?, ?, 0, datetime('now'))`
-      ).bind(donationId, TENANT_ID, donorId, campaignId, amount, currency, s.payment_intent || null, note).run();
+      ).bind(donationId, TENANT_ID, donorId, campaignId, amount, currency, s.payment_intent || s.subscription || null, note).run();
 
       await env.DB.prepare(
         `INSERT INTO donation_payments
          (id, tenant_id, donation_id, provider, provider_payment_id, provider_checkout_session_id, amount_cents, currency, status, raw_json, updated_at)
          VALUES (?, ?, ?, 'stripe', ?, ?, ?, ?, 'succeeded', ?, datetime('now'))`
-      ).bind(id("payment"), TENANT_ID, donationId, s.payment_intent || null, s.id, amount, currency, JSON.stringify(s)).run();
+      ).bind(id("payment"), TENANT_ID, donationId, s.payment_intent || s.subscription || null, s.id, amount, currency, JSON.stringify(s)).run();
 
       try {
         await env.DB.prepare(
