@@ -1,0 +1,179 @@
+<style>
+  /* ── adopt/sections/hero.html ── */
+  .adopt-hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: calc(100vh - 72px);
+    background: #090d18;
+    overflow: hidden;
+  }
+  .adopt-hero__left {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 56px 72px;
+    background: linear-gradient(135deg, #0b1020 60%, #12183a 100%);
+    position: relative;
+    z-index: 2;
+  }
+  .adopt-hero__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(124,58,237,0.13);
+    border: 1px solid rgba(124,58,237,0.28);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #a78bfa;
+    margin-bottom: 22px;
+    width: fit-content;
+  }
+  .adopt-hero__badge-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #7c3aed;
+    display: inline-block;
+    box-shadow: 0 0 6px rgba(124,58,237,.7);
+    animation: adopt-pulse 2s ease-in-out infinite;
+  }
+  @keyframes adopt-pulse {
+    0%,100% { opacity:1 } 50% { opacity:.4 }
+  }
+  .adopt-hero__title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: clamp(2.6rem, 4.5vw, 3.8rem);
+    font-weight: 700;
+    color: #f4efe8;
+    line-height: 1.06;
+    letter-spacing: -.03em;
+    margin: 0 0 18px;
+  }
+  .adopt-hero__sub {
+    font-size: .95rem;
+    color: #8a94a6;
+    line-height: 1.6;
+    max-width: 420px;
+    margin: 0 0 10px;
+  }
+  .adopt-hero__ein {
+    font-size: .78rem;
+    color: #4b5563;
+    margin: 0 0 32px;
+    letter-spacing: .02em;
+  }
+  .adopt-hero__actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .adopt-hero__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 22px;
+    border-radius: 10px;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: .88rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: opacity .15s, transform .12s;
+    white-space: nowrap;
+  }
+  .adopt-hero__btn:hover { opacity: .88; transform: translateY(-1px); }
+  .adopt-hero__btn--primary { background: #7c3aed; color: #fff; }
+  .adopt-hero__btn--ghost {
+    background: rgba(255,255,255,.07);
+    border: 1.5px solid rgba(255,255,255,.12);
+    color: #d1d5db;
+  }
+  .adopt-hero__btn-icon {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    background: rgba(255,255,255,.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+  }
+  .adopt-hero__right { position: relative; overflow: hidden; }
+  .adopt-hero__img {
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center top; display: block;
+  }
+  .adopt-hero__img-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to right, rgba(9,13,24,.35) 0%, transparent 40%);
+  }
+  .adopt-hero__animal-tag {
+    position: absolute; bottom: 28px; left: 24px;
+    background: rgba(9,13,24,.82);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 12px; padding: 12px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .adopt-hero__animal-name {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 1rem; font-weight: 600; color: #f4efe8;
+    display: block; margin-bottom: 2px;
+  }
+  .adopt-hero__animal-meta { font-size: .75rem; color: #9ca3af; }
+  .adopt-hero__animal-cta {
+    background: #7c3aed; color: #fff; border: none;
+    border-radius: 8px; padding: 8px 14px;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: .8rem; font-weight: 700; cursor: pointer;
+    transition: opacity .15s; white-space: nowrap;
+  }
+  .adopt-hero__animal-cta:hover { opacity: .85; }
+  @media (max-width: 767px) {
+    .adopt-hero { grid-template-columns: 1fr; grid-template-rows: 52vw auto; min-height: unset; }
+    .adopt-hero__right { order: -1; height: 52vw; }
+    .adopt-hero__left { padding: 32px 24px 48px; justify-content: flex-start; }
+    .adopt-hero__title { font-size: 2.1rem; }
+    .adopt-hero__animal-tag { bottom: 16px; left: 16px; }
+  }
+</style>
+
+<section class="adopt-hero" aria-label="Adopt a dog">
+  <div class="adopt-hero__left">
+    <div class="adopt-hero__badge">
+      <span class="adopt-hero__badge-dot"></span>
+      Dogs ready for forever homes
+    </div>
+    <h1 class="adopt-hero__title">Find your new<br>best friend.</h1>
+    <p class="adopt-hero__sub">Every dog here came from an urgent situation at Caddo Parish Animal Services. They've been cared for, assessed, and are ready for a home that will love them back.</p>
+    <p class="adopt-hero__ein">501(c)(3) Tax-Exempt &middot; EIN: 88-4156327</p>
+    <div class="adopt-hero__actions">
+      <button class="adopt-hero__btn adopt-hero__btn--primary" data-action="apply-adopt">
+        <span class="adopt-hero__btn-icon">&#10003;</span>
+        Apply to Adopt
+      </button>
+      <button class="adopt-hero__btn adopt-hero__btn--ghost" data-action="donate">
+        Support Our Work
+      </button>
+    </div>
+  </div>
+  <div class="adopt-hero__right">
+    <img
+      class="adopt-hero__img"
+      src="https://assets.companionsofcaddo.org/media/animals/goinhomejustadopted.webp"
+      alt="A dog ready for adoption at Companions of CPAS"
+      loading="eager"
+    />
+    <div class="adopt-hero__img-overlay" aria-hidden="true"></div>
+    <div class="adopt-hero__animal-tag">
+      <div>
+        <span class="adopt-hero__animal-name">Savannah</span>
+        <span class="adopt-hero__animal-meta">Dog-friendly &middot; Ready now</span>
+      </div>
+      <button class="adopt-hero__animal-cta" data-action="apply-adopt" data-animal="Savannah">
+        Apply to Adopt
+      </button>
+    </div>
+  </div>
+</section>
