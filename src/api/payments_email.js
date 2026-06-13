@@ -254,6 +254,118 @@ export async function paymentsEmailRoutes(request, env, url) {
     });
   }
 
+  // ── POST /api/donations/intent — PaymentIntent or SetupIntent for in-modal Stripe PaymentElement ──
+  if (path === "/api/donations/intent" && method === "POST") {
+    if (!env.STRIPE_SECRET_KEY) return json({ error: "Stripe not configured" }, 501);
+    const data = await body(request);
+    const mode = data.mode === "setup" ? "setup" : "payment";
+    const stripeHeaders = {
+      "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    };
+
+    if (mode === "payment") {
+      const amountCents = data.amount_cents || cents(data.amount);
+      if (!amountCents || amountCents < 100) return json({ error: "Minimum donation is $1.00" }, 400);
+      const form = new URLSearchParams();
+      form.set("amount", String(amountCents));
+      form.set("currency", "usd");
+      form.set("automatic_payment_methods[enabled]", "true");
+      form.set("metadata[tenant_id]", TENANT_ID);
+      const res = await fetch("https://api.stripe.com/v1/payment_intents", { method: "POST", headers: stripeHeaders, body: form });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) return json({ error: d?.error?.message || "Stripe error" }, 500);
+      return json({ client_secret: d.client_secret, mode: "payment" });
+    } else {
+      // SetupIntent for monthly — collect card, then create subscription server-side
+      const form = new URLSearchParams();
+      form.set("automatic_payment_methods[enabled]", "true");
+      form.set("metadata[tenant_id]", TENANT_ID);
+      const res = await fetch("https://api.stripe.com/v1/setup_intents", { method: "POST", headers: stripeHeaders, body: form });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) return json({ error: d?.error?.message || "Stripe error" }, 500);
+      return json({ client_secret: d.client_secret, mode: "setup" });
+    }
+  }
+
+  // ── POST /api/donations/subscribe — create Customer + Subscription after SetupIntent ──
+  if (path === "/api/donations/subscribe" && method === "POST") {
+    if (!env.STRIPE_SECRET_KEY) return json({ error: "Stripe not configured" }, 501);
+    const data = await body(request);
+    const { payment_method_id, price_id, amount_cents, donor_email } = data;
+    if (!payment_method_id) return json({ error: "payment_method_id required" }, 400);
+
+    const h = {
+      "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    };
+
+    // 1. Create customer
+    const custForm = new URLSearchParams();
+    if (donor_email) custForm.set("email", donor_email);
+    custForm.set("payment_method", payment_method_id);
+    custForm.set("invoice_settings[default_payment_method]", payment_method_id);
+    custForm.set("metadata[tenant_id]", TENANT_ID);
+    const custRes = await fetch("https://api.stripe.com/v1/customers", { method: "POST", headers: h, body: custForm });
+    const customer = await custRes.json().catch(() => ({}));
+    if (!custRes.ok) return json({ error: customer?.error?.message || "Could not create customer" }, 500);
+
+    // 2. Attach payment method
+    const attachForm = new URLSearchParams();
+    attachForm.set("customer", customer.id);
+    await fetch(`https://api.stripe.com/v1/payment_methods/${payment_method_id}/attach`, { method: "POST", headers: h, body: attachForm });
+
+    // 3. Create subscription
+    const subForm = new URLSearchParams();
+    subForm.set("customer", customer.id);
+    subForm.set("default_payment_method", payment_method_id);
+    subForm.set("metadata[tenant_id]", TENANT_ID);
+    if (price_id) {
+      subForm.set("items[0][price]", price_id);
+    } else {
+      const mc = amount_cents || 2500;
+      subForm.set("items[0][price_data][currency]", "usd");
+      subForm.set("items[0][price_data][unit_amount]", String(mc));
+      subForm.set("items[0][price_data][recurring][interval]", "month");
+      subForm.set("items[0][price_data][product_data][name]", "Monthly Donation — Companions of CPAS");
+    }
+    const subRes = await fetch("https://api.stripe.com/v1/subscriptions", { method: "POST", headers: h, body: subForm });
+    const sub = await subRes.json().catch(() => ({}));
+    if (!subRes.ok) return json({ error: sub?.error?.message || "Could not create subscription" }, 500);
+
+    // Non-fatal D1 record
+    try {
+      const donorId = await upsertDonor(env, {
+        donorEmail: donor_email, donorName: null,
+        amountCents: amount_cents || 2500, isRecurring: true
+      });
+      await env.DB.prepare(
+        `INSERT INTO donation_intents
+         (id, tenant_id, donor_name, donor_email, amount_cents, frequency, provider, provider_checkout_id, status, resend_receipt_status, updated_at)
+         VALUES (?, ?, NULL, ?, ?, 'month', 'stripe', ?, 'subscription_active', 'pending_after_payment', datetime('now'))`
+      ).bind(id("sub"), TENANT_ID, donor_email || null, amount_cents || 2500, sub.id).run();
+    } catch (err) {
+      console.warn("subscription D1 write skipped:", err?.message);
+    }
+
+    return json({ success: true, subscription_id: sub.id, customer_id: customer.id });
+  }
+
+  // ── POST /api/donations/after-payment — post-payment receipt + newsletter ──
+  if (path === "/api/donations/after-payment" && method === "POST") {
+    const data = await body(request);
+    try {
+      if (data.donor_email && data.nl_opt_in) {
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO newsletter_subscribers
+           (id, tenant_id, email, status, source, created_at)
+           VALUES (?, ?, ?, 'subscribed', 'donate_modal', datetime('now'))`
+        ).bind(id("sub"), TENANT_ID, String(data.donor_email).toLowerCase().trim()).run();
+      }
+    } catch (_) {}
+    return json({ ok: true });
+  }
+
   // ── GET /api/donations/tiers — D1-driven tier catalog ────────────────────
   if (path === "/api/donations/tiers" && method === "GET") {
     try {
@@ -294,12 +406,10 @@ export async function paymentsEmailRoutes(request, env, url) {
     if (data.campaign_id) form.set("metadata[campaign_id]", data.campaign_id);
     if (data.message)     form.set("metadata[message]",     data.message);
 
-    // If a pre-created Stripe price_id is provided, use it directly
     if (data.price_id) {
       form.set("line_items[0][price]",    data.price_id);
       form.set("line_items[0][quantity]", "1");
     } else {
-      // Ad-hoc price (custom amount path)
       form.set("line_items[0][quantity]", "1");
       form.set("line_items[0][price_data][currency]",                   "usd");
       form.set("line_items[0][price_data][unit_amount]",                String(amountCents));
@@ -325,7 +435,6 @@ export async function paymentsEmailRoutes(request, env, url) {
 
     if (!stripeRes.ok) return json({ error: "Stripe checkout failed", details: stripe }, 500);
 
-    // Non-fatal D1 write
     try {
       await env.DB.prepare(
         `INSERT INTO donation_intents
