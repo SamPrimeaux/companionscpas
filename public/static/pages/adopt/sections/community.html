@@ -1,0 +1,97 @@
+<style>
+  /* ── adopt/sections/community.html — reusable partner strip ── */
+  .adopt-community { background: #090d18; padding: 80px 0; }
+  .adopt-community__inner {
+    max-width: 1180px; margin: 0 auto; padding: 0 32px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
+  }
+  .adopt-community__kicker {
+    font-size: 10px; font-weight: 800; letter-spacing: .14em;
+    text-transform: uppercase; color: #7c3aed; margin-bottom: 12px;
+  }
+  .adopt-community__title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: clamp(1.6rem, 2.8vw, 2.2rem); font-weight: 700;
+    color: #f4efe8; line-height: 1.12; letter-spacing: -.02em; margin: 0 0 16px;
+  }
+  .adopt-community__body { font-size: .9rem; color: #8a94a6; line-height: 1.65; margin: 0 0 28px; }
+  .adopt-community__btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border-radius: 10px;
+    border: 1.5px solid rgba(124,58,237,.45);
+    background: rgba(124,58,237,.1); color: #c4b5fd;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: .88rem; font-weight: 700; cursor: pointer; transition: all .14s;
+    text-decoration: none;
+  }
+  .adopt-community__btn:hover {
+    background: rgba(124,58,237,.2); border-color: rgba(124,58,237,.7); color: #ddd6fe;
+  }
+  .adopt-community__stats { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .adopt-community__stat {
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
+    border-radius: 14px; padding: 22px 20px;
+  }
+  .adopt-community__stat-num {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 2.2rem; font-weight: 700; color: #f4efe8;
+    line-height: 1; margin-bottom: 6px; letter-spacing: -.02em;
+  }
+  .adopt-community__stat-label { font-size: .78rem; color: #6b7280; line-height: 1.4; }
+  @media (max-width: 767px) {
+    .adopt-community__inner { grid-template-columns: 1fr; gap: 40px; padding: 0 20px; }
+    .adopt-community { padding: 56px 0; }
+  }
+</style>
+
+<section class="adopt-community" aria-label="Community and partnerships">
+  <div class="adopt-community__inner">
+    <div>
+      <div class="adopt-community__kicker">Partner With Us</div>
+      <h2 class="adopt-community__title">Helping rescue orgs move dogs from urgent to safe.</h2>
+      <p class="adopt-community__body">
+        We work with rescue partners, shelters, and community organizations across Louisiana. If you're a nonprofit looking to coordinate transports, share animals, or collaborate on resources, reach out.
+      </p>
+      <button class="adopt-community__btn" data-action="contact" data-subject="partnership">
+        Start a Conversation
+      </button>
+    </div>
+    <div class="adopt-community__stats">
+      <div class="adopt-community__stat">
+        <div class="adopt-community__stat-num">100%</div>
+        <div class="adopt-community__stat-label">Volunteer-powered organization</div>
+      </div>
+      <div class="adopt-community__stat">
+        <div class="adopt-community__stat-num">501(c)(3)</div>
+        <div class="adopt-community__stat-label">Tax-exempt nonprofit status</div>
+      </div>
+      <div class="adopt-community__stat">
+        <div class="adopt-community__stat-num">EIN</div>
+        <div class="adopt-community__stat-label">88-4156327 &middot; Caddo Parish, LA</div>
+      </div>
+      <div class="adopt-community__stat">
+        <div class="adopt-community__stat-num" id="adopt-community-count">--</div>
+        <div class="adopt-community__stat-label">Dogs in our care this month</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  document.querySelectorAll('[data-action="contact"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (window.openContactModal) window.openContactModal(btn.dataset.subject || '');
+    });
+  });
+  setTimeout(function () {
+    const el = document.getElementById('adopt-community-count');
+    if (!el) return;
+    const cards = document.querySelectorAll('.animal-card:not(.animal-card--skeleton)');
+    if (cards.length) { el.textContent = cards.length; return; }
+    fetch('/api/dashboard/animals').then(r => r.json()).then(d => {
+      el.textContent = (d.animals || []).filter(a => a.public_visible !== 0).length || '--';
+    }).catch(() => {});
+  }, 1400);
+})();
+</script>
