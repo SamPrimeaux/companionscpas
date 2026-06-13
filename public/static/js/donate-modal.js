@@ -1,19 +1,26 @@
 /**
  * donate-modal.js — Companions of CPAS
- * Hosted Stripe Checkout redirect. No PaymentElements. No campaigns.
+ * In-modal Stripe PaymentElement. NO redirect. NO hosted checkout.
  *
- * Flow:
- *   1. Modal opens → fetch /api/donations/tiers (D1 donation_tiers)
- *   2. Render 4 preset amounts + custom + one-time/monthly toggle
- *   3. Submit → POST /api/donations/checkout → redirect to stripe.url
+ * One-time:  POST /api/donations/intent {mode:'payment', amount_cents}
+ *            → PaymentIntent client_secret → confirmPayment() in-modal
+ *
+ * Monthly:   POST /api/donations/intent {mode:'setup'}
+ *            → SetupIntent client_secret → confirmSetup() in-modal
+ *            → POST /api/donations/subscribe {payment_method_id, price_id}
+ *
+ * Tiers:     GET /api/donations/tiers (D1) — fallback to FALLBACK_TIERS
+ * Email/NL:  Optional email + newsletter opt-in, not required
  */
 (function () {
   'use strict';
 
-  const ENDPOINT_TIERS    = '/api/donations/tiers';
-  const ENDPOINT_CHECKOUT = '/api/donations/checkout';
+  const STRIPE_PK       = 'pk_live_51SuGjiRi9zMPk3BPrxYMelFIUFUKfaAyB4AyihsoX4JtVQcOahYLkq7r9fqOc9L36bj4qZLzA3MojyVSsWdu7LKh008ImEpNvR';
+  const ENDPOINT_TIERS  = '/api/donations/tiers';
+  const ENDPOINT_INTENT = '/api/donations/intent';
+  const ENDPOINT_SUB    = '/api/donations/subscribe';
+  const ENDPOINT_AFTER  = '/api/donations/after-payment';
 
-  /* ─── Fallback tiers if endpoint unavailable ─────────────────────────── */
   const FALLBACK_TIERS = [
     { label: 'A Part of the Pack', amount_cents: 2500,  stripe_price_id_onetime: 'price_1ThrHaRGnRsvqnfijU6E7R1M', stripe_price_id_monthly: 'price_1ThrU5RGnRsvqnfizGD90XTT' },
     { label: 'Loyal Companion',    amount_cents: 5000,  stripe_price_id_onetime: 'price_1ThrJ5RGnRsvqnfikaZXLCJw', stripe_price_id_monthly: 'price_1ThrUERGnRsvqnfidwoPOnaY' },
@@ -21,557 +28,319 @@
     { label: 'Guardian Angel',     amount_cents: 25000, stripe_price_id_onetime: 'price_1ThrLSRGnRsvqnfiKwqD9Vsv', stripe_price_id_monthly: 'price_1ThrUSRGnRsvqnfimLPEY4wV' },
   ];
 
-  /* ─── State ──────────────────────────────────────────────────────────── */
-  let tiers          = [];
-  let selectedTier   = null;   // null = custom amount active
-  let customAmount   = null;
-  let frequency      = 'onetime'; // 'onetime' | 'monthly'
-  let isSubmitting   = false;
+  const APPEARANCE = {
+    theme: 'night',
+    variables: {
+      colorPrimary: '#7c3aed', colorBackground: '#0d1120',
+      colorText: '#f4efe8', colorTextSecondary: '#9ca3af',
+      colorTextPlaceholder: '#4b5563', colorDanger: '#f87171',
+      fontFamily: "'DM Sans', system-ui, sans-serif", borderRadius: '8px', spacingUnit: '4px',
+    },
+    rules: {
+      '.Input': { border: '1.5px solid rgba(255,255,255,0.1)', boxShadow: 'none', padding: '10px 12px', fontSize: '14px' },
+      '.Input:focus': { border: '1.5px solid #7c3aed', boxShadow: '0 0 0 3px rgba(124,58,237,0.18)' },
+      '.Label': { fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280', marginBottom: '6px' },
+      '.Tab': { border: '1.5px solid rgba(255,255,255,0.09)', background: 'rgba(255,255,255,0.04)' },
+      '.Tab--selected': { border: '1.5px solid #7c3aed', background: 'rgba(124,58,237,0.14)' },
+    },
+  };
 
-  /* ─── CSS ────────────────────────────────────────────────────────────── */
   const CSS = `
-    @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-
-    #dm-overlay {
-      position: fixed; inset: 0; z-index: 9999;
-      background: rgba(4, 6, 15, 0.82);
-      backdrop-filter: blur(10px) saturate(1.2);
-      display: flex; align-items: center; justify-content: center;
-      padding: 16px;
-      animation: dm-fade .18s ease;
-    }
-    @keyframes dm-fade { from { opacity:0 } to { opacity:1 } }
-
-    #dm-modal {
-      background: #0b0f1c;
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 18px;
-      width: 100%; max-width: 460px;
-      max-height: 94vh;
-      overflow-y: auto;
-      box-shadow:
-        0 0 0 1px rgba(124,58,237,0.12),
-        0 32px 80px rgba(0,0,0,0.7),
-        0 8px 24px rgba(0,0,0,0.4);
-      font-family: 'DM Sans', system-ui, sans-serif;
-      animation: dm-up .28s cubic-bezier(.16,1,.3,1);
-      scrollbar-width: none;
-      color: #f0ece6;
-    }
-    #dm-modal::-webkit-scrollbar { display: none; }
-    @keyframes dm-up {
-      from { transform: translateY(20px) scale(.98); opacity:0 }
-      to   { transform: translateY(0) scale(1); opacity:1 }
-    }
-
-    /* ── Header ── */
-    .dm-header {
-      padding: 28px 28px 0;
-      position: relative;
-    }
-    .dm-close {
-      position: absolute; top: 22px; right: 22px;
-      width: 30px; height: 30px; border-radius: 50%;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.09);
-      color: #9ca3af; cursor: pointer; font-size: 13px;
-      display: flex; align-items: center; justify-content: center;
-      transition: background .15s, color .15s;
-      line-height: 1; padding: 0;
-    }
-    .dm-close:hover { background: rgba(255,255,255,0.12); color: #f0ece6; }
-
-    .dm-eyebrow {
-      font-size: 9.5px; font-weight: 700; letter-spacing: .14em;
-      text-transform: uppercase; color: #7c5cbf; margin-bottom: 8px;
-    }
-    .dm-title {
-      font-family: 'Fraunces', Georgia, serif;
-      font-size: 1.65rem; font-weight: 700;
-      color: #f0ece6; margin: 0 0 6px;
-      letter-spacing: -.025em; line-height: 1.1;
-    }
-    .dm-subtitle {
-      font-size: .84rem; color: #7c8ba1; margin: 0 0 24px;
-      line-height: 1.5;
-    }
-
-    /* ── Section label ── */
-    .dm-label {
-      font-size: 9.5px; font-weight: 700; letter-spacing: .12em;
-      text-transform: uppercase; color: #4b5563;
-      padding: 0 28px; margin-bottom: 10px; display: block;
-    }
-
-    /* ── Frequency toggle ── */
-    .dm-freq-wrap {
-      padding: 0 28px; margin-bottom: 22px;
-    }
-    .dm-freq {
-      display: grid; grid-template-columns: 1fr 1fr;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 10px; padding: 3px; gap: 3px;
-    }
-    .dm-freq-btn {
-      padding: 9px 0; border-radius: 7px;
-      font-size: .84rem; font-weight: 600;
-      font-family: 'DM Sans', system-ui, sans-serif;
-      color: #6b7280; background: transparent;
-      border: none; cursor: pointer;
-      transition: background .15s, color .15s;
-      letter-spacing: .01em;
-    }
-    .dm-freq-btn.active {
-      background: rgba(124,58,237,0.22);
-      color: #c4b5fd;
-      box-shadow: 0 0 0 1px rgba(124,58,237,0.35);
-    }
-    .dm-freq-btn:not(.active):hover {
-      color: #d1d5db;
-      background: rgba(255,255,255,0.05);
-    }
-
-    /* ── Tier grid ── */
-    .dm-tiers {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 8px; padding: 0 28px; margin-bottom: 10px;
-    }
-    .dm-tier {
-      background: rgba(255,255,255,0.03);
-      border: 1.5px solid rgba(255,255,255,0.07);
-      border-radius: 11px; padding: 14px 14px 13px;
-      cursor: pointer; transition: all .14s; text-align: left;
-      font-family: 'DM Sans', system-ui, sans-serif;
-    }
-    .dm-tier:hover {
-      border-color: rgba(124,58,237,.38);
-      background: rgba(124,58,237,.06);
-    }
-    .dm-tier.active {
-      border-color: #7c3aed;
-      background: rgba(124,58,237,.13);
-      box-shadow: 0 0 0 1px rgba(124,58,237,.25);
-    }
-    .dm-tier-amount {
-      font-family: 'Fraunces', Georgia, serif;
-      font-size: 1.2rem; font-weight: 700;
-      color: #f0ece6; display: block; margin-bottom: 3px;
-      letter-spacing: -.02em;
-    }
-    .dm-tier.active .dm-tier-amount { color: #c4b5fd; }
-    .dm-tier-name {
-      font-size: .74rem; color: #6b7280;
-      font-weight: 500; line-height: 1.3;
-    }
-    .dm-tier.active .dm-tier-name { color: #9474d4; }
-
-    /* ── Custom amount ── */
-    .dm-custom-wrap {
-      padding: 0 28px; margin-bottom: 20px;
-      position: relative;
-    }
-    .dm-custom-prefix {
-      position: absolute; left: 40px; top: 50%;
-      transform: translateY(-50%);
-      color: #4b5563; font-weight: 600;
-      font-size: .88rem; pointer-events: none;
-    }
-    input.dm-custom {
-      width: 100%; box-sizing: border-box;
-      background: rgba(255,255,255,0.03);
-      border: 1.5px solid rgba(255,255,255,0.07);
-      border-radius: 10px;
-      padding: 11px 14px 11px 26px;
-      color: #f0ece6; font-size: .88rem;
-      font-family: 'DM Sans', system-ui, sans-serif;
-      outline: none;
-      -moz-appearance: textfield;
-      appearance: textfield;
-      transition: border-color .14s, box-shadow .14s;
-    }
-    input.dm-custom::-webkit-inner-spin-button,
-    input.dm-custom::-webkit-outer-spin-button { -webkit-appearance: none; }
-    input.dm-custom::placeholder { color: #374151; }
-    input.dm-custom:focus {
-      border-color: rgba(124,58,237,.5);
-      box-shadow: 0 0 0 3px rgba(124,58,237,.12);
-    }
-    input.dm-custom.active-input {
-      border-color: #7c3aed;
-      background: rgba(124,58,237,.07);
-    }
-
-    /* ── Where gift goes callout ── */
-    .dm-callout {
-      margin: 0 28px 22px;
-      padding: 14px 16px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 10px;
-    }
-    .dm-callout-title {
-      font-size: .72rem; font-weight: 700; letter-spacing: .1em;
-      text-transform: uppercase; color: #4b5563;
-      margin-bottom: 5px;
-    }
-    .dm-callout-body {
-      font-size: .8rem; color: #6b7280; line-height: 1.55;
-    }
-    .dm-callout-body.monthly-note { color: #7c5cbf; }
-
-    /* ── Divider ── */
-    .dm-divider {
-      height: 1px; background: rgba(255,255,255,0.05);
-      margin: 0 28px 22px;
-    }
-
-    /* ── Footer / CTA ── */
-    .dm-footer { padding: 0 28px 28px; }
-    .dm-submit {
-      width: 100%; padding: 14px;
-      background: #7c3aed;
-      border: none; border-radius: 11px;
-      color: #fff; font-size: .95rem; font-weight: 700;
-      font-family: 'DM Sans', system-ui, sans-serif;
-      cursor: pointer; transition: opacity .15s, transform .1s, background .15s;
-      letter-spacing: .01em;
-    }
-    .dm-submit:hover:not(:disabled) {
-      background: #6d28d9; transform: translateY(-1px);
-    }
-    .dm-submit:active:not(:disabled) { transform: translateY(0); }
-    .dm-submit:disabled { opacity: .45; cursor: not-allowed; transform: none; }
-    .dm-submit.loading {
-      opacity: .7; cursor: not-allowed;
-    }
-
-    .dm-error {
-      margin-top: 11px; padding: 10px 13px;
-      background: rgba(248,113,113,.08);
-      border: 1px solid rgba(248,113,113,.2);
-      border-radius: 8px; font-size: .8rem; color: #fca5a5;
-      display: none;
-    }
-    .dm-secure {
-      text-align: center; margin-top: 12px;
-      font-size: .72rem; color: #2d3540; line-height: 1.5;
-    }
-
-    /* ── Loading skeleton ── */
-    .dm-skeleton {
-      padding: 28px;
-    }
-    .dm-skel-line {
-      border-radius: 6px; margin-bottom: 10px;
-      background: linear-gradient(90deg,
-        rgba(255,255,255,.04) 25%,
-        rgba(255,255,255,.08) 50%,
-        rgba(255,255,255,.04) 75%);
-      background-size: 200% 100%;
-      animation: dm-shimmer 1.4s infinite;
-    }
-    @keyframes dm-shimmer {
-      0%   { background-position: 200% 0 }
-      100% { background-position: -200% 0 }
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,400&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+    #dm-overlay{position:fixed;inset:0;z-index:9999;background:rgba(4,6,15,0.86);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:16px;animation:dm-fade 180ms ease}
+    @keyframes dm-fade{from{opacity:0}to{opacity:1}}
+    #dm-modal{width:min(100%,460px);max-height:92vh;overflow-y:auto;background:#090d18;border:1px solid rgba(255,255,255,0.09);border-radius:20px;box-shadow:0 40px 100px rgba(0,0,0,0.65),0 0 0 1px rgba(124,58,237,0.14);color:#f4efe8;font-family:'DM Sans',system-ui,sans-serif;scrollbar-width:none;animation:dm-up 260ms cubic-bezier(.16,1,.3,1)}
+    #dm-modal::-webkit-scrollbar{display:none}
+    #dm-modal *{box-sizing:border-box}
+    @keyframes dm-up{from{transform:translateY(18px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+    .dm-header{position:relative;padding:28px 28px 0}
+    .dm-close{position:absolute;top:18px;right:18px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.1);border-radius:999px;background:rgba(255,255,255,0.06);color:#9ca3af;cursor:pointer;font-size:16px;line-height:1;transition:background 150ms,color 150ms}
+    .dm-close:hover{background:rgba(255,255,255,0.12);color:#f4efe8}
+    .dm-eyebrow{margin-bottom:7px;color:#a78bfa;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    .dm-title{margin:0;font-family:'Fraunces',Georgia,serif;font-size:1.68rem;font-weight:700;letter-spacing:-.025em;line-height:1.08;color:#f4efe8}
+    .dm-sub{margin:8px 0 0;color:#a9afbd;font-size:.88rem;line-height:1.5}
+    .dm-body{padding:20px 28px 0}
+    .dm-label{margin:0 0 9px;color:#727989;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;display:block}
+    .dm-freq{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:18px;padding:4px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;background:rgba(255,255,255,0.035)}
+    .dm-freq button{min-height:40px;border:1px solid transparent;border-radius:9px;background:transparent;color:#a9afbd;cursor:pointer;font-family:inherit;font-size:.86rem;font-weight:700;transition:all 150ms}
+    .dm-freq button.active{border-color:rgba(124,58,237,0.7);background:rgba(124,58,237,0.18);color:#ddd6fe}
+    .dm-tiers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+    .dm-tier{background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.08);border-radius:11px;padding:14px;cursor:pointer;transition:all .14s;text-align:left;font-family:inherit}
+    .dm-tier:hover{border-color:rgba(124,58,237,.4);background:rgba(124,58,237,.06)}
+    .dm-tier.active{border-color:#7c3aed;background:rgba(124,58,237,.14);box-shadow:0 0 0 1px rgba(124,58,237,.25)}
+    .dm-tier-amt{font-family:'Fraunces',Georgia,serif;font-size:1.2rem;font-weight:700;color:#f4efe8;display:block;margin-bottom:2px}
+    .dm-tier.active .dm-tier-amt{color:#c4b5fd}
+    .dm-tier-lbl{font-size:.74rem;color:#6b7280;font-weight:500}
+    .dm-custom-wrap{position:relative;margin-bottom:18px}
+    .dm-dollar{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#7c8598;font-weight:800;pointer-events:none;font-size:.9rem}
+    .dm-custom{width:100%;min-height:42px;padding:10px 12px 10px 28px;border:1.5px solid rgba(255,255,255,0.09);border-radius:10px;outline:none;appearance:textfield;background:rgba(255,255,255,0.045);color:#f4efe8;font-family:inherit;font-size:.9rem;font-weight:700;transition:border-color 150ms,box-shadow 150ms}
+    .dm-custom::-webkit-inner-spin-button{-webkit-appearance:none}
+    .dm-custom::placeholder{color:#4b5563}
+    .dm-custom:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.18)}
+    .dm-divider{height:1px;background:rgba(255,255,255,0.07);margin:4px 0 20px}
+    .dm-contact{margin-bottom:16px}
+    .dm-email{width:100%;min-height:42px;padding:10px 12px;border:1.5px solid rgba(255,255,255,0.09);border-radius:10px;outline:none;background:rgba(255,255,255,0.045);color:#f4efe8;font-family:inherit;font-size:.88rem;font-weight:500;transition:border-color 150ms,box-shadow 150ms;margin-bottom:10px}
+    .dm-email::placeholder{color:#4b5563}
+    .dm-email:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.18)}
+    .dm-nl-row{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid rgba(255,255,255,0.07);border-radius:10px;background:rgba(255,255,255,0.03);cursor:pointer}
+    .dm-nl-row input[type=checkbox]{width:16px;height:16px;flex-shrink:0;margin-top:1px;accent-color:#7c3aed;cursor:pointer}
+    .dm-nl-lbl{font-size:.8rem;color:#9ca3af;line-height:1.45;cursor:pointer}
+    .dm-nl-lbl strong{color:#d1d5db;font-weight:600;display:block;margin-bottom:1px}
+    .dm-stripe-wrap{margin-bottom:18px}
+    .dm-skeleton{height:130px;border-radius:10px;background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.04) 75%);background-size:200% 100%;animation:dm-shimmer 1.4s infinite}
+    @keyframes dm-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    .dm-footer{padding:0 28px 26px}
+    .dm-submit{width:100%;min-height:48px;border:0;border-radius:12px;background:linear-gradient(135deg,#6d28d9,#7c3aed);color:#fff;cursor:pointer;font-family:inherit;font-size:.95rem;font-weight:900;letter-spacing:-.01em;transition:opacity 150ms,transform 120ms;position:relative;overflow:hidden}
+    .dm-submit:hover:not(:disabled){opacity:.9;transform:translateY(-1px)}
+    .dm-submit:disabled{opacity:.5;cursor:not-allowed;transform:none}
+    .dm-submit.loading::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);animation:dm-shine 1.1s infinite}
+    @keyframes dm-shine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+    .dm-error{display:none;margin-top:11px;padding:10px 12px;border:1px solid rgba(248,113,113,.25);border-radius:10px;background:rgba(248,113,113,.09);color:#fca5a5;font-size:.82rem;line-height:1.4}
+    .dm-secure{margin-top:11px;color:#4b5563;text-align:center;font-size:.72rem;line-height:1.4}
+    .dm-success{display:none;text-align:center;padding:48px 28px}
+    .dm-success-icon{width:56px;height:56px;border-radius:50%;margin:0 auto 18px;background:rgba(124,58,237,.15);border:1.5px solid rgba(124,58,237,.35);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#a78bfa}
+    .dm-success h3{font-family:'Fraunces',Georgia,serif;font-size:1.3rem;color:#f4efe8;margin:0 0 8px}
+    .dm-success p{font-size:.86rem;color:#9ca3af;margin:0;line-height:1.5}
+    @media(max-width:460px){#dm-overlay{align-items:flex-end;padding:8px}#dm-modal{border-radius:18px 18px 0 0;max-height:96vh}.dm-header{padding:22px 20px 0}.dm-body{padding:18px 20px 0}.dm-footer{padding:0 20px 24px}.dm-tiers{grid-template-columns:1fr 1fr}}
   `;
 
-  /* ─── Helpers ────────────────────────────────────────────────────────── */
-  function dollars(cents) {
-    return '$' + (cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 });
-  }
+  let tiers = [], selectedAmount = 25, frequency = 'one_time';
+  let stripeInst = null, elements = null, isSubmitting = false;
 
-  function activeAmount() {
-    if (customAmount && customAmount > 0) return customAmount;
-    if (selectedTier) return selectedTier.amount_cents / 100;
-    return null;
-  }
-
-  function activePriceId() {
-    if (!selectedTier) return null;
-    return frequency === 'monthly'
-      ? selectedTier.stripe_price_id_monthly
-      : selectedTier.stripe_price_id_onetime;
-  }
+  function money(v) { const n = Number(v); return Number.isFinite(n) ? '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$0'; }
+  function getAmount() { const c = document.getElementById('dm-custom'); const v = c && c.value ? Number(c.value) : 0; return v > 0 ? v : selectedAmount; }
+  function getActiveTier() { return tiers.find(t => t.amount_cents === getAmount() * 100) || null; }
 
   function injectStyles() {
     if (document.getElementById('dm-styles')) return;
-    const s = document.createElement('style');
-    s.id = 'dm-styles';
-    s.textContent = CSS;
-    document.head.appendChild(s);
+    const s = document.createElement('style'); s.id = 'dm-styles'; s.textContent = CSS; document.head.appendChild(s);
   }
 
-  /* ─── Tier fetch ─────────────────────────────────────────────────────── */
+  function loadStripe() {
+    return new Promise((res, rej) => {
+      if (window.Stripe) return res(window.Stripe);
+      const s = document.createElement('script'); s.src = 'https://js.stripe.com/v3/';
+      s.onload = () => res(window.Stripe); s.onerror = rej; document.head.appendChild(s);
+    });
+  }
+
   async function fetchTiers() {
     try {
-      const res = await fetch(ENDPOINT_TIERS);
-      if (!res.ok) throw new Error('non-ok');
-      const data = await res.json();
-      if (Array.isArray(data.tiers) && data.tiers.length) return data.tiers;
+      const r = await fetch(ENDPOINT_TIERS); if (!r.ok) throw 0;
+      const d = await r.json(); if (Array.isArray(d.tiers) && d.tiers.length) return d.tiers;
     } catch {}
     return FALLBACK_TIERS;
   }
 
-  /* ─── Build HTML ─────────────────────────────────────────────────────── */
-  function buildSkeleton() {
-    return `
-      <div id="dm-overlay" role="dialog" aria-modal="true" aria-label="Donate">
-        <div id="dm-modal">
-          <div class="dm-skeleton">
-            <div class="dm-skel-line" style="height:12px;width:40%;margin-bottom:14px"></div>
-            <div class="dm-skel-line" style="height:28px;width:70%;margin-bottom:20px"></div>
-            <div class="dm-skel-line" style="height:44px;margin-bottom:10px"></div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div class="dm-skel-line" style="height:66px"></div>
-              <div class="dm-skel-line" style="height:66px"></div>
-              <div class="dm-skel-line" style="height:66px"></div>
-              <div class="dm-skel-line" style="height:66px"></div>
-            </div>
-            <div class="dm-skel-line" style="height:44px;margin-top:10px"></div>
-            <div class="dm-skel-line" style="height:48px;margin-top:20px;border-radius:11px"></div>
-          </div>
-          <button class="dm-close" id="dm-close" aria-label="Close">&#x2715;</button>
-        </div>
-      </div>`;
-  }
-
-  function buildModal() {
-    const tierCards = tiers.map((t, i) => `
-      <button type="button" class="dm-tier${i === 0 ? ' active' : ''}" data-idx="${i}">
-        <span class="dm-tier-amount">${dollars(t.amount_cents)}</span>
-        <span class="dm-tier-name">${t.label}</span>
+  function buildHTML() {
+    const tierBtns = tiers.map((t, i) => `
+      <button type="button" class="dm-tier${i===0?' active':''}" data-idx="${i}" data-amount="${t.amount_cents/100}">
+        <span class="dm-tier-amt">${money(t.amount_cents/100)}</span>
+        <span class="dm-tier-lbl">${t.label}</span>
       </button>`).join('');
 
     return `
       <div class="dm-header">
-        <button class="dm-close" id="dm-close" aria-label="Close">&#x2715;</button>
+        <button class="dm-close" id="dm-close" type="button" aria-label="Close">&times;</button>
         <div class="dm-eyebrow">Companions of CPAS</div>
         <h2 class="dm-title">Support Our Mission</h2>
-        <p class="dm-subtitle">Your gift helps dogs at Caddo Parish Animal Services move from crisis to care.</p>
+        <p class="dm-sub">Your gift helps dogs at Caddo Parish Animal Services move from crisis to care.</p>
       </div>
-
-      <span class="dm-label">Gift frequency</span>
-      <div class="dm-freq-wrap">
+      <div class="dm-body">
+        <span class="dm-label">Gift frequency</span>
         <div class="dm-freq">
-          <button type="button" class="dm-freq-btn active" data-freq="onetime">One-time</button>
-          <button type="button" class="dm-freq-btn" data-freq="monthly">Monthly</button>
+          <button type="button" class="active" data-freq="one_time">One-time</button>
+          <button type="button" data-freq="monthly">Monthly</button>
+        </div>
+        <span class="dm-label">Choose an amount</span>
+        <div class="dm-tiers">${tierBtns}</div>
+        <div class="dm-custom-wrap">
+          <span class="dm-dollar">$</span>
+          <input id="dm-custom" class="dm-custom" type="number" min="1" max="50000" step="1" inputmode="decimal" placeholder="Custom amount" autocomplete="off" />
+        </div>
+        <div class="dm-divider"></div>
+        <div class="dm-contact">
+          <span class="dm-label">Receipt &amp; updates <span style="color:#4b5563;font-weight:500;text-transform:none;letter-spacing:0">— optional</span></span>
+          <input id="dm-email" class="dm-email" type="email" placeholder="Email address" autocomplete="email" />
+          <label class="dm-nl-row" for="dm-newsletter">
+            <input type="checkbox" id="dm-newsletter" />
+            <span class="dm-nl-lbl"><strong>Subscribe to updates</strong>Occasional news on animals helped. No spam.</span>
+          </label>
+        </div>
+        <div class="dm-divider"></div>
+        <span class="dm-label">Payment details</span>
+        <div class="dm-stripe-wrap">
+          <div id="dm-skeleton" class="dm-skeleton"></div>
+          <div id="dm-mount" style="display:none"></div>
         </div>
       </div>
-
-      <span class="dm-label">Choose an amount</span>
-      <div class="dm-tiers">${tierCards}</div>
-
-      <div class="dm-custom-wrap">
-        <span class="dm-custom-prefix">$</span>
-        <input type="number" class="dm-custom" id="dm-custom"
-          min="1" max="50000" placeholder="Custom amount" />
-      </div>
-
-      <div class="dm-callout" id="dm-callout">
-        <div class="dm-callout-title">Where your gift goes</div>
-        <div class="dm-callout-body" id="dm-callout-body">
-          Gifts fund urgent medical care, foster supplies, transport, rescue coordination, and shelter visibility for dogs at CPAS.
-        </div>
-      </div>
-
-      <div class="dm-divider"></div>
-
       <div class="dm-footer">
-        <button class="dm-submit" id="dm-submit" type="button">
-          Continue to Checkout
-        </button>
+        <button class="dm-submit" id="dm-submit" type="button" disabled>Donate ${money(selectedAmount)}</button>
         <div class="dm-error" id="dm-error"></div>
-        <div class="dm-secure">
-          Secure checkout by Stripe &middot; Receipt delivered automatically when payment succeeds.
-        </div>
+        <div class="dm-secure">Secured by Stripe &middot; PCI compliant &middot; Receipt emailed when payment succeeds</div>
+      </div>
+      <div class="dm-success" id="dm-success">
+        <div class="dm-success-icon">&#10003;</div>
+        <h3>Thank you for your gift.</h3>
+        <p id="dm-success-msg">Every dollar helps bridge the gap from urgent to safe.</p>
       </div>`;
   }
 
-  /* ─── UI updates ─────────────────────────────────────────────────────── */
-  function updateSubmitLabel() {
+  async function initElements() {
+    try {
+      const Stripe = await loadStripe();
+      if (!stripeInst) stripeInst = Stripe(STRIPE_PK);
+      const isMonthly = frequency === 'monthly';
+      const res = await fetch(ENDPOINT_INTENT, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: isMonthly ? 'setup' : 'payment', amount_cents: Math.round(getAmount() * 100), currency: 'usd' }),
+      });
+      const data = await res.json();
+      if (!data.client_secret) throw new Error(data.error || 'Could not initialize payment.');
+      elements = stripeInst.elements({ clientSecret: data.client_secret, appearance: APPEARANCE });
+      const pe = elements.create('payment', { layout: { type: 'tabs', defaultCollapsed: false }, fields: { billingDetails: { name: 'auto', email: 'never' } } });
+      const skeleton = document.getElementById('dm-skeleton');
+      const mount = document.getElementById('dm-mount');
+      pe.on('ready', () => {
+        if (skeleton) skeleton.style.display = 'none';
+        if (mount) mount.style.display = 'block';
+        const btn = document.getElementById('dm-submit');
+        if (btn) { btn.disabled = false; updateLabel(); }
+      });
+      pe.mount('#dm-mount');
+    } catch (err) {
+      const sk = document.getElementById('dm-skeleton');
+      if (sk) { sk.style.animation = 'none'; sk.style.background = 'rgba(248,113,113,.07)'; sk.innerHTML = '<div style="padding:16px;color:#fca5a5;font-size:.82rem;text-align:center">Could not load payment form. <a href="/donate" style="color:#a78bfa;text-decoration:underline">Try the donate page</a></div>'; }
+    }
+  }
+
+  async function submit() {
+    if (isSubmitting || !elements || !stripeInst) return;
+    const amt = getAmount();
+    if (!amt || amt < 1) { setErr('Please select or enter an amount.'); return; }
+    setErr('');
+    isSubmitting = true;
     const btn = document.getElementById('dm-submit');
-    if (!btn) return;
-    const amt = activeAmount();
-    const freq = frequency === 'monthly' ? '/mo' : '';
-    if (!amt || amt <= 0) {
-      btn.textContent = 'Continue to Checkout';
-      btn.disabled = true;
-    } else {
-      btn.textContent = `Donate $${Number.isInteger(amt) ? amt : amt.toFixed(2)}${freq}`;
-      btn.disabled = isSubmitting;
+    if (btn) { btn.disabled = true; btn.classList.add('loading'); btn.textContent = 'Processing...'; }
+    const email = (document.getElementById('dm-email')?.value || '').trim() || null;
+    const nlOptIn = document.getElementById('dm-newsletter')?.checked || false;
+    const isMonthly = frequency === 'monthly';
+    const tier = getActiveTier();
+    const amountCents = Math.round(amt * 100);
+    try {
+      if (!isMonthly) {
+        const { error } = await stripeInst.confirmPayment({
+          elements, redirect: 'if_required',
+          confirmParams: { return_url: `${location.origin}/donate?success=1`, payment_method_data: { billing_details: { email: email || undefined } } },
+        });
+        if (error) throw new Error(error.message);
+        if (email) fetch(ENDPOINT_AFTER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ donor_email: email, nl_opt_in: nlOptIn, amount_cents: amountCents }) }).catch(() => {});
+        showSuccess(email, false);
+      } else {
+        const { error, setupIntent } = await stripeInst.confirmSetup({
+          elements, redirect: 'if_required',
+          confirmParams: { return_url: `${location.origin}/donate?success=1`, payment_method_data: { billing_details: { email: email || undefined } } },
+        });
+        if (error) throw new Error(error.message);
+        const subRes = await fetch(ENDPOINT_SUB, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_method_id: setupIntent.payment_method, price_id: tier?.stripe_price_id_monthly || null, amount_cents: tier ? null : amountCents, donor_email: email, nl_opt_in: nlOptIn }),
+        });
+        const subData = await subRes.json();
+        if (!subData.success) throw new Error(subData.error || 'Subscription could not be created.');
+        showSuccess(email, true);
+      }
+    } catch (err) {
+      setErr(err.message || 'Payment failed. Please try again.');
+      isSubmitting = false;
+      if (btn) { btn.disabled = false; btn.classList.remove('loading'); updateLabel(); }
     }
   }
 
-  function updateCallout() {
-    const body = document.getElementById('dm-callout-body');
-    if (!body) return;
-    if (frequency === 'monthly') {
-      body.textContent = 'Your monthly gift sustains ongoing care so no dog loses their chance at safety due to lack of funds.';
-      body.classList.add('monthly-note');
-    } else {
-      body.textContent = 'Gifts fund urgent medical care, foster supplies, transport, rescue coordination, and shelter visibility for dogs at CPAS.';
-      body.classList.remove('monthly-note');
-    }
+  function updateLabel() {
+    const btn = document.getElementById('dm-submit');
+    if (!btn || btn.disabled) return;
+    btn.textContent = `Donate ${money(getAmount())}${frequency === 'monthly' ? '/mo' : ''}`;
+  }
+  function setErr(msg) { const el = document.getElementById('dm-error'); if (!el) return; el.textContent = msg || ''; el.style.display = msg ? 'block' : 'none'; }
+  function showSuccess(email, isMonthly) {
+    const modal = document.getElementById('dm-modal');
+    if (!modal) return;
+    [...modal.children].forEach(el => { el.style.display = el.id === 'dm-success' ? 'block' : 'none'; });
+    const msg = document.getElementById('dm-success-msg');
+    if (msg) msg.textContent = isMonthly
+      ? (email ? `Your monthly gift is active. Confirmation headed to ${email}.` : 'Your monthly gift is active. Thank you.')
+      : (email ? `Receipt headed to ${email}. Every dollar helps bridge the gap from urgent to safe.` : 'Every dollar helps bridge the gap from urgent to safe.');
+    setTimeout(close, 6000);
   }
 
-  function setError(msg) {
-    const el = document.getElementById('dm-error');
-    if (!el) return;
-    el.textContent = msg;
-    el.style.display = msg ? 'block' : 'none';
+  function reinitElements() {
+    elements = null;
+    const sk = document.getElementById('dm-skeleton'); const mt = document.getElementById('dm-mount');
+    if (sk) { sk.style.display = 'block'; sk.style.animation = ''; sk.style.background = ''; sk.innerHTML = ''; }
+    if (mt) { mt.style.display = 'none'; mt.innerHTML = ''; }
+    const btn = document.getElementById('dm-submit'); if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+    initElements();
   }
 
-  /* ─── Open / close ───────────────────────────────────────────────────── */
-  function open() {
+  function open(event) {
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
     if (document.getElementById('dm-overlay')) return;
     injectStyles();
-
-    // Inject skeleton immediately
-    const wrap = document.createElement('div');
-    wrap.innerHTML = buildSkeleton();
-    document.body.appendChild(wrap.firstElementChild);
-
-    document.getElementById('dm-close').addEventListener('click', close);
-
-    // Reset state
-    selectedTier = null;
-    customAmount = null;
-    frequency    = 'onetime';
-    isSubmitting = false;
-
-    fetchTiers().then(loaded => {
-      tiers = loaded;
-      selectedTier = tiers[0] || null;
-
-      const modal = document.getElementById('dm-modal');
-      if (!modal) return; // closed before fetch returned
-      modal.innerHTML = buildModal();
-      bindEvents();
-      updateSubmitLabel();
+    selectedAmount = 25; frequency = 'one_time'; elements = null; isSubmitting = false;
+    const tiersPromise = fetchTiers();
+    loadStripe().catch(() => {});
+    const overlay = document.createElement('div');
+    overlay.id = 'dm-overlay'; overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true');
+    const modal = document.createElement('div'); modal.id = 'dm-modal';
+    modal.innerHTML = '<div style="padding:40px 28px"><div style="height:28px;width:70%;border-radius:6px;background:rgba(255,255,255,.06);margin-bottom:20px;animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:44px;border-radius:10px;background:rgba(255,255,255,.06);margin-bottom:10px;animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px"><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div></div><div style="height:130px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div></div>';
+    overlay.appendChild(modal); document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } }, { once: true });
+    tiersPromise.then(loaded => {
+      tiers = loaded; if (tiers.length) selectedAmount = tiers[0].amount_cents / 100;
+      if (!document.getElementById('dm-overlay')) return;
+      modal.innerHTML = buildHTML(); bindEvents(); initElements();
     });
   }
 
   function close() {
-    const el = document.getElementById('dm-overlay');
-    if (el) el.remove();
-    isSubmitting = false;
+    const el = document.getElementById('dm-overlay'); if (el) el.remove();
+    elements = null; isSubmitting = false;
   }
 
-  /* ─── Submit ─────────────────────────────────────────────────────────── */
-  async function submit() {
-    if (isSubmitting) return;
-    const amt = activeAmount();
-    if (!amt || amt < 1) {
-      setError('Please select or enter an amount.');
-      return;
-    }
-    setError('');
-
-    isSubmitting = true;
-    const btn = document.getElementById('dm-submit');
-    if (btn) { btn.classList.add('loading'); btn.disabled = true; btn.textContent = 'Redirecting...'; }
-
-    try {
-      const payload = {
-        amount_cents: Math.round(amt * 100),
-        recurring:    frequency === 'monthly',
-        title:        selectedTier ? `${selectedTier.label} — ${frequency === 'monthly' ? 'Monthly Gift' : 'One-Time Gift'}` : 'Donation to Companions of CPAS',
-      };
-      if (activePriceId()) payload.price_id = activePriceId();
-
-      const res  = await fetch(ENDPOINT_CHECKOUT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-
-      if (!data.checkout_url) throw new Error(data.error || 'Checkout unavailable.');
-      window.location.href = data.checkout_url;
-
-    } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.');
-      isSubmitting = false;
-      if (btn) { btn.classList.remove('loading'); btn.disabled = false; updateSubmitLabel(); }
-    }
-  }
-
-  /* ─── Events ─────────────────────────────────────────────────────────── */
   function bindEvents() {
     document.getElementById('dm-close').addEventListener('click', close);
-
-    document.getElementById('dm-overlay').addEventListener('click', e => {
-      if (e.target.id === 'dm-overlay') close();
-    });
-
-    document.addEventListener('keydown', function esc(e) {
-      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); }
-    }, { once: true });
-
-    // Frequency toggle
-    document.querySelectorAll('.dm-freq-btn').forEach(btn => {
-      btn.addEventListener('click', function () {
-        document.querySelectorAll('.dm-freq-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        frequency = this.dataset.freq;
-        updateSubmitLabel();
-        updateCallout();
+    document.querySelectorAll('.dm-freq button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        frequency = btn.dataset.freq;
+        document.querySelectorAll('.dm-freq button').forEach(b => b.classList.toggle('active', b === btn));
+        updateLabel(); reinitElements();
       });
     });
-
-    // Tier select
     document.querySelectorAll('.dm-tier').forEach(btn => {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', () => {
         document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        selectedTier = tiers[parseInt(this.dataset.idx, 10)];
-        customAmount = null;
-        const inp = document.getElementById('dm-custom');
-        if (inp) { inp.value = ''; inp.classList.remove('active-input'); }
-        updateSubmitLabel();
+        btn.classList.add('active'); selectedAmount = Number(btn.dataset.amount);
+        const c = document.getElementById('dm-custom'); if (c) c.value = '';
+        updateLabel();
       });
     });
-
-    // Custom amount
-    const customInp = document.getElementById('dm-custom');
-    if (customInp) {
-      customInp.addEventListener('input', function () {
-        const val = parseFloat(this.value);
-        if (this.value && val > 0) {
-          customAmount = val;
-          selectedTier = null;
-          document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
-          this.classList.add('active-input');
-        } else {
-          customAmount = null;
-          this.classList.remove('active-input');
-          // Re-select first tier if nothing selected
-          if (!selectedTier && tiers.length) {
-            selectedTier = tiers[0];
-            document.querySelector('.dm-tier[data-idx="0"]')?.classList.add('active');
-          }
-        }
-        updateSubmitLabel();
-      });
-    }
-
+    document.getElementById('dm-custom')?.addEventListener('input', function () {
+      document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
+      selectedAmount = Number(this.value) || 0; updateLabel();
+    });
     document.getElementById('dm-submit').addEventListener('click', submit);
   }
 
-  /* ─── Wire triggers ──────────────────────────────────────────────────── */
   function wireButtons() {
-    document.querySelectorAll('[data-donate], [data-action="donate"]').forEach(el => {
-      el.addEventListener('click', e => { e.preventDefault(); open(); });
+    document.querySelectorAll('[data-donate],[data-action="donate"]').forEach(el => {
+      if (el.dataset.dmWired === '1') return; el.dataset.dmWired = '1';
+      el.addEventListener('click', open);
     });
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', wireButtons);
-  } else {
-    wireButtons();
-  }
-
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', wireButtons); } else { wireButtons(); }
   window.DonateModal = { open, close };
+  window.openDonateModal = open;
 })();
