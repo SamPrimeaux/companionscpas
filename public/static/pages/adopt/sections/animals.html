@@ -1,0 +1,210 @@
+<style>
+  /* ── adopt/sections/animals.html ── */
+  .adopt-animals { background: #f5f2ee; padding: 72px 0 80px; }
+  .adopt-animals__inner { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+  .adopt-animals__header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    margin-bottom: 36px; gap: 20px; flex-wrap: wrap;
+  }
+  .adopt-animals__kicker {
+    font-size: 10px; font-weight: 800; letter-spacing: .14em;
+    text-transform: uppercase; color: #7c3aed; margin-bottom: 8px;
+  }
+  .adopt-animals__title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: clamp(1.7rem, 3vw, 2.4rem); font-weight: 700;
+    color: #0f1623; line-height: 1.1; letter-spacing: -.02em; margin: 0;
+  }
+  .adopt-animals__filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .adopt-animals__filter {
+    padding: 7px 16px; border-radius: 999px;
+    border: 1.5px solid rgba(15,22,35,.14); background: #fff;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: .82rem; font-weight: 600; color: #5e6b7f; cursor: pointer;
+    transition: all .14s;
+  }
+  .adopt-animals__filter:hover, .adopt-animals__filter.active {
+    border-color: #7c3aed; background: rgba(124,58,237,.08); color: #6d28d9;
+  }
+  .adopt-animals__grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;
+  }
+  .animal-card {
+    background: #fff; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 2px 12px rgba(15,22,35,.08);
+    transition: box-shadow .2s, transform .15s;
+    display: flex; flex-direction: column;
+  }
+  .animal-card:hover { box-shadow: 0 8px 32px rgba(15,22,35,.13); transform: translateY(-3px); }
+  .animal-card__img-wrap {
+    position: relative; aspect-ratio: 4/3; overflow: hidden; background: #e8e4df;
+  }
+  .animal-card__img {
+    width: 100%; height: 100%; object-fit: cover; object-position: center top;
+    display: block; transition: transform .4s ease;
+  }
+  .animal-card:hover .animal-card__img { transform: scale(1.04); }
+  .animal-card__status {
+    position: absolute; top: 12px; left: 12px;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+    background: rgba(9,13,24,.72); color: #a78bfa;
+    backdrop-filter: blur(6px); border: 1px solid rgba(167,139,250,.25);
+  }
+  .animal-card__status--foster { color: #6ee7b7; border-color: rgba(110,231,183,.25); }
+  .animal-card__body { padding: 18px 20px 20px; flex: 1; display: flex; flex-direction: column; }
+  .animal-card__name {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 1.15rem; font-weight: 700; color: #0f1623;
+    margin: 0 0 4px; letter-spacing: -.01em;
+  }
+  .animal-card__meta { font-size: .8rem; color: #8a94a6; margin: 0 0 12px; }
+  .animal-card__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .animal-card__tag {
+    padding: 3px 10px; border-radius: 999px;
+    background: rgba(124,58,237,.08); border: 1px solid rgba(124,58,237,.14);
+    font-size: .74rem; font-weight: 600; color: #6d28d9;
+  }
+  .animal-card__bio {
+    font-size: .82rem; color: #5e6b7f; line-height: 1.5;
+    margin: 0 0 16px; flex: 1;
+    display: -webkit-box; -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .animal-card__cta {
+    width: 100%; padding: 10px; border: none; border-radius: 9px;
+    background: #7c3aed; color: #fff;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: .86rem; font-weight: 700; cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  .animal-card__cta:hover { opacity: .88; transform: translateY(-1px); }
+  .animal-card--skeleton .animal-card__img-wrap,
+  .animal-card--skeleton .animal-card__name,
+  .animal-card--skeleton .animal-card__meta,
+  .animal-card--skeleton .animal-card__bio,
+  .animal-card--skeleton .animal-card__cta {
+    background: linear-gradient(90deg, #e8e4df 25%, #f0ece8 50%, #e8e4df 75%);
+    background-size: 200% 100%; animation: adopt-shimmer 1.4s infinite;
+    border-radius: 8px; color: transparent;
+  }
+  .animal-card--skeleton .animal-card__name { height: 22px; width: 60%; }
+  .animal-card--skeleton .animal-card__meta { height: 14px; width: 45%; }
+  .animal-card--skeleton .animal-card__bio  { height: 48px; }
+  .animal-card--skeleton .animal-card__cta  { height: 38px; }
+  @keyframes adopt-shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+  .adopt-animals__empty {
+    grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: #8a94a6;
+  }
+  .adopt-animals__empty h3 {
+    font-family: 'Fraunces', Georgia, serif; font-size: 1.3rem; color: #0f1623; margin: 0 0 8px;
+  }
+  @media (max-width: 600px) {
+    .adopt-animals__inner { padding: 0 16px; }
+    .adopt-animals { padding: 48px 0 56px; }
+    .adopt-animals__header { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+
+<section class="adopt-animals" id="adopt-animals" aria-label="Available dogs">
+  <div class="adopt-animals__inner">
+    <div class="adopt-animals__header">
+      <div>
+        <div class="adopt-animals__kicker">Available Now</div>
+        <h2 class="adopt-animals__title">Dogs looking for a home.</h2>
+      </div>
+      <div class="adopt-animals__filters" id="adopt-filters">
+        <button class="adopt-animals__filter active" data-filter="all">All</button>
+        <button class="adopt-animals__filter" data-filter="available">Available</button>
+        <button class="adopt-animals__filter" data-filter="foster_needed">Needs Foster</button>
+      </div>
+    </div>
+    <div class="adopt-animals__grid" id="adopt-grid">
+      <div class="animal-card animal-card--skeleton"><div class="animal-card__img-wrap"></div><div class="animal-card__body"><div class="animal-card__name">&nbsp;</div><div class="animal-card__meta">&nbsp;</div><div class="animal-card__bio">&nbsp;</div><div class="animal-card__cta">&nbsp;</div></div></div>
+      <div class="animal-card animal-card--skeleton"><div class="animal-card__img-wrap"></div><div class="animal-card__body"><div class="animal-card__name">&nbsp;</div><div class="animal-card__meta">&nbsp;</div><div class="animal-card__bio">&nbsp;</div><div class="animal-card__cta">&nbsp;</div></div></div>
+      <div class="animal-card animal-card--skeleton"><div class="animal-card__img-wrap"></div><div class="animal-card__body"><div class="animal-card__name">&nbsp;</div><div class="animal-card__meta">&nbsp;</div><div class="animal-card__bio">&nbsp;</div><div class="animal-card__cta">&nbsp;</div></div></div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  'use strict';
+  let allAnimals = [];
+  let currentFilter = 'all';
+
+  function buildTag(label) { return `<span class="animal-card__tag">${label}</span>`; }
+
+  function statusLabel(status, fosterNeeded) {
+    if (fosterNeeded) return '<span class="animal-card__status animal-card__status--foster">Needs Foster</span>';
+    if (status === 'available') return '<span class="animal-card__status">Available</span>';
+    if (status === 'pending')   return '<span class="animal-card__status" style="color:#fcd34d">Pending</span>';
+    return '';
+  }
+
+  function buildCard(a) {
+    const img = a.asset_cdn_url || a.photo_url || 'https://assets.companionsofcaddo.org/media/animals/goinhomejustadopted.webp';
+    const tags = [];
+    if (a.good_with_dogs) tags.push('Good with dogs');
+    if (a.good_with_kids) tags.push('Good with kids');
+    if (a.good_with_cats) tags.push('Good with cats');
+    if (a.energy_level)   tags.push(a.energy_level);
+    const metaParts = [a.breed, a.sex, a.age_label].filter(Boolean);
+    return `
+      <article class="animal-card">
+        <div class="animal-card__img-wrap">
+          <img class="animal-card__img" src="${img}" alt="${a.name}" loading="lazy" />
+          ${statusLabel(a.status, a.foster_needed)}
+        </div>
+        <div class="animal-card__body">
+          <h3 class="animal-card__name">${a.name}</h3>
+          <p class="animal-card__meta">${metaParts.join(' &middot; ') || 'Dog'}</p>
+          ${tags.length ? `<div class="animal-card__tags">${tags.slice(0,3).map(buildTag).join('')}</div>` : ''}
+          ${a.bio ? `<p class="animal-card__bio">${a.bio}</p>` : ''}
+          <button class="animal-card__cta" data-action="apply-adopt" data-animal="${a.name}">
+            Apply to Adopt ${a.name}
+          </button>
+        </div>
+      </article>`;
+  }
+
+  function renderGrid(animals) {
+    const grid = document.getElementById('adopt-grid');
+    if (!grid) return;
+    if (!animals.length) {
+      grid.innerHTML = `<div class="adopt-animals__empty"><h3>No dogs available right now</h3><p>Check back soon — new arrivals happen regularly.</p></div>`;
+      return;
+    }
+    grid.innerHTML = animals.map(buildCard).join('');
+  }
+
+  function applyFilter(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.adopt-animals__filter').forEach(b =>
+      b.classList.toggle('active', b.dataset.filter === filter)
+    );
+    const filtered = filter === 'all'
+      ? allAnimals
+      : filter === 'foster_needed'
+        ? allAnimals.filter(a => a.foster_needed)
+        : allAnimals.filter(a => (a.status || '').toLowerCase() === filter);
+    renderGrid(filtered);
+  }
+
+  async function loadAnimals() {
+    try {
+      const res = await fetch('/api/dashboard/animals');
+      if (!res.ok) throw new Error('non-ok');
+      const data = await res.json();
+      allAnimals = (data.animals || []).filter(a => a.public_visible !== 0);
+    } catch { allAnimals = []; }
+    applyFilter(currentFilter);
+  }
+
+  document.querySelectorAll('.adopt-animals__filter').forEach(btn => {
+    btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
+  });
+
+  loadAnimals();
+})();
+</script>
