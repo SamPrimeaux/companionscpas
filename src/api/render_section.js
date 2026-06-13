@@ -452,7 +452,7 @@ function renderAnimalGrid(section, blocks) {
     const raw = text(value).trim();
     if (!raw) return "";
     if (
-      raw.startsWith("https://assets.meauxxx.com/") ||
+      raw.startsWith("https://assets.companionsofcaddo.org/") ||
       raw.startsWith("https://imagedelivery.net/") ||
       raw.startsWith("/static/") ||
       raw.startsWith("/assets/")
