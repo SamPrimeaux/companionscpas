@@ -75,13 +75,25 @@
 
 // Mobile side navigation controller
 (() => {
+  function currentRoutePath() {
+    const fromBody = document.body && document.body.dataset ? document.body.dataset.route : "";
+    if (fromBody) return String(fromBody).replace(/\/$/, "") || "/";
+    return window.location.pathname.replace(/\/$/, "") || "/";
+  }
+
   function initMobileNav() {
     const header = document.querySelector(".site-header");
     if (!header || header.dataset.mobileNavReady === "1") return;
     header.dataset.mobileNavReady = "1";
 
     const inner = header.querySelector(".header-inner") || header.querySelector(".nav") || header;
-    const currentPath = window.location.pathname.replace(/\/$/, "") || "/";
+    const currentPath = currentRoutePath();
+
+    document.querySelectorAll(".site-nav a").forEach((a) => {
+      const hrefPath = new URL(a.getAttribute("href"), window.location.origin).pathname.replace(/\/$/, "") || "/";
+      if (hrefPath === currentPath) a.classList.add("active");
+      else a.classList.remove("active");
+    });
 
     let toggle = header.querySelector(".mobile-menu-toggle");
     if (!toggle) {
@@ -90,14 +102,17 @@
       toggle.type = "button";
       toggle.setAttribute("aria-label", "Open navigation");
       toggle.setAttribute("aria-expanded", "false");
+      toggle.setAttribute("aria-controls", "mobileMenuPanel");
       toggle.innerHTML = "<span></span><span></span><span></span>";
       inner.appendChild(toggle);
     }
 
+    toggle.setAttribute("aria-controls", "mobileMenuPanel");
     let panel = document.querySelector(".mobile-menu-panel");
     if (!panel) {
       panel = document.createElement("nav");
       panel.className = "mobile-menu-panel";
+      panel.id = "mobileMenuPanel";
       panel.setAttribute("aria-label", "Mobile navigation");
       panel.innerHTML = `
         <a href="/">Home</a>
@@ -109,6 +124,7 @@
       document.body.appendChild(panel);
     }
 
+    panel.setAttribute("aria-hidden", "true");
     panel.querySelectorAll("a").forEach((a) => {
       const hrefPath = new URL(a.getAttribute("href"), window.location.origin).pathname.replace(/\/$/, "") || "/";
       if (hrefPath === currentPath) a.classList.add("active");
@@ -118,15 +134,23 @@
     function closeMenu() {
       toggle.classList.remove("is-open");
       panel.classList.remove("is-open");
+      panel.setAttribute("aria-hidden", "true");
       toggle.setAttribute("aria-label", "Open navigation");
       toggle.setAttribute("aria-expanded", "false");
+      document.body.classList.remove("menu-open", "cpas-nav-open");
+      document.documentElement.classList.remove("nav-open", "cpas-nav-open");
+      document.body.style.overflow = "";
     }
 
     function openMenu() {
       toggle.classList.add("is-open");
       panel.classList.add("is-open");
+      panel.setAttribute("aria-hidden", "false");
       toggle.setAttribute("aria-label", "Close navigation");
       toggle.setAttribute("aria-expanded", "true");
+      document.body.classList.add("menu-open", "cpas-nav-open");
+      document.documentElement.classList.add("nav-open", "cpas-nav-open");
+      document.body.style.overflow = "hidden";
     }
 
     toggle.addEventListener("click", () => {
@@ -161,3 +185,35 @@
 })();
 // End mobile side navigation controller
 
+
+
+// Donate CTA fallback (foster handled by cpas-modals.js)
+(() => {
+  document.addEventListener('click', (event) => {
+    const donate = event.target.closest('[data-action="donate"]');
+    if (donate && window.DonateModal && typeof window.DonateModal.open === 'function') {
+      event.preventDefault();
+      window.DonateModal.open(event);
+    }
+  });
+})();
+
+// CPAS reusable newsletter form
+(() => {
+  document.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-newsletter-form]');
+    if (!form) return;
+    event.preventDefault();
+    const email = form.querySelector('input[type="email"]')?.value?.trim();
+    const status = form.querySelector('[data-newsletter-status]');
+    if (status) status.textContent = 'Subscribing...';
+    try {
+      const res = await fetch('/api/newsletter/subscribe', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ email }) });
+      if (!res.ok) throw new Error('Subscribe failed');
+      if (status) status.textContent = 'You are subscribed.';
+      form.reset();
+    } catch {
+      if (status) status.textContent = 'Could not subscribe. Please try again.';
+    }
+  });
+})();

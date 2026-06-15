@@ -55,22 +55,90 @@ function safeUrl(value, fallback = "") {
   }
 }
 
-function renderCta(label, url, className = "btn btn-ghost") {
+const CTA_ICONS = {
+  donate: `<span class="hero-cta-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></span>`,
+  foster: `<span class="hero-cta-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>`,
+};
+
+function normalizeCtaIntent(href, action) {
+  const rawAction = text(action).trim().toLowerCase();
+  const rawHref = text(href).trim();
+
+  if (rawAction === "donate" || rawAction === "stripe_checkout" || rawAction === "modal_donate") {
+    return { type: "action", value: "donate" };
+  }
+  if (rawAction === "foster") return { type: "action", value: "foster" };
+  if (rawAction === "volunteer") return { type: "modal", value: "volunteer" };
+  if (rawAction === "contact") return { type: "modal", value: "contact" };
+
+  if (rawHref.startsWith("modal:")) {
+    const key = rawHref.slice(6).replace(/[^a-z0-9_-]/gi, "");
+    if (key === "donate") return { type: "action", value: "donate" };
+    return { type: "modal", value: key };
+  }
+  if (rawHref.startsWith("data-action:")) {
+    const key = rawHref.slice(12).replace(/[^a-z0-9_-]/gi, "");
+    return { type: "action", value: key };
+  }
+  if (rawHref === "#donate-form" || rawHref === "#donate" || rawHref === "/donate#donate-form") {
+    return { type: "action", value: "donate" };
+  }
+
+  const safeHref = safeUrl(rawHref, "");
+  if (safeHref) return { type: "href", value: safeHref };
+  return null;
+}
+
+function heroCtaClass(variant = "primary") {
+  if (variant === "ghost") return "hero-cta hero-cta-ghost";
+  if (variant === "btn btn-ghost") return "hero-cta hero-cta-ghost";
+  if (variant === "btn btn-primary") return "hero-cta hero-cta-primary";
+  return "hero-cta hero-cta-primary";
+}
+
+function renderActionCta(label, href, action = "", variant = "primary", sub = "", opts = {}) {
   const safeLabel = text(label).trim();
   if (!safeLabel) return "";
-  const rawUrl = text(url).trim();
-  if (rawUrl.startsWith("modal:")) {
-    const key = rawUrl.slice(6).replace(/[^a-z0-9_-]/gi, "");
-    return `<button class="${className}" data-modal="${key}" type="button">${escapeHtml(safeLabel)}</button>`;
+  const intent = normalizeCtaIntent(href, action);
+  if (!intent) return "";
+
+  const cls = heroCtaClass(variant);
+  const subHtml = sub ? `<span class="hero-cta-sub">${escapeHtml(sub)}</span>` : "";
+  const iconKey = opts.icon === false ? "" : intent.value;
+  const icon = CTA_ICONS[iconKey] || "";
+  const inner = `${icon}<span class="hero-cta-text"><span class="hero-cta-label">${escapeHtml(safeLabel)}</span>${subHtml}</span>`;
+
+  if (intent.type === "action") {
+    return `<button class="${cls}" type="button" data-action="${escapeAttribute(intent.value)}">${inner}</button>`;
   }
-  const href = safeUrl(rawUrl, "");
-  if (!href) return "";
-  return `<a class="${className}" href="${href}">${escapeHtml(safeLabel)}</a>`;
+  if (intent.type === "modal") {
+    return `<button class="${cls}" type="button" data-modal="${escapeAttribute(intent.value)}">${inner}</button>`;
+  }
+  return `<a class="${cls}" href="${intent.value}">${inner}</a>`;
+}
+
+function renderCta(label, url, variant = "primary", action = "") {
+  return renderActionCta(label, url, action, variant);
+}
+
+function sectionCtaFields(section, config = {}) {
+  const cfg = toRecord(config);
+  return {
+    label: pickText(section, ["cta_label"]) || pickText(cfg, ["cta_label"]),
+    href: pickText(section, ["cta_url", "cta_href"]) || pickText(cfg, ["cta_url", "cta_href"]),
+    action: pickText(section, ["cta_action"]) || pickText(cfg, ["cta_action"]),
+    secondaryLabel: pickText(section, ["secondary_cta_label", "cta_secondary_label"]) || pickText(cfg, ["secondary_cta_label"]),
+    secondaryHref: pickText(section, ["secondary_cta_url", "cta_secondary_href"]) || pickText(cfg, ["secondary_cta_url", "cta_secondary_href"]),
+    secondaryAction: pickText(section, ["secondary_cta_action"]) || pickText(cfg, ["secondary_cta_action"]),
+    secondarySub: pickText(cfg, ["secondary_cta_sub"]) || "",
+  };
 }
 
 function renderSectionHeader(section, opts = {}) {
   const options = toRecord(opts);
   const headingTag = pickText(options, ["headingTag"]) || "h2";
+  const headingClass = pickText(options, ["headingClass"]) || "mission-heading";
+  const bodyClass = pickText(options, ["bodyClass"]) || "mission-body";
   const eyebrow = pickText(section, ["eyebrow"]);
   const heading = pickText(section, ["heading", "title"]);
   const subheading = pickText(section, ["subheading"]);
@@ -78,10 +146,10 @@ function renderSectionHeader(section, opts = {}) {
   const bodyEnabled = options.includeBody !== false;
 
   return [
-    eyebrow ? `<p class="eyebrow">${escapeHtml(eyebrow)}</p>` : "",
-    heading ? `<${headingTag}>${escapeHtml(heading)}</${headingTag}>` : "",
-    subheading ? `<p class="text-muted mt-sm">${escapeHtml(subheading)}</p>` : "",
-    bodyEnabled && body ? `<p>${escapeHtml(body)}</p>` : "",
+    eyebrow ? `<div class="ey-purple">${escapeHtml(eyebrow)}</div>` : "",
+    heading ? `<${headingTag} class="${headingClass}">${escapeHtml(heading)}</${headingTag}>` : "",
+    subheading ? `<p class="${bodyClass}">${escapeHtml(subheading)}</p>` : "",
+    bodyEnabled && body ? `<p class="${bodyClass}">${escapeHtml(body)}</p>` : "",
   ].join("");
 }
 
@@ -90,8 +158,9 @@ function renderImage(url, alt, className) {
   const safeSrc = safeUrl(url, "");
   if (!safeSrc) return "";
   const safeAlt = text(alt).trim() || "Section image";
-  const cls = text(className).trim() || "section-img";
-  return `<img class="${cls}" src="${safeSrc}" alt="${escapeAttribute(safeAlt)}" loading="lazy">`;
+  const cls = text(className).trim();
+  const classAttr = cls ? ` class="${cls}"` : "";
+  return `<img${classAttr} src="${safeSrc}" alt="${escapeAttribute(safeAlt)}" loading="lazy">`;
 }
 
 function renderImageEager(url, alt, className) {
@@ -109,44 +178,74 @@ function cardParts(block) {
   const imageUrl = pickText(block, ["image_url"]) || pickText(blockConfig, ["image_url"]);
   const imageAlt = pickText(block, ["image_alt", "title", "heading"]) || pickText(blockConfig, ["image_alt"]);
   const icon = pickText(block, ["icon"]) || pickText(blockConfig, ["icon"]);
-  const ctaLabel = pickText(block, ["cta_label"]) || pickText(blockConfig, ["cta_label"]);
-  const ctaUrl = pickText(block, ["cta_url", "cta_href"]) || pickText(blockConfig, ["cta_url", "cta_href"]);
-  return { title, body, imageUrl, imageAlt, icon, ctaLabel, ctaUrl, blockConfig };
+  const ctaLabel =
+    pickText(block, ["cta_label", "action_label"]) ||
+    pickText(blockConfig, ["cta_label", "action_label"]);
+  const ctaUrl =
+    pickText(block, ["cta_url", "cta_href", "action_value"]) ||
+    pickText(blockConfig, ["cta_url", "cta_href", "action_value"]);
+  const ctaAction =
+    pickText(block, ["cta_action", "action"]) || pickText(blockConfig, ["cta_action", "action"]);
+  return { title, body, imageUrl, imageAlt, icon, ctaLabel, ctaUrl, ctaAction, blockConfig };
+}
+
+function renderCardLink(label, href, action = "") {
+  const safeLabel = text(label).trim();
+  if (!safeLabel) return "";
+  const intent = normalizeCtaIntent(href, action);
+  if (!intent) return "";
+
+  const inner = `${escapeHtml(safeLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>`;
+
+  if (intent.type === "action") {
+    return `<button class="ways-card-link" type="button" data-action="${escapeAttribute(intent.value)}">${inner}</button>`;
+  }
+  if (intent.type === "modal") {
+    return `<button class="ways-card-link" type="button" data-modal="${escapeAttribute(intent.value)}">${inner}</button>`;
+  }
+  return `<a class="ways-card-link" href="${intent.value}">${inner}</a>`;
+}
+
+function renderSharedHeroCta(label, url, variant = "primary", sub = "", action = "") {
+  return renderActionCta(label, url, action, variant, sub);
 }
 
 function renderHero(section) {
   const config = safeJson(section.config_json, {});
+  const cta = sectionCtaFields(section, config);
   const heading = pickText(section, ["heading", "title"]) || pickText(config, ["heading"]);
   const subheading = pickText(section, ["subheading"]) || pickText(config, ["subheading"]);
   const body = pickText(section, ["body"]) || pickText(config, ["body"]);
+  const eyebrow = pickText(section, ["eyebrow"]) || pickText(config, ["eyebrow"]);
   const imageUrl = pickText(section, ["image_url"]) || pickText(config, ["image_url"]);
   const imageAlt = pickText(section, ["image_alt", "heading"]) || pickText(config, ["image_alt"]) || "Hero image";
-  const ctaPrimary = renderCta(
-    pickText(section, ["cta_label"]) || pickText(config, ["cta_label"]),
-    pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]),
-    "btn btn-primary"
+  const heroSub = subheading || body;
+  const ctaPrimary = renderActionCta(cta.label, cta.href, cta.action, "primary");
+  const ctaSecondary = renderActionCta(
+    cta.secondaryLabel,
+    cta.secondaryHref,
+    cta.secondaryAction,
+    "ghost",
+    cta.secondarySub
   );
-  const ctaSecondary = renderCta(
-    pickText(section, ["secondary_cta_label", "cta_secondary_label"]) || pickText(config, ["secondary_cta_label"]),
-    pickText(section, ["secondary_cta_url", "cta_secondary_href"]) || pickText(config, ["secondary_cta_url"]),
-    "btn btn-ghost"
-  );
+  const safeImage = imageUrl ? safeUrl(imageUrl, "") : "";
 
   return `
-<section class="section section-hero" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  <div class="container">
-    <div class="hero-content">
-      ${pickText(section, ["eyebrow"]) ? `<p class="eyebrow">${escapeHtml(pickText(section, ["eyebrow"]))}</p>` : ""}
-      ${heading ? `<h1>${escapeHtml(heading)}</h1>` : ""}
-      ${subheading ? `<p class="text-muted mt-sm">${escapeHtml(subheading)}</p>` : ""}
-      ${body ? `<p>${escapeHtml(body)}</p>` : ""}
-      ${ctaPrimary || ctaSecondary ? `<div class="hero-actions">${ctaPrimary}${ctaSecondary}</div>` : ""}
-    </div>
-    <div class="hero-img-col">
-      ${renderImageEager(imageUrl, imageAlt, "hero-img")}
+<section class="hero-split" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+  ${safeImage ? `<div class="hero-media-bg">
+    <img src="${safeImage}" alt="${escapeAttribute(imageAlt)}" loading="eager" fetchpriority="high" decoding="async" />
+    <div class="hero-scrim"></div>
+  </div>` : ""}
+  <div class="hero-body">
+    <div class="container">
+      <div class="hero-content">
+        ${eyebrow ? `<div class="hero-badge">${escapeHtml(eyebrow)}</div>` : ""}
+        ${heading ? `<h1 class="hero-heading">${escapeHtml(heading)}</h1>` : ""}
+        ${heroSub ? `<p class="hero-sub">${escapeHtml(heroSub)}</p>` : ""}
+        ${ctaPrimary || ctaSecondary ? `<div class="hero-actions">${ctaPrimary}${ctaSecondary}</div>` : ""}
+      </div>
     </div>
   </div>
-  <div class="hero-blend-out" aria-hidden="true"></div>
 </section>`.trim();
 }
 
@@ -155,32 +254,32 @@ function renderTextImage(section) {
   const imagePosition = pickText(config, ["image_position"]).toLowerCase() === "left" ? "left" : "right";
   const imageUrl = pickText(section, ["image_url"]) || pickText(config, ["image_url"]);
   const imageAlt = pickText(section, ["image_alt", "heading"]) || pickText(config, ["image_alt"]) || "Section image";
-  const cta = renderCta(
-    pickText(section, ["cta_label"]) || pickText(config, ["cta_label"]),
-    pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]),
-    "btn btn-primary"
-  );
-  const secondaryCta = renderCta(
-    pickText(section, ["secondary_cta_label", "cta_secondary_label"]),
-    pickText(section, ["secondary_cta_url", "cta_secondary_href"]),
-    "btn btn-ghost"
-  );
+  const eyebrow = pickText(section, ["eyebrow"]) || pickText(config, ["eyebrow"]);
+  const heading = pickText(section, ["heading", "title"]) || pickText(config, ["heading"]);
+  const body = pickText(section, ["body"]) || pickText(config, ["body"]);
+  const ctaLabel = pickText(section, ["cta_label"]) || pickText(config, ["cta_label"]);
+  const ctaHref = pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]);
+  const sectionKey = pickText(section, ["section_key"]);
+  const imgFirst = imagePosition === "left";
 
-  const textCol = `
-    <div class="text-col">
-      ${renderSectionHeader(section)}
-      ${cta || secondaryCta ? `<div class="hero-actions mt-md">${cta}${secondaryCta}</div>` : ""}
-    </div>`;
+  const bodyCol = `
+      <div class="story-block-body">
+        ${eyebrow ? `<div class="ey-purple">${escapeHtml(eyebrow)}</div>` : ""}
+        ${heading ? `<h2 class="story-heading">${escapeHtml(heading)}</h2>` : ""}
+        ${body ? `<p class="story-body">${escapeHtml(body)}</p>` : ""}
+        ${ctaLabel ? `<a class="story-cta" href="${safeUrl(ctaHref, "/adopt")}">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>` : ""}
+      </div>`;
   const imgCol = `
-    <div class="img-col">
-      ${renderImage(imageUrl, imageAlt, "section-img")}
-    </div>`;
+      <div class="story-block-img">
+        ${renderImage(imageUrl, imageAlt, "")}
+      </div>`;
 
   return `
-<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#ede8df}</style>
+<section class="section s-light" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container">
-    <div class="section-text-image${imagePosition === "left" ? " img-left" : ""}">
-      ${imagePosition === "left" ? imgCol + textCol : textCol + imgCol}
+    <div class="story-block">
+      ${imgFirst ? imgCol + bodyCol : bodyCol + imgCol}
     </div>
   </div>
 </section>`.trim();
@@ -245,26 +344,33 @@ function renderCardGrid(section, blocks) {
 }
 
 function renderFeatureCards(section, blocks) {
+  const sectionKey = pickText(section, ["section_key"]);
   const cards = sortBlocks(blocks).map((block) => {
     const parts = cardParts(block);
+    const imageSrc = parts.imageUrl ? safeUrl(parts.imageUrl, "") : "";
     return `
-    <article class="card">
-      ${parts.imageUrl ? `<img src="${escapeAttribute(parts.imageUrl)}" alt="${escapeAttribute(parts.imageAlt || parts.title || '')}" class="card-img" loading="lazy">` : ""}
-      <div class="card-body">
-        ${parts.icon ? `<p class="card-icon">${escapeHtml(parts.icon)}</p>` : ""}
-        ${parts.title ? `<h3 class="card-title">${escapeHtml(parts.title)}</h3>` : ""}
-        ${parts.body ? `<p class="card-text">${escapeHtml(parts.body)}</p>` : ""}
-        ${renderCta(parts.ctaLabel, parts.ctaUrl, "btn btn-ghost")}
+    <article class="ways-card">
+      ${imageSrc ? `<img src="${imageSrc}" alt="${escapeAttribute(parts.imageAlt || parts.title || "")}" loading="lazy">` : ""}
+      <div class="ways-card-body">
+        ${parts.title ? `<h3>${escapeHtml(parts.title)}</h3>` : ""}
+        ${parts.body ? `<p>${escapeHtml(parts.body)}</p>` : ""}
+        ${renderCardLink(parts.ctaLabel, parts.ctaUrl, parts.ctaAction)}
       </div>
     </article>`.trim();
   }).join("");
 
+  const hasSubheading = Boolean(pickText(section, ["subheading"]));
+  const includeBody = !hasSubheading;
+
   return `
-<section class="section" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#ede8df}</style>
+<section class="section s-light" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container">
-    ${renderSectionHeader(section)}
-    <div class="card-grid mt-md">
-      ${cards || `<p class="text-muted mt-sm">No features available.</p>`}
+    <div class="section-intro-center">
+      ${renderSectionHeader(section, { includeBody })}
+    </div>
+    <div class="ways-grid${blocks.length > 3 ? " ways-grid--auto" : ""}">
+      ${cards || `<p class="mission-body">No features available.</p>`}
     </div>
   </div>
 </section>`.trim();
@@ -340,24 +446,74 @@ function renderImpactStats(section, blocks) {
 
 function renderCtaBanner(section) {
   const config = safeJson(section.config_json, {});
-  const primary = renderCta(
-    pickText(section, ["cta_label"]) || pickText(config, ["cta_label"]),
-    pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]),
-    "btn btn-primary"
-  );
-  const secondary = renderCta(
-    pickText(section, ["secondary_cta_label", "cta_secondary_label"]) || pickText(config, ["secondary_cta_label"]),
-    pickText(section, ["secondary_cta_url", "cta_secondary_href"]) || pickText(config, ["secondary_cta_url"]),
-    "btn btn-ghost"
+  const cta = sectionCtaFields(section, config);
+  const heading = pickText(section, ["heading", "title"]) || pickText(config, ["heading"]);
+  const subheading = pickText(section, ["subheading"]) || pickText(config, ["subheading"]);
+  const body = pickText(section, ["body"]) || pickText(config, ["body"]);
+  const primary = renderActionCta(cta.label, cta.href, cta.action, "primary");
+  const secondary = renderActionCta(
+    cta.secondaryLabel,
+    cta.secondaryHref,
+    cta.secondaryAction,
+    "ghost",
+    cta.secondarySub
   );
 
-  const _sectionKey = pickText(section, ["section_key"]);
-  const _idAttr = _sectionKey ? ` id="${escapeAttribute(_sectionKey)}"` : "";
+  const sectionKey = pickText(section, ["section_key"]);
+  const idAttr = sectionKey ? ` id="${escapeAttribute(sectionKey)}"` : "";
+  const intro = subheading || body;
+
   return `
-<section class="section section-cta"${_idAttr} data-section-key="${escapeAttribute(_sectionKey)}">
-  <div class="container">
-    ${renderSectionHeader(section)}
-    ${primary || secondary ? `<div class="hero-actions mt-md">${primary}${secondary}</div>` : ""}
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#ede8df}</style>
+<section class="section s-light"${idAttr} data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
+  <div class="container section-intro-center">
+    ${pickText(section, ["eyebrow"]) ? `<div class="ey-purple">${escapeHtml(pickText(section, ["eyebrow"]))}</div>` : ""}
+    ${heading ? `<h2 class="mission-heading">${escapeHtml(heading)}</h2>` : ""}
+    ${intro ? `<p class="mission-body">${escapeHtml(intro)}</p>` : ""}
+    ${primary || secondary ? `<div class="hero-actions" style="justify-content:center;margin-top:2rem">${primary}${secondary}</div>` : ""}
+  </div>
+</section>`.trim();
+}
+
+function renderFacebookEmbeds(section) {
+  const config = safeJson(section.config_json, {});
+  const heading = pickText(section, ["heading", "title"]) || pickText(config, ["heading"]) || "From Caddo Parish Animal Services";
+  const body = pickText(section, ["body"]) || pickText(config, ["body"]) || "";
+  const sectionKey = pickText(section, ["section_key"]);
+  const embedHtml = pickText(config, ["embed_html"]) || "";
+
+  return `
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:var(--dark-bg)}</style>
+<section class="section s-dark" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
+  <div class="container section-intro-center">
+    <h2 class="mission-heading" style="color:#f0ece6">${escapeHtml(heading)}</h2>
+    ${body ? `<p class="mission-body" style="color:var(--dark-muted)">${escapeHtml(body)}</p>` : ""}
+    <div class="embed-wrap" style="margin-top:2rem;display:flex;justify-content:center">
+      ${embedHtml || `<p class="mission-body" style="color:var(--dark-muted)">Shelter updates embed — configure in CMS.</p>`}
+    </div>
+  </div>
+</section>`.trim();
+}
+
+function renderFacebookFeed(section) {
+  const config = safeJson(section.config_json, {});
+  const heading = pickText(section, ["heading", "title"]) || pickText(config, ["heading"]) || "Latest from Facebook";
+  const body = pickText(section, ["body"]) || pickText(config, ["body"]) || "Follow Companions of CPAS on Facebook for rescue updates, transport wins, and adoptable dogs.";
+  const sectionKey = pickText(section, ["section_key"]);
+  const embedUrl = pickText(config, ["embed_url"]) || pickText(config, ["iframe_src"]) || "";
+
+  return `
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#ede8df}</style>
+<section class="section s-light" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
+  <div class="container section-intro-center">
+    ${pickText(section, ["eyebrow"]) ? `<div class="ey-purple">${escapeHtml(pickText(section, ["eyebrow"]))}</div>` : ""}
+    <h2 class="mission-heading">${escapeHtml(heading)}</h2>
+    <p class="mission-body">${escapeHtml(body)}</p>
+    <div class="embed-wrap" style="margin-top:2rem;display:flex;justify-content:center">
+      ${embedUrl
+        ? `<iframe src="${escapeAttribute(embedUrl)}" width="500" height="696" style="border:none;overflow:hidden;max-width:100%" scrolling="no" frameborder="0" allowfullscreen="true"></iframe>`
+        : `<p class="mission-body">Facebook feed embed will appear here after publish.</p>`}
+    </div>
   </div>
 </section>`.trim();
 }
@@ -377,10 +533,11 @@ function renderDonationBlock(section, blocks) {
     return `<li>${title ? `<strong>${escapeHtml(title)}</strong>` : ""}${body ? ` ${escapeHtml(body)}` : ""}</li>`;
   }).join("");
 
-  const cta = renderCta(
+  const cta = renderActionCta(
     pickText(section, ["cta_label"]) || "Donate",
     pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]),
-    "btn btn-primary"
+    pickText(section, ["cta_action"]) || pickText(config, ["cta_action"]) || "donate",
+    "primary"
   );
 
   return `
@@ -538,36 +695,40 @@ function renderCampaignGrid(section, blocks) {
 
 
 function renderFosterGrid(section, blocks) {
+  const sectionKey = pickText(section, ["section_key"]);
   const sorted = sortBlocks(blocks);
   const cards = sorted.map((block, i) => {
     const parts = cardParts(block);
     return [
-      '<article class="foster-card' + (i === 0 ? ' foster-card--tall' : '') + '">',
-      renderImage(parts.imageUrl, parts.imageAlt || parts.title || 'Foster image', 'foster-img'),
+      `<article class="foster-card${i === 0 ? " foster-card--tall" : ""}">`,
+      renderImage(parts.imageUrl, parts.imageAlt || parts.title || "Foster image", "foster-img"),
       '<div class="foster-card-body">',
-      parts.title ? '<h3>' + escapeHtml(parts.title) + '</h3>' : '',
-      parts.body  ? '<p>'  + escapeHtml(parts.body)  + '</p>'  : '',
-      '</div></article>',
-    ].join('');
-  }).join('');
+      parts.title ? `<h3>${escapeHtml(parts.title)}</h3>` : "",
+      parts.body ? `<p>${escapeHtml(parts.body)}</p>` : "",
+      "</div></article>",
+    ].join("");
+  }).join("");
 
-  const sectionCta = renderCta(
-    pickText(section, ['cta_label']) || 'Apply to Foster',
-    pickText(section, ['cta_href', 'cta_url']) || '/services',
-    'btn btn-primary'
+  const sectionCta = renderActionCta(
+    pickText(section, ["cta_label"]) || "Apply to Foster",
+    pickText(section, ["cta_href", "cta_url"]) || "modal:foster",
+    pickText(section, ["cta_action"]) || "foster",
+    "primary"
   );
 
-  return [
-    '<section class="section" data-section-key="' + escapeAttribute(pickText(section, ['section_key'])) + '">',
-    '<div class="container">',
-    '<div class="foster-header">',
-    '<div>' + renderSectionHeader(section) + '</div>',
-    sectionCta ? '<div class="foster-header-cta">' + sectionCta + '</div>' : '',
-    '</div>',
-    '<div class="foster-grid mt-md">',
-    cards || '<p class="text-muted mt-sm">No cards available.</p>',
-    '</div></div></section>',
-  ].join('');
+  return `
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#ede8df}</style>
+<section class="section s-light" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
+  <div class="container">
+    <div class="foster-header">
+      <div>${renderSectionHeader(section)}</div>
+      ${sectionCta ? `<div class="foster-header-cta">${sectionCta}</div>` : ""}
+    </div>
+    <div class="foster-grid">
+      ${cards || `<p class="mission-body">No dogs listed right now.</p>`}
+    </div>
+  </div>
+</section>`;
 }
 
 function renderCampaignGridV2(section, blocks) {
@@ -582,7 +743,7 @@ function renderCampaignGridV2(section, blocks) {
       '<div class="campaign-body">',
       parts.title ? '<h3 class="campaign-title">' + escapeHtml(parts.title) + '</h3>' : '',
       parts.body  ? '<p class="campaign-text">'  + escapeHtml(parts.body)  + '</p>'  : '',
-      renderCta(parts.ctaLabel, parts.ctaUrl, 'btn btn-primary'),
+      renderCardLink(parts.ctaLabel, parts.ctaUrl, parts.ctaAction),
       '</div></article>',
     ].join('');
   }).join('');
@@ -608,6 +769,8 @@ const SECTION_RENDERERS = {
   testimonials: renderTestimonials,
   impact_stats: renderImpactStats,
   cta_banner: renderCtaBanner,
+  facebook_feed: renderFacebookFeed,
+  facebook_embeds: renderFacebookEmbeds,
   donation_block: renderDonationBlock,
   fundraising: renderDonationBlock,
   org_info: renderOrgInfo,

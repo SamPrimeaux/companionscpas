@@ -358,7 +358,7 @@ Similarly: `agentsam_workflows` (17 rows) is the canonical workflow table. `agen
 | `/adopt` | `adopt` | `dark` | `adopt_hero`, `adopt_grid`, `adopt_process`, `adopt_cta` |
 | `/services` | `services` | `light` | `services_hero`, `service_cards`, `services_cta` |
 | `/donate` | `donate` | `dark` | `donate_hero`, `donate_intro`, `donate_tiers`, `donate_cta` |
-| `/community` | `community` | `dark` | `community_hero`, `community_connect`, `community_volunteer`, `community_testimonial`, `community_cta` |
+| `/community` | `community` | `dark` | `community_hero`, `community_connect`, `community_stories`, `community_testimonial`, `community_cta` (+ hidden: `community_fb_posts`, `community_volunteer`) |
 | `global` | — | — | `header` (nav type), `footer` |
 
 ---
