@@ -30,7 +30,7 @@ Same pipeline as `/services` (generic fragment CMS):
 | 10 | `community_hero` | `hero` | yes | Opening statement + CTAs |
 | 20 | `community_connect` | `feature_cards` | yes | 4 social/action cards |
 | 28 | `community_stories` | `feature_cards` | yes | 3 curated story cards |
-| 40 | `community_testimonial` | `text_image` | yes | Quote + founders photo |
+| 40 | `community_testimonial` | `text_image` | yes | Quote + adoption moment photo |
 | 50 | `community_cta` | `cta_banner` | yes | Closing adopt/foster CTAs |
 | 25 | `community_fb_posts` | `facebook_embeds` | **hidden** | Enable when embed configured |
 | 30 | `community_volunteer` | `cta_banner` | **hidden** | Duplicate of services volunteer |
@@ -91,7 +91,7 @@ To add a story: insert row in `cms_page_content_blocks` with `section_key = 'com
 | eyebrow | Real Impact |
 | heading | Quote (full sentence) |
 | body | Attribution line |
-| image_url | `https://assets.companionsofcaddo.org/media/team/thefounders.webp` |
+| image_url | `https://assets.companionsofcaddo.org/media/animals/goinhomejustadopted.webp` |
 
 **Section ID:** `ps_community_testimonial`
 

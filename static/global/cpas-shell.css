@@ -700,3 +700,18 @@ p  { text-wrap: pretty; }
   .cpas-modal { padding: 28px 20px 24px; border-radius: 16px; }
   .cpas-modal .form-row { grid-template-columns: 1fr; }
 }
+
+
+/* CPAS P0 HEADER FINAL: bare purple hamburger */
+.mobile-menu-toggle,.mobile-menu-toggle.is-open{border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;width:48px!important;height:48px!important;padding:0!important}
+.mobile-menu-toggle span{width:28px!important;height:3px!important;background:var(--purple-light)!important;border-radius:999px!important}
+.mobile-menu-toggle.is-open{top:max(12px,env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}
+body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;height:100dvh;width:clamp(320px,52vw,440px);max-width:calc(100vw - 18px)}
+@media(max-width:420px){.nav-drawer{width:min(86vw,340px)}}
+
+/* CMS draft preview — hidden sections shown at reduced opacity */
+.cms-preview .cms-preview-hidden-section {
+  opacity: 0.5;
+  outline: 2px dashed rgba(124, 58, 237, 0.45);
+  outline-offset: -2px;
+}

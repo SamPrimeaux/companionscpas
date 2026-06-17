@@ -350,6 +350,11 @@ function cmsSlugForKey(route) {
   return route === '/' ? 'home' : route.replace(/^\//, '').replace(/\//g, '_') || 'home';
 }
 
+function cmsPageIdFromPublicRoute(pathname) {
+  if (!pathname || pathname === '/') return 'home';
+  return pathname.replace(/^\//, '').replace(/\//g, '_') || 'home';
+}
+
 function cmsTypeBadge(type) {
   const color = CMS_TYPE_COLOR[type] || CMS_TYPE_COLOR.content;
   return React.createElement('span', { style:{ fontSize:10, fontWeight:800, padding:'2px 8px', borderRadius:99, background:color + '22', color, border:'1px solid ' + color + '44', whiteSpace:'nowrap' } }, type || 'content');
@@ -393,7 +398,10 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   const sortedSections = React.useMemo(() => [...(pageData.sections || [])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)), [pageData.sections]);
   const selected = React.useMemo(() => sortedSections.find(s => s.section_key === selectedKey) || sortedSections[0] || null, [sortedSections, selectedKey]);
-  const fontDef = FONT_PRESETS_CMS.find(p => p.key === activeFont) || FONT_PRESETS_CMS[0];
+
+  const [previewVersion, setPreviewVersion] = React.useState(0);
+  const bumpPreview = React.useCallback(() => setPreviewVersion(v => v + 1), []);
+  const previewIframeRef = React.useRef(null);
 
   const loadPage = React.useCallback(async () => {
     try {
@@ -415,8 +423,9 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         let cfg = {}; try { cfg = JSON.parse(bd.brand?.config_json || '{}'); } catch {}
         setActiveFont(cfg.active_font_preset || 'fraunces_dm');
       }
+      bumpPreview();
     } catch (e) { notify('Could not load page editor', 'error'); }
-  }, [route]);
+  }, [route, bumpPreview]);
 
   React.useEffect(() => { loadPage(); }, [loadPage]);
 
@@ -431,7 +440,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const saveSelected = async (silent=false) => {
     if (!selected) return;
     setBusy(true);
-    try { await saveSectionObject(selected, silent); if (!silent) await loadPage(); }
+    try { await saveSectionObject(selected, silent); if (!silent) await loadPage(); else bumpPreview(); }
     catch (e) { notify(e.message, 'error'); }
     setBusy(false);
   };
@@ -445,7 +454,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     if (!selected) return;
     const next = { ...selected, [key]:val };
     setPageData(prev => ({ ...prev, sections:(prev.sections || []).map(s => s.section_key === selected.section_key ? next : s) }));
-    try { await saveSectionObject(next, true); } catch (e) { notify(e.message, 'error'); }
+    try { await saveSectionObject(next, true); bumpPreview(); } catch (e) { notify(e.message, 'error'); }
   };
 
   const publishPage = async () => {
@@ -462,7 +471,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const toggleVisible = async (section) => {
     const next = { ...section, is_visible: section.is_visible === 0 ? 1 : 0 };
     setPageData(prev => ({ ...prev, sections:(prev.sections || []).map(s => s.section_key === section.section_key ? next : s) }));
-    try { await saveSectionObject(next, true); notify(next.is_visible === 0 ? 'Section hidden' : 'Section visible'); } catch(e) { notify(e.message, 'error'); }
+    try { await saveSectionObject(next, true); bumpPreview(); notify(next.is_visible === 0 ? 'Section hidden' : 'Section visible'); } catch(e) { notify(e.message, 'error'); }
   };
 
   const deleteSection = async () => {
@@ -488,7 +497,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const reordered = list.map((s,i) => ({ ...s, sort_order:(i+1)*10 }));
     setPageData(prev => ({ ...prev, sections:reordered }));
     setDragKey(null); setDragOverKey(null);
-    try { await Promise.all(reordered.map(s => saveSectionObject(s, true))); notify('Section order saved'); }
+    try { await Promise.all(reordered.map(s => saveSectionObject(s, true))); bumpPreview(); notify('Section order saved'); }
     catch(e) { notify('Reorder failed: ' + e.message, 'error'); }
   };
 
@@ -527,6 +536,21 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   const pageTitle = pageData.page?.title || route;
   const liveUrl = `https://companionsofcaddo.org${route}`;
+  const previewSrc = `/api/cms/preview?route=${encodeURIComponent(route)}&v=${previewVersion}`;
+
+  const handlePreviewNavigation = React.useCallback(() => {
+    try {
+      const iframe = previewIframeRef.current;
+      if (!iframe?.contentWindow) return;
+      const path = iframe.contentWindow.location.pathname;
+      if (!path || path.startsWith('/api/cms/preview') || path.startsWith('/dashboard')) return;
+      const nextPageId = cmsPageIdFromPublicRoute(path);
+      const currentPageId = cmsSlugForKey(route);
+      if (nextPageId !== currentPageId) {
+        onNavigate('cms-page-editor', { pageId: nextPageId });
+      }
+    } catch (_) {}
+  }, [route, onNavigate]);
 
   function renderTopbar() {
     return React.createElement('div', { style:{ height:52, background:C.surface, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 14px', gap:10, flexShrink:0 } },
@@ -585,48 +609,21 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     if (!isDesktop && mobileTab !== 'preview') return null;
     const mode = isMobile ? 'mobile' : previewMode;
     const previewWidth = mode === 'mobile' ? 390 : mode === 'tablet' ? 768 : '100%';
+    const iframeHeight = isMobile ? 'calc(100vh - 110px)' : '100%';
+    const iframe = React.createElement('iframe', {
+      ref: previewIframeRef,
+      key: previewSrc,
+      src: previewSrc,
+      title: `Preview ${route}`,
+      onLoad: handlePreviewNavigation,
+      style: { width:'100%', height:iframeHeight, minHeight:isMobile ? iframeHeight : 720, border:0, display:'block', background:'#0b0f1a' }
+    });
     if (isMobile && mobileTab === 'preview') {
-      return React.createElement('iframe', { src:liveUrl, style:{ width:'100%', height:'calc(100vh - 110px)', border:0, borderRadius:0, background:'#fff' } });
+      return iframe;
     }
-    return React.createElement('div', { style:{ height:'100%', overflowY:'auto', background:'#ebe8f0', padding:mode === 'desktop' ? 18 : '18px 0' } },
-      React.createElement('div', { style:{ width:previewWidth, maxWidth:'100%', margin:'0 auto', background:'#fff', borderRadius:16, overflow:'hidden', boxShadow:'0 22px 60px rgba(20,16,32,.14)', fontFamily:fontDef.body } },
-        React.createElement('div', { style:{ height:58, padding:'0 24px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid rgba(23,19,33,.08)' } },
-          React.createElement('img', { src:'https://assets.companionsofcaddo.org/static/global/logo-dark.webp', style:{ height:34, objectFit:'contain' } }),
-          mode !== 'mobile' && React.createElement('div', { style:{ display:'flex', gap:18, fontSize:12, color:'rgba(23,19,33,.62)', fontWeight:700 } }, 'Home', 'About', 'Foster', 'Adopt', 'Donate')
-        ),
-        sortedSections.map(s => renderPreviewSection(s, mode)),
-        React.createElement('div', { style:{ padding:mode === 'mobile' ? '28px 22px' : '34px 36px', background:'#171321', color:'#f5f1e8', borderTop:'1px solid rgba(255,255,255,.08)' } },
-          React.createElement('div', { style:{ fontSize:12, lineHeight:1.8, color:'rgba(245,241,232,.72)' } }, 'Companions of CPAS — volunteer-powered second chances for Caddo Parish dogs.')
-        )
-      )
-    );
-  }
-
-  function renderPreviewSection(s, mode) {
-    const active = selected?.section_key === s.section_key;
-    const isMobileMode = mode === 'mobile';
-    const blockItems = (pageData.blocks || []).filter(b => b.section_key === s.section_key).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-    const isGrid = ['feature_cards','foster_grid','campaign_grid','animal_grid','service_cards','donate_tiers'].includes(s.section_type);
-    return React.createElement('section', { key:s.section_key, onClick:e=>{ e.stopPropagation(); setSelectedKey(s.section_key); }, style:{ position:'relative', padding:isMobileMode ? '34px 22px' : '54px 46px', borderBottom:'1px solid rgba(23,19,33,.08)', outline:active ? `2px solid ${C.purple}` : 'none', outlineOffset:-2, opacity:s.is_visible === 0 ? .5 : 1, background:s.section_type === 'cta_banner' ? '#171321' : '#fff', color:s.section_type === 'cta_banner' ? '#fff' : '#171321', cursor:'pointer' } },
-      s.eyebrow && React.createElement('div', { style:{ fontSize:11, letterSpacing:'.14em', textTransform:'uppercase', color:s.section_type === 'cta_banner' ? 'rgba(255,255,255,.62)' : '#7c3aed', fontWeight:900, marginBottom:8 } }, s.eyebrow),
-      React.createElement('div', { style:{ display:(s.image_url && !isMobileMode && ['hero','text_image','text_image_split'].includes(s.section_type)) ? 'grid' : 'block', gridTemplateColumns:'1.1fr .9fr', gap:28, alignItems:'center' } },
-        React.createElement('div', null,
-          React.createElement('h2', { style:{ margin:'0 0 10px', fontSize:s.section_type === 'hero' ? (isMobileMode ? 32 : 48) : (isMobileMode ? 24 : 34), lineHeight:1.02, letterSpacing:'-.04em', fontFamily:fontDef.display } }, s.heading || 'Untitled section'),
-          s.subheading && React.createElement('div', { style:{ fontSize:isMobileMode ? 15 : 18, lineHeight:1.55, color:s.section_type === 'cta_banner' ? 'rgba(255,255,255,.78)' : 'rgba(23,19,33,.68)', marginBottom:10 } }, s.subheading),
-          s.body && React.createElement('p', { style:{ margin:0, fontSize:14, lineHeight:1.7, color:s.section_type === 'cta_banner' ? 'rgba(255,255,255,.68)' : 'rgba(23,19,33,.64)' } }, s.body),
-          (s.cta_label || s.cta_secondary_label) && React.createElement('div', { style:{ display:'flex', flexWrap:'wrap', gap:8, marginTop:16 } },
-            s.cta_label && React.createElement('span', { style:{ padding:'8px 14px', borderRadius:10, background:'#7c3aed', color:'#fff', fontSize:12, fontWeight:800 } }, s.cta_label),
-            s.cta_secondary_label && React.createElement('span', { style:{ padding:'8px 14px', borderRadius:10, border:`1px solid ${s.section_type === 'cta_banner' ? 'rgba(255,255,255,.28)' : 'rgba(23,19,33,.18)'}`, fontSize:12, fontWeight:800 } }, s.cta_secondary_label)
-          )
-        ),
-        s.image_url && ['hero','text_image','text_image_split'].includes(s.section_type) && React.createElement('img', { src:s.image_url, style:{ width:'100%', height:isMobileMode ? 210 : 300, objectFit:'cover', borderRadius:18, marginTop:isMobileMode ? 18 : 0 } })
-      ),
-      isGrid && React.createElement('div', { style:{ display:'grid', gridTemplateColumns:isMobileMode ? '1fr' : 'repeat(3,minmax(0,1fr))', gap:12, marginTop:22 } },
-        (blockItems.length ? blockItems : [{ title:'Card title', body:'Card content preview' }, { title:'Card title', body:'Card content preview' }, { title:'Card title', body:'Card content preview' }]).slice(0,6).map((b,i)=>React.createElement('div', { key:b.block_key || i, style:{ padding:16, borderRadius:14, background:'rgba(23,19,33,.04)', border:'1px solid rgba(23,19,33,.08)' } },
-          b.image_url && React.createElement('img', { src:b.image_url, style:{ width:'100%', height:90, objectFit:'cover', borderRadius:10, marginBottom:10 } }),
-          React.createElement('div', { style:{ fontWeight:900, marginBottom:5 } }, b.title || b.heading || 'Card title'),
-          React.createElement('div', { style:{ fontSize:12, lineHeight:1.55, color:'rgba(23,19,33,.62)' } }, b.body || 'Card content preview')
-        ))
+    return React.createElement('div', { style:{ height:'100%', overflow:'auto', background:'#ebe8f0', padding:mode === 'desktop' ? 18 : '18px 0' } },
+      React.createElement('div', { style:{ width:previewWidth, maxWidth:'100%', margin:'0 auto', background:'#0b0f1a', borderRadius:16, overflow:'hidden', boxShadow:'0 22px 60px rgba(20,16,32,.14)', height:'calc(100vh - 120px)', minHeight:720 } },
+        iframe
       )
     );
   }
@@ -662,7 +659,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     );
   }
 
-  function groupTitleStyle() { return { margin:'0 0 2px', fontSize:11, fontWeight:900, color:C.textMut, letterSpacing:'.12em', textTransform:'uppercase' }; }
+  function groupTitleStyle() { return { margin:'0 0 2px', fontSize:11, fontWeight:900, color:C.textSec, letterSpacing:'.12em', textTransform:'uppercase' }; }
 
   function renderMobileTabs() {
     return React.createElement('div', { style:{ display:'flex', borderBottom:`1px solid ${C.border}`, background:C.surface } }, ['sections','edit','preview'].map(t => React.createElement('button', { key:t, onClick:()=>setMobileTab(t), style:{ flex:1, height:42, border:'none', borderBottom:`2px solid ${mobileTab === t ? C.purple : 'transparent'}`, background:'transparent', color:mobileTab === t ? C.purpleL : C.textSec, fontWeight:900, fontSize:13, textTransform:'capitalize' } }, t)));
@@ -695,7 +692,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     );
   }
 
-  return React.createElement('div', { style:{ display:'flex', flexDirection:'column', flex:1, height:'100%', overflow:'hidden' } },
+  return React.createElement('div', { className:'cms-editor-shell', style:{ display:'flex', flexDirection:'column', flex:1, height:'100%', overflow:'hidden' } },
     renderTopbar(),
     isMobile && renderMobileTabs(),
     notice.text && isMobile && React.createElement('div', { style:{ padding:'8px 12px', color:notice.type === 'error' ? C.red : C.green, background:C.surface, borderBottom:`1px solid ${C.border}`, fontSize:12, fontWeight:800 } }, notice.text),

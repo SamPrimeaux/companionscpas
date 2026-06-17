@@ -7,7 +7,7 @@
   <title>Companions of CPAS — Second Chances for Caddo Dogs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="/static/global/shared.css" />
+  <link rel="stylesheet" href="/static/global/shared.css?v=nav-p0-20260613" />
   <link rel="icon" href="/logo.png" />
 </head>
 <body class="theme-dark" data-route="/">
@@ -62,7 +62,7 @@
         <h1 class="hero-heading">Every dog deserves a way out.</h1>
         <p class="hero-sub">We move dogs from crisis to care through transport, urgent medical support, foster pathways, and a community that shows up when it matters most.</p>
         <div class="hero-actions">
-          <a class="hero-cta hero-cta-primary" href="/services">
+          <button class="hero-cta hero-cta-primary" type="button" data-action="foster">
             <span class="hero-cta-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
             </span>
@@ -70,8 +70,8 @@
               <span class="hero-cta-label">Apply to Foster</span>
               <span class="hero-cta-sub">Open your home</span>
             </span>
-          </a>
-          <a class="hero-cta hero-cta-ghost" href="#" data-donate>
+          </button>
+          <button class="hero-cta hero-cta-ghost" type="button" data-action="donate">
             <span class="hero-cta-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
             </span>
@@ -79,7 +79,7 @@
               <span class="hero-cta-label">Support Our Mission</span>
               <span class="hero-cta-sub">Donate or give supplies</span>
             </span>
-          </a>
+          </button>
         </div>
       </div>
     </div>
@@ -161,7 +161,7 @@
   <div class="container">
     <div class="story-block">
       <div class="story-block-img">
-        <img src="https://assets.meauxxx.com/static/animals/goinhome.webp" alt="A dog going home" />
+        <img src="https://assets.companionsofcaddo.org/media/animals/goinhomejustadopted.webp" alt="A dog going home" />
       </div>
       <div class="story-block-body">
         <div class="ey-purple">Recent Transport Win</div>
@@ -219,7 +219,7 @@
         </div>
         <div class="camp-list">
           <div class="camp-item">
-            <img src="https://assets.meauxxx.com/static/animals/goinhome.webp" alt="Transport" />
+            <img src="https://assets.companionsofcaddo.org/media/animals/goinhomejustadopted.webp" alt="Transport" />
             <div class="camp-item-body">
               <p class="camp-item-title">Transport Fuel Fund</p>
               <p class="camp-item-desc">Keep the wheels turning for dogs who need a way out.</p>
@@ -228,7 +228,7 @@
             </div>
           </div>
           <div class="camp-item">
-            <img src="https://assets.meauxxx.com/static/animals/thinboy.webp" alt="Vet care" />
+            <img src="https://assets.companionsofcaddo.org/media/animals/thinboy.webp" alt="Vet care" />
             <div class="camp-item-body">
               <p class="camp-item-title">Urgent Vet Care</p>
               <p class="camp-item-desc">Help provide life-saving care for dogs in crisis.</p>
@@ -237,7 +237,7 @@
             </div>
           </div>
           <div class="camp-item">
-            <img src="https://assets.meauxxx.com/static/animals/2cute.webp" alt="Supplies" />
+            <img src="https://assets.companionsofcaddo.org/media/animals/2cutepups.webp" alt="Supplies" />
             <div class="camp-item-body">
               <p class="camp-item-title">Foster Care Supplies</p>
               <p class="camp-item-desc">Stock our foster homes with the essentials dogs need.</p>
@@ -251,21 +251,21 @@
         <div class="ey-purple">From Our Community</div>
         <div class="comm-list">
           <div class="comm-item">
-            <img src="https://assets.meauxxx.com/static/animals/thefounders.webp" alt="Transport team" />
+            <img src="https://assets.companionsofcaddo.org/media/team/thefounders.webp" alt="Transport team" />
             <div>
               <p class="comm-item-text">Thank you to our amazing transport team this weekend!</p>
               <p class="comm-item-date">2 days ago</p>
             </div>
           </div>
           <div class="comm-item">
-            <img src="https://assets.meauxxx.com/static/animals/happyboy.webp" alt="Dog found family" />
+            <img src="https://assets.companionsofcaddo.org/media/animals/goinhomejustadopted.webp" alt="Dog found family" />
             <div>
               <p class="comm-item-text">Sweet Luna found her forever family today.</p>
               <p class="comm-item-date">5 days ago</p>
             </div>
           </div>
           <div class="comm-item">
-            <img src="https://assets.meauxxx.com/static/animals/theteam.webp" alt="New fosters" />
+            <img src="https://assets.companionsofcaddo.org/media/team/theteam.webp" alt="New fosters" />
             <div>
               <p class="comm-item-text">New foster orientation — welcome to the team!</p>
               <p class="comm-item-date">1 week ago</p>
@@ -289,16 +289,17 @@
       </div>
     </div>
     <div class="cta-band-right">
-      <div class="cta-email-form">
-        <input type="email" class="cta-email-input" placeholder="Your email address" aria-label="Email" />
-        <button class="cta-email-btn" type="button">Subscribe</button>
-      </div>
+      <form class="cta-email-form" data-newsletter-form>
+        <input type="email" name="email" class="cta-email-input" placeholder="Your email address" aria-label="Email" required />
+        <button class="cta-email-btn" type="submit">Subscribe</button>
+        <p class="cta-email-status" data-newsletter-status aria-live="polite"></p>
+      </form>
       <div class="cta-action-row">
-        <a class="cta-action-btn" href="/services">
+        <a class="cta-action-btn" href="#" data-action="foster">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
           Foster a Dog
         </a>
-        <a class="cta-action-btn" href="/donate">
+        <a class="cta-action-btn" href="#" data-action="donate">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
           Donate Now
         </a>
@@ -340,7 +341,7 @@
       <div class="footer-dev">
         <p class="footer-dev-label">Developed by</p>
         <a href="https://inneranimalmedia.com" target="_blank" rel="noopener">
-          <img src="https://assets.meauxxx.com/static/global/logo.webp" alt="Inner Animal Media" />
+          <img src="https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/238de9d1-a470-4fe5-5424-9182f4bc0500/avatar" alt="Inner Animal Media" />
         </a>
       </div>
     </div>
@@ -354,7 +355,7 @@
   </div>
 </footer>
 
-<script src="/static/global/shared.js" defer></script>
-<script src="/static/js/donate-modal.js" defer></script>
+<script src="/static/global/shared.js?v=nav-p0-20260613" defer></script>
+<script src="/static/js/donate-modal.js?v=donate-p0-20260613" defer></script>
 </body>
 </html>

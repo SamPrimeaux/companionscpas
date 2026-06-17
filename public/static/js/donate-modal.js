@@ -15,7 +15,7 @@
 (function () {
   'use strict';
 
-  const STRIPE_PK       = 'pk_live_51SuGjiRi9zMPk3BPrxYMelFIUFUKfaAyB4AyihsoX4JtVQcOahYLkq7r9fqOc9L36bj4qZLzA3MojyVSsWdu7LKh008ImEpNvR';
+  const ENDPOINT_CONFIG = '/api/donations/config';
   const ENDPOINT_TIERS  = '/api/donations/tiers';
   const ENDPOINT_INTENT = '/api/donations/intent';
   const ENDPOINT_SUB    = '/api/donations/subscribe';
@@ -101,11 +101,29 @@
     .dm-success-icon{width:56px;height:56px;border-radius:50%;margin:0 auto 18px;background:rgba(124,58,237,.15);border:1.5px solid rgba(124,58,237,.35);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#a78bfa}
     .dm-success h3{font-family:'Fraunces',Georgia,serif;font-size:1.3rem;color:#f4efe8;margin:0 0 8px}
     .dm-success p{font-size:.86rem;color:#9ca3af;margin:0;line-height:1.5}
+    .dm-test-banner{display:none;margin:12px 0 0;padding:9px 12px;border:1px solid rgba(251,191,36,.35);border-radius:10px;background:rgba(251,191,36,.1);color:#fcd34d;font-size:.78rem;line-height:1.45;text-align:center}
+    .dm-test-banner.is-visible{display:block}
     @media(max-width:460px){#dm-overlay{align-items:flex-end;padding:8px}#dm-modal{border-radius:18px 18px 0 0;max-height:96vh}.dm-header{padding:22px 20px 0}.dm-body{padding:18px 20px 0}.dm-footer{padding:0 20px 24px}.dm-tiers{grid-template-columns:1fr 1fr}}
   `;
 
   let tiers = [], selectedAmount = 25, frequency = 'one_time';
   let stripeInst = null, elements = null, isSubmitting = false;
+  let stripePk = null, stripeTestMode = false, configPromise = null;
+
+  async function fetchStripeConfig() {
+    if (configPromise) return configPromise;
+    configPromise = (async () => {
+      const res = await fetch(ENDPOINT_CONFIG);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.publishable_key) {
+        throw new Error(data.error || 'Stripe is not configured for donations yet.');
+      }
+      stripePk = data.publishable_key;
+      stripeTestMode = Boolean(data.test_mode);
+      return data;
+    })();
+    return configPromise;
+  }
 
   function money(v) { const n = Number(v); return Number.isFinite(n) ? '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$0'; }
   function getAmount() { const c = document.getElementById('dm-custom'); const v = c && c.value ? Number(c.value) : 0; return v > 0 ? v : selectedAmount; }
@@ -145,6 +163,7 @@
         <div class="dm-eyebrow">Companions of CPAS</div>
         <h2 class="dm-title">Support Our Mission</h2>
         <p class="dm-sub">Your gift helps dogs at Caddo Parish Animal Services move from crisis to care.</p>
+        <div class="dm-test-banner${stripeTestMode ? ' is-visible' : ''}" id="dm-test-banner">Stripe test mode — use card <strong>4242 4242 4242 4242</strong>, any future expiry &amp; CVC. No real charges.</div>
       </div>
       <div class="dm-body">
         <span class="dm-label">Gift frequency</span>
@@ -188,8 +207,9 @@
 
   async function initElements() {
     try {
+      await fetchStripeConfig();
       const Stripe = await loadStripe();
-      if (!stripeInst) stripeInst = Stripe(STRIPE_PK);
+      if (!stripeInst) stripeInst = Stripe(stripePk);
       const isMonthly = frequency === 'monthly';
       const res = await fetch(ENDPOINT_INTENT, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -210,7 +230,8 @@
       pe.mount('#dm-mount');
     } catch (err) {
       const sk = document.getElementById('dm-skeleton');
-      if (sk) { sk.style.animation = 'none'; sk.style.background = 'rgba(248,113,113,.07)'; sk.innerHTML = '<div style="padding:16px;color:#fca5a5;font-size:.82rem;text-align:center">Could not load payment form. <a href="/donate" style="color:#a78bfa;text-decoration:underline">Try the donate page</a></div>'; }
+      const msg = err.message || 'Could not load payment form.';
+      if (sk) { sk.style.animation = 'none'; sk.style.background = 'rgba(248,113,113,.07)'; sk.innerHTML = `<div style="padding:16px;color:#fca5a5;font-size:.82rem;text-align:center;line-height:1.5">${msg}<br><a href="/donate" style="color:#a78bfa;text-decoration:underline">Try the donate page</a></div>`; }
     }
   }
 
@@ -288,7 +309,9 @@
     if (document.getElementById('dm-overlay')) return;
     injectStyles();
     selectedAmount = 25; frequency = 'one_time'; elements = null; isSubmitting = false;
+    stripeInst = null; configPromise = null;
     const tiersPromise = fetchTiers();
+    const configLoad = fetchStripeConfig().catch(() => null);
     loadStripe().catch(() => {});
     const overlay = document.createElement('div');
     overlay.id = 'dm-overlay'; overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true');
@@ -297,7 +320,8 @@
     overlay.appendChild(modal); document.body.appendChild(overlay);
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
     document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } }, { once: true });
-    tiersPromise.then(loaded => {
+    tiersPromise.then(async (loaded) => {
+      await configLoad;
       tiers = loaded; if (tiers.length) selectedAmount = tiers[0].amount_cents / 100;
       if (!document.getElementById('dm-overlay')) return;
       modal.innerHTML = buildHTML(); bindEvents(); initElements();
@@ -339,6 +363,13 @@
       el.addEventListener('click', open);
     });
   }
+
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-donate],[data-action="donate"]');
+    if (!el) return;
+    e.preventDefault();
+    open(e);
+  });
 
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', wireButtons); } else { wireButtons(); }
   window.DonateModal = { open, close };
