@@ -19,10 +19,10 @@ function BarChart({ data }) {
       },
       options: {
         responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ labels:{ color:"#8888aa", font:{size:11}, boxWidth:10, boxHeight:10 } } },
+        plugins:{ legend:{ labels:{ color:"#3d3529", font:{size:11}, boxWidth:10, boxHeight:10 } } },
         scales:{
-          x:{ grid:{ color:"#282840" }, ticks:{ color:"#8888aa", font:{size:11} } },
-          y:{ grid:{ color:"#282840" }, ticks:{ color:"#8888aa", font:{size:11} }, beginAtZero:true }
+          x:{ grid:{ color:"rgba(26,22,34,0.08)" }, ticks:{ color:"#5a5046", font:{size:11} } },
+          y:{ grid:{ color:"rgba(26,22,34,0.08)" }, ticks:{ color:"#5a5046", font:{size:11} }, beginAtZero:true }
         }
       }
     });
@@ -109,7 +109,7 @@ function OverviewView({ onNavigate }) {
         React.createElement(Card, { style:{ padding:20, minWidth:0 } },
           React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 } },
             React.createElement("h3", { style:{ margin:0, fontSize:14, fontWeight:600, color:C.text } }, "Daily Care Overview"),
-            React.createElement("button", { onClick:()=>onNavigate("daily-care"), style:{ background:"none", border:"none", color:C.purpleL, fontSize:12, cursor:"pointer" } }, "View all")
+            React.createElement("button", { onClick:()=>onNavigate("medical"), style:{ background:"none", border:"none", color:C.purple, fontSize:12, fontWeight:600, cursor:"pointer" } }, "View all")
           ),
           React.createElement("div", { style:{ display:"flex", flexDirection:"column", gap:14 } },
             careItems.map(item =>

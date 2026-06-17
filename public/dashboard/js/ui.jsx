@@ -6,6 +6,7 @@ const C = window.__C_OBJ__ = {
   bg2:       "var(--dash-bg2)",
   surface:   "var(--dash-surface)",
   surfaceMut:"var(--dash-surface-muted)",
+  raised:    "var(--dash-surface-muted)",
   border:    "var(--dash-border)",
   borderStr: "var(--dash-border-strong)",
   text:      "var(--dash-text)",
@@ -38,7 +39,7 @@ const NAV_STRUCTURE = [
     { key: "animals",    label: "Animals",    icon: "paw",       path: "/dashboard/animals" },
     { key: "intakes",    label: "Intakes",    icon: "intake",    path: "/dashboard/intakes" },
     { key: "medical",    label: "Medical",    icon: "medical",   path: "/dashboard/medical" },
-    { key: "daily-care", label: "Daily Care", icon: "clipboard", path: "/dashboard/daily-care" },
+    // daily-care hidden from nav — route /dashboard/daily-care still works if re-enabled
   ]},
   { group: "Placement", items: [
     { key: "fosters",      label: "Fosters",      icon: "heart", path: "/dashboard/fosters" },
@@ -49,7 +50,6 @@ const NAV_STRUCTURE = [
     { key: "volunteers", label: "Volunteers", icon: "people", path: "/dashboard/volunteers" }
   ]},
   { group: "Giving", items: [
-    { key: "donations",   label: "Donations",   icon: "dollar",   path: "/dashboard/donations" },
     { key: "fundraising", label: "Fundraising", icon: "trending", path: "/dashboard/fundraising" },
   ]},
   { group: "Website", items: [
@@ -193,17 +193,18 @@ function Sparkline({ data, color, width = 80, height = 28 }) {
 
 function StatCard({ icon, iconColor, label, value, sub, subPositive, sparkData, sparkColor, onClick }) {
   const [hov, setHov] = useState(false);
+  const subColor = subPositive === true ? C.green : subPositive === false ? C.red : C.textSec;
   return React.createElement("div", { onClick, onMouseEnter:()=>setHov(true), onMouseLeave:()=>setHov(false),
-    style:{ background:hov?C.bg2:C.surface, border:`1px solid ${hov?C.purple+"33":C.border}`, borderRadius:12, padding:"18px 20px", display:"flex", flexDirection:"column", gap:10, transition:"all .15s", cursor:onClick?"pointer":"default", flex:1, minWidth:0, boxShadow:hov?"0 4px 16px rgba(0,0,0,.06)":"none" } },
+    style:{ background:hov?C.bg2:C.surface, border:`1px solid ${hov?C.purple+"44":C.borderStr}`, borderRadius:12, padding:"18px 20px", display:"flex", flexDirection:"column", gap:10, transition:"all .15s", cursor:onClick?"pointer":"default", flex:1, minWidth:0, boxShadow:"0 2px 10px rgba(26,22,34,0.06)" } },
     React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" } },
       React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:8 } },
-        React.createElement(Icon, { name:icon, size:18, style:{ color:iconColor||C.textMut } }),
-        React.createElement("span", { style:{ fontSize:12, color:C.textSec, fontWeight:500 } }, label)
+        React.createElement(Icon, { name:icon, size:18, style:{ color:iconColor||C.purple } }),
+        React.createElement("span", { style:{ fontSize:12, color:C.textSec, fontWeight:600, letterSpacing:"0.02em" } }, label)
       ),
       sparkData && React.createElement(Sparkline, { data:sparkData, color:sparkColor||C.purple })
     ),
     React.createElement("div", { style:{ fontSize:30, fontWeight:700, color:C.text, lineHeight:1 } }, value),
-    sub && React.createElement("div", { style:{ fontSize:11, color:subPositive?C.green:C.red, fontWeight:500 } }, sub)
+    sub && React.createElement("div", { style:{ fontSize:12, color:subColor, fontWeight:500 } }, sub)
   );
 }
 
@@ -212,7 +213,7 @@ function PageHeader({ title, subtitle, action, back, onBack }) {
     React.createElement("div", null,
       back && React.createElement("button", { onClick:onBack, style:{ display:"flex", alignItems:"center", gap:4, background:"none", border:"none", color:C.textSec, cursor:"pointer", fontSize:13, padding:"0 0 8px" } }, React.createElement(Icon, { name:"chevL", size:14 }), back),
       React.createElement("h1", { style:{ fontSize:22, fontWeight:700, color:C.text, margin:0 } }, title),
-      subtitle && React.createElement("p", { style:{ margin:"4px 0 0", fontSize:13, color:C.textSec } }, subtitle)
+      subtitle && React.createElement("p", { style:{ margin:"4px 0 0", fontSize:13, color:C.textSec, fontWeight:500 } }, subtitle)
     ),
     action
   );
@@ -258,7 +259,7 @@ function Table({ cols, rows, onRowClick, emptyMsg="No records found" }) {
   return React.createElement("div", { style:{ overflowX:"auto" } },
     React.createElement("table", { style:{ width:"100%", borderCollapse:"collapse", fontSize:13 } },
       React.createElement("thead", null, React.createElement("tr", null,
-        cols.map(col => React.createElement("th", { key:col.key, style:{ textAlign:"left", padding:"10px 16px", color:C.textSec, fontWeight:600, fontSize:11, letterSpacing:"0.06em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:C.surface } }, col.label))
+        cols.map(col => React.createElement("th", { key:col.key, style:{ textAlign:"left", padding:"10px 16px", color:C.textSec, fontWeight:700, fontSize:11, letterSpacing:"0.06em", textTransform:"uppercase", borderBottom:`1px solid ${C.borderStr}`, whiteSpace:"nowrap", background:C.surface } }, col.label))
       )),
       React.createElement("tbody", null,
         rows.map((row,i) => React.createElement("tr", { key:row.id||i, onClick:onRowClick?()=>onRowClick(row):undefined, style:{ borderBottom:`1px solid ${C.border}`, cursor:onRowClick?"pointer":"default", transition:"background .1s" }, onMouseEnter:e=>{ if(onRowClick) e.currentTarget.style.background=C.bg2; }, onMouseLeave:e=>{ e.currentTarget.style.background="transparent"; } },
@@ -279,7 +280,7 @@ function EmptyState({ message, icon="docs" }) {
 function Tabs({ tabs, active, onChange }) {
   return React.createElement("div", { style:{ display:"flex", gap:2, borderBottom:`1px solid ${C.border}`, marginBottom:24 } },
     tabs.map(tab => React.createElement("button", { key:tab.value, onClick:()=>onChange(tab.value),
-      style:{ padding:"10px 16px", background:"none", border:"none", borderBottom:active===tab.value?`2px solid ${C.purple}`:"2px solid transparent", color:active===tab.value?C.purple:C.textSec, fontWeight:active===tab.value?600:400, fontSize:13, cursor:"pointer", transition:"all .15s", marginBottom:-1, whiteSpace:"nowrap", fontFamily:"var(--font-ui)" } },
+      style:{ padding:"10px 16px", background:"none", border:"none", borderBottom:active===tab.value?`2px solid ${C.purple}`:"2px solid transparent", color:active===tab.value?C.purple:C.textSec, fontWeight:active===tab.value?700:500, fontSize:13, cursor:"pointer", transition:"all .15s", marginBottom:-1, whiteSpace:"nowrap", fontFamily:"var(--font-ui)" } },
       tab.label, tab.count!==undefined && React.createElement("span", { style:{ marginLeft:6, background:active===tab.value?C.purpleDim:C.bg2, color:active===tab.value?C.purple:C.textMut, borderRadius:99, padding:"1px 7px", fontSize:11 } }, tab.count)
     ))
   );
@@ -288,7 +289,7 @@ function Tabs({ tabs, active, onChange }) {
 function Card({ children, style:extra={}, onClick, hover=false }) {
   const [hov, setHov] = useState(false);
   return React.createElement("div", { onClick, onMouseEnter:()=>setHov(true), onMouseLeave:()=>setHov(false),
-    style:{ background:(hover&&hov)?C.bg2:C.surface, border:`1px solid ${(hover&&hov)?C.purple+"33":C.border}`, borderRadius:12, transition:"all .15s", cursor:onClick?"pointer":"default", boxShadow:(hover&&hov)?"0 4px 16px rgba(0,0,0,.06)":"none", ...extra } },
+    style:{ background:(hover&&hov)?C.bg2:C.surface, border:`1px solid ${(hover&&hov)?C.purple+"44":C.borderStr}`, borderRadius:12, transition:"all .15s", cursor:onClick?"pointer":"default", boxShadow:"0 2px 10px rgba(26,22,34,0.06)", ...extra } },
     children
   );
 }

@@ -41,7 +41,7 @@ const LEGACY_MAP = {
   "daily-care":         "/dashboard/daily-care",
   "volunteers":         "/dashboard/volunteers",
   "applications":       "/dashboard/applications",
-  "donations":          "/dashboard/donations",
+  "donations":          "/dashboard/fundraising",
   "fundraising":        "/dashboard/fundraising",
   "cms":                "/dashboard/cms/website",
   "reports":            "/dashboard/reports",
@@ -71,6 +71,11 @@ function resolveRoute(pathname, searchParams) {
       window.history.replaceState({}, "", canonical);
       return resolveRoute(canonical, new URLSearchParams());
     }
+  }
+  const norm = pathname.replace(/\/$/, "") || "/dashboard";
+  if (norm === "/dashboard/donations") {
+    window.history.replaceState({}, "", "/dashboard/fundraising");
+    return { view: "fundraising", params: { financeTab: "donations" } };
   }
   for (const route of ROUTE_REGISTRY) {
     if (route.paramKey) {
@@ -201,7 +206,7 @@ function App() {
       case "applications":        return React.createElement(ApplicationsView,       { onNavigate: navigate });
       case "application-detail":  return React.createElement(ApplicationDetailView,  { appId: params.appId, onNavigate: navigate });
       case "donations":           return React.createElement(DonationsView,          { onNavigate: navigate });
-      case "fundraising":         return React.createElement(FundraisingView,        { onNavigate: navigate });
+      case "fundraising":         return React.createElement(FundraisingView,        { onNavigate: navigate, initialTab: params.financeTab });
 
       // CMS sub-views
       case "cms-website":

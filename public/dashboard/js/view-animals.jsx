@@ -17,19 +17,19 @@
 
   function ui() {
     return {
-      bg: token('bg', '#f5f3f8'),
-      surface: token('surface', '#11111d'),
-      raised: token('raised', '#171629'),
-      border: token('border', 'rgba(255,255,255,.12)'),
-      text: token('text', '#f7f4ff'),
-      textSec: token('textSec', 'rgba(247,244,255,.72)'),
-      textMut: token('textMut', 'rgba(247,244,255,.50)'),
-      purple: token('purple', '#8171ee'),
-      purpleL: token('purpleL', '#a78bfa'),
-      purpleDim: token('purpleDim', 'rgba(129,113,238,.14)'),
-      green: token('green', '#4ade80'),
-      yellow: token('yellow', '#fbbf24'),
-      red: token('red', '#f87171')
+      bg: token('bg', '#ede8df'),
+      surface: token('surface', '#faf7f3'),
+      raised: token('raised', '#f5f1e8'),
+      border: token('border', 'rgba(0,0,0,0.07)'),
+      text: token('text', '#1a1622'),
+      textSec: token('textSec', '#3d3529'),
+      textMut: token('textMut', '#5a5046'),
+      purple: token('purple', '#7c3aed'),
+      purpleL: token('purpleL', '#6d28d9'),
+      purpleDim: token('purpleDim', 'rgba(124,58,237,0.12)'),
+      green: token('green', '#059669'),
+      yellow: token('yellow', '#d97706'),
+      red: token('red', '#dc2626')
     };
   }
 
@@ -874,19 +874,19 @@
       // Details row
       h('div', { style:{ borderTop:'1px solid ' + u.border, padding:'12px 16px', display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:'8px 16px' } },
         h('div', null,
-          h('div', { style:{ color:u.textMut, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Foster type'),
+          h('div', { style:{ color:u.textSec, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Foster type'),
           h('div', { style:{ color:u.textSec, fontSize:12 } }, labelize(item.foster_type || 'standard'))
         ),
         h('div', null,
-          h('div', { style:{ color:u.textMut, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Check-ins'),
+          h('div', { style:{ color:u.textSec, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Check-ins'),
           h('div', { style:{ color:u.textSec, fontSize:12 } }, labelize(item.check_in_frequency || '-'))
         ),
         h('div', null,
-          h('div', { style:{ color:u.textMut, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Started'),
+          h('div', { style:{ color:u.textSec, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Started'),
           h('div', { style:{ color:u.textSec, fontSize:12 } }, fmtDate(item.start_date) || '-')
         ),
         h('div', null,
-          h('div', { style:{ color:u.textMut, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Expected return'),
+          h('div', { style:{ color:u.textSec, fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', fontWeight:800, marginBottom:2 } }, 'Expected return'),
           h('div', { style:{ color:item.expected_end_date ? u.yellow : u.textSec, fontSize:12 } }, fmtDate(item.expected_end_date) || 'Open-ended')
         )
       ),

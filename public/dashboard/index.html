@@ -31,8 +31,8 @@
     --dash-border:       rgba(0,0,0,0.07);
     --dash-border-strong:rgba(26,22,34,0.12);
     --dash-text:         #1a1622;
-    --dash-text-sec:     #4b4453;
-    --dash-text-muted:   #7a7280;
+    --dash-text-sec:     #3d3529;
+    --dash-text-muted:   #5a5046;
 
     --nav-bg:           #0c0a14;
     --nav-bg-glass:     rgba(12,10,20,0.94);
@@ -76,7 +76,7 @@
   ::-webkit-scrollbar-thumb:hover { background: var(--nav-bg); }
 
   input, select, textarea, button { font-family: var(--font-ui); }
-  select option { background: #191928; color: #f0f0f5; }
+  select option { background: #faf7f3; color: #1a1622; }
   a { color: inherit; text-decoration: none; }
 
   /* CMS page editor — force readable contrast regardless of theme overrides */
@@ -88,8 +88,8 @@
     --dash-border: rgba(0,0,0,0.07);
     --dash-border-strong: rgba(26,22,34,0.14);
     --dash-text: #1a1622;
-    --dash-text-sec: #4b4453;
-    --dash-text-muted: #7a7280;
+    --dash-text-sec: #3d3529;
+    --dash-text-muted: #5a5046;
     color: var(--dash-text);
     background: var(--dash-bg);
   }
@@ -142,6 +142,10 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    color: var(--dash-text);
+  }
+  #main-scroll h1, #main-scroll h2, #main-scroll h3, #main-scroll h4 {
+    color: var(--dash-text);
   }
 
   .cpas-mobile-only  { display: none !important; }

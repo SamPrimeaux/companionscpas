@@ -430,7 +430,7 @@ function GivingView({ initialTab }) {
 
 // ── Legacy route aliases so app.jsx route map keeps working ───────────────────
 function FundraisingView(props) {
-  return React.createElement(GivingView, { ...props, initialTab: "campaigns" });
+  return React.createElement(GivingView, { ...props, initialTab: props.initialTab || "campaigns" });
 }
 
 function DonationsView(props) {
