@@ -1,4 +1,14 @@
 import { renderPage } from "./render_page.js";
+import {
+  isFragmentPageRoute,
+  ensureFragmentPageSections,
+  syncFragmentPageToR2,
+  previewFragmentPageFromCms,
+  publishFragmentPageFromCms,
+  upsertFragmentPageDefaults,
+  getFragmentSectionKeys,
+  normalizeFragmentRoute,
+} from "./page_cms_registry.js";
 import { getAuthUser } from "./session_api.js";
 const TENANT_ID = "tenant_companionscpas";
 
@@ -21,6 +31,10 @@ function safeJson(value, fallback) {
   try { return JSON.parse(value || ""); } catch { return fallback; }
 }
 
+
+async function syncFragmentCmsToR2(env, route) {
+  return syncFragmentPageToR2(env, normalizeFragmentRoute(route));
+}
 
 async function bustCache(env, ...keys) {
   if (!env.CMS_CACHE) return;
@@ -100,6 +114,72 @@ async function createPublishJob(env, routePath, triggeredBy) {
   }
 }
 
+const PUBLIC_PAGE_ROUTES = ["/", "/about", "/services", "/adopt", "/community", "/donate"];
+
+function pageArtifactKey(route) {
+  const normalized = normalizeRouteInput(route);
+  return normalized === "/" ? "static/pages/index.html" : `static/pages${normalized}/index.html`;
+}
+
+async function publishPageRoute(env, route, triggeredBy) {
+  const normalizedRoute = normalizeRouteInput(route);
+  if (!normalizedRoute) {
+    return { success: false, route_path: route, error: "Invalid route" };
+  }
+
+  await bustCache(env, `page:${normalizedRoute}`);
+
+  const jobId = await createPublishJob(env, normalizedRoute, triggeredBy);
+  const artifactKey = pageArtifactKey(normalizedRoute);
+
+  await env.DB.prepare(`
+    UPDATE cms_pages
+    SET status = 'published',
+        published_at = datetime('now'),
+        updated_at = datetime('now'),
+        published_by = ?
+    WHERE tenant_id = ? AND route_path = ?
+  `).bind(triggeredBy, TENANT_ID, normalizedRoute).run();
+
+  try {
+    if (normalizedRoute === "/" || isFragmentPageRoute(normalizedRoute)) {
+      const published = await publishFragmentPageFromCms(env, normalizedRoute, jobId || `pub_${Date.now()}`);
+      await updatePublishJob(env, jobId, "done", {
+        artifactPath: published.artifact_key,
+        resultJson: { success: true, route_path: normalizedRoute, artifact_key: published.artifact_key, source: "fragment_cms_sync" },
+      });
+      return {
+        success: true,
+        route_path: normalizedRoute,
+        job_id: jobId,
+        artifact_key: published.artifact_key,
+        source: "fragment_cms_sync",
+      };
+    }
+
+    await renderPage(normalizedRoute, jobId || `pub_${Date.now()}`, env);
+    await updatePublishJob(env, jobId, "done", {
+      artifactPath: artifactKey,
+      resultJson: { success: true, route_path: normalizedRoute, artifact_key: artifactKey },
+    });
+    return {
+      success: true,
+      route_path: normalizedRoute,
+      job_id: jobId,
+      artifact_key: artifactKey,
+    };
+  } catch (err) {
+    const message = err?.message || String(err);
+    await updatePublishJob(env, jobId, "failed", { error: message });
+    return {
+      success: false,
+      route_path: normalizedRoute,
+      job_id: jobId,
+      error: message,
+    };
+  }
+}
+
 async function updatePublishJob(env, jobId, status, extras = {}) {
   if (!jobId) return;
   const cols = await tableColumns(env, "cms_publish_jobs").catch(() => null);
@@ -138,6 +218,32 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
   const path = url.pathname;
   const method = request.method;
 
+  if (path === "/api/cms/modal/foster_cta" && method === "GET") {
+    const row = await env.DB.prepare(`
+      SELECT modal_key, title, subtitle, body, cta_label, cta_href, cta_action, image_url, config_json
+      FROM cms_modals
+      WHERE tenant_id = ? AND modal_key IN ('foster_cta', 'modal_foster_cta') AND is_active = 1
+      ORDER BY CASE modal_key WHEN 'foster_cta' THEN 0 ELSE 1 END
+      LIMIT 1
+    `).bind(TENANT_ID).first().catch(() => null);
+
+    if (!row) return json({ success: false, error: "Foster modal not found" }, 404);
+    return json({
+      success: true,
+      modal: {
+        modal_key: row.modal_key,
+        title: row.title || "",
+        subtitle: row.subtitle || "",
+        body: row.body || "",
+        cta_label: row.cta_label || "Start Application",
+        cta_href: row.cta_href || "/services",
+        cta_action: row.cta_action || "href",
+        image_url: row.image_url || "",
+        config: safeJson(row.config_json, {}),
+      }
+    });
+  }
+
   if (!env.DB) return json({ error: "DB binding missing" }, 500);
 
   if (path === "/api/cms/bootstrap" && method === "GET") {
@@ -162,6 +268,8 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
   if (path === "/api/cms/page" && method === "GET") {
     const route = url.searchParams.get("route") || "/";
+    if (isFragmentPageRoute(route)) await ensureFragmentPageSections(env, route);
+
     const page = await env.DB.prepare("SELECT * FROM cms_pages WHERE tenant_id = ? AND route_path = ? LIMIT 1")
       .bind(TENANT_ID, route).first();
 
@@ -173,7 +281,76 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     const blocks = await env.DB.prepare("SELECT * FROM cms_page_content_blocks WHERE tenant_id = ? AND page_route = ? ORDER BY sort_order, section_key, block_key")
       .bind(TENANT_ID, route).all().catch(() => ({ results: [] }));
 
-    return json({ success: true, page, sections: sections.results || [], blocks: blocks.results || [] });
+    let sectionResults = sections.results || [];
+    const fragmentKeys = getFragmentSectionKeys(route);
+    if (fragmentKeys.length) {
+      sectionResults = sectionResults.filter((s) => fragmentKeys.includes(s.section_key));
+    }
+
+    return json({ success: true, page, sections: sectionResults, blocks: blocks.results || [] });
+  }
+
+  if (path === "/api/cms/page/bootstrap" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const route = normalizeFragmentRoute(data.route_path || "/");
+    const force = data.force === true;
+
+    if (!isFragmentPageRoute(route)) {
+      return json({ success: false, error: "Route is not a fragment-managed page", route_path: route }, 400);
+    }
+
+    await upsertFragmentPageDefaults(env, route, force);
+    const fragmentSync = await syncFragmentCmsToR2(env, route);
+    return json({ success: true, route_path: route, force, fragment_sync: fragmentSync });
+  }
+
+  if (path === "/api/cms/home/bootstrap" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+    const data = await body(request);
+    const force = data.force === true;
+    await upsertFragmentPageDefaults(env, "/", force);
+    const fragmentSync = await syncFragmentCmsToR2(env, "/");
+    return json({ success: true, route_path: "/", force, fragment_sync: fragmentSync });
+  }
+
+  if (path === "/api/cms/preview" && method === "GET") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const route = normalizeRouteInput(url.searchParams.get("route") || "/");
+    if (!route) return json({ success: false, error: "route required" }, 400);
+
+    try {
+      if (isFragmentPageRoute(route)) {
+        const html = await previewFragmentPageFromCms(env, route);
+        if (!html) return json({ success: false, error: "Preview assembly failed", route }, 500);
+        return new Response(html, {
+          status: 200,
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "no-store",
+          },
+        });
+      }
+
+      const html = await renderPage(route, `preview_${Date.now()}`, env, {
+        persist: false,
+        includeHidden: true,
+      });
+      return new Response(html, {
+        status: 200,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      });
+    } catch (err) {
+      return json({ success: false, error: err?.message || "Preview render failed" }, 500);
+    }
   }
 
   if (path === "/api/cms/section/save" && method === "POST") {
@@ -231,7 +408,13 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       .bind(TENANT_ID, page_route).run().catch(() => {});
 
     await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`);
-    return json({ success: true, page_route, section_key });
+
+    let fragmentSync = null;
+    if (isFragmentPageRoute(page_route)) {
+      fragmentSync = await syncFragmentCmsToR2(env, page_route);
+    }
+
+    return json({ success: true, page_route, section_key, fragment_sync: fragmentSync });
   }
 
   if (path === "/api/cms/block/save" && method === "POST") {
@@ -289,7 +472,17 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       typeof block.config_json === "string" ? block.config_json : JSON.stringify(block.config_json || {})
     ).run();
 
-    return json({ success: true, page_route, section_key, block_key });
+    await env.DB.prepare("UPDATE cms_pages SET status = 'draft', updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?")
+      .bind(TENANT_ID, page_route).run().catch(() => {});
+
+    await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`);
+
+    let fragmentSync = null;
+    if (isFragmentPageRoute(page_route)) {
+      fragmentSync = await syncFragmentCmsToR2(env, page_route);
+    }
+
+    return json({ success: true, page_route, section_key, block_key, fragment_sync: fragmentSync });
   }
 
   if (path === "/api/cms/page/save" && method === "POST") {
@@ -353,45 +546,65 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     }
 
     const triggeredBy = cmsUser?.email || cmsUser?.id || "dashboard";
-    const jobId = await createPublishJob(env, route, triggeredBy);
+    const result = await publishPageRoute(env, route, triggeredBy);
 
-    await env.DB.prepare(`
-      UPDATE cms_pages
-      SET status = 'published',
-          published_at = datetime('now'),
-          updated_at = datetime('now'),
-          published_by = ?
-      WHERE tenant_id = ? AND route_path = ?
-    `).bind(triggeredBy, TENANT_ID, route).run();
-
-    const artifactKey = route === "/" ? "static/pages/index.html" : `static/pages${route}/index.html`;
-
-    try {
-      await renderPage(route, jobId, env);
-      await updatePublishJob(env, jobId, "done", {
-        artifactPath: artifactKey,
-        resultJson: { success: true, route_path: route, artifact_key: artifactKey },
-      });
-    } catch (err) {
-      const message = err?.message || String(err);
-      await updatePublishJob(env, jobId, "failed", { error: message });
+    if (!result.success) {
       return json({
         success: false,
         error: "Failed to render published page artifacts",
-        route_path: route,
-        job_id: jobId,
-        details: message,
+        route_path: result.route_path,
+        job_id: result.job_id,
+        details: result.error,
       }, 500);
     }
 
     return json({
       success: true,
-      job_id: jobId,
-      route_path: route,
-      artifact_key: artifactKey,
-      preview_url: route === "/" ? "/" : route,
-      message: "Page marked published and rendered to artifacts."
+      job_id: result.job_id,
+      route_path: result.route_path,
+      artifact_key: result.artifact_key,
+      preview_url: result.route_path === "/" ? "/" : result.route_path,
+      message: "Page marked published and rendered to artifacts.",
     });
+  }
+
+  if (path === "/api/cms/publish-all" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const triggeredBy = cmsUser?.email || cmsUser?.id || "dashboard";
+
+    let routes = PUBLIC_PAGE_ROUTES;
+    if (Array.isArray(data.routes) && data.routes.length) {
+      routes = data.routes.map((r) => normalizeRouteInput(r)).filter(Boolean);
+    } else if (!env.DB) {
+      return json({ success: false, error: "DB binding missing" }, 500);
+    } else {
+      const pages = await env.DB.prepare(
+        "SELECT route_path FROM cms_pages WHERE tenant_id = ? ORDER BY sort_order, route_path"
+      ).bind(TENANT_ID).all().catch(() => ({ results: [] }));
+      const fromDb = (pages.results || []).map((row) => normalizeRouteInput(row.route_path)).filter(Boolean);
+      if (fromDb.length) routes = fromDb;
+    }
+
+    const results = [];
+    for (const route of routes) {
+      results.push(await publishPageRoute(env, route, triggeredBy));
+    }
+
+    const failed = results.filter((r) => !r.success);
+    const succeeded = results.filter((r) => r.success);
+
+    return json({
+      success: failed.length === 0,
+      published: succeeded.length,
+      failed: failed.length,
+      routes: results,
+      message: failed.length
+        ? `Published ${succeeded.length}/${results.length} pages. ${failed.length} failed.`
+        : `Published all ${results.length} pages.`,
+    }, failed.length ? 207 : 200);
   }
 
   // GET /api/cms/sections — all sections for this tenant, keyed for the pages view
@@ -678,7 +891,12 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       `bootstrap:${TENANT_ID}`
     );
 
-    return json({ success: true, deleted: { page_route, section_key } });
+    let fragmentSync = null;
+    if (isFragmentPageRoute(page_route)) {
+      fragmentSync = await syncFragmentCmsToR2(env, page_route);
+    }
+
+    return json({ success: true, deleted: { page_route, section_key }, fragment_sync: fragmentSync });
   }
 
 

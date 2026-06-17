@@ -13,6 +13,10 @@ import { paymentsEmailRoutes } from './api/payments_email.js';
 import { socialRoutes } from './api/social.js';
 import { driveRoutes } from './api/drive_api.js';
 import { renderPage, getBrand } from "./api/render_page.js";
+import { assembleHomeFromFragments } from "./api/render_home_fragments.js";
+import { assembleAboutFromFragments } from "./api/render_about_fragments.js";
+import { assembleGenericPageFromFragments } from "./api/render_generic_fragments.js";
+import { isFragmentPageRoute } from "./api/page_cms_registry.js";
 import { handleFosterApply, handleFosterList, handleFosterUpdate } from './api/foster_api.js';
 
 
@@ -45,8 +49,6 @@ async function asset(env, request, path) {
   } catch {}
   return new Response('Not found', { status: 404 });
 }
-
-
 async function servePublicPage(route, env) {
   const normalizedRoute = route === "" ? "/" : route;
   const cacheKey = `page:${normalizedRoute}`;
@@ -63,6 +65,27 @@ async function servePublicPage(route, env) {
     }
   } catch (err) {
     console.warn("[public-page] KV get failed:", normalizedRoute, err?.message || err);
+  }
+
+  if (isFragmentPageRoute(normalizedRoute)) {
+    try {
+      let fragmentHtml = null;
+      if (normalizedRoute === "/") {
+        fragmentHtml = await assembleHomeFromFragments(env);
+      } else if (normalizedRoute === "/about") {
+        fragmentHtml = await assembleAboutFromFragments(env);
+      } else {
+        fragmentHtml = await assembleGenericPageFromFragments(env, normalizedRoute);
+      }
+      if (fragmentHtml) {
+        if (env.CMS_CACHE) {
+          await env.CMS_CACHE.put(cacheKey, fragmentHtml, { expirationTtl: 3600 }).catch(() => {});
+        }
+        return new Response(fragmentHtml, { headers });
+      }
+    } catch (err) {
+      console.warn("[public-page] fragment assembly failed:", normalizedRoute, err?.message || err);
+    }
   }
 
   try {
@@ -123,6 +146,12 @@ export default {
     try {
       const { route_path } = await request.json().catch(() => ({}));
       const route = route_path || "/services";
+      const normalized = route === "" ? "/" : route;
+      const { isFragmentPageRoute, publishFragmentPageFromCms } = await import("./api/page_cms_registry.js");
+      if (isFragmentPageRoute(normalized)) {
+        const published = await publishFragmentPageFromCms(env, normalized, "internal_cli_" + Date.now());
+        return new Response(JSON.stringify({ success: true, route: normalized, artifact_key: published.artifact_key }), { headers: { "content-type": "application/json" } });
+      }
       const { renderPage } = await import('./api/render_page.js');
       await renderPage(route, "internal_cli_" + Date.now(), env);
       return new Response(JSON.stringify({ success: true, route }), { headers: { "content-type": "application/json" } });
@@ -160,7 +189,7 @@ export default {
       }
 
       if (url.pathname === "/api/health") {
-        return json({ ok: true, service: "companionscpas" });
+        return json({ ok: true, service: "companionscpas", rev: "p0-20260613" });
       }
 
       const cmsResult = await cmsRoutes(request, env, url);

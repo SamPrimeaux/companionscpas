@@ -21,6 +21,13 @@ function cents(amount) {
   return Math.round(n * 100);
 }
 
+function stripeMode(secretKey) {
+  const sk = String(secretKey || "");
+  if (sk.startsWith("sk_test_")) return "test";
+  if (sk.startsWith("sk_live_")) return "live";
+  return "unknown";
+}
+
 
 function timingSafeEqual(a, b) {
   if (!a || !b || a.length !== b.length) return false;
@@ -245,12 +252,34 @@ export async function paymentsEmailRoutes(request, env, url) {
     return json({
       stripe: {
         configured: Boolean(env.STRIPE_SECRET_KEY),
-        webhook_configured: Boolean(env.STRIPE_WEBHOOK_SECRET)
+        webhook_configured: Boolean(env.STRIPE_WEBHOOK_SECRET),
+        publishable_configured: Boolean(env.STRIPE_PUBLISHABLE_KEY),
+        mode: stripeMode(env.STRIPE_SECRET_KEY),
       },
       resend: {
         configured: Boolean(env.RESEND_API_KEY || env.RESEND_API_TOKEN),
         from: env.RESEND_FROM_EMAIL || null
       }
+    });
+  }
+
+  // ── GET /api/donations/config — publishable key + mode for client PaymentElement ──
+  if (path === "/api/donations/config" && method === "GET") {
+    const mode = stripeMode(env.STRIPE_SECRET_KEY);
+    const publishableKey = String(env.STRIPE_PUBLISHABLE_KEY || "").trim();
+    if (!publishableKey) {
+      return json({
+        configured: false,
+        mode,
+        test_mode: mode === "test",
+        error: "STRIPE_PUBLISHABLE_KEY is not configured",
+      }, 503);
+    }
+    return json({
+      configured: true,
+      publishable_key: publishableKey,
+      mode,
+      test_mode: mode === "test",
     });
   }
 

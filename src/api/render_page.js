@@ -1,10 +1,11 @@
 import { renderSection } from "./render_section.js";
+import { SHELL_VERSION, publicPageScripts } from "./page_shell.js";
 
 const TENANT_ID = "tenant_companionscpas";
 const BRAND_CACHE_KEY = `brand:${TENANT_ID}`;
 const PAGE_CACHE_TTL = 3600;
 
-const SHELL_VERSION = "2026061201";
+const SHELL_CSS = "/static/global/shared.css";
 
 function nowIso() {
   return new Date().toISOString();
@@ -50,7 +51,7 @@ function normalizeRoute(route) {
   return normalized || "/";
 }
 
-function sanitizePathSegment(value, fallback = "section") {
+export function sanitizePathSegment(value, fallback = "section") {
   const cleaned = text(value)
     .trim()
     .replace(/[^a-zA-Z0-9._-]/g, "-")
@@ -59,7 +60,7 @@ function sanitizePathSegment(value, fallback = "section") {
   return cleaned || fallback;
 }
 
-function getPageAssetBase(route) {
+export function getPageAssetBase(route) {
   return route === "/" ? "static/pages" : `static/pages${route}`;
 }
 
@@ -191,9 +192,10 @@ export async function getGlobalPartial(name, brand, env) {
   return `<!-- Missing global partial: ${escapeHtml(partialName)} -->`;
 }
 
-export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHtml) {
+export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHtml, opts = {}) {
   const safePage = page || {};
   const safeBrand = brand || {};
+  const preview = opts?.preview === true;
   const title = escapeHtml(safePage.seo_title || safePage.title || safeBrand.brand_name || "Companions of CPAS");
   const description = escapeHtml(
     safePage.meta_description ||
@@ -210,6 +212,7 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
     ? activePreset.imports.map(u => '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="' + u + '">').join('')
     : '';
   const fontDataAttr = activeFontKey !== 'fraunces_dm' ? ' data-font="' + activeFontKey + '"' : '';
+  const shellCssHref = `${SHELL_CSS}?v=${SHELL_VERSION}`;
 
   const sectionsMarkup = Array.isArray(sectionHtmls) ? sectionHtmls.join("\n") : "";
   const brandScript = `<script>window.__BRAND=${JSON.stringify({
@@ -231,17 +234,17 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
   <meta name="description" content="${description}">
-  <link rel="stylesheet" href="/static/global/cpas-shell.css?v=${SHELL_VERSION}">
+  <link rel="stylesheet" href="${shellCssHref}">
 ${fontImportTag}
 ${brandScript}
 </head>
-<body class="theme-${theme}" data-theme="${theme}" data-route="${route}"${fontDataAttr}>
+<body class="theme-${theme}${preview ? " cms-preview" : ""}" data-theme="${theme}" data-route="${route}"${fontDataAttr}>
 ${headerHtml || ""}
-<main class="site-main">
+<main>
 ${sectionsMarkup}
 </main>
 ${footerHtml || ""}
-<script src="/static/global/cpas-shell.js?v=${SHELL_VERSION}"></script>
+${publicPageScripts()}
 </body>
 </html>`;
 }
@@ -328,10 +331,12 @@ async function logPublishArtifact(env, data) {
   }
 }
 
-export async function renderPage(route, jobId, env) {
+export async function renderPage(route, jobId, env, opts = {}) {
   if (!env?.DB) throw new Error("renderPage requires env.DB");
   if (!env?.WEBSITE_ASSETS) throw new Error("renderPage requires env.WEBSITE_ASSETS");
 
+  const persist = opts?.persist !== false;
+  const includeHidden = opts?.includeHidden === true;
   const normalizedRoute = normalizeRoute(route);
   const page = await queryFirst(
     env,
@@ -348,9 +353,13 @@ export async function renderPage(route, jobId, env) {
     getBrand(env),
     queryAll(
       env,
-      `SELECT * FROM cms_page_sections
-       WHERE page_route=? AND tenant_id=? AND is_visible=1
-       ORDER BY sort_order`,
+      includeHidden
+        ? `SELECT * FROM cms_page_sections
+           WHERE page_route=? AND tenant_id=?
+           ORDER BY sort_order`
+        : `SELECT * FROM cms_page_sections
+           WHERE page_route=? AND tenant_id=? AND is_visible=1
+           ORDER BY sort_order`,
       normalizedRoute,
       TENANT_ID
     ),
@@ -373,13 +382,18 @@ export async function renderPage(route, jobId, env) {
     const sectionKeyRaw = text(section.section_key).trim() || `section_${i + 1}`;
     const sectionKey = sanitizePathSegment(sectionKeyRaw, `section_${i + 1}`);
     const sectionBlocks = blocksBySection.get(sectionKeyRaw) || [];
-    const html = text(renderSection(section, sectionBlocks, brand, env));
+    let html = text(renderSection(section, sectionBlocks, brand, env));
+    if (includeHidden && Number(section.is_visible) === 0) {
+      html = `<div class="cms-preview-hidden-section" data-hidden-section="1">${html}</div>`;
+    }
     sectionHtmls.push(html);
-    await writeHtmlArtifact(env, `${pageAssetBase}/${sectionKey}.html`, html);
+    if (persist) {
+      await writeHtmlArtifact(env, `${pageAssetBase}/${sectionKey}.html`, html);
+    }
   }
 
   if (!sectionHtmls.length) {
-    sectionHtmls.push("<!-- no visible sections found -->");
+    sectionHtmls.push(includeHidden ? "<!-- no sections found -->" : "<!-- no visible sections found -->");
   }
 
   const [headerHtml, footerHtml] = await Promise.all([
@@ -387,22 +401,25 @@ export async function renderPage(route, jobId, env) {
     getGlobalPartial("footer", brand, env),
   ]);
 
-  const fullHTML = assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHtml);
+  const fullHTML = assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHtml, { preview: !persist });
   const pageArtifactKey = `${pageAssetBase}/index.html`;
-  await writeHtmlArtifact(env, pageArtifactKey, fullHTML);
 
-  if (env.CMS_CACHE) {
-    await env.CMS_CACHE.put(`page:${normalizedRoute}`, fullHTML, { expirationTtl: PAGE_CACHE_TTL }).catch(() => {});
+  if (persist) {
+    await writeHtmlArtifact(env, pageArtifactKey, fullHTML);
+
+    if (env.CMS_CACHE) {
+      await env.CMS_CACHE.put(`page:${normalizedRoute}`, fullHTML, { expirationTtl: PAGE_CACHE_TTL }).catch(() => {});
+    }
+
+    const contentHash = await hashContent(fullHTML).catch(() => "");
+    await logPublishArtifact(env, {
+      route: normalizedRoute,
+      jobId,
+      pageArtifactKey,
+      contentHash,
+      sizeBytes: fullHTML.length,
+    });
   }
-
-  const contentHash = await hashContent(fullHTML).catch(() => "");
-  await logPublishArtifact(env, {
-    route: normalizedRoute,
-    jobId,
-    pageArtifactKey,
-    contentHash,
-    sizeBytes: fullHTML.length,
-  });
 
   return fullHTML;
 }
