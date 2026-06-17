@@ -23,15 +23,16 @@
     --brand-primary-l: #b89fd4;
     --brand-primary-dim: rgba(134,100,183,0.15);
 
-    --dash-bg:           #f5f3f8;
-    --dash-bg2:          #ede9f5;
-    --dash-surface:      #ffffff;
-    --dash-surface-muted:#f8f6fc;
-    --dash-border:       rgba(37,29,52,0.10);
-    --dash-border-strong:rgba(37,29,52,0.18);
-    --dash-text:         #171320;
-    --dash-text-sec:     #5a4e6e;
-    --dash-text-muted:   #9b8fb0;
+    /* Public-site light palette (shared.css / cpas-shell theme-light) */
+    --dash-bg:           #ede8df;   /* --light-bg: "How Your Support Helps" section */
+    --dash-bg2:          #e5e0d6;   /* hover / inset panels */
+    --dash-surface:      #faf7f3;   /* --light-card: pillar cards */
+    --dash-surface-muted:#f5f1e8;   /* theme-light --bg */
+    --dash-border:       rgba(0,0,0,0.07);
+    --dash-border-strong:rgba(26,22,34,0.12);
+    --dash-text:         #1a1622;
+    --dash-text-sec:     #4b4453;
+    --dash-text-muted:   #7a7280;
 
     --nav-bg:           #0c0a14;
     --nav-bg-glass:     rgba(12,10,20,0.94);
@@ -80,28 +81,28 @@
 
   /* CMS page editor — force readable contrast regardless of theme overrides */
   .cms-editor-shell {
-    --dash-bg: #f0edf5;
-    --dash-bg2: #e8e3f0;
-    --dash-surface: #ffffff;
-    --dash-surface-muted: #f7f5fb;
-    --dash-border: rgba(37,29,52,0.14);
-    --dash-border-strong: rgba(37,29,52,0.24);
-    --dash-text: #12101a;
-    --dash-text-sec: #4a3d5c;
-    --dash-text-muted: #6b5f80;
+    --dash-bg: #ede8df;
+    --dash-bg2: #e5e0d6;
+    --dash-surface: #faf7f3;
+    --dash-surface-muted: #f5f1e8;
+    --dash-border: rgba(0,0,0,0.07);
+    --dash-border-strong: rgba(26,22,34,0.14);
+    --dash-text: #1a1622;
+    --dash-text-sec: #4b4453;
+    --dash-text-muted: #7a7280;
     color: var(--dash-text);
     background: var(--dash-bg);
   }
   .cms-editor-shell input,
   .cms-editor-shell textarea,
   .cms-editor-shell select {
-    background: #ffffff !important;
-    color: #12101a !important;
-    border-color: rgba(37,29,52,0.18) !important;
+    background: #faf7f3 !important;
+    color: #1a1622 !important;
+    border-color: rgba(0,0,0,0.10) !important;
   }
   .cms-editor-shell input::placeholder,
   .cms-editor-shell textarea::placeholder {
-    color: #8a7fa0 !important;
+    color: #7a7280 !important;
     opacity: 1;
   }
   .cms-editor-shell label,
