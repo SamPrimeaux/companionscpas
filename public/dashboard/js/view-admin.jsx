@@ -30,7 +30,7 @@ function AdminCMSView() {
 
   const content = pageContent[activePage] || pageContent.homepage;
 
-  return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
+  return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"CMS Website",
       subtitle:"Edit and manage your public-facing website content",
@@ -101,7 +101,7 @@ function ReportsView() {
     { title:"Annual Impact Report",      desc:"Full-year outcomes, financials, and program highlights", icon:"chart",   period:"2024 Annual",  updated:"Jan 2025" },
   ];
 
-  return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
+  return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Reports",
       subtitle:"Generate and download reports",
@@ -163,7 +163,7 @@ function SettingsView() {
     { name:"PetFinder", desc:"Sync adoptable animals to PetFinder",  connected:false, icon:"🐾" },
   ];
 
-  return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
+  return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Settings",
       subtitle:"Organization, users, and integrations",
@@ -257,7 +257,7 @@ function NotificationsView({ onNavigate }) {
   const typeIcon = { urgent:"⚠️", adoption:"🐾", donation:"💸", volunteer:"👤", medical:"💉", intake:"📥" };
   const typeColor = { urgent:C.red, adoption:C.green, donation:C.purpleL, volunteer:C.teal, medical:C.red, intake:C.teal };
 
-  return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
+  return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Notifications",
       subtitle: unread > 0 ? `${unread} unread notification${unread>1?"s":""}` : "All caught up!",

@@ -328,7 +328,7 @@ function GivingView({ initialTab }) {
     transition: "background 120ms, color 120ms"
   });
 
-  return React.createElement("div", { style: { padding: "28px 28px 40px", flex: 1, overflowY: "auto" } },
+  return React.createElement("div", { className: "dash-page" },
 
     // Header
     React.createElement(PageHeader, {

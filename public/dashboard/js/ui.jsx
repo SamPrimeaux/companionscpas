@@ -208,15 +208,20 @@ function StatCard({ icon, iconColor, label, value, sub, subPositive, sparkData, 
   );
 }
 
-function PageHeader({ title, subtitle, action, back, onBack }) {
-  return React.createElement("div", { style:{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:24, flexWrap:"wrap", gap:12 } },
+function PageHeader({ title, subtitle, action, back, onBack, meta }) {
+  return React.createElement("div", { className: "dash-page-header" },
     React.createElement("div", null,
-      back && React.createElement("button", { onClick:onBack, style:{ display:"flex", alignItems:"center", gap:4, background:"none", border:"none", color:C.textSec, cursor:"pointer", fontSize:13, padding:"0 0 8px" } }, React.createElement(Icon, { name:"chevL", size:14 }), back),
-      React.createElement("h1", { style:{ fontSize:22, fontWeight:700, color:C.text, margin:0 } }, title),
-      subtitle && React.createElement("p", { style:{ margin:"4px 0 0", fontSize:13, color:C.textSec, fontWeight:500 } }, subtitle)
+      back && React.createElement("button", { type: "button", className: "dash-page-back", onClick: onBack },
+        React.createElement(Icon, { name: "chevL", size: 14 }), back),
+      React.createElement("h1", { className: "dash-page-title" }, title),
+      subtitle && React.createElement("p", { className: "dash-page-subtitle" }, subtitle)
     ),
-    action
+    meta || action
   );
+}
+
+function DashPage({ children, className = "" }) {
+  return React.createElement("div", { className: "dash-page" + (className ? " " + className : "") }, children);
 }
 
 function Btn({ children, onClick, variant="primary", size="md", icon, style:extra={}, disabled }) {
@@ -457,7 +462,7 @@ function MobileDrawer({ open, view, navigate, onClose, onLogout }) {
 }
 
 Object.assign(window, {
-  Icon, Avatar, Badge, ProgressBar, Sparkline, StatCard, PageHeader, Btn,
+  Icon, Avatar, Badge, ProgressBar, Sparkline, StatCard, PageHeader, DashPage, Btn,
   Modal, Table, EmptyState, Tabs, Card, Input, Select,
   Sidebar, TopBar, MobileDrawer,
   NAV_STRUCTURE, NAV_ITEMS,

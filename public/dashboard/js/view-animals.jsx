@@ -15,6 +15,8 @@
     return (typeof C !== 'undefined' && C && C[key]) ? C[key] : fallback;
   }
 
+  var PageHeader = window.PageHeader;
+
   function ui() {
     return {
       bg: token('bg', '#ede8df'),
@@ -537,11 +539,12 @@
     var filtered = animals.filter(function(a){ return filterMatch(a, filter) && (!q || [a.name, a.breed, a.age_label, a.id, a.species].some(function(v){ return v && String(v).toLowerCase().indexOf(q) !== -1; })); });
     var tabs = ['All','Dogs','Cats','Available','Foster','Medical','Adopted'].map(function(f){ return { value:f, label:f, count:animals.filter(function(a){ return filterMatch(a, f); }).length }; });
     var columns = isMobile ? 'repeat(2, minmax(0,1fr))' : bp === 'tablet' ? 'repeat(3, minmax(0,1fr))' : 'repeat(4, minmax(0,1fr))';
-    return h('div', { style:{ padding:isMobile ? '18px 12px 40px' : '28px 28px 40px', flex:1, overflowY:'auto', boxSizing:'border-box' } },
-      h('div', { style:{ display:'flex', alignItems:isMobile ? 'flex-start' : 'center', justifyContent:'space-between', gap:16, marginBottom:22, flexWrap:'wrap' } },
-        h('div', null, h('h1', { style:{ margin:'0 0 6px', color:u.text, fontSize:isMobile ? 24 : 28, fontWeight:900, letterSpacing:'-.04em' } }, 'Animals'), h('div', { style:{ color:u.textSec, fontSize:13 } }, animals.length + ' total animals in the system')),
-        h('div', { style:{ display:'flex', gap:8, flexWrap:'wrap' } }, h(Button, { variant:'secondary', size:'sm', iconName:'download', onClick:function(){ window.print && window.print(); } }, 'Export'), h(Button, { size:'sm', iconName:'plus', onClick:function(){ setShowAdd(true); } }, 'Add Animal'))
-      ),
+    return h('div', { className: 'dash-page' },
+      h(PageHeader, {
+        title: 'Animals',
+        subtitle: animals.length + ' total animals in the system',
+        action: h('div', { style:{ display:'flex', gap:8, flexWrap:'wrap' } }, h(Button, { variant:'secondary', size:'sm', iconName:'download', onClick:function(){ window.print && window.print(); } }, 'Export'), h(Button, { size:'sm', iconName:'plus', onClick:function(){ setShowAdd(true); } }, 'Add Animal'))
+      }),
       h('div', { style:{ marginBottom:14, overflowX:'auto', whiteSpace:'nowrap', paddingBottom:2 } }, h('div', { style:{ display:'inline-flex', gap:4, borderBottom:'1px solid ' + u.border, minWidth:'100%' } }, tabs.map(function(t){ var active = filter === t.value; return h('button', { key:t.value, onClick:function(){ setFilter(t.value); }, style:{ border:'none', background:'transparent', color:active ? u.purpleL : u.textSec, padding:'12px 14px', borderBottom:'2px solid ' + (active ? u.purple : 'transparent'), fontWeight:active ? 900 : 700, fontSize:13, cursor:'pointer' } }, t.label, h('span', { style:{ marginLeft:7, color:active ? u.purpleL : u.textMut, fontSize:11 } }, t.count)); }))),
       h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:16, flexWrap:'wrap' } },
         h('div', { style:{ position:'relative', flex:isMobile ? '1 1 100%' : '0 1 360px' } }, h('div', { style:{ position:'absolute', left:12, top:11, color:u.textMut } }, appIcon('search', 15)), h(TextInput, { value:search, onChange:setSearch, placeholder:'Search animals, breeds, ages...', style:{ paddingLeft:36, height:42 } })),
@@ -925,13 +928,11 @@
 
     var activeCount = (items || []).filter(function(f){ return f.status === 'active'; }).length;
 
-    return h('div', { style:{ padding:isMobile ? '18px 12px 40px' : '28px 28px 40px', flex:1, overflowY:'auto', boxSizing:'border-box' } },
-      h('div', { style:{ display:'flex', alignItems:isMobile ? 'flex-start' : 'center', justifyContent:'space-between', gap:16, marginBottom:22, flexWrap:'wrap' } },
-        h('div', null,
-          h('h1', { style:{ margin:'0 0 4px', color:u.text, fontSize:isMobile ? 24 : 28, fontWeight:900, letterSpacing:'-.04em' } }, 'Fosters'),
-          h('div', { style:{ color:u.textSec, fontSize:13 } }, items === null ? 'Loading...' : activeCount + ' active placements')
-        )
-      ),
+    return h('div', { className: 'dash-page' },
+      h(PageHeader, {
+        title: 'Fosters',
+        subtitle: items === null ? 'Loading...' : activeCount + ' active placements'
+      }),
       // Summary stats
       items !== null && h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:24 } },
         h(SoftCard, { style:{ padding:'16px 20px' } },
@@ -971,11 +972,8 @@
     var isMobile = bp === 'mobile';
     var u = ui();
     useEffect(function(){ apiJSON('/api/dashboard/adoptions').then(function(d){ setItems(d.adoptions || []); }).catch(function(){ setItems([]); }); }, []);
-    return h('div', { style:{ padding:isMobile ? '18px 12px 40px' : '28px 28px 40px', flex:1, overflowY:'auto' } },
-      h('div', { style:{ marginBottom:22 } },
-        h('h1', { style:{ margin:'0 0 4px', color:u.text, fontSize:isMobile ? 24 : 28, fontWeight:900 } }, 'Adoptions'),
-        h('div', { style:{ color:u.textSec, fontSize:13 } }, 'Approved adoption placements')
-      ),
+    return h('div', { className: 'dash-page' },
+      h(PageHeader, { title: 'Adoptions', subtitle: 'Approved adoption placements' }),
       items === null ? h(LoadingBlock, null, 'Loading...') :
       !items.length ? h(EmptyPanel, { iconName:'check', message:'No adoption records yet.' }) :
       h('div', { style:{ display:'flex', flexDirection:'column', gap:12 } }, items.map(function(item, idx){

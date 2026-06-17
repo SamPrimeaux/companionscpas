@@ -15,7 +15,7 @@ PUBLIC="${1:-public}"
 HASH=$(git rev-parse --short HEAD)
 HTML="public/dashboard/index.html"
 if [ -f "$HTML" ]; then
-  sed -i '' "s|\.jsx?v=[^\"]*|\.jsx|g; s|\.jsx\"|\.jsx?v=${HASH}\"|g" "$HTML"
+  sed -i '' "s|\.jsx?v=[^\"]*|\.jsx|g; s|\.jsx\"|\.jsx?v=${HASH}\"|g; s|dash\.css?v=[^\"]*|dash.css|g; s|dash\.css\"|dash.css?v=${HASH}\"|g" "$HTML"
   echo "Hash baked: $HASH → $HTML"
   # Always push index.html even when syncing a subdirectory
   wrangler r2 object put "$BUCKET/dashboard/index.html" \

@@ -1,6 +1,6 @@
 const { useState, useEffect, useRef } = React;
 
-const C = {
+const RPT = {
   bg:      "#0b0b14",
   surface: "#13131f",
   card:    "#1a1a2e",
@@ -24,10 +24,10 @@ const fmt = {
 
 function StatCard({ label, value, sub, subColor }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", minWidth: 0 }}>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 600, color: C.text, lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: subColor || C.muted, marginTop: 5 }}>{sub}</div>}
+    <div style={{ background: RPT.card, border: `1px solid ${RPT.border}`, borderRadius: 10, padding: "14px 16px", minWidth: 0 }}>
+      <div style={{ fontSize: 12, color: RPT.muted, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 600, color: RPT.text, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: subColor || RPT.muted, marginTop: 5 }}>{sub}</div>}
     </div>
   );
 }
@@ -35,8 +35,8 @@ function StatCard({ label, value, sub, subColor }) {
 function SectionHeader({ title, sub }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{title}</div>
-      {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{sub}</div>}
+      <div style={{ fontSize: 15, fontWeight: 600, color: RPT.text }}>{title}</div>
+      {sub && <div style={{ fontSize: 12, color: RPT.muted, marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }
@@ -46,11 +46,11 @@ function ProgressBar({ label, value, max, color, formatVal }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display:"flex", justifyContent:"space-between", fontSize: 13, marginBottom: 5 }}>
-        <span style={{ color: C.text }}>{label}</span>
-        <span style={{ color: C.muted }}>{formatVal ? formatVal(value) : value} / {formatVal ? formatVal(max) : max}</span>
+        <span style={{ color: RPT.text }}>{label}</span>
+        <span style={{ color: RPT.muted }}>{formatVal ? formatVal(value) : value} / {formatVal ? formatVal(max) : max}</span>
       </div>
-      <div style={{ height: 7, background: C.border, borderRadius: 4, overflow:"hidden" }}>
-        <div style={{ height:"100%", width: pct+"%", background: color || C.red, borderRadius: 4, transition:"width .5s ease" }} />
+      <div style={{ height: 7, background: RPT.border, borderRadius: 4, overflow:"hidden" }}>
+        <div style={{ height:"100%", width: pct+"%", background: color || RPT.red, borderRadius: 4, transition:"width .5s ease" }} />
       </div>
     </div>
   );
@@ -58,7 +58,7 @@ function ProgressBar({ label, value, max, color, formatVal }) {
 
 function Badge({ label, color, bg }) {
   return (
-    <span style={{ fontSize: 11, fontWeight: 500, padding: "3px 9px", borderRadius: 20, background: bg || "#222240", color: color || C.muted }}>
+    <span style={{ fontSize: 11, fontWeight: 500, padding: "3px 9px", borderRadius: 20, background: bg || "#222240", color: color || RPT.muted }}>
       {label}
     </span>
   );
@@ -140,7 +140,7 @@ function ReportsView({ onNavigate }) {
       goal,
       donors: Number(c.donor_count || 0),
       status: c.status || "draft",
-      color: [C.red, C.green, C.blue, C.amber, C.purple][i % 5]
+      color: [RPT.red, RPT.green, RPT.blue, RPT.amber, RPT.purple][i % 5]
     };
   });
   const financeDonations = data?.donations?.donations || [];
@@ -158,9 +158,9 @@ function ReportsView({ onNavigate }) {
   const vols = {
     total: 3, active: 3, totalHours: 54,
     rows: [
-      { role:"Developer", hours:24, color: C.red },
-      { role:"Owner",     hours:18, color: C.blue },
-      { role:"Admin",     hours:12, color: C.green },
+      { role:"Developer", hours:24, color: RPT.red },
+      { role:"Owner",     hours:18, color: RPT.blue },
+      { role:"Admin",     hours:12, color: RPT.green },
     ],
   };
   const ai = {
@@ -182,41 +182,37 @@ function ReportsView({ onNavigate }) {
 
   const grid4 = { display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:20 };
   const grid2 = { display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:16 };
-  const card  = { background: C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"16px 18px", marginBottom:14 };
+  const card  = { background: RPT.card, border:`1px solid ${RPT.border}`, borderRadius:10, padding:"16px 18px", marginBottom:14 };
 
   return (
-    <div style={{ padding:"24px 28px", color: C.text, maxWidth:1200 }}>
+    <div className="dash-page" style={{ maxWidth: 1200 }}>
 
-      {/* Header */}
-      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:24 }}>
+      <div className="dash-page-header">
         <div>
-          <h1 style={{ fontSize:22, fontWeight:600, margin:0 }}>Reports</h1>
-          <p style={{ fontSize:13, color:C.muted, marginTop:4 }}>Live data · May 2026</p>
+          <h1 className="dash-page-title">Reports</h1>
+          <p className="dash-page-subtitle">Live data · May 2026</p>
         </div>
-        <button style={{ background:C.red, color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", fontSize:13, fontWeight:500, cursor:"pointer" }}>
+        <button type="button" style={{ background:RPT.red, color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", fontSize:13, fontWeight:500, cursor:"pointer" }}>
           + Custom report
         </button>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display:"flex", gap:4, borderBottom:`1px solid ${C.border}`, marginBottom:24 }}>
+      <div className="dash-tabs dash-tabs--on-dark">
         {REPORT_TABS.map(t => (
-          <button key={t.key} onClick={()=>setTab(t.key)} style={{
-            background:"none", border:"none", borderBottom: tab===t.key ? `2px solid ${C.red}` : "2px solid transparent",
-            color: tab===t.key ? C.text : C.muted, padding:"9px 16px", fontSize:13, fontWeight: tab===t.key ? 600 : 400,
-            cursor:"pointer", marginBottom:-1, transition:"color .15s",
-          }}>{t.label}</button>
+          <button key={t.key} type="button" onClick={()=>setTab(t.key)} className={"dash-tab" + (tab===t.key ? " is-active" : "")}>
+            {t.label}
+          </button>
         ))}
       </div>
 
-      {/* ── ANIMALS ── */}
+      <div className="dash-panel-dark">
       {tab === "animals" && (
         <div>
           <div style={grid4}>
-            <StatCard label="Total animals"   value={animals.total}        sub="+2 this month"      subColor={C.green} />
-            <StatCard label="Available"       value={animals.available}    sub="53% of roster"      subColor={C.muted} />
-            <StatCard label="In foster care"  value={animals.foster}       sub="29% placed"         subColor={C.green} />
-            <StatCard label="Medical watch"   value={animals.medical}      sub="needs attention"    subColor={C.amber} />
+            <StatCard label="Total animals"   value={animals.total}        sub="+2 this month"      subColor={RPT.green} />
+            <StatCard label="Available"       value={animals.available}    sub="53% of roster"      subColor={RPT.muted} />
+            <StatCard label="In foster care"  value={animals.foster}       sub="29% placed"         subColor={RPT.green} />
+            <StatCard label="Medical watch"   value={animals.medical}      sub="needs attention"    subColor={RPT.amber} />
           </div>
           <div style={grid2}>
             <div style={card}>
@@ -235,8 +231,8 @@ function ReportsView({ onNavigate }) {
                 }});
               }} />
               <div style={{ display:"flex", gap:16, marginTop:10, fontSize:12 }}>
-                <span style={{ display:"flex", alignItems:"center", gap:5, color:C.muted }}><span style={{ width:10,height:10,borderRadius:2,background:"#7F77DD",display:"inline-block" }}/>Intakes</span>
-                <span style={{ display:"flex", alignItems:"center", gap:5, color:C.muted }}><span style={{ width:10,height:10,borderRadius:2,background:"#1D9E75",display:"inline-block" }}/>Adoptions</span>
+                <span style={{ display:"flex", alignItems:"center", gap:5, color:RPT.muted }}><span style={{ width:10,height:10,borderRadius:2,background:"#7F77DD",display:"inline-block" }}/>Intakes</span>
+                <span style={{ display:"flex", alignItems:"center", gap:5, color:RPT.muted }}><span style={{ width:10,height:10,borderRadius:2,background:"#1D9E75",display:"inline-block" }}/>Adoptions</span>
               </div>
             </div>
             <div style={card}>
@@ -244,15 +240,15 @@ function ReportsView({ onNavigate }) {
               <ChartBox id="rpt_roster_chart" height={200} setup={canvas => {
                 new Chart(canvas, { type:"doughnut", data:{
                   labels:["Available","Foster","Medical watch"],
-                  datasets:[{ data:[9,5,3], backgroundColor:[C.red, C.green, C.amber], borderWidth:0, hoverOffset:4 }]
+                  datasets:[{ data:[9,5,3], backgroundColor:[RPT.red, RPT.green, RPT.amber], borderWidth:0, hoverOffset:4 }]
                 }, options:{
                   responsive:true, maintainAspectRatio:false, cutout:"68%",
                   plugins:{ legend:{ display:false } }
                 }});
               }} />
               <div style={{ display:"flex", gap:14, marginTop:10, fontSize:12, flexWrap:"wrap" }}>
-                {[["Available",9,C.red],["Foster",5,C.green],["Medical",3,C.amber]].map(([l,v,c])=>(
-                  <span key={l} style={{ display:"flex", alignItems:"center", gap:5, color:C.muted }}>
+                {[["Available",9,RPT.red],["Foster",5,RPT.green],["Medical",3,RPT.amber]].map(([l,v,c])=>(
+                  <span key={l} style={{ display:"flex", alignItems:"center", gap:5, color:RPT.muted }}>
                     <span style={{ width:10,height:10,borderRadius:2,background:c,display:"inline-block" }}/>{l} {v}
                   </span>
                 ))}
@@ -261,9 +257,9 @@ function ReportsView({ onNavigate }) {
           </div>
           <div style={card}>
             <SectionHeader title="Foster pipeline" sub={`${animals.fosterNeeded} animals need foster placement`} />
-            <ProgressBar label="Foster needed"    value={animals.fosterNeeded} max={animals.total}    color={C.red}    formatVal={v=>v+" dogs"} />
-            <ProgressBar label="Currently fostered" value={animals.foster}      max={animals.total}    color={C.green}  formatVal={v=>v+" dogs"} />
-            <ProgressBar label="Featured profiles"  value={animals.featured}    max={animals.total}    color={C.purple} formatVal={v=>v+" dogs"} />
+            <ProgressBar label="Foster needed"    value={animals.fosterNeeded} max={animals.total}    color={RPT.red}    formatVal={v=>v+" dogs"} />
+            <ProgressBar label="Currently fostered" value={animals.foster}      max={animals.total}    color={RPT.green}  formatVal={v=>v+" dogs"} />
+            <ProgressBar label="Featured profiles"  value={animals.featured}    max={animals.total}    color={RPT.purple} formatVal={v=>v+" dogs"} />
           </div>
         </div>
       )}
@@ -272,10 +268,10 @@ function ReportsView({ onNavigate }) {
       {tab === "financial" && (
         <div>
           <div style={grid4}>
-            <StatCard label="Total raised"     value={fmt.usd(finance.totalRaised)} sub={`${finance.activeCampaigns} active campaigns`} subColor={C.green} />
-            <StatCard label="Goal total"       value={fmt.usd(finance.totalGoal)}   sub={fmt.pct(finance.totalGoal ? finance.totalRaised/finance.totalGoal*100 : 0)+" to goal"} subColor={C.amber} />
-            <StatCard label="Donors"   value={finance.donorCount}        sub={`${finance.pendingRecords} pending records`} subColor={C.green} />
-            <StatCard label="Remaining gap"    value={fmt.usd(Math.max(0, finance.totalGoal-finance.totalRaised))} sub="across campaigns" subColor={C.amber} />
+            <StatCard label="Total raised"     value={fmt.usd(finance.totalRaised)} sub={`${finance.activeCampaigns} active campaigns`} subColor={RPT.green} />
+            <StatCard label="Goal total"       value={fmt.usd(finance.totalGoal)}   sub={fmt.pct(finance.totalGoal ? finance.totalRaised/finance.totalGoal*100 : 0)+" to goal"} subColor={RPT.amber} />
+            <StatCard label="Donors"   value={finance.donorCount}        sub={`${finance.pendingRecords} pending records`} subColor={RPT.green} />
+            <StatCard label="Remaining gap"    value={fmt.usd(Math.max(0, finance.totalGoal-finance.totalRaised))} sub="across campaigns" subColor={RPT.amber} />
           </div>
           <div style={card}>
             <SectionHeader title="Campaign progress" sub="fundraising_campaigns" />
@@ -318,18 +314,18 @@ function ReportsView({ onNavigate }) {
         <div>
           <div style={grid4}>
             <StatCard label="Total"        value={apps.total}    sub="all foster" />
-            <StatCard label="New / unread" value={apps.new}      sub="needs review"   subColor={C.amber} />
-            <StatCard label="Under review" value={apps.review}   sub="in progress"    subColor={C.blue} />
-            <StatCard label="Approved"     value={apps.approved} sub={fmt.pct(apps.approved/apps.total*100)+" approval rate"} subColor={C.green} />
+            <StatCard label="New / unread" value={apps.new}      sub="needs review"   subColor={RPT.amber} />
+            <StatCard label="Under review" value={apps.review}   sub="in progress"    subColor={RPT.blue} />
+            <StatCard label="Approved"     value={apps.approved} sub={fmt.pct(apps.approved/apps.total*100)+" approval rate"} subColor={RPT.green} />
           </div>
           <div style={grid2}>
             <div style={card}>
               <SectionHeader title="Pipeline" sub="All applications" />
               {apps.pipeline.map((a,i) => (
-                <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 0", borderBottom: i<apps.pipeline.length-1 ? `1px solid ${C.border}` : "none" }}>
+                <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 0", borderBottom: i<apps.pipeline.length-1 ? `1px solid ${RPT.border}` : "none" }}>
                   <div>
-                    <div style={{ fontSize:13, fontWeight:500, color:C.text }}>{a.id}</div>
-                    <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>{a.status}</div>
+                    <div style={{ fontSize:13, fontWeight:500, color:RPT.text }}>{a.id}</div>
+                    <div style={{ fontSize:12, color:RPT.muted, marginTop:2 }}>{a.status}</div>
                   </div>
                   <Badge label={a.badge==="new"?"New":a.badge==="review"?"Under review":"Approved"} {...(badgeStyle[a.badge]||{})} />
                 </div>
@@ -340,12 +336,12 @@ function ReportsView({ onNavigate }) {
               <ChartBox id="rpt_app_chart" height={180} setup={canvas => {
                 new Chart(canvas, { type:"doughnut", data:{
                   labels:["Under review","New","Approved"],
-                  datasets:[{ data:[2,1,1], backgroundColor:[C.amber,"#378ADD",C.green], borderWidth:0, hoverOffset:4 }]
+                  datasets:[{ data:[2,1,1], backgroundColor:[RPT.amber,"#378ADD",RPT.green], borderWidth:0, hoverOffset:4 }]
                 }, options:{ responsive:true, maintainAspectRatio:false, cutout:"65%", plugins:{ legend:{ display:false } } }});
               }} />
               <div style={{ display:"flex", gap:14, marginTop:10, fontSize:12, flexWrap:"wrap" }}>
-                {[["Under review",2,C.amber],["New",1,C.blue],["Approved",1,C.green]].map(([l,v,c])=>(
-                  <span key={l} style={{ display:"flex", alignItems:"center", gap:5, color:C.muted }}>
+                {[["Under review",2,RPT.amber],["New",1,RPT.blue],["Approved",1,RPT.green]].map(([l,v,c])=>(
+                  <span key={l} style={{ display:"flex", alignItems:"center", gap:5, color:RPT.muted }}>
                     <span style={{ width:10,height:10,borderRadius:2,background:c,display:"inline-block" }}/>{l} {v}
                   </span>
                 ))}
@@ -360,20 +356,20 @@ function ReportsView({ onNavigate }) {
         <div>
           <div style={grid4}>
             <StatCard label="Active volunteers" value={vols.active}                   sub="all roles" />
-            <StatCard label="Hours this month"  value={vols.totalHours}               sub="combined" subColor={C.green} />
-            <StatCard label="Top contributor"   value="Developer"                     sub="24 hrs" subColor={C.green} />
+            <StatCard label="Hours this month"  value={vols.totalHours}               sub="combined" subColor={RPT.green} />
+            <StatCard label="Top contributor"   value="Developer"                     sub="24 hrs" subColor={RPT.green} />
             <StatCard label="Avg hrs / person"  value={Math.round(vols.totalHours/vols.active)} sub="per month" />
           </div>
           <div style={grid2}>
             <div style={card}>
               <SectionHeader title="Hours by role" sub="May 2026 · 54 total" />
               {vols.rows.map(v => (
-                <div key={v.role} style={{ display:"grid", gridTemplateColumns:"1fr 100px 60px", alignItems:"center", gap:16, padding:"9px 0", borderBottom:`1px solid ${C.border}` }}>
-                  <span style={{ fontSize:13, color:C.text }}>{v.role}</span>
-                  <div style={{ height:6, background:C.border, borderRadius:3, overflow:"hidden" }}>
+                <div key={v.role} style={{ display:"grid", gridTemplateColumns:"1fr 100px 60px", alignItems:"center", gap:16, padding:"9px 0", borderBottom:`1px solid ${RPT.border}` }}>
+                  <span style={{ fontSize:13, color:RPT.text }}>{v.role}</span>
+                  <div style={{ height:6, background:RPT.border, borderRadius:3, overflow:"hidden" }}>
                     <div style={{ height:"100%", width:(v.hours/24*100)+"%", background:v.color, borderRadius:3 }} />
                   </div>
-                  <span style={{ fontSize:13, fontWeight:500, color:C.text, textAlign:"right" }}>{v.hours} hrs</span>
+                  <span style={{ fontSize:13, fontWeight:500, color:RPT.text, textAlign:"right" }}>{v.hours} hrs</span>
                 </div>
               ))}
             </div>
@@ -394,25 +390,25 @@ function ReportsView({ onNavigate }) {
       {tab === "medical" && (
         <div>
           <div style={grid4}>
-            <StatCard label="Medical watch"    value={3}   sub="active cases"      subColor={C.amber} />
-            <StatCard label="Vaccinations due" value={3}   sub="this month"         subColor={C.amber} />
-            <StatCard label="Medications"      value={8}   sub="active / 34 tasks"  subColor={C.muted} />
-            <StatCard label="Compliant"        value="73%" sub="of roster"          subColor={C.green} />
+            <StatCard label="Medical watch"    value={3}   sub="active cases"      subColor={RPT.amber} />
+            <StatCard label="Vaccinations due" value={3}   sub="this month"         subColor={RPT.amber} />
+            <StatCard label="Medications"      value={8}   sub="active / 34 tasks"  subColor={RPT.muted} />
+            <StatCard label="Compliant"        value="73%" sub="of roster"          subColor={RPT.green} />
           </div>
           <div style={card}>
             <SectionHeader title="Care task completion" sub="Daily care · current sprint" />
-            <ProgressBar label="Feed"          value={32}  max={128} color={C.purple} />
-            <ProgressBar label="Walk"          value={18}  max={128} color={C.blue} />
-            <ProgressBar label="Medications"   value={8}   max={34}  color={C.red} />
-            <ProgressBar label="Vaccinations"  value={3}   max={12}  color={C.amber} />
+            <ProgressBar label="Feed"          value={32}  max={128} color={RPT.purple} />
+            <ProgressBar label="Walk"          value={18}  max={128} color={RPT.blue} />
+            <ProgressBar label="Medications"   value={8}   max={34}  color={RPT.red} />
+            <ProgressBar label="Vaccinations"  value={3}   max={12}  color={RPT.amber} />
           </div>
           <div style={card}>
             <SectionHeader title="Medical compliance overview" sub="Vaccination, medication, and treatment status" />
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:8 }}>
-              {[["Up to date",11,C.green],["Due soon",3,C.amber],["Overdue",3,C.red]].map(([l,v,c])=>(
-                <div key={l} style={{ background:C.surface, borderRadius:8, padding:"12px 14px", border:`1px solid ${C.border}` }}>
+              {[["Up to date",11,RPT.green],["Due soon",3,RPT.amber],["Overdue",3,RPT.red]].map(([l,v,c])=>(
+                <div key={l} style={{ background:RPT.surface, borderRadius:8, padding:"12px 14px", border:`1px solid ${RPT.border}` }}>
                   <div style={{ fontSize:24, fontWeight:600, color:c }}>{v}</div>
-                  <div style={{ fontSize:12, color:C.muted, marginTop:4 }}>{l}</div>
+                  <div style={{ fontSize:12, color:RPT.muted, marginTop:4 }}>{l}</div>
                 </div>
               ))}
             </div>
@@ -424,10 +420,10 @@ function ReportsView({ onNavigate }) {
       {tab === "ai" && (
         <div>
           <div style={grid4}>
-            <StatCard label="Runs (30d)"     value={ai.runs}               sub="2 failed"          subColor={C.muted} />
-            <StatCard label="Cost (30d)"     value={fmt.usd(ai.cost)}      sub="MTD spend"         subColor={C.green} />
-            <StatCard label="Total tokens"   value={fmt.int(ai.tokensIn+ai.tokensOut)} sub={fmt.int(ai.tokensIn)+" in / "+fmt.int(ai.tokensOut)+" out"} subColor={C.muted} />
-            <StatCard label="Avg latency"    value={fmt.ms(ai.avgLatency)} sub="per run"           subColor={C.muted} />
+            <StatCard label="Runs (30d)"     value={ai.runs}               sub="2 failed"          subColor={RPT.muted} />
+            <StatCard label="Cost (30d)"     value={fmt.usd(ai.cost)}      sub="MTD spend"         subColor={RPT.green} />
+            <StatCard label="Total tokens"   value={fmt.int(ai.tokensIn+ai.tokensOut)} sub={fmt.int(ai.tokensIn)+" in / "+fmt.int(ai.tokensOut)+" out"} subColor={RPT.muted} />
+            <StatCard label="Avg latency"    value={fmt.ms(ai.avgLatency)} sub="per run"           subColor={RPT.muted} />
           </div>
           <div style={grid2}>
             <div style={card}>
@@ -435,7 +431,7 @@ function ReportsView({ onNavigate }) {
               <ChartBox id="rpt_ai_cost" height={200} setup={canvas => {
                 new Chart(canvas, { type:"bar", data:{
                   labels: ai.models.map(m=>m.key.split("/").pop().replace(/@cf\//,"")),
-                  datasets:[{ label:"Cost $", data: ai.models.map(m=>+m.cost.toFixed(4)), backgroundColor:[C.red,C.blue,C.purple], borderRadius:4 }]
+                  datasets:[{ label:"Cost $", data: ai.models.map(m=>+m.cost.toFixed(4)), backgroundColor:[RPT.red,RPT.blue,RPT.purple], borderRadius:4 }]
                 }, options:{
                   responsive:true, maintainAspectRatio:false,
                   plugins:{ legend:{ display:false } },
@@ -448,7 +444,7 @@ function ReportsView({ onNavigate }) {
               <ChartBox id="rpt_ai_runs" height={200} setup={canvas => {
                 new Chart(canvas, { type:"doughnut", data:{
                   labels: ai.models.map(m=>m.key.split("/").pop()),
-                  datasets:[{ data: ai.models.map(m=>m.runs), backgroundColor:[C.red,C.blue,C.purple], borderWidth:0, hoverOffset:4 }]
+                  datasets:[{ data: ai.models.map(m=>m.runs), backgroundColor:[RPT.red,RPT.blue,RPT.purple], borderWidth:0, hoverOffset:4 }]
                 }, options:{ responsive:true, maintainAspectRatio:false, cutout:"65%", plugins:{ legend:{ display:false } } }});
               }} />
             </div>
@@ -457,20 +453,20 @@ function ReportsView({ onNavigate }) {
             <SectionHeader title="Model breakdown" sub="Completed runs · all time" />
             <table style={{ width:"100%", fontSize:13, borderCollapse:"collapse" }}>
               <thead>
-                <tr style={{ color:C.hint, fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                <tr style={{ color:RPT.hint, fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em" }}>
                   {["Model","Runs","Tokens","Cost","Avg cost/run"].map(h=>(
-                    <th key={h} style={{ padding:"8px 0", textAlign:h==="Model"?"left":"right", fontWeight:500, borderBottom:`1px solid ${C.border}` }}>{h}</th>
+                    <th key={h} style={{ padding:"8px 0", textAlign:h==="Model"?"left":"right", fontWeight:500, borderBottom:`1px solid ${RPT.border}` }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {ai.models.map((m,i) => (
-                  <tr key={i} style={{ borderBottom:`1px solid ${C.border}` }}>
-                    <td style={{ padding:"10px 0", color:C.text, fontFamily:"monospace", fontSize:12 }}>{m.key}</td>
-                    <td style={{ textAlign:"right", color:C.muted }}>{m.runs}</td>
-                    <td style={{ textAlign:"right", color:C.muted }}>{fmt.int(m.tokens)}</td>
-                    <td style={{ textAlign:"right", color: m.cost>0 ? C.amber : C.hint }}>{m.cost>0?fmt.usd(m.cost):"—"}</td>
-                    <td style={{ textAlign:"right", color:C.muted }}>{m.runs>0&&m.cost>0?fmt.usd(m.cost/m.runs):"—"}</td>
+                  <tr key={i} style={{ borderBottom:`1px solid ${RPT.border}` }}>
+                    <td style={{ padding:"10px 0", color:RPT.text, fontFamily:"monospace", fontSize:12 }}>{m.key}</td>
+                    <td style={{ textAlign:"right", color:RPT.muted }}>{m.runs}</td>
+                    <td style={{ textAlign:"right", color:RPT.muted }}>{fmt.int(m.tokens)}</td>
+                    <td style={{ textAlign:"right", color: m.cost>0 ? RPT.amber : RPT.hint }}>{m.cost>0?fmt.usd(m.cost):"—"}</td>
+                    <td style={{ textAlign:"right", color:RPT.muted }}>{m.runs>0&&m.cost>0?fmt.usd(m.cost/m.runs):"—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -479,6 +475,7 @@ function ReportsView({ onNavigate }) {
         </div>
       )}
 
+      </div>
     </div>
   );
 }

@@ -5,6 +5,23 @@ window.CPAS_CONFIG = {
   brand: {}
 };
 
+/** Dashboard light palette — never let CMS theme css_vars clobber these. */
+const DASH_PALETTE = {
+  "--dash-bg":            "#ede8df",
+  "--dash-bg2":           "#e5e0d6",
+  "--dash-surface":       "#faf7f3",
+  "--dash-surface-muted": "#f5f1e8",
+  "--dash-border":        "rgba(0,0,0,0.07)",
+  "--dash-border-strong": "rgba(26,22,34,0.12)",
+  "--dash-text":          "#1a1622",
+  "--dash-text-sec":      "#3d3529",
+  "--dash-text-muted":    "#5a5046",
+};
+
+function pinDashboardPalette(root = document.documentElement) {
+  Object.entries(DASH_PALETTE).forEach(([k, v]) => root.style.setProperty(k, v));
+}
+
 window.applyCmsTheme = function applyCmsTheme(theme, brand) {
   if (!theme && !brand) return;
   const root = document.documentElement;
@@ -12,8 +29,13 @@ window.applyCmsTheme = function applyCmsTheme(theme, brand) {
   if (theme?.css_vars_json) {
     let vars = theme.css_vars_json;
     if (typeof vars === "string") { try { vars = JSON.parse(vars); } catch { vars = {}; } }
-    Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+    Object.entries(vars).forEach(([k, v]) => {
+      if (k.startsWith("--dash-")) return;
+      root.style.setProperty(k, v);
+    });
   }
+
+  pinDashboardPalette(root);
 
   const primaryColor   = brand?.primary_color  || "#8664B7";
   const secondaryColor = brand?.secondary_color || "#172033";

@@ -71,28 +71,18 @@ function OverviewView({ onNavigate }) {
   const middleGrid     = isMobile ? "1fr" : "1fr 1.6fr";
   const recentGrid     = isNarrow ? "1fr" : isMobile ? "repeat(2,minmax(0,1fr))" : "repeat(5,1fr)";
   const bottomGrid     = isMobile ? "1fr" : "1fr 1fr 1fr";
-  const contentPadding = isMobile ? "18px 14px 32px" : "28px 28px 40px";
+  const userName = (window.CPAS?.user?.name || window.CPAS_USER?.full_name || "Team").split(" ")[0];
 
   return React.createElement("div", { style:{ display:"flex", gap:0, minHeight:0, flex:1 } },
-    // Main content
-    React.createElement("div", { style:{ flex:1, overflowY:"auto", overflowX:"hidden", padding:contentPadding } },
+    React.createElement("div", { className: "dash-page" },
 
-      // Header
-      React.createElement("div", { style:{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24, flexWrap:"wrap", gap:12 } },
-        React.createElement("div", null,
-          React.createElement("h1", { style:{ fontSize: isMobile ? 20 : 26, fontWeight:700, color:C.text, margin:0 } },
-            `Welcome back, ${(window.CPAS?.user?.name || window.CPAS_USER?.full_name || "Team").split(" ")[0]}`
-          ),
-          React.createElement("p", { style:{ fontSize:13, color:C.textSec, margin:"4px 0 0" } },
-            "Here's what's happening at Companions of CPAS today."
-          )
-        ),
-        !isMobile && React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:8 } },
-          React.createElement("span", { style:{ fontSize:12, color:C.textSec } },
-            new Date().toLocaleDateString(undefined, { month:"long", day:"numeric", year:"numeric" })
-          )
+      React.createElement(PageHeader, {
+        title: `Welcome back, ${userName}`,
+        subtitle: "Here's what's happening at Companions of CPAS today.",
+        meta: !isMobile && React.createElement("span", { className: "dash-page-meta" },
+          new Date().toLocaleDateString(undefined, { month:"long", day:"numeric", year:"numeric" })
         )
-      ),
+      }),
 
       // Stat cards
       React.createElement("div", { style:{ display:"grid", gridTemplateColumns:statsGrid, gap:12, marginBottom:24 } },
@@ -108,8 +98,8 @@ function OverviewView({ onNavigate }) {
         // Daily care
         React.createElement(Card, { style:{ padding:20, minWidth:0 } },
           React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 } },
-            React.createElement("h3", { style:{ margin:0, fontSize:14, fontWeight:600, color:C.text } }, "Daily Care Overview"),
-            React.createElement("button", { onClick:()=>onNavigate("medical"), style:{ background:"none", border:"none", color:C.purple, fontSize:12, fontWeight:600, cursor:"pointer" } }, "View all")
+            React.createElement("h3", { className: "dash-section-title" }, "Daily Care Overview"),
+            React.createElement("button", { type: "button", className: "dash-link", onClick:()=>onNavigate("medical") }, "View all")
           ),
           React.createElement("div", { style:{ display:"flex", flexDirection:"column", gap:14 } },
             careItems.map(item =>

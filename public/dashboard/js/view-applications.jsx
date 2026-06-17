@@ -18,7 +18,7 @@ function ApplicationsView({ onNavigate }) {
     return matchTab && matchSearch;
   });
 
-  return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
+  return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Applications",
       subtitle:"Foster and adoption applications",
@@ -82,7 +82,7 @@ function ApplicationDetailView({ appId, onNavigate }) {
     React.createElement("span", { style:{ fontSize:12, color:C.text, fontWeight:500 } }, value ?? "—")
   );
 
-  return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
+  return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title: app.id,
       back:"Back to Applications",

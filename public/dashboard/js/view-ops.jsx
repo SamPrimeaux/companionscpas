@@ -9,7 +9,7 @@ function IntakesView({ onNavigate }) {
   );
   const methodCounts = CPAS.intakes.reduce((acc,i)=>{ acc[i.method]=(acc[i.method]||0)+1; return acc; },{});
 
-  return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
+  return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Intakes",
       subtitle:"Animal intake records and history",
@@ -80,7 +80,7 @@ function DailyCareView({ onNavigate }) {
 
   const taskIcon = { Feed:"🍽️", Walk:"🦮", Medication:"💊", Vaccination:"💉" };
 
-  return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
+  return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Daily Care",
       subtitle:`${new Date().toLocaleDateString(undefined, { month:"long", day:"numeric", year:"numeric" })} — Today’s task list`,
@@ -138,7 +138,7 @@ function MedicalView({ onNavigate }) {
     return matchType && matchSearch;
   });
 
-  return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
+  return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Medical Records",
       subtitle:"Veterinary records across all animals",
@@ -206,7 +206,7 @@ function VolunteersView({ onNavigate }) {
   const totalHours = CPAS.volunteers.reduce((s,v)=>s+v.hoursMTD,0);
   const active = CPAS.volunteers.filter(v=>v.status==="Active").length;
 
-  return React.createElement("div", { style:{ padding:"28px 28px 40px", flex:1, overflowY:"auto" } },
+  return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Volunteers",
       subtitle:"Team members and hour tracking",
