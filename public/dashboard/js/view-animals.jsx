@@ -270,7 +270,19 @@
 
   function EmptyPanel(props) {
     var u = ui();
-    return h('div', { style:Object.assign({ padding:props.compact ? '16px' : '32px 20px', textAlign:'center', color:u.textMut, border:'1px dashed ' + u.border, borderRadius:14, background:'rgba(255,255,255,.02)', fontSize:13 }, props.style || {}) },
+    return h('div', {
+      onClick: props.onClick,
+      style: Object.assign({
+        padding: props.compact ? '16px' : '32px 20px',
+        textAlign: 'center',
+        color: u.textMut,
+        border: '1px dashed ' + u.border,
+        borderRadius: 14,
+        background: 'rgba(255,255,255,.02)',
+        fontSize: 13,
+        cursor: props.onClick ? 'pointer' : 'default'
+      }, props.style || {})
+    },
       props.iconName ? h('div', { style:{ marginBottom:10, display:'flex', justifyContent:'center', color:u.textMut } }, appIcon(props.iconName, 22)) : null,
       props.message || 'Nothing to show yet.'
     );
@@ -458,7 +470,18 @@
     var needsFosterBadge = Number(a.foster_needed) === 1 && a.status !== 'foster';
     return h('div', { onClick:function(){ if (props.onOpen) props.onOpen(a); }, onMouseEnter:function(){ setHover(true); }, onMouseLeave:function(){ setHover(false); }, style:{ position:'relative', background:'linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.012)), ' + u.surface, border:'1px solid ' + (hover ? u.purple + '77' : u.border), borderRadius:18, overflow:'hidden', cursor:'pointer', transition:'all .16s ease', transform:hover && !isMobile ? 'translateY(-2px)' : 'none', boxShadow:hover && !isMobile ? '0 22px 58px rgba(12,12,28,.18)' : '0 14px 34px rgba(12,12,28,.08)' } },
       h('div', { style:{ height:isMobile ? 160 : 190, background:u.raised, overflow:'hidden', position:'relative' } },
-        a.photo ? h('img', { src:a.photo, alt:a.name || 'Animal photo', style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' }, onError:function(e){ e.currentTarget.style.display='none'; } }) : h(EmptyPanel, { compact:true, iconName:'file', message:'No photo', style:{ height:'100%', border:'none', borderRadius:0 } }),
+        a.photo ? h('img', { src:a.photo, alt:a.name || 'Animal photo', style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' }, onError:function(e){ e.currentTarget.style.display='none'; } }) :
+        h(EmptyPanel, {
+          compact: true,
+          iconName: 'plus',
+          message: 'Add photo',
+          onClick: function(e){
+            e.stopPropagation();
+            window.__editPhotoOfId = a.id;
+            if (props.onOpen) props.onOpen(a);
+          },
+          style: { height:'100%', border:'none', borderRadius:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', cursor:'pointer' }
+        }),
         h('div', { style:{ position:'absolute', top:8, right:8 } }, h(StatusPill, { status:a.status, style:{ background:'rgba(15,15,30,.72)', backdropFilter:'blur(10px)' } })),
         needsFosterBadge ? h('div', { style:{ position:'absolute', top:8, left:8 } }, h(StatusPill, { label:'Foster Needed', color:u.yellow, dot:true, style:{ background:'rgba(15,15,30,.72)', backdropFilter:'blur(10px)' } })) : null,
         hover && !isMobile ? h('div', { style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.42)', display:'flex', alignItems:'center', justifyContent:'center' } }, h(Button, { size:'sm', iconName:'edit' }, 'Edit Profile')) : null
@@ -475,10 +498,156 @@
     );
   }
 
+  function LibraryPickerModal(props) {
+    var isMobile = props.isMobile, onClose = props.onClose, onSelect = props.onSelect;
+    var u = ui();
+    var assetsState = useState(null), assets = assetsState[0], setAssets = assetsState[1];
+    var loadingState = useState(true), loading = loadingState[0], setLoading = loadingState[1];
+    var errorState = useState(''), error = errorState[0], setError = errorState[1];
+
+    useEffect(function(){
+      setLoading(true); setError('');
+      apiJSON('/api/cms/assets?category=animal')
+        .then(function(d){ setAssets(d.assets || []); })
+        .catch(function(e){ setError(e.message || 'Failed to load library images'); })
+        .finally(function(){ setLoading(false); });
+    }, []);
+
+    var content;
+    if (loading) {
+      content = h('div', { style:{ padding:30, textAlign:'center', color:u.textMut } }, 'Loading library...');
+    } else if (error) {
+      content = h('div', { style:{ padding:30, textAlign:'center', color:u.red } }, error);
+    } else if (!assets || assets.length === 0) {
+      content = h('div', { style:{ padding:30, textAlign:'center', color:u.textMut } }, 'No animal photos in library.');
+    } else {
+      content = h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:12, maxHeight:320, overflowY:'auto', padding:'4px 2px' } },
+        assets.map(function(asset){
+          var url = asset.public_url || asset.cdn_url || asset.pub_url || asset.url || '';
+          return h('div', {
+            key: asset.id,
+            onClick: function(){ onSelect(url); },
+            style: {
+              background: u.raised,
+              border: '1px solid ' + u.border,
+              borderRadius: 12,
+              overflow: 'hidden',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              transition: 'border-color 0.2s',
+            }
+          },
+            h('div', { style:{ width:'100%', height:80, background:'#000', overflow:'hidden' } },
+              h('img', { src:url, alt:asset.label || 'Asset', style:{ width:'100%', height:'100%', objectFit:'cover' } })
+            ),
+            h('div', { style:{ padding:6, fontSize:10, color:u.text, textOverflow:'ellipsis', overflow:'hidden', whiteSpace:'nowrap', fontWeight:700, textAlign:'center' } }, asset.label || asset.filename || 'Image')
+          );
+        })
+      );
+    }
+
+    return h('div', { style:{ position:'fixed', inset:0, zIndex:250, background:'rgba(0,0,0,.52)', display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? 0 : 16 } },
+      h('div', { style:{ width:isMobile ? '100%' : 460, maxHeight:'90vh', background:u.bg, border:'1px solid ' + u.border, borderRadius:isMobile ? 0 : 16, padding:18, display:'flex', flexDirection:'column', boxSizing:'border-box' } },
+        h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 } },
+          h('h3', { style:{ margin:0, color:u.text, fontSize:16, fontWeight:800 } }, 'Select Photo from Library'),
+          h(Button, { variant:'secondary', size:'sm', onClick:onClose }, 'Close')
+        ),
+        content
+      )
+    );
+  }
+
+  function ProfilePhotoField(props) {
+    var photoUrl = props.value, onChange = props.onChange, animalName = props.animalName || 'Animal', isMobile = props.isMobile;
+    var u = ui();
+    var uploadingState = useState(false), uploading = uploadingState[0], setUploading = uploadingState[1];
+    var errorState = useState(''), error = errorState[0], setError = errorState[1];
+    var pickerState = useState(false), showPicker = pickerState[0], setShowPicker = pickerState[1];
+
+    function uploadPhoto(file) {
+      if (!file) return;
+      setUploading(true);
+      setError('');
+      var fd = new FormData();
+      fd.append('file', file);
+      fd.append('usage_context', 'animal_profile');
+      fd.append('category', 'animal');
+      fd.append('label', animalName || file.name);
+      fd.append('alt_text', (animalName || 'Animal') + ' photo');
+
+      fetch('/api/cms/asset/upload', { method:'POST', credentials:'include', body:fd })
+        .then(function(res){
+          if (!res.ok) {
+            return res.json().catch(function(){ return {}; }).then(function(d){
+              throw new Error(d.error || 'Upload failed with status ' + res.status);
+            });
+          }
+          return res.json();
+        })
+        .then(function(d){
+          var uploadedUrl = d.public_url || d.cdn_url || d.pub_url || d.url;
+          if (uploadedUrl) {
+            onChange(uploadedUrl);
+          } else {
+            throw new Error('Upload succeeded but no public URL was returned.');
+          }
+        })
+        .catch(function(err){
+          setError(err.message || 'Upload failed');
+        })
+        .finally(function(){
+          setUploading(false);
+        });
+    }
+
+    return h('div', { style:{ border:'1px solid ' + u.border, borderRadius:14, padding:14, background:u.surface, display:'flex', flexDirection:'column', gap:10, marginBottom:8 } },
+      h('div', { style:{ display:'flex', gap:12, alignItems:'center' } },
+        h('div', { style:{ width:70, height:70, borderRadius:12, overflow:'hidden', border:'1px solid ' + u.border, background:u.raised, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' } },
+          photoUrl ? h('img', { src:photoUrl, alt:'Preview', style:{ width:'100%', height:'100%', objectFit:'cover' } }) :
+          h('span', { style:{ fontSize:10, color:u.textMut, fontWeight:700 } }, 'No Photo')
+        ),
+        h('div', { style:{ display:'flex', flexDirection:'column', gap:6, flex:1 } },
+          h('div', { style:{ display:'flex', gap:8, flexWrap:'wrap' } },
+            h('label', { style:{ height:34, border:'1px solid ' + u.purple, borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', padding:'0 12px', color:'#fff', background:u.purple, fontSize:12, fontWeight:800, cursor:uploading ? 'not-allowed' : 'pointer', opacity:uploading ? .6 : 1 } },
+              uploading ? 'Uploading...' : 'Upload Photo',
+              h('input', { type:'file', accept:'image/*', disabled:uploading, style:{ display:'none' }, onChange:function(e){ if (e.target.files && e.target.files[0]) uploadPhoto(e.target.files[0]); } })
+            ),
+            h(Button, { variant:'secondary', size:'sm', onClick:function(){ setShowPicker(true); } }, 'Choose from Library')
+          ),
+          photoUrl ? h('div', null,
+            h('button', {
+              onClick: function(){ onChange(''); },
+              style: { border:'none', background:'transparent', color:u.red, fontSize:11, fontWeight:800, cursor:'pointer', padding:0 }
+            }, 'Clear photo')
+          ) : null
+        )
+      ),
+      h('div', null,
+        h(FieldLabel, null, 'Photo URL'),
+        h(TextInput, {
+          value: photoUrl,
+          placeholder: 'https://...',
+          onChange: onChange,
+          style: { height:36, fontSize:12 }
+        }),
+        h('span', { style:{ fontSize:10, color:u.textMut, marginTop:4, display:'block' } },
+          'Upload a photo, choose an existing media asset, or paste an official image URL.'
+        )
+      ),
+      error ? h('div', { style:{ color:u.red, fontSize:11, fontWeight:700 } }, error) : null,
+      showPicker ? h(LibraryPickerModal, {
+        isMobile: isMobile,
+        onClose: function(){ setShowPicker(false); },
+        onSelect: function(url){ onChange(url); setShowPicker(false); }
+      }) : null
+    );
+  }
+
   function AnimalAddModal(props) {
     var isMobile = props.isMobile;
     var u = ui();
-    var formState = useState({ name:'', species:'Dog', breed:'', age_label:'Unknown', sex:'Unknown', status:'available' });
+    var formState = useState({ name:'', species:'Dog', breed:'', age_label:'Unknown', sex:'Unknown', status:'available', photo_url:'' });
     var form = formState[0], setForm = formState[1];
     var savingState = useState(false), saving = savingState[0], setSaving = savingState[1];
     var errorState = useState(''), error = errorState[0], setError = errorState[1];
@@ -495,6 +664,7 @@
       h('div', { style:{ width:isMobile ? '100%' : 520, maxHeight:'100vh', overflowY:'auto', background:u.bg, border:'1px solid ' + u.border, borderRadius:isMobile ? 0 : 20, padding:isMobile ? 18 : 24, boxSizing:'border-box' } },
         h('div', { style:{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'center', marginBottom:18 } }, h('h2', { style:{ margin:0, color:u.text, fontSize:20 } }, 'Add Animal'), h(Button, { variant:'secondary', size:'sm', onClick:props.onClose }, 'Close')),
         h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '1fr 1fr', gap:12 } },
+          h('div', { style:{ gridColumn:isMobile ? 'span 1' : 'span 2' } }, h(ProfilePhotoField, { value:form.photo_url || '', onChange:function(v){ set('photo_url', v); }, animalName:form.name, isMobile:isMobile })),
           h('div', null, h(FieldLabel, null, 'Name'), h(TextInput, { value:form.name, onChange:function(v){ set('name', v); } })),
           h('div', null, h(FieldLabel, null, 'Species'), h(SelectInput, { value:form.species, onChange:function(v){ set('species', v); }, options:['Dog','Cat','Other'] })),
           h('div', null, h(FieldLabel, null, 'Breed'), h(TextInput, { value:form.breed, onChange:function(v){ set('breed', v); } })),
@@ -569,11 +739,20 @@
   }
 
   function ProfileHero(props) {
-    var a = props.animal, foster = props.foster, isMobile = props.isMobile;
+    var a = props.animal, foster = props.foster, isMobile = props.isMobile, onEditPhoto = props.onEditPhoto;
     var u = ui();
     return h(SoftCard, { style:{ padding:isMobile ? 16 : 22, marginBottom:18 } },
       h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '160px 1fr', gap:isMobile ? 14 : 22, alignItems:'start' } },
-        h('div', { style:{ width:isMobile ? '100%' : 160, height:isMobile ? 220 : 200, borderRadius:16, overflow:'hidden', border:'1px solid ' + u.border, background:u.raised } }, a.photo ? h('img', { src:a.photo, alt:a.name, style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' } }) : h(EmptyPanel, { compact:true, iconName:'file', message:'No photo', style:{ height:'100%', border:'none' } })),
+        h('div', { style:{ width:isMobile ? '100%' : 160, height:isMobile ? 220 : 200, borderRadius:16, overflow:'hidden', border:'1px solid ' + u.border, background:u.raised } },
+          a.photo ? h('img', { src:a.photo, alt:a.name, style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' } }) :
+          h(EmptyPanel, {
+            compact: true,
+            iconName: 'plus',
+            message: 'Add photo',
+            onClick: onEditPhoto,
+            style: { height:'100%', border:'none', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', cursor:'pointer' }
+          })
+        ),
         h('div', null,
           h('div', { style:{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:6 } }, h('h2', { style:{ margin:0, color:u.text, fontSize:isMobile ? 24 : 28, fontWeight:950, letterSpacing:'-.04em' } }, a.name || 'Unnamed'), h(StatusPill, { status:a.status })),
           h('div', { style:{ color:u.textSec, fontSize:13, marginBottom:12 } }, [a.breed, a.species].filter(Boolean).join(' - ') || 'Animal profile'),
@@ -736,7 +915,8 @@
     var a = data.animal;
     var u = ui();
     var formState = useState({
-      name:a.name || '', species:a.species || 'Dog', breed:a.breed || '', age_label:a.age_label || 'Unknown', sex:a.sex || 'Unknown', weight_label:a.weight_label || 'Unknown', energy_level:a.energy_level || 'Unknown', status:a.status || 'available', intake_date:a.intake_date || '', good_with_dogs:a.good_with_dogs || 'Unknown', good_with_cats:a.good_with_cats || 'Unknown', good_with_kids:a.good_with_kids || 'Unknown', medical_notes:a.medical_notes || '', foster_needed:Number(a.foster_needed) === 1, featured:Number(a.featured) === 1, public_visible:Number(a.public_visible) === 1
+      name:a.name || '', species:a.species || 'Dog', breed:a.breed || '', age_label:a.age_label || 'Unknown', sex:a.sex || 'Unknown', weight_label:a.weight_label || 'Unknown', energy_level:a.energy_level || 'Unknown', status:a.status || 'available', intake_date:a.intake_date || '', good_with_dogs:a.good_with_dogs || 'Unknown', good_with_cats:a.good_with_cats || 'Unknown', good_with_kids:a.good_with_kids || 'Unknown', medical_notes:a.medical_notes || '', foster_needed:Number(a.foster_needed) === 1, featured:Number(a.featured) === 1, public_visible:Number(a.public_visible) === 1,
+      photo_url:a.photo_url || a.photo || ''
     });
     var form = formState[0], setForm = formState[1];
     var savingState = useState(false), saving = savingState[0], setSaving = savingState[1];
@@ -749,6 +929,7 @@
     var panel = h('div', { style:{ width:isMobile ? '100%' : 420, height:isMobile ? '100%' : '100vh', maxHeight:'100vh', overflowY:'auto', background:u.bg, borderLeft:isMobile ? 'none' : '1px solid ' + u.border, padding:isMobile ? 18 : 24, boxSizing:'border-box' } },
       h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 } }, h('h2', { style:{ margin:0, color:u.text, fontSize:20 } }, 'Edit Profile'), h(Button, { variant:'secondary', size:'sm', onClick:onClose }, 'Close')),
       h('div', { style:{ display:'grid', gridTemplateColumns:'1fr', gap:12 } },
+        h('div', null, h(ProfilePhotoField, { value:form.photo_url || '', onChange:function(v){ set('photo_url', v); }, animalName:form.name, isMobile:isMobile })),
         h('div', null, h(FieldLabel, null, 'Name'), h(TextInput, { value:form.name, onChange:function(v){ set('name', v); } })),
         h('div', null, h(FieldLabel, null, 'Species'), h(SelectInput, { value:form.species, onChange:function(v){ set('species', v); }, options:['Dog','Cat','Other'] })),
         h('div', null, h(FieldLabel, null, 'Breed'), h(TextInput, { value:form.breed, onChange:function(v){ set('breed', v); } })),
@@ -797,6 +978,12 @@
     }, [animalId]);
     useEffect(function(){ loadProfile(); }, [loadProfile]);
     useEffect(function(){
+      if (window.__editPhotoOfId === animalId) {
+        window.__editPhotoOfId = null;
+        setShowEdit(true);
+      }
+    }, [animalId]);
+    useEffect(function(){
       if (tab === 'care' && careTasks === null && animalId) apiJSON('/api/dashboard/animals/' + encodeURIComponent(animalId) + '/care-tasks').then(function(d){ setCareTasks(d.care_tasks || []); }).catch(function(){ setCareTasks([]); });
       if (tab === 'apps' && applications === null && animalId) apiJSON('/api/dashboard/animals/' + encodeURIComponent(animalId) + '/applications').then(function(d){ setApplications(d.applications || []); }).catch(function(){ setApplications([]); });
     }, [tab, animalId, careTasks, applications]);
@@ -833,7 +1020,7 @@
       ),
       h('div', { style:{ display:isDesktop ? 'flex' : 'block', gap:20, alignItems:'flex-start' } },
         h('div', { style:{ flex:1, minWidth:0 } },
-          h(ProfileHero, { animal:a, foster:data.foster, isMobile:isMobile }),
+          h(ProfileHero, { animal:a, foster:data.foster, isMobile:isMobile, onEditPhoto:function(){ setShowEdit(true); } }),
           h('div', { style:{ overflowX:'auto', whiteSpace:'nowrap', borderBottom:'1px solid ' + u.border, marginBottom:18 } }, h('div', { style:{ display:'inline-flex', gap:4, minWidth:'100%' } }, tabs.map(function(t){ var active = tab === t.value; return h('button', { key:t.value, onClick:function(){ setTab(t.value); }, style:{ border:'none', background:'transparent', color:active ? u.purpleL : u.textSec, padding:'12px 14px', borderBottom:'2px solid ' + (active ? u.purple : 'transparent'), fontWeight:active ? 900 : 700, fontSize:13, cursor:'pointer' } }, t.label, t.count ? h('span', { style:{ marginLeft:7, fontSize:11, color:active ? u.purpleL : u.textMut } }, t.count) : null); }))),
           tabContent()
         ),
