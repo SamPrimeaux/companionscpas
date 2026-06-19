@@ -18,7 +18,7 @@ if [ -f "$HTML" ]; then
   sed -i '' "s|\.jsx?v=[^\"]*|\.jsx|g; s|\.jsx\"|\.jsx?v=${HASH}\"|g; s|dash\.css?v=[^\"]*|dash.css|g; s|dash\.css\"|dash.css?v=${HASH}\"|g" "$HTML"
   echo "Hash baked: $HASH → $HTML"
   # Always push index.html even when syncing a subdirectory
-  wrangler r2 object put "$BUCKET/dashboard/index.html" \
+  npx wrangler r2 object put "$BUCKET/dashboard/index.html" \
     --file "$HTML" \
     --content-type "text/html; charset=utf-8" \
     --remote
@@ -47,7 +47,7 @@ upload() {
   esac
 
   echo "  → $key"
-  wrangler r2 object put "$BUCKET/$key" \
+  npx wrangler r2 object put "$BUCKET/$key" \
     --file "$file" \
     --content-type "$ct" \
     --remote
