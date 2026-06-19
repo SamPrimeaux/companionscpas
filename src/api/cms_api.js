@@ -12,6 +12,27 @@ import {
 import { getAuthUser } from "./session_api.js";
 const TENANT_ID = "tenant_companionscpas";
 
+const R2_MEDIA_FOLDERS = new Set([
+  "media/animals",
+  "media/campaign",
+  "media/intakes",
+  "media/medical",
+  "media/team",
+  "media/videos",
+]);
+
+function resolveUploadR2Key(r2Folder, safeName) {
+  const now = new Date();
+  const yr = now.getUTCFullYear();
+  const mo = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const stamp = Date.now();
+  const normalized = String(r2Folder || "").replace(/\/+$/, "");
+  if (R2_MEDIA_FOLDERS.has(normalized)) {
+    return `${normalized}/${stamp}-${safeName}`;
+  }
+  return `static/cms/uploads/${yr}/${mo}/${stamp}-${safeName}`;
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -642,6 +663,32 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     return json({ success: true, id: sectionId });
   }
 
+    // GET /api/cms/assets/stats
+  if (path === "/api/cms/assets/stats" && method === "GET") {
+    const summary = await env.DB.prepare(
+      `SELECT COUNT(*) AS asset_count, COALESCE(SUM(size), 0) AS total_bytes
+       FROM cms_assets WHERE tenant_id = ? AND status != 'archived'`
+    ).bind(TENANT_ID).first().catch(() => ({ asset_count: 0, total_bytes: 0 }));
+
+    const byType = await env.DB.prepare(
+      `SELECT COALESCE(asset_type, 'image') AS asset_type, COUNT(*) AS n, COALESCE(SUM(size), 0) AS bytes
+       FROM cms_assets WHERE tenant_id = ? AND status != 'archived'
+       GROUP BY COALESCE(asset_type, 'image')`
+    ).bind(TENANT_ID).all().catch(() => ({ results: [] }));
+
+    const quotaBytes = Number(env.R2_STORAGE_QUOTA_BYTES || 10 * 1024 * 1024 * 1024);
+    const totalBytes = Number(summary?.total_bytes || 0);
+    return json({
+      success: true,
+      asset_count: Number(summary?.asset_count || 0),
+      total_bytes: totalBytes,
+      quota_bytes: quotaBytes,
+      used_pct: quotaBytes ? Math.min(100, Math.round((totalBytes / quotaBytes) * 1000) / 10) : 0,
+      by_type: byType?.results || [],
+      cdn_origin: "https://assets.companionsofcaddo.org",
+    });
+  }
+
     // GET /api/cms/assets
   if (path === "/api/cms/assets" && method === "GET") {
     const context = url.searchParams.get("context") || null;
@@ -650,7 +697,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     const binds = [TENANT_ID];
     if (context) { q += " AND usage_context = ?"; binds.push(context); }
     if (category) { q += " AND category = ?"; binds.push(category); }
-    q += " ORDER BY created_at DESC LIMIT 200";
+    q += " ORDER BY updated_at DESC, created_at DESC LIMIT 500";
     const { results } = await env.DB.prepare(q).bind(...binds).all().catch(() => ({ results: [] }));
     return json({ success: true, assets: results || [] });
   }
@@ -676,6 +723,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     const file     = formData.get("file");
     const altText  = formData.get("alt_text")      || "";
     const label    = formData.get("label")         || "";
+    const r2Folder = formData.get("r2_folder")     || "";
     const context  = formData.get("usage_context") || "cms";
     const category = formData.get("category")      || "image";
 
@@ -691,16 +739,15 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       return json({ success: false, error: "File exceeds 10 MB limit" }, 400);
     }
 
-    // Sanitise filename
     const safeName = file.name
       .normalize("NFC")
       .replace(/[^a-zA-Z0-9._-]/g, "_")
       .slice(0, 120);
-    const now    = new Date();
-    const yr     = now.getUTCFullYear();
-    const mo     = String(now.getUTCMonth() + 1).padStart(2, "0");
-    const r2Key  = `static/cms/uploads/${yr}/${mo}/${Date.now()}-${safeName}`;
+    const r2Key  = resolveUploadR2Key(r2Folder, safeName);
     const pubUrl = `${CDN_ORIGIN}/${r2Key}`;
+    const usageContext = R2_MEDIA_FOLDERS.has(String(r2Folder || "").replace(/\/+$/, ""))
+      ? String(r2Folder).replace(/^media\//, "")
+      : context;
 
     // Write to R2
     try {
@@ -740,7 +787,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       r2Key,
       pubUrl, pubUrl, pubUrl,
       altText,
-      context,
+      usageContext,
       cmsUser.id || "unknown"
     ).run();
 
@@ -811,6 +858,36 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
     await bustCache(env, `bootstrap:${TENANT_ID}`);
     return json({ success: true, asset_key });
+  }
+
+  // POST /api/cms/asset/delete — archive row + remove R2 object
+  if (path === "/api/cms/asset/delete" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const assetId = data.id || null;
+    const assetKey = data.asset_key || null;
+    if (!assetId && !assetKey) return json({ success: false, error: "id or asset_key required" }, 400);
+
+    const row = assetId
+      ? await env.DB.prepare("SELECT * FROM cms_assets WHERE tenant_id = ? AND id = ? LIMIT 1").bind(TENANT_ID, assetId).first()
+      : await env.DB.prepare("SELECT * FROM cms_assets WHERE tenant_id = ? AND asset_key = ? LIMIT 1").bind(TENANT_ID, assetKey).first();
+    if (!row) return json({ success: false, error: "Asset not found" }, 404);
+
+    if (row.r2_key) {
+      try { await env.WEBSITE_ASSETS.delete(row.r2_key); } catch (err) {
+        console.warn("[cms-delete] R2 delete failed:", row.r2_key, err?.message);
+      }
+    }
+
+    await env.DB.prepare(
+      `UPDATE cms_assets SET status = 'archived', is_live = 0, updated_at = datetime('now')
+       WHERE tenant_id = ? AND id = ?`
+    ).bind(TENANT_ID, row.id).run();
+
+    await bustCache(env, `bootstrap:${TENANT_ID}`);
+    return json({ success: true, id: row.id });
   }
 
   // GET /api/cms/brand

@@ -1,13 +1,12 @@
 // dashboard_api.js — Companions of CPAS dashboard API
 // Canonical animal table: animal_profiles (animals table deleted)
 // Tenant: tenant_id = 'tenant_companionscpas'
-// Foster apps tenant: 'companions_cpas'  (legacy mismatch, kept as-is)
 // Org: org_companionscpas
 
 import { getAuthUser } from "./session_api.js";
 
 const TENANT = 'tenant_companionscpas';
-const FOSTER_TENANT = 'companions_cpas';
+const FOSTER_TENANT = TENANT;
 const ORG = 'org_companionscpas';
 
 function safeJson(value, fallback) {
@@ -206,7 +205,14 @@ export async function dashboardApiRoutes(request, env, url) {
         WHERE ap.tenant_id = ?
         ORDER BY ap.featured DESC, ap.sort_order ASC, ap.updated_at DESC
       `).bind(TENANT, TENANT).all().catch(() => ({ results: [] })),
-      env.DB.prepare(`SELECT id, first_name || ' ' || last_name AS applicant_name, review_status AS status, submitted_at FROM cpas_foster_applications WHERE tenant_id = ? ORDER BY submitted_at DESC LIMIT 20`).bind(FOSTER_TENANT).all().catch(() => ({ results: [] })),
+      env.DB.prepare(`
+        SELECT id, first_name, last_name,
+               first_name || ' ' || last_name AS applicant_name,
+               email, phone, review_status, submitted_at, answers_json, internal_notes
+        FROM cpas_foster_applications
+        WHERE tenant_id = ?
+        ORDER BY submitted_at DESC LIMIT 20
+      `).bind(FOSTER_TENANT).all().catch(() => ({ results: [] })),
       env.DB.prepare(`SELECT *, goal_amount_cents AS goal_cents, raised_amount_cents AS raised_cents FROM fundraising_campaigns WHERE is_public = 1 ORDER BY updated_at DESC`).all().catch(() => ({ results: [] })),
       env.DB.prepare(`SELECT * FROM volunteer_records ORDER BY hours_month DESC`).all().catch(() => ({ results: [] })),
       env.DB.prepare(`
@@ -728,13 +734,33 @@ export async function dashboardApiRoutes(request, env, url) {
     return json({ ok: true });
   }
 
-  // ─── GET /api/dashboard/applications ─────────────────────────────────────
+  // ─── GET /api/dashboard/applications[/:id] ───────────────────────────────
+  const appDetailMatch = path.match(/^\/api\/dashboard\/applications\/([^/]+)$/);
+  if (appDetailMatch && method === 'GET') {
+    const appId = appDetailMatch[1];
+    const row = await env.DB.prepare(`
+      SELECT id, first_name, last_name,
+             first_name || ' ' || last_name AS applicant_name,
+             email AS applicant_email, phone AS applicant_phone,
+             city, state_province, postal_code,
+             review_status, review_status AS status, source, submitted_at, created_at,
+             assigned_to, internal_notes, answers_json, form_id
+      FROM cpas_foster_applications
+      WHERE tenant_id = ? AND id = ?
+      LIMIT 1
+    `).bind(FOSTER_TENANT, appId).first().catch(() => null);
+    if (!row) return json({ ok: false, error: 'Application not found' }, 404);
+    return json({ application: { ...row, answers: safeJson(row.answers_json, {}) } });
+  }
+
   if (path === '/api/dashboard/applications' && method === 'GET') {
     const rows = await env.DB.prepare(`
-      SELECT id, first_name || ' ' || last_name AS applicant_name,
+      SELECT id, first_name, last_name,
+             first_name || ' ' || last_name AS applicant_name,
              email AS applicant_email, phone AS applicant_phone,
-             review_status AS status, source, submitted_at,
-             assigned_to, internal_notes, answers_json
+             city, state_province,
+             review_status, review_status AS status, source, submitted_at,
+             assigned_to, internal_notes, answers_json, form_id
       FROM cpas_foster_applications
       WHERE tenant_id = ?
       ORDER BY submitted_at DESC
@@ -827,9 +853,40 @@ export async function dashboardApiRoutes(request, env, url) {
     return json({ ok: true, id });
   }
 
-  // ─── Simple read-only routes ──────────────────────────────────────────────
+  // ─── Volunteers ───────────────────────────────────────────────────────────
+  if (path === '/api/dashboard/volunteers' && method === 'GET') {
+    const rows = await env.DB.prepare(
+      `SELECT * FROM volunteer_records WHERE tenant_id = ? ORDER BY role, full_name`
+    ).bind(TENANT).all().catch(() => ({ results: [] }));
+    return json({ volunteers: rows.results || [], members: rows.results || [] });
+  }
+
+  if (path === '/api/dashboard/volunteers' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const fullName = String(b.full_name || '').trim();
+    if (!fullName) return json({ ok: false, error: 'full_name is required' }, 400);
+    const now = nowIso();
+    const slug = fullName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+    const id = b.id || ('vol_' + slug + '_' + Date.now().toString(36).slice(2, 6));
+    await env.DB.prepare(`
+      INSERT INTO volunteer_records (id, tenant_id, full_name, email, role, status, hours_month, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+    `).bind(
+      id, TENANT, fullName,
+      b.email || null,
+      b.role || 'Volunteer',
+      b.status || 'active',
+      now
+    ).run();
+    const row = await env.DB.prepare(`SELECT * FROM volunteer_records WHERE id = ? LIMIT 1`)
+      .bind(id).first().catch(() => null);
+    return json({ ok: true, id, volunteer: row });
+  }
+
   if (path === '/api/dashboard/team') {
-    const rows = await env.DB.prepare(`SELECT * FROM volunteer_records ORDER BY role, full_name`).all().catch(() => ({ results: [] }));
+    const rows = await env.DB.prepare(
+      `SELECT * FROM volunteer_records WHERE tenant_id = ? ORDER BY role, full_name`
+    ).bind(TENANT).all().catch(() => ({ results: [] }));
     return json({ members: rows.results || [] });
   }
 
@@ -843,17 +900,95 @@ export async function dashboardApiRoutes(request, env, url) {
     return json({ events: rows.results || [] });
   }
 
-  if (path === '/api/dashboard/fosters') {
+  if (path === '/api/dashboard/fosters' && method === 'GET') {
+    const statusFilter = url.searchParams.get('status') || 'active';
+    let statusClause = '';
+    if (statusFilter === 'active') statusClause = " AND f.status = 'active'";
+    else if (statusFilter === 'ended') statusClause = " AND f.status != 'active'";
     const rows = await env.DB.prepare(`
       SELECT f.*, a.name AS animal_name, a.species, a.breed, a.sex, a.age_label,
              a.status AS animal_status, ca.cdn_url AS asset_cdn_url
       FROM foster_records f
       LEFT JOIN animal_profiles a ON a.id = f.animal_id
       LEFT JOIN cms_assets ca ON ca.asset_key = a.id AND ca.tenant_id = ?
-      WHERE f.tenant_id = ?
-      ORDER BY f.created_at DESC LIMIT 100
+      WHERE f.tenant_id = ?${statusClause}
+      ORDER BY f.start_date DESC, f.created_at DESC LIMIT 100
     `).bind(TENANT, TENANT).all().catch(() => ({ results: [] }));
     return json({ fosters: rows.results || [] });
+  }
+
+  if (path === '/api/dashboard/fosters' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const animalIdVal = String(b.animal_id || '').trim();
+    const fosterName = String(b.foster_name || '').trim();
+    if (!animalIdVal) return json({ ok: false, error: 'animal_id is required' }, 400);
+    if (!fosterName) return json({ ok: false, error: 'foster_name is required' }, 400);
+
+    const animalRow = await env.DB.prepare(
+      `SELECT id FROM animal_profiles WHERE id = ? AND tenant_id = ? LIMIT 1`
+    ).bind(animalIdVal, TENANT).first().catch(() => null);
+    if (!animalRow) return json({ ok: false, error: 'Animal not found' }, 404);
+
+    const now = nowIso();
+    const startDate = b.start_date || now.slice(0, 10);
+    const id = b.id || ('foster_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+
+    await env.DB.prepare(`
+      UPDATE foster_records
+      SET status = 'ended', end_date = COALESCE(end_date, ?), updated_at = ?
+      WHERE animal_id = ? AND tenant_id = ? AND status = 'active'
+    `).bind(startDate, now, animalIdVal, TENANT).run().catch(() => {});
+
+    await env.DB.prepare(`
+      INSERT INTO foster_records
+        (id, tenant_id, animal_id, foster_name, foster_email, foster_phone, status,
+         start_date, application_id, check_in_frequency, notes, created_at, updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).bind(
+      id, TENANT, animalIdVal, fosterName,
+      b.foster_email || null, b.foster_phone || null,
+      'active', startDate, b.application_id || null,
+      b.check_in_frequency || 'weekly', b.notes || null, now, now
+    ).run();
+
+    await env.DB.prepare(
+      `UPDATE animal_profiles SET status = 'foster', updated_at = ? WHERE id = ? AND tenant_id = ?`
+    ).bind(now, animalIdVal, TENANT).run();
+
+    const row = await env.DB.prepare(`SELECT * FROM foster_records WHERE id = ? LIMIT 1`)
+      .bind(id).first().catch(() => null);
+    return json({ ok: true, foster: row });
+  }
+
+  const fosterPatchMatch = path.match(/^\/api\/dashboard\/fosters\/([^/]+)$/);
+  if (fosterPatchMatch && method === 'PATCH') {
+    const fosterId = fosterPatchMatch[1];
+    const b = await request.json().catch(() => ({}));
+    const existing = await env.DB.prepare(
+      `SELECT * FROM foster_records WHERE id = ? AND tenant_id = ? LIMIT 1`
+    ).bind(fosterId, TENANT).first().catch(() => null);
+    if (!existing) return json({ ok: false, error: 'Foster record not found' }, 404);
+
+    const now = nowIso();
+    const endDate = b.end_date || now.slice(0, 10);
+    const sets = ['end_date = ?', "status = 'ended'", 'updated_at = ?'];
+    const vals = [endDate, now];
+    if ('notes' in b) { sets.push('notes = ?'); vals.push(b.notes ?? null); }
+    vals.push(fosterId, TENANT);
+
+    await env.DB.prepare(
+      `UPDATE foster_records SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
+    ).bind(...vals).run();
+
+    if (existing.animal_id) {
+      await env.DB.prepare(
+        `UPDATE animal_profiles SET status = 'available', updated_at = ? WHERE id = ? AND tenant_id = ?`
+      ).bind(now, existing.animal_id, TENANT).run();
+    }
+
+    const row = await env.DB.prepare(`SELECT * FROM foster_records WHERE id = ? LIMIT 1`)
+      .bind(fosterId).first().catch(() => null);
+    return json({ ok: true, foster: row });
   }
 
   if (path === '/api/dashboard/adoptions') {

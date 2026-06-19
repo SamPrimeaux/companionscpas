@@ -568,6 +568,11 @@
     var setShowAddTask = props.setShowAddTask;
     var newTask = props.newTask;
     var setNewTask = props.setNewTask;
+    var reload = props.reload;
+    var showFosterForm = props.showFosterForm;
+    var setShowFosterForm = props.setShowFosterForm;
+    var fosterPrefill = props.fosterPrefill;
+    var approvedApps = props.approvedApps || [];
     var notesState = useState(null), notes = notesState[0], setNotes = notesState[1];
     var loadingState = useState(true), loading = loadingState[0], setLoading = loadingState[1];
     var submittingState = useState(false), submitting = submittingState[0], setSubmitting = submittingState[1];
@@ -684,7 +689,13 @@
           setShowAddTask: setShowAddTask,
           newTask: newTask,
           setNewTask: setNewTask,
-          embedded: true
+          embedded: true,
+          reload: reload,
+          foster: data ? data.foster : null,
+          showFosterForm: showFosterForm,
+          setShowFosterForm: setShowFosterForm,
+          fosterPrefill: fosterPrefill,
+          approvedApps: approvedApps
         })
       ) : null,
       h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:14, flexWrap:'wrap' } },
@@ -1307,9 +1318,141 @@
     );
   }
 
+  function FosterPlacementPanel(props) {
+    var animalId = props.animalId;
+    var foster = props.foster;
+    var reload = props.reload;
+    var prefill = props.prefill;
+    var showForm = props.showForm;
+    var setShowForm = props.setShowForm;
+    var approvedApps = props.approvedApps || [];
+    var u = ui();
+    var isMobile = !!props.isMobile;
+
+    var formState = useState({
+      foster_name: '', foster_email: '', foster_phone: '', start_date: new Date().toISOString().slice(0, 10), application_id: ''
+    }), form = formState[0], setForm = formState[1];
+    var busyState = useState(false), busy = busyState[0], setBusy = busyState[1];
+    var errState = useState(''), err = errState[0], setErr = errState[1];
+
+    useEffect(function() {
+      if (!showForm) return;
+      setForm({
+        foster_name: (prefill && prefill.foster_name) || '',
+        foster_email: (prefill && prefill.foster_email) || '',
+        foster_phone: (prefill && prefill.foster_phone) || '',
+        start_date: (prefill && prefill.start_date) || new Date().toISOString().slice(0, 10),
+        application_id: (prefill && prefill.application_id) || ''
+      });
+      setErr('');
+    }, [showForm, prefill]);
+
+    function setField(k, v) { var n = Object.assign({}, form); n[k] = v; setForm(n); }
+
+    function assignFoster() {
+      if (!form.foster_name.trim()) { setErr('Foster name is required.'); return; }
+      setBusy(true); setErr('');
+      apiJSON('/api/dashboard/fosters', {
+        method: 'POST',
+        body: JSON.stringify({
+          animal_id: animalId,
+          foster_name: form.foster_name.trim(),
+          foster_email: form.foster_email || null,
+          foster_phone: form.foster_phone || null,
+          start_date: form.start_date || null,
+          application_id: form.application_id || null
+        })
+      }).then(function() {
+        setShowForm(false);
+        if (reload) reload();
+      }).catch(function(e) {
+        setErr((e && e.message) || 'Could not assign foster.');
+      }).finally(function() { setBusy(false); });
+    }
+
+    function endPlacement() {
+      if (!foster || !foster.id) return;
+      if (!window.confirm('End this foster placement and mark the animal as available?')) return;
+      setBusy(true); setErr('');
+      apiJSON('/api/dashboard/fosters/' + encodeURIComponent(foster.id), {
+        method: 'PATCH',
+        body: JSON.stringify({ end_date: new Date().toISOString().slice(0, 10) })
+      }).then(function() {
+        if (reload) reload();
+      }).catch(function(e) {
+        setErr((e && e.message) || 'Could not end placement.');
+      }).finally(function() { setBusy(false); });
+    }
+
+    var active = foster && foster.status === 'active';
+
+    return h(SoftCard, { style: { padding: isMobile ? 14 : 16, marginTop: 16, marginBottom: 16, borderColor: active ? u.purple + '44' : u.border } },
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' } },
+        h('div', null,
+          h('h4', { style: { margin: '0 0 4px', color: u.text, fontSize: 15 } }, 'Foster Placement'),
+          h('div', { style: { color: u.textMut, fontSize: 12 } }, active ? 'Active foster home for this animal.' : 'Assign a foster family from an approved application or manual entry.')
+        ),
+        !active && !showForm ? h(Button, { size: 'sm', iconName: 'heart', onClick: function() { setShowForm(true); } }, 'Assign Foster') : null
+      ),
+      err ? h('div', { style: { color: u.red, fontSize: 12, marginBottom: 10, fontWeight: 700 } }, err) : null,
+      active ? h('div', null,
+        h('div', { style: { display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2,minmax(0,1fr))', gap: 10, marginBottom: 12 } },
+          h('div', null, h(FieldLabel, null, 'Foster'), h('div', { style: { color: u.text, fontWeight: 800, fontSize: 14 } }, foster.foster_name || '—')),
+          h('div', null, h(FieldLabel, null, 'Phone'), h('div', { style: { color: u.textSec, fontSize: 13 } }, foster.foster_phone || '—')),
+          h('div', null, h(FieldLabel, null, 'Start date'), h('div', { style: { color: u.textSec, fontSize: 13 } }, fmtDate(foster.start_date) || '—')),
+          h('div', null, h(FieldLabel, null, 'Check-ins'), h('div', { style: { color: u.textSec, fontSize: 13 } }, labelize(foster.check_in_frequency || 'weekly')))
+        ),
+        foster.foster_email ? h('div', { style: { color: u.textSec, fontSize: 12, marginBottom: 12 } }, foster.foster_email) : null,
+        h(Button, { variant: 'secondary', size: 'sm', disabled: busy, onClick: endPlacement }, busy ? 'Ending…' : 'End Placement')
+      ) : null,
+      !active && showForm ? h('div', null,
+        h('div', { style: { display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 } },
+          h('div', null, h(FieldLabel, null, 'Foster name *'), h(TextInput, { value: form.foster_name, onChange: function(v) { setField('foster_name', v); }, placeholder: 'Full name' })),
+          h('div', null, h(FieldLabel, null, 'Phone'), h(TextInput, { value: form.foster_phone, onChange: function(v) { setField('foster_phone', v); }, placeholder: '(318) 555-0100' })),
+          h('div', null, h(FieldLabel, null, 'Email'), h(TextInput, { value: form.foster_email, onChange: function(v) { setField('foster_email', v); }, placeholder: 'email@example.com' })),
+          h('div', null, h(FieldLabel, null, 'Start date'), h(TextInput, { type: 'date', value: form.start_date, onChange: function(v) { setField('start_date', v); } })),
+          approvedApps.length ? h('div', { style: { gridColumn: isMobile ? 'auto' : '1 / -1' } },
+            h(FieldLabel, null, 'Link to approved application (optional)'),
+            h(SelectInput, {
+              value: form.application_id,
+              onChange: function(v) {
+                var app = approvedApps.find(function(a) { return a.id === v; });
+                if (app) {
+                  setForm({
+                    foster_name: [app.first_name, app.last_name].filter(Boolean).join(' ') || app.applicant_name || form.foster_name,
+                    foster_email: app.email || app.applicant_email || form.foster_email,
+                    foster_phone: app.phone || form.foster_phone,
+                    start_date: form.start_date,
+                    application_id: v
+                  });
+                } else {
+                  setField('application_id', v);
+                }
+              },
+              options: [{ value: '', label: 'None' }].concat(approvedApps.map(function(a) {
+                var name = [a.first_name, a.last_name].filter(Boolean).join(' ') || a.applicant_name || 'Applicant';
+                return { value: a.id, label: name };
+              }))
+            })
+          ) : null
+        ),
+        h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 } },
+          h(Button, { variant: 'secondary', size: 'sm', onClick: function() { setShowForm(false); setErr(''); } }, 'Cancel'),
+          h(Button, { size: 'sm', disabled: busy, onClick: assignFoster }, busy ? 'Saving…' : 'Save Placement')
+        )
+      ) : null
+    );
+  }
+
   function CareTab(props) {
     var data = props.data, animalId = props.animalId, careTasks = props.careTasks, setCareTasks = props.setCareTasks, showAddTask = props.showAddTask, setShowAddTask = props.setShowAddTask, newTask = props.newTask, setNewTask = props.setNewTask;
     var embedded = !!props.embedded;
+    var reload = props.reload;
+    var foster = props.foster;
+    var showFosterForm = props.showFosterForm;
+    var setShowFosterForm = props.setShowFosterForm;
+    var fosterPrefill = props.fosterPrefill;
+    var approvedApps = props.approvedApps || [];
     var u = ui();
     var isMobile = props.isMobile;
     function setTask(k, v) { var n = Object.assign({}, newTask); n[k] = v; setNewTask(n); }
@@ -1340,6 +1483,16 @@
     }
     return h('div', null,
       data.animal.medical_notes ? h('div', { style:{ padding:14, borderRadius:14, border:'1px solid ' + u.yellow + '44', background:u.yellow + '14', color:u.yellow, fontSize:13, fontWeight:700, lineHeight:1.55, marginBottom:14, display:'flex', gap:10 } }, appIcon('alert', 16, { color:u.yellow }), h('div', null, data.animal.medical_notes)) : null,
+      h(FosterPlacementPanel, {
+        animalId: animalId,
+        foster: foster,
+        reload: reload,
+        prefill: fosterPrefill,
+        showForm: showFosterForm,
+        setShowForm: setShowFosterForm,
+        approvedApps: approvedApps,
+        isMobile: isMobile
+      }),
       !embedded ? h('div', { style:{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'center', marginBottom:12, flexWrap:'wrap' } }, h('h3', { style:{ margin:0, color:u.text, fontSize:16 } }, 'Care & Medical Tasks'), h(Button, { size:'sm', iconName:'plus', onClick:function(){ setShowAddTask(!showAddTask); } }, showAddTask ? 'Close' : 'Add Task')) : null,
       showAddTask ? h(SoftCard, { style:{ padding:16, marginBottom:16 } }, h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '140px 1fr 140px 150px', gap:10 } },
         h('div', null, h(FieldLabel, null, 'Type'), h(SelectInput, { value:newTask.task_type, onChange:function(v){ setTask('task_type', v); }, options:['feed','walk','med','vaccine','procedure','check'] })),
@@ -1353,6 +1506,7 @@
 
   function ApplicationsTab(props) {
     var apps = props.applications;
+    var onAssignFoster = props.onAssignFoster;
     var u = ui();
     function badgeColor(s) { return s === 'approved' ? u.green : s === 'denied' ? u.red : s === 'under_review' ? u.yellow : u.textMut; }
     function saveNotes(app, value) {
@@ -1360,8 +1514,8 @@
     }
     if (apps === null) return h(LoadingBlock, null, 'Loading applications...');
     if (!apps.length) return h(EmptyPanel, { iconName:'file', message:'No applications for this animal.' });
-    return h('div', null, apps.map(function(app){ var answers = parseAnswers(app.answers_json || app.answers); var name = [app.first_name, app.last_name].filter(Boolean).join(' ') || app.applicant_name || 'Applicant'; return h(SoftCard, { key:app.id, style:{ padding:16, marginBottom:12 } },
-      h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap' } }, h('div', null, h('div', { style:{ color:u.text, fontWeight:900, fontSize:15 } }, name), h('div', { style:{ color:u.textSec, fontSize:12, marginTop:3 } }, [app.email || app.applicant_email, app.phone].filter(Boolean).join(' - ')), h('div', { style:{ color:u.textMut, fontSize:11, marginTop:3 } }, 'Submitted: ' + fmtDate(app.submitted_at || app.created_at))), h(StatusPill, { label:labelize(app.review_status || app.status || 'new'), color:badgeColor(app.review_status || app.status) })),
+    return h('div', null, apps.map(function(app){ var answers = parseAnswers(app.answers_json || app.answers); var name = [app.first_name, app.last_name].filter(Boolean).join(' ') || app.applicant_name || 'Applicant'; var reviewStatus = app.review_status || app.status || 'new'; return h(SoftCard, { key:app.id, style:{ padding:16, marginBottom:12 } },
+      h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap' } }, h('div', null, h('div', { style:{ color:u.text, fontWeight:900, fontSize:15 } }, name), h('div', { style:{ color:u.textSec, fontSize:12, marginTop:3 } }, [app.email || app.applicant_email, app.phone].filter(Boolean).join(' - ')), h('div', { style:{ color:u.textMut, fontSize:11, marginTop:3 } }, 'Submitted: ' + fmtDate(app.submitted_at || app.created_at))), h('div', { style:{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' } }, h(StatusPill, { label:labelize(reviewStatus), color:badgeColor(reviewStatus) }), reviewStatus === 'approved' && onAssignFoster ? h(Button, { size:'sm', variant:'secondary', onClick:function(){ onAssignFoster(app); } }, 'Assign as Foster →') : null)),
       h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:10, marginTop:14 } }, h('div', { style:{ color:u.textSec, fontSize:12 } }, 'Home type: ' + (answers.home_type || answers.housing || '-')), h('div', { style:{ color:u.textSec, fontSize:12 } }, 'Experience: ' + (answers.experience || answers.pet_experience || '-'))),
       h('div', { style:{ marginTop:14 } }, h(FieldLabel, null, 'Internal Notes'), h(TextArea, { defaultValue:app.internal_notes || '', minHeight:80, onBlur:function(e){ if (e.target.value !== (app.internal_notes || '')) saveNotes(app, e.target.value); } }))
     ); }))
@@ -1554,6 +1708,8 @@
     var newTaskState = useState({ task_type:'feed', title:'', priority:'normal', due_at:'' }), newTask = newTaskState[0], setNewTask = newTaskState[1];
     var draftState = useState({ content_text:'', platforms:[], scheduled_at:'', media:[] }), postDraft = draftState[0], setPostDraft = draftState[1];
     var postingState = useState(false), posting = postingState[0], setPosting = postingState[1];
+    var fosterFormState = useState(false), showFosterForm = fosterFormState[0], setShowFosterForm = fosterFormState[1];
+    var fosterPrefillState = useState(null), fosterPrefill = fosterPrefillState[0], setFosterPrefill = fosterPrefillState[1];
     var bp = useBreakpoint();
     var isMobile = bp === 'mobile';
     var isDesktop = bp === 'desktop';
@@ -1583,6 +1739,21 @@
       });
     }
 
+    function openFosterFormFromApp(app) {
+      setFosterPrefill({
+        foster_name: [app.first_name, app.last_name].filter(Boolean).join(' ') || app.applicant_name || '',
+        foster_email: app.email || app.applicant_email || '',
+        foster_phone: app.phone || '',
+        application_id: app.id
+      });
+      setShowFosterForm(true);
+      setTab('notes');
+    }
+
+    var approvedApps = (applications || []).filter(function(a) {
+      return (a.review_status || a.status) === 'approved';
+    });
+
     if (loading || !data || !data.animal) return h('div', { style:{ padding:isMobile ? 18 : 28, flex:1, overflowY:'auto' } }, h(LoadingBlock, null, 'Loading animal profile...'));
     var a = data.animal;
     var tabs = [
@@ -1595,7 +1766,7 @@
     function tabContent() {
       if (tab === 'overview') return h(OverviewTab, { data:data, isMobile:isMobile, saveBio:saveBio, saving:saving, saveMsg:saveMsg });
       if (tab === 'intake') return h(IntakeAttachmentsTab, { animalId:animalId, metadata:a.metadata || {}, photoUrl:a.photo_url || a.photo || '', reload:loadProfile });
-      if (tab === 'apps') return h(ApplicationsTab, { applications:applications });
+      if (tab === 'apps') return h(ApplicationsTab, { applications:applications, onAssignFoster:openFosterFormFromApp });
       if (tab === 'notes') return h(AnimalNotesTab, {
         animalId:animalId,
         isMobile:isMobile,
@@ -1605,7 +1776,12 @@
         showAddTask:showAddTask,
         setShowAddTask:setShowAddTask,
         newTask:newTask,
-        setNewTask:setNewTask
+        setNewTask:setNewTask,
+        reload:loadProfile,
+        showFosterForm:showFosterForm,
+        setShowFosterForm:setShowFosterForm,
+        fosterPrefill:fosterPrefill,
+        approvedApps:approvedApps
       });
       if (tab === 'publish') return h(PublishPanel, { data:data, reload:loadProfile, isCompact:true, postDraft:postDraft, setPostDraft:setPostDraft, posting:posting, setPosting:setPosting });
       return null;
@@ -1685,71 +1861,48 @@
         )
       ),
       // Contact + notes footer
-      (item.foster_email || item.foster_phone || item.notes) ? h('div', { style:{ borderTop:'1px solid ' + u.border, padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' } },
+      (item.foster_email || item.foster_phone || item.notes || item.animal_id) ? h('div', { style:{ borderTop:'1px solid ' + u.border, padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' } },
         h('div', { style:{ display:'flex', gap:12, flexWrap:'wrap' } },
           item.foster_phone ? h('span', { style:{ color:u.textSec, fontSize:12, display:'inline-flex', alignItems:'center', gap:5 } }, appIcon('phone', 12, { color:u.textMut }), item.foster_phone) : null,
           item.foster_email ? h('span', { style:{ color:u.textSec, fontSize:12, display:'inline-flex', alignItems:'center', gap:5 } }, appIcon('mail', 12, { color:u.textMut }), item.foster_email) : null
         ),
-        item.animal_id ? h('button', { onClick:function(){ if (onViewAnimal) onViewAnimal(item.animal_id); }, style:{ background:'none', border:'none', color:u.purpleL, fontSize:12, fontWeight:700, cursor:'pointer', padding:0 } }, 'View animal →') : null
+        item.animal_id ? h('button', { onClick:function(){ if (onViewAnimal) onViewAnimal(item.animal_id); }, style:{ background:'none', border:'none', color:u.purpleL, fontSize:12, fontWeight:700, cursor:'pointer', padding:0 } }, 'View Animal →') : null
       ) : null,
       item.notes ? h('div', { style:{ borderTop:'1px solid ' + u.border, padding:'8px 16px', color:u.textMut, fontSize:12, fontStyle:'italic' } }, item.notes) : null
     );
   }
 
-  // ── FostersView — live API-powered foster profile cards ───────────────────
+  // ── FostersView — active foster placements from live API ────────────────
   function FostersView(props) {
     var onNavigate = props.onNavigate;
     var itemsState = useState(null), items = itemsState[0], setItems = itemsState[1];
-    var filterState = useState('all'), filter = filterState[0], setFilter = filterState[1];
     var bp = useBreakpoint();
     var isMobile = bp === 'mobile';
     var u = ui();
 
     useEffect(function(){
-      apiJSON('/api/dashboard/fosters')
+      apiJSON('/api/dashboard/fosters?status=active')
         .then(function(d){ setItems(d.fosters || []); })
         .catch(function(){ setItems([]); });
     }, []);
 
-    var filtered = (items || []).filter(function(f){
-      if (filter === 'active') return f.status === 'active';
-      if (filter === 'ended') return f.status !== 'active';
-      return true;
-    });
-
-    var activeCount = (items || []).filter(function(f){ return f.status === 'active'; }).length;
-
     return h('div', { className: 'dash-page' },
       h(PageHeader, {
         title: 'Fosters',
-        subtitle: items === null ? 'Loading...' : activeCount + ' active placements'
+        subtitle: items === null ? 'Loading...' : (items.length ? items.length + ' active placement' + (items.length === 1 ? '' : 's') : 'No active placements')
       }),
-      // Summary stats
-      items !== null && h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:24 } },
-        h(SoftCard, { style:{ padding:'16px 20px' } },
-          h('div', { style:{ color:u.textMut, fontSize:11, textTransform:'uppercase', letterSpacing:'.06em', fontWeight:800, marginBottom:4 } }, 'Active'),
-          h('div', { style:{ color:u.text, fontSize:26, fontWeight:900 } }, activeCount)
-        ),
-        h(SoftCard, { style:{ padding:'16px 20px' } },
-          h('div', { style:{ color:u.textMut, fontSize:11, textTransform:'uppercase', letterSpacing:'.06em', fontWeight:800, marginBottom:4 } }, 'Total'),
-          h('div', { style:{ color:u.text, fontSize:26, fontWeight:900 } }, (items || []).length)
-        ),
-        h(SoftCard, { style:{ padding:'16px 20px' } },
-          h('div', { style:{ color:u.textMut, fontSize:11, textTransform:'uppercase', letterSpacing:'.06em', fontWeight:800, marginBottom:4 } }, 'Ended'),
-          h('div', { style:{ color:u.text, fontSize:26, fontWeight:900 } }, (items || []).length - activeCount)
-        )
-      ),
-      // Filter tabs
-      h('div', { style:{ display:'flex', gap:4, marginBottom:20, borderBottom:'1px solid ' + u.border } },
-        [['all','All'],['active','Active'],['ended','Ended']].map(function(pair){
-          var active = filter === pair[0];
-          return h('button', { key:pair[0], onClick:function(){ setFilter(pair[0]); }, style:{ border:'none', background:'transparent', color:active ? u.purpleL : u.textSec, padding:'10px 14px', borderBottom:'2px solid ' + (active ? u.purple : 'transparent'), fontWeight:active ? 900 : 700, fontSize:13, cursor:'pointer', marginBottom:-1 } }, pair[1]);
-        })
-      ),
       items === null ? h(LoadingBlock, null, 'Loading foster records...') :
-      !filtered.length ? h(EmptyPanel, { iconName:'heart', message:filter === 'active' ? 'No active foster placements.' : 'No foster records yet.' }) :
+      !items.length ? h('div', null,
+        h(EmptyPanel, { iconName:'heart', message:'No active foster placements. Assign a foster from an animal profile.' }),
+        h('div', { style:{ textAlign:'center', marginTop:12 } },
+          h('button', {
+            onClick:function(){ if (onNavigate) onNavigate('animals'); },
+            style:{ border:'none', background:'transparent', color:u.purpleL, fontSize:13, fontWeight:800, cursor:'pointer', padding:0 }
+          }, 'Go to Animals →')
+        )
+      ) :
       h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(2,minmax(0,1fr))', gap:16 } },
-        filtered.map(function(item, idx){
+        items.map(function(item, idx){
           return h(FosterCard, { key:item.id || idx, item:item, onViewAnimal:function(animalId){ if (onNavigate) onNavigate('animal-profile', { animalId:animalId }); } });
         })
       )

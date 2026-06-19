@@ -22,8 +22,8 @@ function CmsNotice({ n }) {
   }, n.text);
 }
 
-function CmsPageWrapper({ children, padding = "28px 28px 60px" }) {
-  return React.createElement("div", { style: { padding, flex: 1 } }, children);
+function CmsPageWrapper({ children, padding = "28px 28px 60px", className = "" }) {
+  return React.createElement("div", { className: ("dash-page" + (className ? " " + className : "")), style: { padding, flex: 1 } }, children);
 }
 
 function PageStatusBadge({ status, navVisible }) {
@@ -53,26 +53,27 @@ function pageNavVisible(page) {
 // ── /dashboard/cms/website ────────────────────────────────────────────────────
 function CmsWebsiteView({ onNavigate }) {
   const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
   const [publishing, setPublishing] = React.useState(null);
   const [togglingNav, setTogglingNav] = React.useState(null);
   const [notice, setNotice] = React.useState({});
   const notify = (t, type) => cmsNotify(setNotice, t, type);
 
   const loadBootstrap = React.useCallback(() => {
+    setLoading(true);
     fetch("/api/cms/bootstrap", { credentials: "include" })
-      .then(r => r.json()).then(d => { if (d.success) setData(d); }).catch(() => {});
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) setData(d);
+        else setData({ pages: [] });
+      })
+      .catch(() => setData({ pages: [] }))
+      .finally(() => setLoading(false));
   }, []);
 
   React.useEffect(() => { loadBootstrap(); }, [loadBootstrap]);
 
-  const pages = data?.pages?.length ? data.pages : [
-    { route_path: "/",          title: "Home",      status: "published", sort_order: 10 },
-    { route_path: "/about",     title: "About",     status: "published", sort_order: 20 },
-    { route_path: "/adopt",     title: "Adopt",     status: "published", sort_order: 30 },
-    { route_path: "/services",  title: "Services",  status: "published", sort_order: 40 },
-    { route_path: "/donate",    title: "Donate",    status: "published", sort_order: 50 },
-    { route_path: "/community", title: "Community", status: "published", sort_order: 60 },
-  ];
+  const pages = data?.pages || [];
 
   const publishPage = async (route) => {
     setPublishing(route);
@@ -206,15 +207,24 @@ function CmsPagesView({ onNavigate }) {
   const load = async () => {
     setLoading(true);
     try {
-      const [bootRes, secRes] = await Promise.all([
+      const [bootRes, secRes, dashRes] = await Promise.all([
         fetch("/api/cms/bootstrap", { credentials: "include" }),
         fetch("/api/cms/sections", { credentials: "include" }),
+        fetch("/api/dashboard/cms", { credentials: "include" }),
       ]);
       const boot = await bootRes.json();
       const sec  = await secRes.json().catch(() => ({}));
+      const dash = await dashRes.json().catch(() => ({}));
 
-      if (boot.success && boot.pages?.length) {
-        setPages(boot.pages);
+      const bootPages = boot.success && boot.pages?.length ? boot.pages : [];
+      const dashPages = dash.pages?.length ? dash.pages : [];
+      const mergedPages = bootPages.length ? bootPages : dashPages;
+      if (mergedPages.length) {
+        setPages(mergedPages.map(p => ({
+          ...p,
+          status: p.status || "draft",
+          route_path: p.route_path || p.page_route || "/",
+        })));
       }
       // Build sections map: { "/about": [{section_key, section_type, heading, sort_order}] }
       if (sec.success && sec.sections) {
@@ -315,7 +325,7 @@ function CmsPagesView({ onNavigate }) {
         );
       }
     },
-    { key: "status", label: "Status", render: v => React.createElement(PageStatusBadge, { status: v }) },
+    { key: "status", label: "Status", render: (v, row) => React.createElement(PageStatusBadge, { status: row.status || v || "draft" }) },
     { key: "route_path", label: "Sections",
       render: (v) => {
         const count = (sections[v] || []).length;
@@ -801,25 +811,242 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 }
 
 // ── /dashboard/cms/images ─────────────────────────────────────────────────────
-// 4-tab media command center: Library | Upload | Google Drive | Cleanup
-// Backend: GET /api/cms/assets, POST /api/cms/asset/upload
-//          GET/POST /api/integrations/google-drive/*
+
+function mediaFormatBytes(n) {
+  const v = Number(n || 0);
+  if (!v) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  let x = v;
+  while (x >= 1024 && i < units.length - 1) { x /= 1024; i += 1; }
+  return `${x >= 10 || i === 0 ? Math.round(x) : x.toFixed(1)} ${units[i]}`;
+}
+
+function mediaAssetUrl(asset) {
+  return asset?.cdn_url || asset?.public_url || "";
+}
+
+function mediaPathPrefix(key) {
+  const k = String(key || "").replace(/^\/+/, "").toLowerCase();
+  const parts = k.split("/").filter(Boolean);
+  if (parts.length >= 2) return `${parts[0]}/${parts[1]}`;
+  if (parts.length === 1) return parts[0];
+  return "";
+}
+
+function mediaFolderKey(asset) {
+  return mediaPathPrefix(asset?.r2_key || asset?.path || "");
+}
+
+function mediaFolderLabel(folderId) {
+  const row = MEDIA_FOLDERS.find(f => f.id === folderId);
+  return row?.label || folderId || "—";
+}
+
+function mediaUploadFolder(folderId) {
+  if (!folderId || folderId === "all") return "";
+  if (folderId.startsWith("media/")) return folderId;
+  return "";
+}
+
+function mediaAssetKind(asset) {
+  const mime = String(asset?.mime_type || "").toLowerCase();
+  const type = String(asset?.asset_type || "").toLowerCase();
+  const key = String(asset?.r2_key || "").toLowerCase();
+  if (type === "video" || mime.startsWith("video/")) return "video";
+  if (type === "document" || mime === "application/pdf" || key.endsWith(".pdf")) return "pdf";
+  return "image";
+}
+
+function mediaSizeLabel(asset) {
+  const v = Number(asset?.size || 0);
+  if (v > 0) return mediaFormatBytes(v);
+  const kind = mediaAssetKind(asset);
+  if (kind === "pdf") return "PDF";
+  if (kind === "video") return "Video";
+  return "—";
+}
+
+function MediaThumbPreview({ asset, compact }) {
+  const url = mediaAssetUrl(asset);
+  const kind = mediaAssetKind(asset);
+  if (!url) {
+    return React.createElement("div", { className: "media-card-empty" },
+      React.createElement(Icon, { name: "file", size: compact ? 16 : 22 })
+    );
+  }
+  if (kind === "pdf") {
+    return React.createElement("iframe", {
+      src: url + "#toolbar=0&navpanes=0&view=FitH",
+      title: asset.label || asset.filename || "PDF preview",
+      className: "media-card-pdf" + (compact ? " is-compact" : ""),
+      tabIndex: -1,
+    });
+  }
+  if (kind === "video") {
+    return React.createElement("video", {
+      src: url,
+      muted: true,
+      playsInline: true,
+      preload: "metadata",
+      className: "media-card-video-el" + (compact ? " is-compact" : ""),
+    });
+  }
+  return React.createElement("img", {
+    src: url,
+    alt: asset.alt_text || asset.label || "",
+    loading: "lazy",
+    className: "media-card-image" + (compact ? " is-compact" : ""),
+    onError: e => { e.target.style.opacity = 0; },
+  });
+}
+
+const MEDIA_FOLDERS = [
+  { id: "all", label: "All media", icon: "image" },
+  { id: "media/animals", label: "Animals", icon: "paw", group: "media", path: "media/animals/" },
+  { id: "media/campaign", label: "Campaign", icon: "trending", group: "media", path: "media/campaign/" },
+  { id: "media/intakes", label: "Intakes", icon: "intake", group: "media", path: "media/intakes/" },
+  { id: "media/medical", label: "Medical", icon: "medical", group: "media", path: "media/medical/" },
+  { id: "media/team", label: "Team", icon: "people", group: "media", path: "media/team/" },
+  { id: "media/videos", label: "Videos", icon: "video", group: "media", path: "media/videos/" },
+  { id: "static/pages", label: "Pages", icon: "globe", group: "static", path: "static/pages/" },
+  { id: "static/cms", label: "CMS uploads", icon: "upload", group: "static", path: "static/cms/" },
+  { id: "static/global", label: "Global", icon: "sparkles", group: "static", path: "static/global/" },
+  { id: "static/assets", label: "Site assets", icon: "image", group: "static", path: "static/assets/" },
+];
+
+function mediaDedupeAssets(assets) {
+  const seen = new Map();
+  for (const a of assets || []) {
+    const k = String(mediaAssetUrl(a) || a.r2_key || a.id || "").toLowerCase();
+    if (!k) continue;
+    const prev = seen.get(k);
+    const ts = String(a.updated_at || a.created_at || "");
+    const prevTs = String(prev?.updated_at || prev?.created_at || "");
+    if (!prev || ts > prevTs) seen.set(k, a);
+  }
+  return Array.from(seen.values());
+}
+
+function MediaStorageMeter({ stats }) {
+  if (!stats) return null;
+  const used = Number(stats.total_bytes || 0);
+  const quota = Number(stats.quota_bytes || 0);
+  const pct = quota ? Math.min(100, (used / quota) * 100) : 0;
+  const warn = pct >= 85;
+  return React.createElement("div", { className: "media-storage-meter" },
+    React.createElement("div", { className: "media-storage-meter-head" },
+      React.createElement("span", null, `${mediaFormatBytes(used)} used`),
+      React.createElement("span", { className: "media-storage-meter-sub" }, `${stats.asset_count || 0} files · ${mediaFormatBytes(quota)} plan`)
+    ),
+    React.createElement("div", { className: "media-storage-meter-track" },
+      React.createElement("div", {
+        className: "media-storage-meter-fill" + (warn ? " warn" : ""),
+        style: { width: `${pct}%` },
+      })
+    )
+  );
+}
+
+function MediaPreviewModal({ asset, onClose, onSave, onDelete, copyUrl, notify }) {
+  const [altText, setAltText] = React.useState(asset?.alt_text || "");
+  const [label, setLabel] = React.useState(asset?.label || asset?.filename || "");
+  const [busy, setBusy] = React.useState(false);
+  if (!asset) return null;
+  const url = mediaAssetUrl(asset);
+  const isVideo = String(asset.mime_type || "").startsWith("video/") || asset.asset_type === "video";
+  const isPdf = asset.mime_type === "application/pdf" || asset.asset_type === "document";
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/cms/asset/save", {
+        method: "POST", credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ asset: { ...asset, alt_text: altText, label } }),
+      });
+      const d = await res.json();
+      if (d.success) { notify("Saved"); onSave(); onClose(); }
+      else notify(d.error || "Save failed", "error");
+    } catch { notify("Save failed", "error"); }
+    setBusy(false);
+  };
+
+  const del = async () => {
+    if (!window.confirm(`Delete ${label || asset.filename}? This removes the R2 file.`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/cms/asset/delete", {
+        method: "POST", credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: asset.id }),
+      });
+      const d = await res.json();
+      if (d.success) { notify("Deleted"); onDelete(); onClose(); }
+      else notify(d.error || "Delete failed", "error");
+    } catch { notify("Delete failed", "error"); }
+    setBusy(false);
+  };
+
+  return React.createElement(Modal, {
+    open: true,
+    onClose: onClose,
+    title: label || asset.filename || "Preview",
+    width: 720,
+  },
+    React.createElement("div", { className: "media-preview-body" },
+      isVideo
+        ? React.createElement("video", { src: url, controls: true, className: "media-preview-media" })
+        : isPdf
+          ? React.createElement("iframe", { src: url, title: label, className: "media-preview-pdf" })
+          : React.createElement("img", { src: url, alt: altText || label, className: "media-preview-media" }),
+      React.createElement("div", { className: "media-preview-meta" },
+        React.createElement("div", { className: "media-preview-row" },
+          React.createElement("label", null, "Label"),
+          React.createElement("input", { value: label, onChange: e => setLabel(e.target.value) })
+        ),
+        React.createElement("div", { className: "media-preview-row" },
+          React.createElement("label", null, "Alt text"),
+          React.createElement("input", { value: altText, onChange: e => setAltText(e.target.value), placeholder: "Describe image for accessibility" })
+        ),
+        React.createElement("div", { className: "media-preview-kv" },
+          React.createElement("span", null, mediaFormatBytes(asset.size)),
+          React.createElement("span", null, asset.mime_type || asset.asset_type || "file"),
+          React.createElement("span", null, asset.r2_key || mediaFolderLabel(mediaFolderKey(asset)))
+        ),
+        React.createElement("code", { className: "media-preview-url" }, url)
+      ),
+      React.createElement("div", { className: "media-preview-actions" },
+        React.createElement(Btn, { variant: "secondary", size: "sm", icon: "copy", onClick: () => copyUrl(url) }, "Copy URL"),
+        React.createElement("a", { href: url, target: "_blank", rel: "noopener noreferrer", className: "media-preview-open" }, "Open"),
+        React.createElement("div", { style: { flex: 1 } }),
+        React.createElement(Btn, { variant: "danger", size: "sm", icon: "trash", disabled: busy, onClick: del }, "Delete"),
+        React.createElement(Btn, { size: "sm", disabled: busy, onClick: save }, busy ? "Saving…" : "Save")
+      )
+    )
+  );
+}
 
 function CmsImagesView({ onNavigate }) {
-  const TABS = ["library", "upload", "drive", "cleanup"];
-  const [tab, setTab]           = React.useState("library");
-  // ── shared state
-  const [assets, setAssets]     = React.useState([]);
+  const [tab, setTab] = React.useState("library");
+  const [assets, setAssets] = React.useState([]);
+  const [stats, setStats] = React.useState(null);
   const [assetsLoading, setAssetsLoading] = React.useState(true);
-  const [notice, setNotice]     = React.useState({});
+  const [libraryFolder, setLibraryFolder] = React.useState("all");
+  const [notice, setNotice] = React.useState({});
   const notify = (t, type) => cmsNotify(setNotice, t, type);
 
   const loadAssets = async () => {
     setAssetsLoading(true);
     try {
-      const res = await fetch("/api/cms/assets", { credentials: "include" });
-      const d   = await res.json();
-      if (d.success) setAssets(d.assets || []);
+      const [res, statsRes] = await Promise.all([
+        fetch("/api/cms/assets", { credentials: "include" }),
+        fetch("/api/cms/assets/stats", { credentials: "include" }),
+      ]);
+      const d = await res.json();
+      const s = await statsRes.json();
+      if (d.success) setAssets(mediaDedupeAssets(d.assets || []));
+      if (s.success) setStats(s);
     } catch {}
     setAssetsLoading(false);
   };
@@ -827,159 +1054,174 @@ function CmsImagesView({ onNavigate }) {
 
   const copyUrl = (url) => navigator.clipboard.writeText(url || "").then(() => notify("URL copied"));
 
-  // ── tab button style helper
   const tabStyle = (t) => ({
-    padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+    padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer",
     fontSize: 13, fontWeight: 600, fontFamily: "var(--font-ui)",
     background: tab === t ? C.purple : "transparent",
     color: tab === t ? "#fff" : C.textSec,
-    transition: "background .15s",
   });
 
-  return React.createElement(CmsPageWrapper, null,
-    React.createElement(PageHeader, {
-      title: "Media Library",
-      subtitle: `${assets.length} assets in R2 · assets.companionsofcaddo.org`,
-    }),
+  return React.createElement(CmsPageWrapper, { className: "media-workspace" },
     React.createElement(CmsNotice, { n: notice }),
-    // Tab bar + inline + upload button
-    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 24 } },
-      React.createElement("div", { style: { display: "flex", gap: 4, background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4 } },
-        React.createElement("button", { style: tabStyle("library"),  onClick: () => setTab("library")  }, "R2 Library"),
-        React.createElement("button", { style: tabStyle("drive"),    onClick: () => setTab("drive")    }, "Google Drive"),
-        React.createElement("button", { style: tabStyle("cleanup"),  onClick: () => setTab("cleanup")  }, "Usage / Cleanup"),
+    React.createElement(MediaStorageMeter, { stats: stats }),
+    React.createElement("div", { className: "media-toolbar" },
+      React.createElement("div", { className: "media-tabs dash-hscroll" },
+        React.createElement("button", { type: "button", style: tabStyle("library"), onClick: () => setTab("library") }, "Library"),
+        React.createElement("button", { type: "button", style: tabStyle("drive"), onClick: () => setTab("drive") }, "Google Drive"),
+        React.createElement("button", { type: "button", style: tabStyle("cleanup"), onClick: () => setTab("cleanup") }, "Cleanup")
       ),
-      // Inline + upload button — always accessible regardless of tab
       React.createElement("label", {
-        title: "Upload images to R2",
-        style: { display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 8, border: `1px solid ${C.purple}`, background: C.purple, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-ui)", marginLeft: "auto", flexShrink: 0, transition: "opacity .12s" },
-        onMouseEnter: e => e.currentTarget.style.opacity = ".85",
-        onMouseLeave: e => e.currentTarget.style.opacity = "1",
+        className: "media-upload-btn",
+        title: mediaUploadFolder(libraryFolder)
+          ? `Upload to ${libraryFolder}/`
+          : "Upload to static/cms/uploads/",
       },
-        React.createElement(Icon, { name: "plus", size: 14 }),
-        "Upload",
+        React.createElement(Icon, { name: "upload", size: 14 }),
+        mediaUploadFolder(libraryFolder) ? `Upload to ${mediaFolderLabel(libraryFolder)}` : "Upload",
         React.createElement("input", {
-          type: "file", accept: "image/*", multiple: true, style: { display: "none" },
+          type: "file",
+          accept: "image/*,video/mp4,video/webm,video/quicktime,application/pdf",
+          multiple: true,
+          style: { display: "none" },
           onChange: async e => {
             const files = Array.from(e.target.files || []);
             if (!files.length) return;
+            const uploadFolder = mediaUploadFolder(libraryFolder);
             let ok = 0;
             for (const file of files) {
               const fd = new FormData();
               fd.append("file", file);
-              fd.append("usage_context", "cms");
+              fd.append("usage_context", uploadFolder ? uploadFolder.replace("media/", "") : "cms");
+              if (uploadFolder) fd.append("r2_folder", uploadFolder);
               try {
                 const res = await fetch("/api/cms/asset/upload", { method: "POST", credentials: "include", body: fd });
                 const d = await res.json();
-                if (d.success) ok++;
+                if (d.success) ok += 1;
                 else notify(`Failed: ${file.name}`, "error");
               } catch { notify(`Error: ${file.name}`, "error"); }
             }
-            if (ok > 0) { notify(`${ok} image${ok > 1 ? "s" : ""} uploaded`); loadAssets(); setTab("library"); }
+            if (ok > 0) { notify(`${ok} file${ok > 1 ? "s" : ""} uploaded`); loadAssets(); setTab("library"); }
             e.target.value = "";
-          }
+          },
         })
-      ),
+      )
     ),
-    tab === "library"  && React.createElement(ImagesLibraryTab,  { assets, loading: assetsLoading, onReload: loadAssets, copyUrl, notify }),
-    tab === "drive"    && React.createElement(ImagesDriveTab,    { onImported: () => { loadAssets(); setTab("library"); }, notify }),
-    tab === "cleanup"  && React.createElement(ImagesCleanupTab,  { assets, loading: assetsLoading }),
+    tab === "library" && React.createElement(ImagesLibraryTab, {
+      assets,
+      loading: assetsLoading,
+      onReload: loadAssets,
+      copyUrl,
+      notify,
+      folder: libraryFolder,
+      onFolderChange: setLibraryFolder,
+    }),
+    tab === "drive" && React.createElement(ImagesDriveTab, { onImported: () => { loadAssets(); setTab("library"); }, notify }),
+    tab === "cleanup" && React.createElement(ImagesCleanupTab, { assets, stats, loading: assetsLoading, onReload: loadAssets, notify }),
   );
 }
 
-// ── Tab: R2 Library ──────────────────────────────────────────────────────────
-function ImagesLibraryTab({ assets, loading, onReload, copyUrl, notify }) {
-  const [filter, setFilter]   = React.useState("all");
-  const [search, setSearch]   = React.useState("");
+function ImagesLibraryTab({ assets, loading, onReload, copyUrl, notify, folder, onFolderChange }) {
+  const [search, setSearch] = React.useState("");
   const [viewMode, setViewMode] = React.useState("grid");
-  const [editAlt, setEditAlt] = React.useState(null);
+  const [preview, setPreview] = React.useState(null);
 
-  const contexts = ["all", ...Array.from(new Set(assets.map(a => a.usage_context).filter(Boolean)))];
+  const folderCounts = React.useMemo(() => {
+    const counts = { all: assets.length };
+    for (const a of assets) {
+      const k = mediaFolderKey(a);
+      if (!k) continue;
+      counts[k] = (counts[k] || 0) + 1;
+    }
+    return counts;
+  }, [assets]);
+
   const filtered = assets.filter(a => {
-    const matchCtx = filter === "all" || a.usage_context === filter;
-    const matchQ   = !search || (a.label || a.filename || "").toLowerCase().includes(search.toLowerCase());
-    return matchCtx && matchQ;
+    const inFolder = folder === "all" || mediaFolderKey(a) === folder;
+    const q = search.trim().toLowerCase();
+    const matchQ = !q || [a.label, a.filename, a.alt_text, a.r2_key, a.usage_context].some(v => String(v || "").toLowerCase().includes(q));
+    return inFolder && matchQ;
   });
 
-  const saveAltText = async (asset, altText) => {
-    try {
-      const res = await fetch("/api/cms/asset/save", {
-        method: "POST", credentials: "include",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ asset: { ...asset, alt_text: altText } }),
-      });
-      const d = await res.json();
-      if (d.success) { notify("Alt text saved"); onReload(); }
-      else notify(d.error || "Save failed", "error");
-    } catch { notify("Save failed", "error"); }
-    setEditAlt(null);
-  };
+  const folders = MEDIA_FOLDERS.filter(f => {
+    if (f.id === "all") return true;
+    if (f.group === "media") return true;
+    return (folderCounts[f.id] || 0) > 0;
+  });
 
-  return React.createElement("div", null,
-    // Toolbar
-    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" } },
-      React.createElement(Input, { value: search, onChange: setSearch, placeholder: "Search images…", icon: "search", style: { width: 220 } }),
-      React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap" } },
-        contexts.map(ctx => React.createElement("button", {
-          key: ctx, onClick: () => setFilter(ctx),
-          style: { padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-ui)",
-                   border: `1px solid ${filter === ctx ? C.purple : C.border}`,
-                   background: filter === ctx ? C.purpleDim : "transparent",
-                   color: filter === ctx ? C.purpleL : C.textSec }
-        }, ctx === "all" ? `All (${assets.length})` : `${ctx} (${assets.filter(a => a.usage_context === ctx).length})`))
-      ),
-      React.createElement("div", { style: { marginLeft: "auto", display: "flex", gap: 2, background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, padding: 3 } },
-        [["grid","image"],["list","docs"]].map(([m,icon]) => React.createElement("button", {
-          key: m, onClick: () => setViewMode(m),
-          style: { padding: "4px 8px", borderRadius: 6, border: "none", cursor: "pointer",
-                   background: viewMode === m ? C.purple : "none",
-                   color: viewMode === m ? "#fff" : C.textSec }
-        }, React.createElement(Icon, { name: icon, size: 14 })))
-      ),
+  return React.createElement("div", { className: "media-library-layout" },
+    React.createElement("aside", { className: "media-folder-rail" },
+      folders.map(f => React.createElement("button", {
+        key: f.id,
+        type: "button",
+        className: "media-folder-btn" + (folder === f.id ? " is-active" : ""),
+        onClick: () => onFolderChange(f.id),
+      },
+        React.createElement(Icon, { name: f.icon, size: 16 }),
+        React.createElement("span", { className: "media-folder-label", title: f.path || f.label }, f.label),
+        React.createElement("span", { className: "media-folder-count" }, folderCounts[f.id] || 0)
+      ))
     ),
-    loading
-      ? React.createElement("div", { style: { color: C.textSec, fontSize: 13, padding: 20 } }, "Loading images…")
-      : filtered.length === 0
-        ? React.createElement(EmptyState, { message: "No images found", icon: "image" })
-        : viewMode === "grid"
-          ? React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(175px,1fr))", gap: 12 } },
-              filtered.map(a => React.createElement("div", { key: a.id, style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" } },
-                React.createElement("div", { style: { height: 140, background: C.bg2, overflow: "hidden", position: "relative" } },
-                  React.createElement("img", { src: a.cdn_url || a.public_url, alt: a.alt_text || a.label, style: { width: "100%", height: "100%", objectFit: "cover" }, onError: e => { e.target.style.opacity = 0; } }),
-                  a.source_provider === "google_drive" && React.createElement("div", { style: { position: "absolute", top: 6, left: 6, fontSize: 10, padding: "2px 6px", borderRadius: 99, background: "rgba(66,133,244,.9)", color: "#fff" } }, "Drive"),
-                  React.createElement("div", { style: { position: "absolute", top: 6, right: 6 } },
-                    React.createElement("span", { style: { fontSize: 10, padding: "2px 6px", borderRadius: 99, background: "rgba(0,0,0,.6)", color: "#fff" } }, a.usage_context || "general")
-                  )
-                ),
-                React.createElement("div", { style: { padding: "10px 12px" } },
-                  React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.92)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, a.label || a.filename),
-                  editAlt?.id === a.id
-                    ? React.createElement("div", { style: { marginTop: 6, display: "flex", gap: 4 } },
-                        React.createElement("input", { autoFocus: true, defaultValue: a.alt_text || "", placeholder: "Alt text…", onKeyDown: e => { if (e.key === "Enter") saveAltText(a, e.target.value); if (e.key === "Escape") setEditAlt(null); }, style: { flex: 1, padding: "4px 8px", fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 6, background: C.bg, color: C.text, outline: "none" } }),
-                        React.createElement("button", { onClick: e => saveAltText(a, e.target.previousSibling?.value || ""), style: { padding: "4px 8px", borderRadius: 6, border: "none", background: C.purple, color: "#fff", fontSize: 11, cursor: "pointer" } }, "Save")
-                      )
-                    : React.createElement("div", { style: { fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 2, fontStyle: a.alt_text ? "normal" : "italic" } }, a.alt_text || "No alt text"),
-                  React.createElement("div", { style: { display: "flex", gap: 4, marginTop: 8 } },
-                    React.createElement("button", { onClick: () => copyUrl(a.cdn_url || a.public_url), style: { flex: 1, padding: "5px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 11, cursor: "pointer" } }, "Copy URL"),
-                    React.createElement("button", { onClick: () => setEditAlt(editAlt?.id === a.id ? null : a), style: { padding: "5px 8px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, fontSize: 11, cursor: "pointer" } }, "Alt")
-                  )
-                )
-              ))
-            )
-          : React.createElement(Card, { style: { overflow: "hidden" } },
-              React.createElement(Table, {
-                cols: [
-                  { key: "filename", label: "File", render: (v, row) => React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
-                      React.createElement("img", { src: row.cdn_url || row.public_url, style: { width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: `1px solid ${C.border}` }, onError: e => e.target.style.opacity = 0 }),
-                      React.createElement("div", null, React.createElement("div", { style: { fontWeight: 600, fontSize: 13 } }, row.label || v), React.createElement("div", { style: { fontSize: 11, color: C.textMut, fontFamily: "var(--font-mono)" } }, v))) },
-                  { key: "usage_context", label: "Context", render: v => React.createElement(Badge, { label: v || "general" }) },
-                  { key: "alt_text", label: "Alt Text", render: v => React.createElement("span", { style: { fontSize: 12, color: v ? C.text : C.textMut, fontStyle: v ? "normal" : "italic" } }, v || "None") },
-                  { key: "source_provider", label: "Source", render: v => React.createElement("span", { style: { fontSize: 11, color: v === "google_drive" ? "#4285F4" : C.textMut } }, v || "upload") },
-                  { key: "cdn_url", label: "URL", render: v => React.createElement("button", { onClick: () => copyUrl(v), style: { fontSize: 11, background: "none", border: "none", color: C.purple, cursor: "pointer", fontFamily: "var(--font-mono)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, v?.replace("https://assets.companionsofcaddo.org/", "…/") || "—") },
-                ],
-                rows: filtered, emptyMsg: "No images",
-              })
-            )
+    React.createElement("div", { className: "media-library-main" },
+      React.createElement("div", { className: "media-library-toolbar" },
+        React.createElement(Input, { value: search, onChange: setSearch, placeholder: "Search media…", icon: "search", style: { flex: "1 1 180px", maxWidth: 280 } }),
+        React.createElement("div", { className: "media-view-toggle" },
+          [["grid", "image"], ["list", "docs"]].map(([m, icon]) => React.createElement("button", {
+            key: m, type: "button", className: viewMode === m ? "is-active" : "", onClick: () => setViewMode(m),
+          }, React.createElement(Icon, { name: icon, size: 14 })))
+        )
+      ),
+      loading
+        ? React.createElement("div", { className: "media-empty-msg" }, "Loading…")
+        : filtered.length === 0
+          ? React.createElement(EmptyState, { message: "No media in this folder", icon: "folder" })
+          : viewMode === "grid"
+            ? React.createElement("div", { className: "media-grid" },
+                filtered.map(a => {
+                  return React.createElement("button", {
+                    key: a.id, type: "button", className: "media-card",
+                    onClick: () => setPreview(a),
+                  },
+                    React.createElement("div", { className: "media-card-thumb" },
+                      React.createElement(MediaThumbPreview, { asset: a }),
+                      mediaAssetKind(a) === "pdf" && React.createElement("span", { className: "media-card-badge pdf" }, "PDF"),
+                      mediaAssetKind(a) === "video" && React.createElement("span", { className: "media-card-badge video" }, "Video"),
+                      a.source_provider === "google_drive" && React.createElement("span", { className: "media-card-badge drive" }, "Drive")
+                    ),
+                    React.createElement("div", { className: "media-card-meta" },
+                      React.createElement("strong", null, a.label || a.filename),
+                      React.createElement("span", null, mediaSizeLabel(a))
+                    )
+                  );
+                })
+              )
+            : React.createElement(Card, { style: { overflow: "hidden" } },
+                React.createElement(Table, {
+                  cols: [
+                    { key: "filename", label: "File", render: (v, row) => React.createElement("button", {
+                      type: "button", className: "media-list-name", onClick: () => setPreview(row),
+                    },
+                      React.createElement("span", { className: "media-list-thumb" },
+                        React.createElement(MediaThumbPreview, { asset: row, compact: true })
+                      ),
+                      React.createElement("span", null, row.label || v)
+                    ) },
+                    { key: "size", label: "Size", render: (v, row) => mediaSizeLabel(row) },
+                    { key: "r2_key", label: "Folder", render: (v, row) => mediaFolderLabel(mediaFolderKey(row)) },
+                    { key: "cdn_url", label: "", render: (v, row) => React.createElement(Btn, { variant: "ghost", size: "sm", onClick: () => setPreview(row) }, "Open") },
+                  ],
+                  rows: filtered,
+                  emptyMsg: "No media",
+                })
+              )
+    ),
+    preview && React.createElement(MediaPreviewModal, {
+      asset: preview,
+      onClose: () => setPreview(null),
+      onSave: onReload,
+      onDelete: onReload,
+      copyUrl,
+      notify,
+    })
   );
 }
 
@@ -1244,23 +1486,59 @@ function ImagesDriveTab({ onImported, notify }) {
 }
 
 // ── Tab: Usage / Cleanup ─────────────────────────────────────────────────────
-function ImagesCleanupTab({ assets, loading }) {
+function ImagesCleanupTab({ assets, stats, loading, onReload, notify }) {
   const driveImports = assets.filter(a => a.source_provider === "google_drive");
-  const noAlt        = assets.filter(a => !a.alt_text);
-  const archived     = assets.filter(a => a.status === "archived");
+  const noAlt = assets.filter(a => !a.alt_text);
+  const dupes = React.useMemo(() => {
+    const groups = new Map();
+    for (const a of assets) {
+      const k = String(mediaAssetUrl(a) || a.r2_key || "").toLowerCase();
+      if (!k) continue;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(a);
+    }
+    return Array.from(groups.values()).filter(g => g.length > 1);
+  }, [assets]);
 
   const statCard = (label, count, color) =>
-    React.createElement("div", { style: { flex: "1 1 160px", padding: "18px 20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12 } },
+    React.createElement("div", { className: "media-stat-card" },
       React.createElement("div", { style: { fontSize: 28, fontWeight: 700, color } }, count),
       React.createElement("div", { style: { fontSize: 13, color: C.textSec, marginTop: 4 } }, label)
     );
 
+  const deleteAsset = async (asset) => {
+    if (!window.confirm(`Delete ${asset.label || asset.filename}?`)) return;
+    try {
+      const res = await fetch("/api/cms/asset/delete", {
+        method: "POST", credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: asset.id }),
+      });
+      const d = await res.json();
+      if (d.success) { notify("Deleted"); onReload(); }
+      else notify(d.error || "Delete failed", "error");
+    } catch { notify("Delete failed", "error"); }
+  };
+
   return React.createElement("div", null,
+    stats && React.createElement(MediaStorageMeter, { stats: stats }),
     React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 } },
-      statCard("Total assets", assets.length, C.purple),
+      statCard("Tracked files", stats?.asset_count ?? assets.length, C.purple),
+      statCard("Storage used", mediaFormatBytes(stats?.total_bytes), C.teal),
       statCard("Drive imports", driveImports.length, "#4285F4"),
-      statCard("Missing alt text", noAlt.length, noAlt.length > 0 ? "#f59e0b" : "#22c55e"),
-      statCard("Archived", archived.length, C.textMut),
+      statCard("Missing alt", noAlt.length, noAlt.length > 0 ? "#f59e0b" : "#22c55e"),
+      statCard("Duplicate groups", dupes.length, dupes.length ? C.red : C.green),
+    ),
+    dupes.length > 0 && React.createElement(Card, { style: { marginBottom: 16 } },
+      React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 12 } }, "Possible duplicates"),
+      React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginBottom: 12 } }, "Same CDN URL tracked more than once. Library view already hides dupes; delete extras here."),
+      dupes.slice(0, 10).map((group, i) => React.createElement("div", { key: i, style: { marginBottom: 12, padding: 12, border: `1px solid ${C.border}`, borderRadius: 10 } },
+        group.map(a => React.createElement("div", { key: a.id, style: { display: "flex", alignItems: "center", gap: 10, marginTop: 6 } },
+          React.createElement("img", { src: mediaAssetUrl(a), style: { width: 36, height: 36, objectFit: "cover", borderRadius: 6 }, onError: e => e.target.style.opacity = 0 }),
+          React.createElement("span", { style: { flex: 1, fontSize: 12 } }, a.label || a.filename),
+          React.createElement(Btn, { variant: "danger", size: "sm", onClick: () => deleteAsset(a) }, "Delete")
+        ))
+      ))
     ),
     noAlt.length > 0 && React.createElement(Card, { style: { marginBottom: 16 } },
       React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 12 } }, "Missing alt text"),

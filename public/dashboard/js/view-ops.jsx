@@ -252,50 +252,134 @@ function MedicalView({ onNavigate }) {
 function VolunteersView({ onNavigate }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
-  const filtered = CPAS.volunteers.filter(v => {
+  const [volunteers, setVolunteers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ full_name: "", email: "", role: "Volunteer" });
+  const [error, setError] = useState("");
+
+  const loadVolunteers = React.useCallback(function() {
+    setLoading(true);
+    fetchDashboardJSON("/api/dashboard/volunteers")
+      .then(function(data) {
+        const rows = (data.volunteers || data.members || []).map(function(row) {
+          return {
+            id: row.id,
+            name: row.full_name,
+            email: row.email || "—",
+            phone: row.phone || "—",
+            role: row.role || "Volunteer",
+            status: row.status === "active" ? "Active" : "Inactive",
+            joinDate: (row.created_at || "—").slice(0, 10),
+            hoursMTD: row.hours_month || 0,
+            totalHours: row.hours_total || 0,
+            lastShift: row.last_shift || "—"
+          };
+        });
+        setVolunteers(rows);
+        window.CPAS = window.CPAS || {};
+        window.CPAS.volunteers = rows;
+      })
+      .catch(function() { setVolunteers(window.CPAS?.volunteers || []); })
+      .finally(function() { setLoading(false); });
+  }, []);
+
+  useEffect(function() { loadVolunteers(); }, [loadVolunteers]);
+
+  const filtered = volunteers.filter(v => {
     const matchFilter = filter === "All" || v.status === filter;
     const matchSearch = !search || v.name.toLowerCase().includes(search.toLowerCase()) || v.role.toLowerCase().includes(search.toLowerCase());
     return matchFilter && matchSearch;
   });
-  const totalHours = CPAS.volunteers.reduce((s,v)=>s+v.hoursMTD,0);
-  const active = CPAS.volunteers.filter(v=>v.status==="Active").length;
+  const totalHours = volunteers.reduce((s,v)=>s+v.hoursMTD,0);
+  const active = volunteers.filter(v=>v.status==="Active").length;
+
+  function addVolunteer() {
+    if (!form.full_name.trim()) { setError("Name is required."); return; }
+    setSaving(true); setError("");
+    fetch("/api/dashboard/volunteers", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        full_name: form.full_name.trim(),
+        email: form.email || null,
+        role: form.role || "Volunteer",
+        status: "active"
+      })
+    })
+      .then(function(res) { return res.json().then(function(data) { if (!res.ok) throw new Error(data.error || "Failed"); return data; }); })
+      .then(function() {
+        setShowAdd(false);
+        setForm({ full_name: "", email: "", role: "Volunteer" });
+        loadVolunteers();
+      })
+      .catch(function(e) { setError(e.message || "Could not add volunteer."); })
+      .finally(function() { setSaving(false); });
+  }
 
   return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Volunteers",
       subtitle:"Team members and hour tracking",
-      action: React.createElement(Btn, { icon:"plus", size:"sm" }, "Add Volunteer")
+      action: React.createElement(Btn, { icon:"plus", size:"sm", onClick: function() { setShowAdd(true); setError(""); } }, "Add Volunteer")
     }),
 
     React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 } },
-      React.createElement(StatCard, { icon:"👥", label:"Total Volunteers",value:CPAS.volunteers.length }),
-      React.createElement(StatCard, { icon:"✅", label:"Active",           value:active,      sub:`${CPAS.volunteers.length-active} inactive` }),
+      React.createElement(StatCard, { icon:"👥", label:"Total Volunteers",value:volunteers.length }),
+      React.createElement(StatCard, { icon:"✅", label:"Active",           value:active,      sub:`${volunteers.length-active} inactive` }),
       React.createElement(StatCard, { icon:"⏱️", label:"Hours (MTD)",      value:totalHours,  sub:"+18% vs last month", subPositive:true }),
-      React.createElement(StatCard, { icon:"📅", label:"Avg Hours/Person", value:Math.round(totalHours/active), sub:"Active volunteers" }),
+      React.createElement(StatCard, { icon:"📅", label:"Avg Hours/Person", value:active ? Math.round(totalHours/active) : 0, sub:"Active volunteers" }),
     ),
 
     React.createElement("div", { style:{ display:"flex", gap:10, marginBottom:16 } },
       React.createElement(Input, { value:search, onChange:setSearch, placeholder:"Search volunteers…", icon:"search", style:{ width:260 } }),
-      React.createElement(Tabs, { tabs:[{value:"All",label:"All",count:CPAS.volunteers.length},{value:"Active",label:"Active",count:active},{value:"Inactive",label:"Inactive",count:CPAS.volunteers.length-active}], active:filter, onChange:setFilter })
+      React.createElement(Tabs, { tabs:[{value:"All",label:"All",count:volunteers.length},{value:"Active",label:"Active",count:active},{value:"Inactive",label:"Inactive",count:volunteers.length-active}], active:filter, onChange:setFilter })
     ),
 
-    React.createElement(Card, { style:{ overflow:"hidden" } },
-      React.createElement(Table, {
-        cols:[
-          { key:"name",       label:"Name",     render:(v,row)=>React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}}, React.createElement(Avatar,{name:v,size:30}), React.createElement("div",null, React.createElement("div",{style:{fontWeight:600,fontSize:13}},v), React.createElement("div",{style:{fontSize:11,color:C.textSec}},row.email))) },
-          { key:"role",       label:"Role",     render:v=>React.createElement("span",{style:{color:C.textSec}},v) },
-          { key:"status",     label:"Status",   render:v=>React.createElement(Badge,{label:v,dot:true}) },
-          { key:"joinDate",   label:"Joined",   render:v=>React.createElement("span",{style:{color:C.textSec,fontSize:12}},v) },
-          { key:"hoursMTD",   label:"Hrs (MTD)",render:v=>React.createElement("span",{style:{fontWeight:600,color:C.purpleL}},v) },
-          { key:"totalHours", label:"Total Hrs" },
-          { key:"lastShift",  label:"Last Shift",render:v=>React.createElement("span",{style:{color:C.textSec,fontSize:12}},v) },
-          { key:"id",         label:"",         render:(v,row)=>React.createElement("div",{style:{display:"flex",gap:6}},
-            React.createElement(Btn,{size:"sm",variant:"ghost",icon:"mail"},""),
-            React.createElement(Btn,{size:"sm",variant:"ghost",icon:"eye"},"")
-          )},
-        ],
-        rows: filtered
-      })
+    loading
+      ? React.createElement(Card, { style:{ padding:40, textAlign:"center" } }, "Loading volunteers…")
+      : React.createElement(Card, { style:{ overflow:"hidden" } },
+          React.createElement(Table, {
+            cols:[
+              { key:"name",       label:"Name",     render:(v,row)=>React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}}, React.createElement(Avatar,{name:v,size:30}), React.createElement("div",null, React.createElement("div",{style:{fontWeight:600,fontSize:13}},v), React.createElement("div",{style:{fontSize:11,color:C.textSec}},row.email))) },
+              { key:"role",       label:"Role",     render:v=>React.createElement("span",{style:{color:C.textSec}},v) },
+              { key:"status",     label:"Status",   render:v=>React.createElement(Badge,{label:v,dot:true}) },
+              { key:"joinDate",   label:"Joined",   render:v=>React.createElement("span",{style:{color:C.textSec,fontSize:12}},v) },
+              { key:"hoursMTD",   label:"Hrs (MTD)",render:v=>React.createElement("span",{style:{fontWeight:600,color:C.purpleL}},v) },
+              { key:"totalHours", label:"Total Hrs" },
+              { key:"lastShift",  label:"Last Shift",render:v=>React.createElement("span",{style:{color:C.textSec,fontSize:12}},v) },
+              { key:"id",         label:"",         render:(v,row)=>React.createElement("div",{style:{display:"flex",gap:6}},
+                React.createElement(Btn,{size:"sm",variant:"ghost",icon:"mail"},""),
+                React.createElement(Btn,{size:"sm",variant:"ghost",icon:"eye"},"")
+              )},
+            ],
+            rows: filtered,
+            emptyMsg: "No volunteers found"
+          })
+        ),
+
+    React.createElement(Modal, { open: showAdd, onClose: function() { setShowAdd(false); setError(""); }, title: "Add Volunteer", width: 480 },
+      React.createElement("div", { style: { display: "grid", gap: 14 } },
+        React.createElement("div", null,
+          React.createElement("label", { style: { display: "block", fontSize: 12, fontWeight: 600, color: C.textSec, marginBottom: 6 } }, "Full name *"),
+          React.createElement(Input, { value: form.full_name, onChange: function(v) { setForm(function(f) { return Object.assign({}, f, { full_name: v }); }); }, placeholder: "e.g. Amanda Norris" })
+        ),
+        React.createElement("div", null,
+          React.createElement("label", { style: { display: "block", fontSize: 12, fontWeight: 600, color: C.textSec, marginBottom: 6 } }, "Email"),
+          React.createElement(Input, { value: form.email, onChange: function(v) { setForm(function(f) { return Object.assign({}, f, { email: v }); }); }, placeholder: "email@example.com" })
+        ),
+        React.createElement("div", null,
+          React.createElement("label", { style: { display: "block", fontSize: 12, fontWeight: 600, color: C.textSec, marginBottom: 6 } }, "Role"),
+          React.createElement(Input, { value: form.role, onChange: function(v) { setForm(function(f) { return Object.assign({}, f, { role: v }); }); }, placeholder: "e.g. Rescue & Foster Coordinator" })
+        ),
+        error && React.createElement("div", { style: { color: C.red, fontSize: 12 } }, error),
+        React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end" } },
+          React.createElement(Btn, { variant: "secondary", onClick: function() { setShowAdd(false); setError(""); } }, "Cancel"),
+          React.createElement(Btn, { onClick: addVolunteer, disabled: saving }, saving ? "Saving…" : "Add Volunteer")
+        )
+      )
     )
   );
 }

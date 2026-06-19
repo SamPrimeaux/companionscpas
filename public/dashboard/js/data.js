@@ -33,16 +33,7 @@ const MOCK = {
     { id:"animal_awwmaaann",        name:"Aww Man",       species:"Dog", breed:"Mixed Breed",        age:"Unknown", sex:"M", weight:"—", color:"Mixed",   status:"Available",     intake:"—", photo:`${R2_CDN}/media/animals/awwmaaann%20(1).webp`,  description:"Aww Man has a face that says it all." },
     { id:"animal_thisismysweater",  name:"Sweater",       species:"Dog", breed:"Mixed Breed",        age:"Unknown", sex:"F", weight:"—", color:"Mixed",   status:"Available",     intake:"—", photo:`${R2_CDN}/media/animals/thisismysweater.webp`,  description:"Sweater is cozy, calm, and ready for her forever home." },
   ],
-  applications: [
-    { id:"APP-231", applicant:"John D.",    email:"john.d@email.com",  phone:"555-0101", type:"Foster",   animalId:"animal_bluepit",       animalName:"Blue",    status:"Pending",      date:"2025-06-01", homeType:"House",     hasYard:true,  otherPets:"1 dog", experience:true,  notes:"Experienced with large breeds." },
-    { id:"APP-230", applicant:"Sarah M.",   email:"sarah.m@email.com", phone:"555-0202", type:"Adoption", animalId:"animal_bigsmiles",     animalName:"Smiley",  status:"Approved",     date:"2025-05-29", homeType:"House",     hasYard:true,  otherPets:"None",  experience:false, notes:"First-time dog owner, attended training class." },
-    { id:"APP-229", applicant:"Carlos R.",  email:"carlos.r@email.com",phone:"555-0303", type:"Foster",   animalId:"animal_upclose",       animalName:"Joy",     status:"Under Review", date:"2025-05-27", homeType:"House",     hasYard:true,  otherPets:"None",  experience:true,  notes:"Has experience fostering." },
-    { id:"APP-228", applicant:"Emily K.",   email:"emily.k@email.com", phone:"555-0404", type:"Adoption", animalId:"animal_happyboy",      animalName:"Happy",   status:"Denied",       date:"2025-05-24", homeType:"Apartment", hasYard:false, otherPets:"None",  experience:false, notes:"Apartment does not allow large dogs." },
-    { id:"APP-227", applicant:"Marcus T.",  email:"marcus.t@email.com",phone:"555-0505", type:"Foster",   animalId:"animal_miniscoobydoo", animalName:"Scooby",  status:"Pending",      date:"2025-05-23", homeType:"Condo",     hasYard:false, otherPets:"None",  experience:true,  notes:"Has fostered small dogs before." },
-    { id:"APP-226", applicant:"Priya S.",   email:"priya.s@email.com", phone:"555-0606", type:"Adoption", animalId:"animal_brindle",       animalName:"Brindle", status:"Approved",     date:"2025-05-20", homeType:"House",     hasYard:true,  otherPets:"1 cat", experience:true,  notes:"Approved pending medical clearance." },
-    { id:"APP-225", applicant:"Tom B.",     email:"tom.b@email.com",   phone:"555-0707", type:"Adoption", animalId:"animal_redeye",        animalName:"Red",     status:"Approved",     date:"2025-05-15", homeType:"House",     hasYard:true,  otherPets:"None",  experience:true,  notes:"Completed adoption." },
-    { id:"APP-224", applicant:"Lisa H.",    email:"lisa.h@email.com",  phone:"555-0808", type:"Foster",   animalId:"animal_conehead",      animalName:"Recover", status:"Under Review", date:"2025-05-12", homeType:"House",     hasYard:true,  otherPets:"None",  experience:false, notes:"Willing to handle medical needs." }
-  ],
+  applications: [],
   intakes: [
     { id:"INT-088", date:"2025-06-05", animalId:"animal_conehead",      animal:"Recover",    species:"Dog", method:"Stray",          location:"Main St & 5th Ave", condition:"Fair", notes:"Post-surgery recovery",          staff:"Sam P." },
     { id:"INT-087", date:"2025-06-03", animalId:"animal_thisismysweater",animal:"Sweater",    species:"Dog", method:"Owner Surrender", location:"Shelter",           condition:"Good", notes:"Owner relocating",               staff:"Danielle C." },
@@ -150,23 +141,29 @@ function transformAnimal(row) {
   };
 }
 
-// ── Transform API adoption_applications_demo row → application shape ──────────
+// ── Transform API cpas_foster_applications row → dashboard application shape ──
 function transformApp(row) {
+  const answers = (() => {
+    if (row.answers && typeof row.answers === "object") return row.answers;
+    try { return JSON.parse(row.answers_json || "{}"); } catch { return {}; }
+  })();
+  const reviewStatus = row.review_status || row.status || "new";
+  const statusMap = { new: "Pending", under_review: "Under Review", approved: "Approved", denied: "Denied" };
   return {
-    id:          row.id,
-    applicant:   row.applicant_name,
-    email:       row.applicant_email || "—",
-    phone:       row.phone || "—",
-    type:        row.app_type || "Adoption",
-    animalId:    row.animal_id || "—",
-    animalName:  row.animal_name || "—",
-    status:      row.status || "Pending",
-    date:        row.submitted_at?.slice(0,10) || "—",
-    homeType:    row.home_type || "—",
-    hasYard:     !!row.has_yard,
-    otherPets:   row.other_pets || "None",
-    experience:  !!row.has_experience,
-    notes:       row.notes || ""
+    id: row.id,
+    applicant: row.applicant_name || [row.first_name, row.last_name].filter(Boolean).join(" ") || "Applicant",
+    email: row.applicant_email || row.email || "—",
+    phone: row.applicant_phone || row.phone || "—",
+    type: "Foster",
+    animalId: answers.animal_id || "—",
+    animalName: answers.interested_animal || answers.preferred_animal || answers.animal_name || "General foster",
+    status: statusMap[reviewStatus] || reviewStatus,
+    date: (row.submitted_at || row.created_at || "—").slice(0, 10),
+    homeType: answers.home_type || answers.housing || "—",
+    hasYard: false,
+    otherPets: answers.other_pets || "—",
+    experience: false,
+    notes: row.internal_notes || "",
   };
 }
 
@@ -285,10 +282,8 @@ window.__loadDashboardData = async function() {
       window.CPAS.animals = overview.animals.map(transformAnimal);
     }
 
-    // Applications
-    if (overview.applications?.length) {
-      window.CPAS.applications = overview.applications.map(transformApp);
-    }
+    // Applications — always replace mock (empty until real submissions exist)
+    window.CPAS.applications = (overview.applications || []).map(transformApp);
 
     // Donations — hydrate KPIs + financial donut from succeeded Stripe rows
     if (overview.donations?.length) {

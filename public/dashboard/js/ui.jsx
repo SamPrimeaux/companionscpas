@@ -119,16 +119,22 @@ const ICONS = {
   publish:  `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13V4m-4 5l4-5 4 5"/><path d="M4 17h12"/></svg>`,
   tag:      `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h6l8 8a2 2 0 0 1 0 2.83l-4.17 4.17a2 2 0 0 1-2.83 0L2 9V3z"/><circle cx="7" cy="7" r="1"/></svg>`,
   link:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11a4 4 0 0 0 5.66.01l2-2a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M12 9a4 4 0 0 0-5.66 0l-2 2a4 4 0 0 0 5.66 5.66l1-1"/></svg>`,
+  folder:   `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/></svg>`,
+  video:    `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="11" height="10" rx="2"/><path d="M14 8l4-2v8l-4-2V8z"/></svg>`,
+  file:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h5l4 4v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M11 3v4h4"/></svg>`,
+  upload:   `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14V4m0 0L6 8m4-4 4 4"/><path d="M4 16h12"/></svg>`,
+  copy:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M5 13V5a2 2 0 0 1 2-2h8"/></svg>`,
   layers:   `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2l8 4-8 4-8-4 8-4z"/><path d="M2 10l8 4 8-4"/><path d="M2 14l8 4 8-4"/></svg>`,
   star:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 14.8 5.8 16.5l.8-4.7-3.4-3.3 4.7-.7L10 3.5z"/></svg>`,
   refresh:  `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a6 6 0 0 1 10.2-4.2L16 4"/><path d="M16 4v4h-4"/><path d="M16 10a6 6 0 0 1-10.2 4.2L4 16"/><path d="M4 16v-4h4"/></svg>`,
 };
 
-function Icon({ name, size = 16, style: extra = {} }) {
+function Icon({ name, size = 16, style: extra = {}, className = "" }) {
   const aliases = { "arrow-up":"arrowUp", "panel-right-close":"panelRightClose", "check-circle":"check", "x":"close" };
   const svg = ICONS[aliases[name] || name] || ICONS.docs;
   return React.createElement("span", {
-    style: { display:"inline-flex", alignItems:"center", justifyContent:"center", width:size, height:size, flexShrink:0, ...extra },
+    className: ("cpas-icon" + (className ? " " + className : "")),
+    style: { display:"inline-flex", alignItems:"center", justifyContent:"center", width:size, height:size, minWidth:size, minHeight:size, flexShrink:0, lineHeight:0, ...extra },
     dangerouslySetInnerHTML: { __html: svg }
   });
 }
