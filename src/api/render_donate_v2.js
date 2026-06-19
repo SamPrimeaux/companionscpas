@@ -63,9 +63,20 @@ function donateBtn(label, opts = {}) {
 
 async function loadCampaign(env, campaignId) {
   if (!env?.DB || !campaignId) return null;
-  return env.DB.prepare(
-    `SELECT * FROM fundraising_campaigns WHERE id = ? AND tenant_id = ? LIMIT 1`
-  ).bind(campaignId, TENANT_ID).first().catch(() => null);
+  const row = await env.DB.prepare(`
+    SELECT fc.*,
+           COALESCE(ca.public_url, ca.cdn_url, ca.pub_url) AS cover_url
+    FROM fundraising_campaigns fc
+    LEFT JOIN cms_assets ca ON ca.id = fc.cover_asset_id
+    WHERE fc.id = ? AND (fc.tenant_id = ? OR fc.organization_id = ?)
+    LIMIT 1
+  `).bind(campaignId, TENANT_ID, TENANT_ID).first().catch(() => null);
+  if (!row) return null;
+  return { ...row, config: safeJson(row.config_json, {}) };
+}
+
+function cfg(campaign) {
+  return campaign?.config || safeJson(campaign?.config_json, {});
 }
 
 async function loadCampaignRaisedCents(env, campaignId, fallbackCents = 0) {
@@ -139,17 +150,20 @@ function shareCampaignBtn(opts = {}) {
 async function renderFreedomHero(section, blocks, brand, env) {
   const config = safeJson(section?.config_json, {});
   const campaignId = pickText(config, ["campaign_id"]) || "camp_freedom_fest_2026";
-  const ticketDollars = Math.round((Number(config.ticket_amount_cents) || 17500) / 100);
-  const title = pickText(section, ["eyebrow"]) || "FREEDOM FEST 2026";
-  const ribbon = pickText(section, ["heading"]) || "RED, WHITE & RESCUED";
-  const tagline = pickText(section, ["subheading"]) || "Celebrate Freedom. Change a Life.";
-  const body = pickText(section, ["body"]) || [
+  const campaign = await loadCampaign(env, campaignId);
+  const cc = cfg(campaign);
+  const ticketCents = Number(cc.ticket_amount_cents || config.ticket_amount_cents) || 17500;
+  const ticketDollars = Math.round(ticketCents / 100);
+  const title = pickText(cc, ["public_eyebrow"]) || pickText(section, ["eyebrow"]) || "FREEDOM FEST 2026";
+  const ribbon = pickText(cc, ["public_heading"]) || pickText(section, ["heading"]) || "RED, WHITE & RESCUED";
+  const tagline = pickText(cc, ["public_subheading"]) || pickText(section, ["subheading"]) || "Celebrate Freedom. Change a Life.";
+  const body = pickText(campaign, ["description", "short_description"]) || pickText(section, ["body"]) || [
     "Sponsor a ticket and help rescue dogs travel to a brighter, better future.",
     "Every sponsored passenger gives an animal the chance to leave the shelter behind and move toward safety, rescue, foster, or a forever home.",
   ].join(" ");
-  const ctaLabel = pickText(section, ["cta_label"]) || "Sponsor a Ticket";
-  const footerL = pickText(config, ["footer_tagline"]) || "ONE TICKET. ONE LIFE. FOREVER.";
-  const footerR = pickText(config, ["footer_note"]) || "Thank you for helping us celebrate freedom and second chances.";
+  const ctaLabel = pickText(cc, ["cta_label"]) || pickText(section, ["cta_label"]) || "Sponsor a Ticket";
+  const footerL = pickText(cc, ["footer_tagline"]) || pickText(config, ["footer_tagline"]) || "ONE TICKET. ONE LIFE. FOREVER.";
+  const footerR = pickText(cc, ["footer_note"]) || pickText(config, ["footer_note"]) || "Thank you for helping us celebrate freedom and second chances.";
   const sectionKey = pickText(section, ["section_key"]);
 
   const animals = await loadCampaignAnimals(env, campaignId, 3);
@@ -187,21 +201,27 @@ async function renderMedicalStory(section, blocks, brand, env) {
   const config = safeJson(section?.config_json, {});
   const campaignId = pickText(config, ["campaign_id"]) || "camp_kita_amputation";
   const campaign = await loadCampaign(env, campaignId);
-  const eyebrow = pickText(section, ["eyebrow"]) || "Featured Medical Need: Kita";
-  const heading = pickText(section, ["heading"]) || "A Sweet Cat Deserves a Second Chance";
-  const body = pickText(section, ["body"]) || [
+  const cc = cfg(campaign);
+  const eyebrow = pickText(cc, ["public_eyebrow"]) || pickText(section, ["eyebrow"]) || "Featured Medical Need: Kita";
+  const heading = pickText(cc, ["public_heading"]) || pickText(section, ["heading"]) || "A Sweet Cat Deserves a Second Chance";
+  const body = pickText(campaign, ["description"]) || pickText(section, ["body"]) || [
     "Kita first arrived as a routine TNR case, but shelter staff quickly realized she was not feral at all. She was sweet, friendly, and clearly deserving of a life beyond the streets.",
     "After a veterinary evaluation, Kita was diagnosed with a fractured back leg that cannot be repaired. She will need an amputation, follow-up care, recovery support, and boarding while she heals.",
     "The good news: a foster has already stepped forward to care for her during recovery.",
   ].join("\n\n");
-  const cardTitle = pickText(config, ["card_title"]) || campaign?.title || "Kita's Amputation Care";
-  const cardEyebrow = pickText(config, ["card_eyebrow"]) || "CURRENT MEDICAL NEED";
+  const cardTitle = pickText(cc, ["card_title"]) || campaign?.title || pickText(config, ["card_title"]) || "Kita's Amputation Care";
+  const cardEyebrow = pickText(cc, ["card_eyebrow"]) || pickText(config, ["card_eyebrow"]) || "CURRENT MEDICAL NEED";
   const raised = await loadCampaignRaisedCents(env, campaignId, campaign?.raised_amount_cents ?? Number(config.raised_amount_cents) ?? 22500);
   const goal = campaign?.goal_amount_cents ?? Number(config.goal_amount_cents) ?? 60000;
-  const supports = Array.isArray(config.supports) ? config.supports : [
+  const supports = Array.isArray(cc.supports) ? cc.supports
+    : Array.isArray(config.supports) ? config.supports : [
     "Surgery", "Medication", "Follow-up care", "Recovery expenses",
   ];
-  const fbReelUrl = pickText(config, ["facebook_reel_url", "video_embed_url"]) || DEFAULT_KITA_FB_REEL;
+  const fbReelUrl = pickText(cc, ["facebook_reel_url", "video_embed_url"])
+    || pickText(config, ["facebook_reel_url", "video_embed_url"]) || DEFAULT_KITA_FB_REEL;
+  const primaryCta = pickText(cc, ["donate_cta_primary"]) || "Donate Toward Kita's Care";
+  const sidebarCta = pickText(cc, ["donate_cta_sidebar"]) || "Help Kita Heal";
+  const shareUrl = pickText(cc, ["share_url"]) || KITA_SHARE_URL;
   const sectionKey = pickText(section, ["section_key"]);
 
   const supportList = supports.map((s) => `<li>${esc(s)}</li>`).join("");
@@ -218,8 +238,8 @@ async function renderMedicalStory(section, blocks, brand, env) {
         ${renderFacebookVideoEmbed(fbReelUrl)}
       </div>
       <div class="dv2-btn-row">
-        ${donateBtn("Donate Toward Kita's Care", { campaignId })}
-        ${shareCampaignBtn()}
+        ${donateBtn(primaryCta, { campaignId })}
+        ${shareCampaignBtn({ url: shareUrl, title: cardTitle + " — Companions of Caddo", text: campaign?.short_description || "" })}
       </div>
     </div>
     <aside class="dv2-campaign-card" data-campaign-id="${escAttr(campaignId)}" data-campaign-raised="${raised}" data-campaign-goal="${goal}">
@@ -230,7 +250,7 @@ async function renderMedicalStory(section, blocks, brand, env) {
       ${progressBar(raised, goal)}
       <p class="dv2-card-label">What donations support:</p>
       <ul class="dv2-list">${supportList}</ul>
-      ${donateBtn("Help Kita Heal", { red: true, campaignId })}
+      ${donateBtn(sidebarCta, { red: true, campaignId })}
     </aside>
   </div>
 </section>`;
@@ -248,14 +268,24 @@ async function renderStoriesHelp(section, blocks, brand, env) {
   const kitaCampaign = pickText(config, ["kita_campaign_id"]) || "camp_kita_amputation";
   const sectionKey = pickText(section, ["section_key"]);
   const kitaCamp = await loadCampaign(env, kitaCampaign);
+  const kitaCc = cfg(kitaCamp);
   const kitaRaised = await loadCampaignRaisedCents(env, kitaCampaign, kitaCamp?.raised_amount_cents ?? 22500);
   const kitaGoal = kitaCamp?.goal_amount_cents ?? 60000;
+  const sponsoredId = pickText(config, ["sponsored_campaign_id"]);
+  const sponsoredCamp = sponsoredId ? await loadCampaign(env, sponsoredId) : null;
+  const sponsoredCfg = cfg(sponsoredCamp);
 
   const sunflower = config.sunflower || {};
   const kita = config.kita || {};
-  const sunflowerPhoto = sunflower.photo_url || DEFAULT_SUNFLOWER_PHOTO;
-  const kitaProgress = kita.progress_label
-    || `${money(kitaRaised)} donated toward ${money(kitaGoal)}`;
+  const sunflowerName = sponsoredCamp?.title || sunflower.name || "Sunflower";
+  const sunflowerPhoto = sponsoredCamp?.cover_url || pickText(sponsoredCfg, ["cover_url"]) || sunflower.photo_url || DEFAULT_SUNFLOWER_PHOTO;
+  const sunflowerBody = sponsoredCamp?.short_description || sponsoredCamp?.description || sunflower.body || "Sunflower's ticket to Freedom Fest has already been sponsored. That means her ride to a brighter, better future is covered.";
+  const sunflowerThanks = pickText(sponsoredCfg, ["story_thanks"]) || sunflower.thanks || "Thank you for giving Sunflower a real chance at freedom and a future.";
+  const kitaName = kitaCamp?.title || kita.name || "Kita";
+  const kitaBody = kitaCamp?.short_description || kita.body || "Help cover her amputation, medication, follow-up care, and recovery support.";
+  const kitaFb = pickText(kitaCc, ["facebook_reel_url"]) || pickText(kita, ["facebook_reel_url"]) || DEFAULT_KITA_FB_REEL;
+  const kitaSidebarCta = pickText(kitaCc, ["donate_cta_sidebar"]) || "Help Kita Heal";
+  const kitaProgress = `${money(kitaRaised)} donated toward ${money(kitaGoal)}`;
   const introParts = intro.split(/\n/).filter(Boolean).map((line) => `<p>${esc(line.trim())}</p>`).join("");
 
   return `
@@ -268,19 +298,19 @@ async function renderStoriesHelp(section, blocks, brand, env) {
     <div class="dv2-story-grid dv2-story-grid--two">
       <article class="dv2-story-card dv2-story-card--sponsored">
         <p class="dv2-card-ey">SPONSORED STORY</p>
-        <h3 class="dv2-card-title">${esc(sunflower.name || "Sunflower")}</h3>
-        <div class="dv2-pass-media dv2-pass-media--featured">${renderMedia(sunflowerPhoto, sunflower.name, "Sunflower photo")}</div>
-        <p class="dv2-prose-sm">${esc(sunflower.body || "Sunflower's ticket to Freedom Fest has already been sponsored. That means her ride to a brighter, better future is covered.")}</p>
-        <p class="dv2-prose-sm dv2-muted">${esc(sunflower.thanks || "Thank you for giving Sunflower a real chance at freedom and a future.")}</p>
+        <h3 class="dv2-card-title">${esc(sunflowerName)}</h3>
+        <div class="dv2-pass-media dv2-pass-media--featured">${renderMedia(sunflowerPhoto, sunflowerName, "Sunflower photo")}</div>
+        <p class="dv2-prose-sm">${esc(sunflowerBody)}</p>
+        <p class="dv2-prose-sm dv2-muted">${esc(sunflowerThanks)}</p>
         ${donateBtn("Sponsor Another Ticket", { red: true, amount: ticketDollars, campaignId: festCampaign })}
       </article>
       <article class="dv2-story-card">
         <p class="dv2-card-ey">NEXT ANIMAL / CAMPAIGN</p>
-        <h3 class="dv2-card-title">${esc(kita.name || "Kita")}</h3>
-        <div class="dv2-pass-media dv2-media-video">${renderFacebookVideoEmbed(pickText(kita, ["facebook_reel_url"]) || DEFAULT_KITA_FB_REEL)}</div>
-        <p class="dv2-prose-sm">${esc(kita.body || "Help cover her amputation, medication, follow-up care, and recovery support.")}</p>
+        <h3 class="dv2-card-title">${esc(kitaName)}</h3>
+        <div class="dv2-pass-media dv2-media-video">${renderFacebookVideoEmbed(kitaFb)}</div>
+        <p class="dv2-prose-sm">${esc(kitaBody)}</p>
         <p class="dv2-card-stat">${esc(kitaProgress)}</p>
-        ${donateBtn("Help Kita Heal", { campaignId: kitaCampaign })}
+        ${donateBtn(kitaSidebarCta, { campaignId: kitaCampaign })}
       </article>
     </div>
     <p class="dv2-trust">${esc(config.trust_strip || "Volunteer-led nonprofit • Medical care • Foster support • Transport help")}</p>

@@ -68,7 +68,9 @@ function useFinanceData() {
         goal_cents: Number(c.goal_amount_cents ?? c.goal_cents ?? 0),
         donors: Number(c.donor_count || 0),
         category: c.campaign_type || c.category || "fundraiser",
-        status: c.status || "draft"
+        status: c.status || "draft",
+        config: c.config || {},
+        cover_url: c.cover_url || c.config?.cover_url || null,
       })));
       setDonations(donationJson.donations || []);
     } catch (err) {
@@ -284,12 +286,55 @@ function DonationModal({ open, onClose, onSaved, campaigns }) {
 }
 
 // ── Unified GivingView (replaces both FundraisingView and DonationsView) ───────
-function GivingView({ initialTab }) {
+function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab }) {
+  const pct = campaign.goal_cents ? Math.min(100, Math.round((campaign.raised_cents / campaign.goal_cents) * 100)) : 0;
+  const cover = campaign.cover_url || campaign.config?.cover_url;
+  return React.createElement(Card, {
+    key: campaign.id,
+    style: { padding: 0, overflow: "hidden", cursor: "pointer" },
+    onClick: () => onNavigate && onNavigate("campaign-detail", { campaignId: campaign.id }),
+  },
+    React.createElement("div", { className: "camp-list-card" },
+      React.createElement("div", { className: "camp-list-thumb" },
+        cover
+          ? React.createElement("img", { src: cover, alt: "" })
+          : React.createElement("div", { className: "camp-list-thumb-empty" }, campaign.category || "Campaign")
+      ),
+      React.createElement("div", { className: "camp-list-body" },
+        React.createElement("div", { className: "camp-list-head" },
+          React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
+            React.createElement("div", { style: { width: 10, height: 10, borderRadius: 3, background: accent, flexShrink: 0 } }),
+            React.createElement("h3", { style: { margin: 0, fontSize: 16, fontWeight: 700, color: C.text } }, campaign.title),
+            React.createElement(Badge, { label: campaign.status, dot: true })
+          ),
+          React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
+            React.createElement("div", { style: { fontSize: 20, fontWeight: 700, color: C.text } }, financeMoney(campaign.raised_cents)),
+            React.createElement("div", { style: { fontSize: 12, color: C.textSec } }, "of " + financeMoney(campaign.goal_cents))
+          )
+        ),
+        React.createElement("p", { style: { margin: "8px 0 0", fontSize: 13, color: C.textSec, lineHeight: 1.45 } },
+          campaign.short_description || campaign.description || "No description yet."),
+        React.createElement(ProgressBar, { value: campaign.raised_cents, max: Math.max(campaign.goal_cents, 1), color: accent, height: 8 }),
+        React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginTop: 10 } },
+          React.createElement("div", { style: { display: "flex", gap: 14, fontSize: 12, color: C.textSec } },
+            React.createElement("span", null, pct + "% funded"),
+            React.createElement("span", null, campaign.donors + " donors"),
+            campaign.category && React.createElement("span", null, campaign.category)
+          ),
+          React.createElement("div", { style: { display: "flex", gap: 8 }, onClick: e => e.stopPropagation() },
+            React.createElement(Btn, { variant: "secondary", size: "sm", icon: "edit", onClick: () => onNavigate && onNavigate("campaign-detail", { campaignId: campaign.id }) }, "Open"),
+            React.createElement(Btn, { variant: "secondary", size: "sm", icon: "arrowR", onClick: onDonationsTab }, "Donations")
+          )
+        )
+      )
+    )
+  );
+}
+
+function GivingView({ initialTab, onNavigate }) {
   const { loading, error, campaigns, donations, reload } = useFinanceData();
   const [tab, setTab] = React.useState(initialTab || "campaigns");
-  const [showCampaignModal, setShowCampaignModal] = React.useState(false);
   const [showDonationModal, setShowDonationModal] = React.useState(false);
-  const [editing, setEditing] = React.useState(null);
   const [search, setSearch] = React.useState("");
   const [methodFilter, setMethodFilter] = React.useState("All");
 
@@ -336,7 +381,7 @@ function GivingView({ initialTab }) {
       subtitle: "Campaigns, donations, and fundraising goals",
       action: React.createElement("div", { style: { display: "flex", gap: 8 } },
         React.createElement(Btn, { variant: "secondary", size: "sm", icon: "download" }, "Export"),
-        React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => { setEditing(null); setShowCampaignModal(true); } }, "New Campaign"),
+        React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => onNavigate && onNavigate("campaign-detail", { campaignId: "new" }) }, "New Campaign"),
         React.createElement(Btn, { icon: "plus", size: "sm", onClick: () => setShowDonationModal(true) }, "Record Donation")
       )
     }),
@@ -344,7 +389,7 @@ function GivingView({ initialTab }) {
     error && React.createElement(FinanceNotice, null, error),
 
     // Cross-cutting stat row
-    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 24 } },
+    React.createElement("div", { className: "camp-stats-grid", style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 } },
       React.createElement(StatCard, { label: "Total Raised", value: financeMoney(campaignRaised), sub: `of ${financeMoney(campaignGoal)} goal`, subPositive: true }),
       React.createElement(StatCard, { label: "Stripe Donations", value: financeMoney(stripeTotal), sub: `${donations.length} payments`, subPositive: true }),
       React.createElement(StatCard, { label: "Total Donors", value: totalDonors, sub: "across campaigns" }),
@@ -363,38 +408,13 @@ function GivingView({ initialTab }) {
         ? React.createElement(FinanceEmpty, { title: "Loading campaigns", body: "Reading fundraising_campaigns from D1." })
         : campaigns.length
           ? React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
-              campaigns.map((campaign, idx) => {
-                const pct = campaign.goal_cents ? Math.min(100, Math.round((campaign.raised_cents / campaign.goal_cents) * 100)) : 0;
-                const accent = ACCENT_COLORS[idx % ACCENT_COLORS.length];
-                return React.createElement(Card, { key: campaign.id, style: { padding: 24 } },
-                  React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12, flexWrap: "wrap", gap: 12 } },
-                    React.createElement("div", { style: { minWidth: 0, flex: 1 } },
-                      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 } },
-                        React.createElement("div", { style: { width: 10, height: 10, borderRadius: 3, background: accent, flexShrink: 0 } }),
-                        React.createElement("h3", { style: { margin: 0, fontSize: 16, fontWeight: 700, color: C.text } }, campaign.title),
-                        React.createElement(Badge, { label: campaign.status, dot: true })
-                      ),
-                      React.createElement("p", { style: { margin: 0, fontSize: 13, color: C.textSec, maxWidth: 920 } }, campaign.short_description || campaign.description || "No description yet.")
-                    ),
-                    React.createElement("div", { style: { textAlign: "right" } },
-                      React.createElement("div", { style: { fontSize: 22, fontWeight: 700, color: C.text } }, financeMoney(campaign.raised_cents)),
-                      React.createElement("div", { style: { fontSize: 12, color: C.textSec } }, `of ${financeMoney(campaign.goal_cents)} goal`)
-                    )
-                  ),
-                  React.createElement(ProgressBar, { value: campaign.raised_cents, max: Math.max(campaign.goal_cents, 1), color: accent, height: 8 }),
-                  React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginTop: 10 } },
-                    React.createElement("div", { style: { display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12, color: C.textSec } },
-                      React.createElement("span", null, `${pct}% funded`),
-                      React.createElement("span", null, `${campaign.donors} donors`),
-                      campaign.category && React.createElement("span", null, campaign.category)
-                    ),
-                    React.createElement("div", { style: { display: "flex", gap: 8 } },
-                      React.createElement(Btn, { variant: "secondary", size: "sm", icon: "edit", onClick: () => { setEditing(campaign); setShowCampaignModal(true); } }, "Edit"),
-                      React.createElement(Btn, { variant: "secondary", size: "sm", icon: "arrowR", onClick: () => setTab("donations") }, "Donations")
-                    )
-                  )
-                );
-              })
+              campaigns.map((campaign, idx) => React.createElement(CampaignListCard, {
+                key: campaign.id,
+                campaign,
+                accent: ACCENT_COLORS[idx % ACCENT_COLORS.length],
+                onNavigate,
+                onDonationsTab: () => setTab("donations"),
+              }))
             )
           : React.createElement(FinanceEmpty, { title: "No campaigns yet", body: "Create a campaign to get started." })
     ),
@@ -422,19 +442,17 @@ function GivingView({ initialTab }) {
           )
     ),
 
-    // Modals
-    React.createElement(CampaignModal, { open: showCampaignModal, campaign: editing, onClose: () => setShowCampaignModal(false), onSaved: reload }),
     React.createElement(DonationModal, { open: showDonationModal, onClose: () => setShowDonationModal(false), onSaved: reload, campaigns })
   );
 }
 
 // ── Legacy route aliases so app.jsx route map keeps working ───────────────────
 function FundraisingView(props) {
-  return React.createElement(GivingView, { ...props, initialTab: props.initialTab || "campaigns" });
+  return React.createElement(GivingView, { ...props, initialTab: props.initialTab || "campaigns", onNavigate: props.onNavigate });
 }
 
 function DonationsView(props) {
-  return React.createElement(GivingView, { ...props, initialTab: "donations" });
+  return React.createElement(GivingView, { ...props, initialTab: "donations", onNavigate: props.onNavigate });
 }
 
 Object.assign(window, { GivingView, FundraisingView, DonationsView });

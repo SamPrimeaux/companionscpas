@@ -16,6 +16,7 @@ const ROUTE_REGISTRY = [
   { path: "/dashboard/applications/",    view: "application-detail", paramKey: "appId" },
   { path: "/dashboard/applications",     view: "applications" },
   { path: "/dashboard/donations",        view: "donations" },
+  { path: "/dashboard/fundraising/",     view: "campaign-detail",  paramKey: "campaignId" },
   { path: "/dashboard/fundraising",      view: "fundraising" },
   { path: "/dashboard/cms/website",      view: "cms-website" },
   { path: "/dashboard/cms/pages/",       view: "cms-page-editor",    paramKey: "pageId" },
@@ -208,6 +209,7 @@ function App() {
       case "application-detail":  return React.createElement(ApplicationDetailView,  { appId: params.appId, onNavigate: navigate });
       case "donations":           return React.createElement(DonationsView,          { onNavigate: navigate });
       case "fundraising":         return React.createElement(FundraisingView,        { onNavigate: navigate, initialTab: params.financeTab });
+      case "campaign-detail":     return React.createElement(CampaignWorkspaceView, { campaignId: params.campaignId, onNavigate: navigate });
 
       // CMS sub-views
       case "cms-website":

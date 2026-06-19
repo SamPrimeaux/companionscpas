@@ -46,6 +46,98 @@ function normalizeAnimal(a) {
   };
 }
 
+function normalizeCampaign(row) {
+  if (!row) return null;
+  const config = safeJson(row.config_json, {});
+  return {
+    ...row,
+    goal_cents: Number(row.goal_amount_cents ?? row.goal_cents ?? 0),
+    raised_cents: Number(row.raised_amount_cents ?? row.raised_cents ?? 0),
+    donors: Number(row.donor_count || 0),
+    category: row.campaign_type || row.category || 'fundraiser',
+    config,
+    cover_url: row.cover_url || config.cover_url || null,
+  };
+}
+
+async function invalidateDonatePageCache(env) {
+  if (!env?.CMS_CACHE) return;
+  await env.CMS_CACHE.delete('page:/donate').catch(() => {});
+}
+
+const CAMPAIGN_SELECT = `
+  SELECT fc.*,
+         fc.goal_amount_cents AS goal_cents,
+         fc.raised_amount_cents AS raised_cents,
+         COALESCE(fc.campaign_type, 'fundraiser') AS category,
+         COALESCE(ca.public_url, ca.cdn_url, ca.pub_url) AS cover_url
+  FROM fundraising_campaigns fc
+  LEFT JOIN cms_assets ca ON ca.id = fc.cover_asset_id
+`;
+
+async function fetchCampaignById(env, id) {
+  const row = await env.DB.prepare(`${CAMPAIGN_SELECT} WHERE fc.id = ? LIMIT 1`)
+    .bind(id).first().catch(() => null);
+  return normalizeCampaign(row);
+}
+
+async function saveCampaignRecord(env, b, existingId = null) {
+  const title = String(b.title || '').trim();
+  if (!title) throw new Error('Campaign title is required');
+  const now = nowIso();
+  const slug = String(b.slug || title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'campaign';
+  const id = existingId || b.id || `campaign_${slug}_${Date.now()}`;
+  const configJson = typeof b.config_json === 'string'
+    ? b.config_json
+    : JSON.stringify(b.config_json || b.config || {});
+  const goalCents = Math.max(0, Number(b.goal_amount_cents || 0));
+  const isPublic = b.is_public === 0 || b.is_public === false ? 0 : 1;
+  const shortDesc = String(b.short_description || b.description || '').slice(0, 240);
+
+  if (existingId) {
+    await env.DB.prepare(`
+      UPDATE fundraising_campaigns SET
+        title = ?, slug = ?, description = ?, short_description = ?,
+        goal_amount_cents = ?, status = ?, starts_at = ?, ends_at = ?,
+        is_public = ?, campaign_type = ?, cover_asset_id = ?, config_json = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).bind(
+      title, slug, b.description || '', shortDesc,
+      goalCents, b.status || 'active', b.starts_at || null, b.ends_at || null,
+      isPublic, b.campaign_type || 'fundraiser', b.cover_asset_id || null, configJson,
+      now, existingId
+    ).run();
+    return id;
+  }
+
+  await env.DB.prepare(`
+    INSERT INTO fundraising_campaigns
+      (id, tenant_id, organization_id, title, slug, description, short_description,
+       goal_amount_cents, raised_amount_cents, status, starts_at, ends_at, is_public,
+       campaign_type, cover_asset_id, config_json, donor_count, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+  `).bind(
+    id, TENANT, TENANT, title, slug, b.description || '', shortDesc,
+    goalCents, b.status || 'draft', b.starts_at || null, b.ends_at || null,
+    isPublic, b.campaign_type || 'fundraiser', b.cover_asset_id || null, configJson,
+    now, now
+  ).run().catch(async () => {
+    await env.DB.prepare(`
+      INSERT INTO fundraising_campaigns
+        (id, organization_id, title, slug, description, short_description,
+         goal_amount_cents, raised_amount_cents, status, starts_at, ends_at, is_public,
+         campaign_type, donor_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, ?, ?)
+    `).bind(
+      id, TENANT, title, slug, b.description || '', shortDesc,
+      goalCents, b.status || 'draft', b.starts_at || null, b.ends_at || null,
+      isPublic, b.campaign_type || 'fundraiser', now, now
+    ).run();
+  });
+  return id;
+}
+
 export async function dashboardApiRoutes(request, env, url) {
   const path   = url.pathname;
   const method = request.method;
@@ -469,37 +561,61 @@ export async function dashboardApiRoutes(request, env, url) {
     return json({ applications: (rows.results || []).map(a => ({ ...a, answers: safeJson(a.answers_json, {}) })) });
   }
 
-  // ─── GET /api/dashboard/fundraising ──────────────────────────────────────
+  // ─── GET/POST/PUT /api/dashboard/fundraising[/:id] ───────────────────────
+  const fundraisingDetailMatch = path.match(/^\/api\/dashboard\/fundraising\/([^/]+)$/);
+
+  if (fundraisingDetailMatch && method === 'GET') {
+    const campaign = await fetchCampaignById(env, fundraisingDetailMatch[1]);
+    if (!campaign) return json({ ok: false, error: 'Campaign not found' }, 404);
+    const donationRows = await env.DB.prepare(`
+      SELECT d.id, d.amount_cents, d.currency, d.status, d.donated_at, d.created_at,
+             d.donor_message, d.is_anonymous,
+             dn.full_name AS donor_name, dn.email AS donor_email
+      FROM donations d
+      LEFT JOIN donors dn ON dn.id = d.donor_id
+      WHERE d.campaign_id = ?
+      ORDER BY COALESCE(d.donated_at, d.created_at) DESC
+      LIMIT 100
+    `).bind(campaign.id).all().catch(() => ({ results: [] }));
+    const raisedLive = await env.DB.prepare(`
+      SELECT COALESCE(SUM(amount_cents), 0) AS total
+      FROM donations WHERE campaign_id = ? AND status = 'succeeded'
+    `).bind(campaign.id).first().catch(() => ({ total: 0 }));
+    const liveRaised = Number(raisedLive?.total) || campaign.raised_cents;
+    return json({
+      ok: true,
+      campaign: { ...campaign, raised_cents: liveRaised, raised_amount_cents: liveRaised },
+      donations: donationRows.results || [],
+    });
+  }
+
   if (path === '/api/dashboard/fundraising' && method === 'GET') {
-    const rows = await env.DB.prepare(`
-      SELECT *, goal_amount_cents AS goal_cents, raised_amount_cents AS raised_cents,
-             COALESCE(campaign_type, 'fundraiser') AS category
-      FROM fundraising_campaigns WHERE is_public = 1 ORDER BY updated_at DESC
-    `).all().catch(() => ({ results: [] }));
-    return json({ campaigns: rows.results || [] });
+    const rows = await env.DB.prepare(`${CAMPAIGN_SELECT} ORDER BY fc.updated_at DESC`)
+      .all().catch(() => ({ results: [] }));
+    return json({ campaigns: (rows.results || []).map(normalizeCampaign) });
   }
 
   if (path === '/api/dashboard/fundraising' && method === 'POST') {
-    const b = await request.json().catch(() => ({}));
-    const title = String(b.title || '').trim();
-    if (!title) return json({ ok: false, error: 'Campaign title is required' }, 400);
-    const now  = nowIso();
-    const slug = String(b.slug || title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'campaign';
-    const id   = b.id || `campaign_${slug}_${Date.now()}`;
-    await env.DB.prepare(`INSERT INTO fundraising_campaigns (id,organization_id,title,slug,description,goal_amount_cents,raised_amount_cents,status,starts_at,ends_at,is_public,campaign_type,short_description,donor_count,created_at,updated_at) VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?,0,?,?)`)
-      .bind(id, b.organization_id || TENANT, title, slug, b.description || '', Math.max(0, Number(b.goal_amount_cents || 0)), b.status || 'active', b.starts_at || null, b.ends_at || null, b.is_public === 0 ? 0 : 1, b.campaign_type || 'fundraiser', b.short_description || String(b.description || '').slice(0, 240), now, now).run();
-    return json({ ok: true, id });
+    try {
+      const b = await request.json().catch(() => ({}));
+      const id = await saveCampaignRecord(env, b);
+      await invalidateDonatePageCache(env);
+      return json({ ok: true, id });
+    } catch (err) {
+      return json({ ok: false, error: err.message || 'Campaign create failed' }, 400);
+    }
   }
 
   if (path === '/api/dashboard/fundraising' && method === 'PUT') {
-    const b = await request.json().catch(() => ({}));
-    if (!b.id) return json({ ok: false, error: 'id required' }, 400);
-    const title = String(b.title || '').trim();
-    if (!title) return json({ ok: false, error: 'title required' }, 400);
-    const slug = String(b.slug || title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'campaign';
-    await env.DB.prepare(`UPDATE fundraising_campaigns SET title=?,slug=?,description=?,goal_amount_cents=?,status=?,starts_at=?,ends_at=?,is_public=?,campaign_type=?,short_description=?,updated_at=? WHERE id=?`)
-      .bind(title, slug, b.description || '', Math.max(0, Number(b.goal_amount_cents || 0)), b.status || 'active', b.starts_at || null, b.ends_at || null, b.is_public === 0 ? 0 : 1, b.campaign_type || 'fundraiser', b.short_description || String(b.description || '').slice(0, 240), nowIso(), b.id).run();
-    return json({ ok: true, id: b.id });
+    try {
+      const b = await request.json().catch(() => ({}));
+      if (!b.id) return json({ ok: false, error: 'id required' }, 400);
+      const id = await saveCampaignRecord(env, b, b.id);
+      await invalidateDonatePageCache(env);
+      return json({ ok: true, id });
+    } catch (err) {
+      return json({ ok: false, error: err.message || 'Campaign update failed' }, 400);
+    }
   }
 
   // ─── GET /api/dashboard/donations ────────────────────────────────────────
@@ -526,6 +642,7 @@ export async function dashboardApiRoutes(request, env, url) {
       await env.DB.prepare(`UPDATE fundraising_campaigns SET raised_amount_cents=COALESCE(raised_amount_cents,0)+?,donor_count=COALESCE(donor_count,0)+1,updated_at=? WHERE id=?`)
         .bind(amount, now, b.campaign_id).run();
     }
+    await invalidateDonatePageCache(env);
     return json({ ok: true, id });
   }
 
