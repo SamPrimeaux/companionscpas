@@ -85,8 +85,6 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     raised_cents: 0, donors: 0,
   });
 
-  const previewUrl = campaignPreviewUrl(form, form.config);
-
   function setField(k, v) {
     setForm(prev => Object.assign({}, prev, { [k]: v }));
   }

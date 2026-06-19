@@ -43,6 +43,7 @@ const LEGACY_MAP = {
   "volunteers":         "/dashboard/volunteers",
   "applications":       "/dashboard/applications",
   "donations":          "/dashboard/fundraising",
+  "campaign-detail":    null,
   "fundraising":        "/dashboard/fundraising",
   "cms":                "/dashboard/cms/website",
   "reports":            "/dashboard/reports",
