@@ -326,6 +326,8 @@ export async function emailApiRoutes(request, env, url) {
   const path = url.pathname;
   const method = request.method;
 
+  if (!path.startsWith("/api/email/")) return null;
+
   if (path === "/api/email/inbound" && method === "POST") {
     return handleInboundWebhook(request, env);
   }

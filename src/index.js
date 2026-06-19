@@ -195,11 +195,11 @@ export default {
         return json({ ok: true, service: "companionscpas", rev: "p0-20260613" });
       }
 
-      const emailResult = await emailApiRoutes(request, env, url);
-      if (emailResult) return emailResult;
-
       const gmailResult = await gmailRoutes(request, env, url);
       if (gmailResult) return gmailResult;
+
+      const emailResult = await emailApiRoutes(request, env, url);
+      if (emailResult) return emailResult;
 
       const publicResult = await publicApiRoutes(request, env, url);
       if (publicResult) return publicResult;

@@ -379,6 +379,20 @@ export async function gmailRoutes(request, env, url) {
   const path = url.pathname;
   const method = request.method;
 
+  // OAuth callback — no session cookie (cross-site redirect from Google)
+  if (path === "/api/social/oauth/google/callback" && method === "GET") {
+    const stateParam = url.searchParams.get("state");
+    if (stateParam) {
+      const stateRow = await env.DB.prepare(
+        "SELECT provider FROM integration_oauth_states WHERE state = ? AND consumed_at IS NULL LIMIT 1"
+      ).bind(stateParam).first().catch(() => null);
+      if (stateRow?.provider === PROVIDER) {
+        return handleCallback(request, env, url);
+      }
+    }
+    return null;
+  }
+
   if (path === "/api/integrations/gmail/status" && method === "GET") {
     const session = await requireSession(request, env);
     if (session instanceof Response) return session;
@@ -400,19 +414,6 @@ export async function gmailRoutes(request, env, url) {
     const result = await syncGmailInbox(env, 30);
     if (!result.ok) return json(result, 400);
     return json(result);
-  }
-
-  if (path === "/api/social/oauth/google/callback" && method === "GET") {
-    const stateParam = url.searchParams.get("state");
-    if (stateParam) {
-      const stateRow = await env.DB.prepare(
-        "SELECT provider FROM integration_oauth_states WHERE state = ? AND consumed_at IS NULL LIMIT 1"
-      ).bind(stateParam).first().catch(() => null);
-      if (stateRow?.provider === PROVIDER) {
-        return handleCallback(request, env, url);
-      }
-    }
-    return null;
   }
 
   return null;
