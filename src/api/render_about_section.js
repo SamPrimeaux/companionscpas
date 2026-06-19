@@ -1,6 +1,8 @@
 import { escapeHtml, safeJson } from "./render_section.js";
 
 const CDN = "https://assets.companionsofcaddo.org";
+const SHELTER_MAP_EMBED =
+  "https://maps.google.com/maps?q=1500+Monty+Street,+Shreveport,+LA+71107&hl=en&z=15&output=embed";
 
 function t(v) { return v == null ? "" : String(v); }
 function pick(o, keys) {
@@ -82,16 +84,37 @@ function renderWhyWeExist(section) {
   const eyebrow = pick(section, ["eyebrow"]) || "Why Companions Exists";
   const heading = pick(section, ["heading"]) || "";
   const body = pick(section, ["body"]) || "";
-  const img = escUrl(pick(section, ["image_url"]) || pick(c, ["image_url"]), `${CDN}/media/animals/thefounders.webp`);
-  const alt = pick(c, ["image_alt"]) || heading || "Why Companions Exists";
+  const mediaType = pick(c, ["media_type"]) || "shelter_map";
+  const shelterName = pick(c, ["shelter_name"]) || "Caddo Parish Animal Services";
+  const shelterAddress = pick(c, ["shelter_address"]) || "1500 Monty Street, Shreveport, LA 71107";
+  const mapEmbed = escUrl(pick(c, ["map_embed_url"]), SHELTER_MAP_EMBED);
+
+  const mediaCol = mediaType === "shelter_map"
+    ? `<div class="story-block-img story-block-img--map">
+        <iframe
+          title="${escAttr(shelterName)} location"
+          src="${escAttr(mapEmbed)}"
+          width="100%"
+          height="100%"
+          style="border:0;"
+          allowfullscreen=""
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"></iframe>
+        <div class="story-block-map-cap">
+          <span class="story-block-map-ey">Partner shelter</span>
+          <strong>${escapeHtml(shelterName)}</strong>
+          <span>${escapeHtml(shelterAddress)}</span>
+        </div>
+      </div>`
+    : `<div class="story-block-img">
+        <img src="${escAttr(escUrl(pick(section, ["image_url"]) || pick(c, ["image_url"]), `${CDN}/media/animals/thefounders.webp`))}" alt="${escAttr(pick(c, ["image_alt"]) || heading || "Why Companions Exists")}" loading="lazy" />
+      </div>`;
 
   return `<style>[data-cpas-section="why-we-exist"]{background:#ede8df}</style>
 <section class="section s-light" data-cpas-section="why-we-exist" data-section-key="why_we_exist">
   <div class="container">
     <div class="story-block">
-      <div class="story-block-img">
-        <img src="${escAttr(img)}" alt="${escAttr(alt)}" loading="lazy" />
-      </div>
+      ${mediaCol}
       <div class="story-block-body">
         <div class="ey-purple">${escapeHtml(eyebrow)}</div>
         <h2 class="story-heading">${escapeHtml(heading)}</h2>

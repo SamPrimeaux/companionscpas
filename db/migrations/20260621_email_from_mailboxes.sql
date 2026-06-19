@@ -1,4 +1,4 @@
--- Outbound sender tracking (safe if email_logs missing on remote)
+-- Outbound sender tracking (idempotent for remote D1)
 CREATE TABLE IF NOT EXISTS email_logs (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
@@ -18,6 +18,3 @@ CREATE TABLE IF NOT EXISTS email_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_email_logs_tenant ON email_logs(tenant_id);
-
--- Add column when table already existed without it
-ALTER TABLE email_logs ADD COLUMN from_email TEXT;

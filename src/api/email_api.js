@@ -1,5 +1,11 @@
 import { getAuthUser } from "./session_api.js";
 import { syncGmailInbox } from "./gmail_api.js";
+import {
+  listDashboardNotifications,
+  getDashboardNotification,
+  patchDashboardNotification,
+  deleteDashboardNotification,
+} from "./notifications.js";
 
 const TENANT_ID = "tenant_companionscpas";
 const DEFAULT_MAILBOXES = [
@@ -140,32 +146,27 @@ async function fetchReceivedEmail(env, emailId) {
 }
 
 async function logOutbound(env, row) {
-  try {
-    const emailId = id("email");
-    await env.DB.prepare(
-      `INSERT INTO email_logs
-       (id, tenant_id, recipient_email, recipient_name, subject, email_type, from_email, provider_message_id, status, related_type, related_id, error_message, sent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      emailId,
-      TENANT_ID,
-      row.to,
-      row.name || null,
-      row.subject,
-      row.type || "manual",
-      row.from || null,
-      row.provider_message_id || null,
-      row.status || "queued",
-      row.related_type || null,
-      row.related_id || null,
-      row.error_message || null,
-      row.sent_at || null
-    ).run();
-    return emailId;
-  } catch (err) {
-    console.warn("[email] log skipped:", err?.message || err);
-    return null;
-  }
+  const emailId = id("email");
+  await env.DB.prepare(
+    `INSERT INTO email_logs
+     (id, tenant_id, recipient_email, recipient_name, subject, email_type, from_email, provider_message_id, status, related_type, related_id, error_message, sent_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    emailId,
+    TENANT_ID,
+    row.to,
+    row.name || null,
+    row.subject,
+    row.type || "manual",
+    row.from || null,
+    row.provider_message_id || null,
+    row.status || "queued",
+    row.related_type || null,
+    row.related_id || null,
+    row.error_message || null,
+    row.sent_at || null
+  ).run();
+  return emailId;
 }
 
 async function sendResendEmail(env, { from, to, subject, html, text, replyTo, type, related_type, related_id }) {
@@ -199,7 +200,7 @@ async function sendResendEmail(env, { from, to, subject, html, text, replyTo, ty
     return { ok: false, status: res.status, error: raw };
   }
 
-  await logOutbound(env, {
+  const logId = await logOutbound(env, {
     to: Array.isArray(to) ? to[0] : to,
     subject,
     type,
@@ -211,7 +212,7 @@ async function sendResendEmail(env, { from, to, subject, html, text, replyTo, ty
     sent_at: new Date().toISOString(),
   });
 
-  return { ok: true, id: parsed.id || null };
+  return { ok: true, id: parsed.id || null, log_id: logId };
 }
 
 async function storeInboundEmail(env, event, mailboxes) {
@@ -529,9 +530,14 @@ export async function emailApiRoutes(request, env, url) {
   if (path === "/api/email/send" && method === "POST") {
     const data = await body(request);
     const to = String(data.to || "").trim();
-    const subject = String(data.subject || "").trim();
-    const html = String(data.html || data.body_html || "").trim();
-    if (!to || !subject || !html) return json({ error: "to, subject, and html are required" }, 400);
+    const subject = String(data.subject || "").trim() || "(no subject)";
+    let html = String(data.html || data.body_html || "").trim();
+    const text = String(data.text || data.body_text || "").trim();
+    if (!html && text) {
+      html = text.split(/\n\n+/).map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
+    }
+    if (!to) return json({ error: "Recipient (to) is required" }, 400);
+    if (!html) return json({ error: "Message body is required" }, 400);
 
     const from = data.from || defaultFrom(env, data.mailbox || "support@companionsofcaddo.org");
     const result = await sendResendEmail(env, {
@@ -539,7 +545,7 @@ export async function emailApiRoutes(request, env, url) {
       to,
       subject,
       html,
-      text: data.text || data.body_text,
+      text: text || undefined,
       replyTo: data.reply_to || null,
       type: data.type || "dashboard_send",
       related_type: data.related_type || "inbound",
@@ -547,7 +553,7 @@ export async function emailApiRoutes(request, env, url) {
     });
 
     if (!result.ok) return json({ error: result.error || "Send failed", status: result.status || 500 }, 500);
-    return json({ ok: true, id: result.id });
+    return json({ ok: true, id: result.id, log_id: result.log_id || null });
   }
 
   if (path === "/api/email/outbound" && method === "GET") {
@@ -659,6 +665,32 @@ export async function emailApiRoutes(request, env, url) {
     ).run();
 
     return json({ ok: true, sent, failed, errors: errors.slice(0, 5) });
+  }
+
+  if (path === "/api/email/notifications" && method === "GET") {
+    const status = url.searchParams.get("status") || "active";
+    const limit = url.searchParams.get("limit") || "100";
+    const data = await listDashboardNotifications(env, { status, limit });
+    return json(data);
+  }
+
+  const notifMatch = path.match(/^\/api\/email\/notifications\/([^/]+)$/);
+  if (notifMatch && method === "GET") {
+    const row = await getDashboardNotification(env, notifMatch[1]);
+    if (!row) return json({ error: "Notification not found" }, 404);
+    return json({ notification: row });
+  }
+
+  if (notifMatch && method === "PATCH") {
+    const data = await body(request);
+    const row = await patchDashboardNotification(env, notifMatch[1], data);
+    if (!row) return json({ error: "Notification not found" }, 404);
+    return json({ ok: true, notification: row });
+  }
+
+  if (notifMatch && method === "DELETE") {
+    await deleteDashboardNotification(env, notifMatch[1]);
+    return json({ ok: true });
   }
 
   const campIdMatch = path.match(/^\/api\/email\/campaigns\/([^/]+)$/);

@@ -173,8 +173,11 @@ function renderTransportWinFragment(section) {
   const eyebrow = pick(section, ["eyebrow"]) || "Recent Transport Win";
   const heading = pick(section, ["heading"]) || "";
   const body = pick(section, ["body"]) || pick(section, ["subheading"]);
-  const image = safeUrl(pick(section, ["image_url"]) || pick(cfg, ["image_url"]), `${CDN}/media/animals/goinhomejustadopted.webp`);
-  const alt = pick(cfg, ["image_alt"]) || "A dog going home";
+  const image = safeUrl(
+    pick(section, ["image_url"]) || pick(cfg, ["image_url", "campaign_image_url"]),
+    `${CDN}/media/campaign/freedomfest.webp`
+  );
+  const alt = pick(cfg, ["image_alt"]) || "2026 Freedom Fest: Red, White & Rescued";
   const ctaLabel = pick(section, ["cta_label"]) || "Sponsor a Transport Seat";
   const ctaAction = pick(cfg, ["cta_action"]) || "donate";
 
@@ -182,8 +185,8 @@ function renderTransportWinFragment(section) {
 <section class="section s-light" data-cpas-section="transport-win">
   <div class="container">
     <div class="story-block">
-      <div class="story-block-img">
-        <img src="${escAttr(image)}" alt="${escAttr(alt)}" />
+      <div class="story-block-img story-block-img--contain">
+        <img src="${escAttr(image)}" alt="${escAttr(alt)}" loading="lazy" decoding="async" />
       </div>
       <div class="story-block-body">
         <div class="ey-purple">${escapeHtml(eyebrow)}</div>

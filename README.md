@@ -124,7 +124,28 @@ Use these in D1 `cta_action` or `cta_href` (handled by `renderActionCta()` in `r
 
 Home hero buttons use `data-action="foster"` / `data-action="donate"` directly in custom renderers.
 
-**Stripe donations** are test mode. Client key comes from `GET /api/donations/config` (secret: `STRIPE_PUBLISHABLE_KEY`). Test card: `4242 4242 4242 4242`. Swap to live keys via `wrangler secret put` when client approves.
+**Legacy adopt CTAs** — buttons labeled “Support our work” / “Support our mission”, `#cpasDonateForm`, and `[data-donate]` are bridged in `public/_shared.js` → `static/global/shared.js` to open the same unified donate modal (with cover fees).
+
+### Donations (Stripe)
+
+One global donate modal (`static/js/donate-modal.js`) on every public page via `page_shell.js`. Triggered by `data-action="donate"` anywhere (header, home, `/donate`, `/adopt`, campaign cards).
+
+| Endpoint | Handler | Purpose |
+|---|---|---|
+| `GET /api/donations/config` | `payments_email.js` | Publishable Stripe key + test/live mode |
+| `POST /api/donations/intent` | `payments_email.js` | PaymentIntent / SetupIntent for in-modal PaymentElement |
+| `POST /api/donations/create-intent` | `donation_api.js` | Legacy adopt support form API — same fee math + real PaymentIntent |
+| `POST /api/donations/after-payment` | `payments_email.js` | Post-payment email + newsletter opt-in |
+| `POST /api/webhooks/stripe` | `payments_email.js` | Writes `donations`, sends receipt, dashboard notification |
+
+**Cover processing fees (default on):** donors can gross-up the Stripe charge so the nonprofit nets the intended gift. Formula: `(intended_cents + 30) / (1 - 0.029)`, rounded up. Shared logic in `src/api/donation_fees.js`.
+
+- UI: checkbox in donate modal (one-time only), live fee label, button shows exact charge
+- API payload: `{ intended_cents, cover_fees, amount_cents }` where `amount_cents` is the gross charge when covering fees
+- D1: `donations.intended_amount_cents`, `donations.cover_fees`, `donations.amount_cents` (Stripe charge)
+- Financial report: **Raised** vs **Charged** columns; totals use intended amounts
+
+Stripe publishable key from `GET /api/donations/config` (secret: `STRIPE_PUBLISHABLE_KEY`). Test card: `4242 4242 4242 4242`.
 
 ### CMS dashboard workflow
 
@@ -331,8 +352,8 @@ See [`docs/live-url-sitemap.md`](docs/live-url-sitemap.md) for the detailed live
 | `/dashboard/cms/templates` | Template library. Needs full-screen responsive enhancement. |
 | `/dashboard/reports` | Real-data reports; remove or label demo data. |
 | `/dashboard/settings` | Real operational settings, users, roles, integrations. |
-| `/dashboard/notifications` | Internal alerts/reminders/status updates. |
-| `/dashboard/email` | Resend inbound email/applications/messages. Needs webhook setup. |
+| `/dashboard/notifications` | Redirects to `/dashboard/email?view=notifications` (legacy URL) |
+| `/dashboard/email` | Gmail + Resend inbox; **Notifications** smart view (donations, contact forms, foster apps) |
 
 **API**
 
@@ -344,7 +365,7 @@ See [`docs/live-url-sitemap.md`](docs/live-url-sitemap.md) for the detailed live
 | `/api/social/*` | `social.js` |
 | `/api/agentsam/*` | `agentsam_api.js`, `agentsam_tools.js` |
 | `/api/dashboard/*` | `dashboard_api.js`, `dashboard_config_api.js` |
-| `/api/donations/*` | `payments_email.js` — config, intent, subscribe, webhook (`GET /api/donations/config` for client Stripe key) |
+| `/api/donations/*` | `payments_email.js` + `donation_api.js` — config, intent, create-intent (adopt), subscribe, webhook |
 | `/api/contact` | `contact_api.js` |
 | `/api/foster/*` | `foster_api.js` |
 
@@ -572,7 +593,10 @@ src/
     render_generic_fragments.js   Assemble generic routes from R2 fragments.
     render_page.js                assembleFullPage(), getBrand(), legacy renderPage().
     cms_api.js                    CMS CRUD, save/preview/publish/bootstrap.
-    payments_email.js             Stripe config/intent/webhook, Resend email.
+    payments_email.js             Stripe config/intent/webhook, Resend email, cover fees.
+    donation_api.js               Legacy adopt create-intent (same fee math as modal).
+    donation_fees.js              Shared Stripe fee gross-up helpers.
+    notifications.js              Dashboard notifications (donations, contact, foster).
     foster_api.js                 Foster application API (modal posts here).
 
 public/
@@ -582,7 +606,7 @@ public/
       cpas-modals.js              Foster/volunteer/contact apply popups.
       shared.js                   Nav + footer (upload to R2).
     js/
-      donate-modal.js             Stripe donate modal.
+      donate-modal.js             Stripe donate modal + cover processing fees (global).
 
 static/
   global/

@@ -26,32 +26,44 @@ function CmsPageWrapper({ children, padding = "28px 28px 60px" }) {
   return React.createElement("div", { style: { padding, flex: 1 } }, children);
 }
 
-function PageStatusBadge({ status }) {
+function PageStatusBadge({ status, navVisible }) {
   const map = {
     published: { bg: "#d1fae5", color: "#065f46", border: "#6ee7b7", label: "Published" },
     draft:     { bg: "#fef3c7", color: "#92400e", border: "#fcd34d", label: "Draft" },
     archived:  { bg: "#f3f4f6", color: "#4b5563", border: "#d1d5db", label: "Archived" },
   };
   const s = map[status] || map.draft;
-  return React.createElement("span", {
-    style: { display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: "nowrap" }
-  },
-    React.createElement("span", { style: { width: 5, height: 5, borderRadius: "50%", background: s.color } }),
-    s.label
+  return React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 } },
+    React.createElement("span", {
+      style: { display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: "nowrap" }
+    },
+      React.createElement("span", { style: { width: 5, height: 5, borderRadius: "50%", background: s.color } }),
+      s.label
+    ),
+    navVisible === false && React.createElement("span", {
+      style: { display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 600, background: "#f3f4f6", color: "#6b7280", border: "1px solid #d1d5db", whiteSpace: "nowrap" }
+    }, "Hidden from nav")
   );
+}
+
+function pageNavVisible(page) {
+  return page?.nav_visible !== 0 && page?.nav_visible !== false;
 }
 
 // ── /dashboard/cms/website ────────────────────────────────────────────────────
 function CmsWebsiteView({ onNavigate }) {
   const [data, setData] = React.useState(null);
   const [publishing, setPublishing] = React.useState(null);
+  const [togglingNav, setTogglingNav] = React.useState(null);
   const [notice, setNotice] = React.useState({});
   const notify = (t, type) => cmsNotify(setNotice, t, type);
 
-  React.useEffect(() => {
+  const loadBootstrap = React.useCallback(() => {
     fetch("/api/cms/bootstrap", { credentials: "include" })
       .then(r => r.json()).then(d => { if (d.success) setData(d); }).catch(() => {});
   }, []);
+
+  React.useEffect(() => { loadBootstrap(); }, [loadBootstrap]);
 
   const pages = data?.pages?.length ? data.pages : [
     { route_path: "/",          title: "Home",      status: "published", sort_order: 10 },
@@ -70,6 +82,29 @@ function CmsWebsiteView({ onNavigate }) {
       notify(d.success ? `Published ${route} — live in ~5s` : (d.error || "Publish failed"), d.success ? "ok" : "error");
     } catch (e) { notify("Publish failed: " + e.message, "error"); }
     setPublishing(null);
+  };
+
+  const toggleNavVisibility = async (page) => {
+    const route = page.route_path;
+    const nextVisible = pageNavVisible(page) ? 0 : 1;
+    setTogglingNav(route);
+    try {
+      const res = await fetch("/api/cms/page/nav-visible", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ route_path: route, nav_visible: nextVisible }),
+      });
+      const d = await res.json();
+      notify(
+        d.success
+          ? (nextVisible ? `${page.title || route} is visible in navigation` : `${page.title || route} hidden from navigation`)
+          : (d.error || "Could not update navigation"),
+        d.success ? "ok" : "error"
+      );
+      if (d.success) loadBootstrap();
+    } catch (e) { notify("Navigation update failed: " + e.message, "error"); }
+    setTogglingNav(null);
   };
 
   const draftCount = pages.filter(p => p.status === "draft").length;
@@ -94,12 +129,27 @@ function CmsWebsiteView({ onNavigate }) {
     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12, marginBottom: 28 } },
       pages.map(p =>
         React.createElement(Card, { key: p.route_path, style: { padding: "16px 18px" } },
-          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 8 } },
             React.createElement("div", null,
               React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: C.text } }, p.title || p.route_path),
               React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2, fontFamily: "var(--font-mono)" } }, p.route_path)
             ),
-            React.createElement(PageStatusBadge, { status: p.status })
+            React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 6 } },
+              React.createElement("button", {
+                type: "button",
+                title: pageNavVisible(p) ? "Hide from navigation" : "Show in navigation",
+                disabled: togglingNav === p.route_path,
+                onClick: (e) => { e.stopPropagation(); toggleNavVisibility(p); },
+                style: {
+                  width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`,
+                  background: pageNavVisible(p) ? C.surface : C.bg2,
+                  color: pageNavVisible(p) ? C.purpleL : C.textMut,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: togglingNav === p.route_path ? "wait" : "pointer", flexShrink: 0,
+                },
+              }, React.createElement(Icon, { name: pageNavVisible(p) ? "eye" : "eyeOff", size: 14 })),
+              React.createElement(PageStatusBadge, { status: p.status, navVisible: pageNavVisible(p) })
+            )
           ),
           p.updated_at && React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 10 } }, "Updated " + new Date(p.updated_at).toLocaleDateString()),
           React.createElement("div", { style: { display: "flex", gap: 6 } },
@@ -148,6 +198,7 @@ function CmsPagesView({ onNavigate }) {
   const [newPage, setNewPage] = React.useState({ title: "", slug: "", template_key: "default" });
   const [saving, setSaving] = React.useState(false);
   const [publishing, setPublishing] = React.useState(null);
+  const [togglingNav, setTogglingNav] = React.useState(null);
   const notify = (t, type) => cmsNotify(setNotice, t, type);
 
   const [sections, setSections] = React.useState({});  // keyed by route_path
@@ -206,6 +257,29 @@ function CmsPagesView({ onNavigate }) {
     setPublishing(null);
   };
 
+  const toggleNavVisibility = async (page) => {
+    const route = page.route_path;
+    const nextVisible = pageNavVisible(page) ? 0 : 1;
+    setTogglingNav(route);
+    try {
+      const res = await fetch("/api/cms/page/nav-visible", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ route_path: route, nav_visible: nextVisible }),
+      });
+      const d = await res.json();
+      notify(
+        d.success
+          ? (nextVisible ? `${page.title || route} is visible in navigation` : `${page.title || route} hidden from navigation`)
+          : (d.error || "Could not update navigation"),
+        d.success ? "ok" : "error"
+      );
+      if (d.success) await load();
+    } catch (e) { notify("Navigation update failed: " + e.message, "error"); }
+    setTogglingNav(null);
+  };
+
   const SECTION_TYPE_COLORS = {
     hero: "#a78bfa", text_image: "#60a5fa", cta_banner: "#34d399",
     animal_grid: "#f59e0b", feature_cards: "#f472b6", campaign_grid: "#fb923c",
@@ -253,6 +327,19 @@ function CmsPagesView({ onNavigate }) {
     { key: "published_at", label: "Published", render: v => React.createElement("span", { style: { fontSize: 12, color: C.textSec } }, v ? new Date(v).toLocaleDateString() : "—") },
     { key: "route_path", label: "",
       render: (v, row) => React.createElement("div", { style: { display: "flex", gap: 6, justifyContent: "flex-end" } },
+        React.createElement("button", {
+          type: "button",
+          title: pageNavVisible(row) ? "Hide from navigation" : "Show in navigation",
+          disabled: togglingNav === v,
+          onClick: (e) => { e.stopPropagation(); toggleNavVisibility(row); },
+          style: {
+            width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`,
+            background: pageNavVisible(row) ? C.surface : C.bg2,
+            color: pageNavVisible(row) ? C.purpleL : C.textMut,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: togglingNav === v ? "wait" : "pointer",
+          },
+        }, React.createElement(Icon, { name: pageNavVisible(row) ? "eye" : "eyeOff", size: 14 })),
         React.createElement(Btn, { size: "sm", variant: "secondary", icon: "edit", onClick: (e) => { e.stopPropagation(); onNavigate("cms-page-editor", { pageId: v === "/" ? "home" : v.replace(/^\//, "").replace(/\//g, "_") || "home" }); } }, "Edit"),
         React.createElement(Btn, { size: "sm", icon: "publish", disabled: publishing === v, onClick: (e) => { e.stopPropagation(); publishPage(v); } }, publishing === v ? "…" : "Publish")
       )
@@ -1084,7 +1171,7 @@ function ImagesDriveTab({ onImported, notify }) {
         React.createElement("strong", null, "Imported images are copied to R2"), " — the website uses R2 URLs, not Drive URLs, so images remain available if Drive is later disconnected."
       ),
       React.createElement("div", { style: { fontSize: 12, color: C.textMut, marginBottom: 16, padding: "8px 12px", background: C.bg2, borderRadius: 8 } },
-        "Requested scope: ", React.createElement("code", null, "drive.file"), " — only files this app creates or opens."
+        "Requested scope: ", React.createElement("code", null, "drive.readonly"), " — browse existing org Drive and Shared drives (read-only)."
       ),
       React.createElement("a", {
         href: "/api/integrations/google-drive/connect",
@@ -1204,124 +1291,483 @@ function ImagesCleanupTab({ assets, loading }) {
   );
 }
 
+// ── Brand tweaks helpers ──────────────────────────────────────────────────────
+function parseBrandNav(navigationJson) {
+  try {
+    const links = JSON.parse(navigationJson || "[]");
+    return Array.isArray(links) ? links : [];
+  } catch {
+    return [];
+  }
+}
+
+function BrandTweakSection({ title, subtitle, defaultOpen = true, children }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  return React.createElement("div", {
+    style: { borderBottom: `1px solid ${C.border}`, paddingBottom: open ? 14 : 0, marginBottom: 14 },
+  },
+    React.createElement("button", {
+      type: "button",
+      onClick: () => setOpen(v => !v),
+      style: {
+        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 8, padding: "0 0 10px", border: "none", background: "transparent",
+        cursor: "pointer", fontFamily: "var(--font-ui)", textAlign: "left",
+      },
+    },
+      React.createElement("div", null,
+        React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.text, letterSpacing: "0.02em" } }, title),
+        subtitle && React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2 } }, subtitle)
+      ),
+      React.createElement(Icon, { name: open ? "chevD" : "chevR", size: 14, style: { color: C.textMut, flexShrink: 0 } })
+    ),
+    open && React.createElement("div", { style: { display: "grid", gap: 10 } }, children)
+  );
+}
+
+function BrandLogoDropZone({ label, hint, value, onChange, dropBg, uploading, onUploadFile }) {
+  const [dragOver, setDragOver] = React.useState(false);
+  const inputRef = React.useRef(null);
+
+  const handleFiles = async (files) => {
+    const file = files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    await onUploadFile(file);
+  };
+
+  return React.createElement("div", null,
+    React.createElement("label", { style: { display: "block", fontSize: 11, fontWeight: 700, color: C.textSec, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" } }, label),
+    React.createElement("div", {
+      onDragEnter: e => { e.preventDefault(); setDragOver(true); },
+      onDragOver: e => { e.preventDefault(); setDragOver(true); },
+      onDragLeave: e => { e.preventDefault(); setDragOver(false); },
+      onDrop: async e => {
+        e.preventDefault();
+        setDragOver(false);
+        await handleFiles(e.dataTransfer?.files);
+      },
+      onClick: () => inputRef.current?.click(),
+      style: {
+        border: `2px dashed ${dragOver ? C.purple : C.border}`,
+        borderRadius: 10,
+        padding: 12,
+        background: dragOver ? C.purpleDim : C.bg2,
+        cursor: uploading ? "wait" : "pointer",
+        transition: "border-color .15s, background .15s",
+      },
+    },
+      React.createElement("input", {
+        ref: inputRef,
+        type: "file",
+        accept: "image/*",
+        style: { display: "none" },
+        onChange: async e => { await handleFiles(e.target.files); e.target.value = ""; },
+      }),
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+        React.createElement("div", {
+          style: {
+            width: 56, height: 44, borderRadius: 8, flexShrink: 0,
+            background: dropBg, border: `1px solid ${C.border}`,
+            display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+          },
+        },
+          value
+            ? React.createElement("img", { src: value, alt: "", style: { maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }, onError: e => { e.target.style.display = "none"; } })
+            : React.createElement(Icon, { name: "image", size: 18, style: { color: C.textMut } })
+        ),
+        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+          React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: C.text } }, uploading ? "Uploading..." : "Drop image or click to replace"),
+          React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2 } }, hint)
+        )
+      ),
+      value && React.createElement("input", {
+        value,
+        onClick: e => e.stopPropagation(),
+        onChange: e => onChange(e.target.value),
+        style: {
+          width: "100%", marginTop: 10, padding: "7px 10px", border: `1px solid ${C.border}`,
+          borderRadius: 8, background: C.surface, color: C.text, fontSize: 11,
+          fontFamily: "var(--font-mono)", boxSizing: "border-box",
+        },
+      })
+    )
+  );
+}
+
+function BrandPreviewCanvas({ brand, socials, previewTheme }) {
+  const isDark = previewTheme === "dark";
+  const primary = brand.primary_color || "#7c3aed";
+  const accent = brand.accent_color || "#ee2336";
+  const logoUrl = isDark
+    ? (brand.logo_light_url || brand.logo_dark_url || "")
+    : (brand.logo_dark_url || brand.logo_light_url || "");
+  const logoW = Math.max(48, Math.min(240, Number(brand.logo_width) || 140));
+  const navLinks = parseBrandNav(brand.navigation_json)
+    .filter(l => l.label && l.href && String(l.style || "") !== "button")
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+  const donateLink = parseBrandNav(brand.navigation_json).find(l => l.style === "button" || l.href === "/donate");
+  const canvasBg = isDark ? "#0b0f1a" : "#f5f0eb";
+  const headerBg = isDark ? "#111827" : "#ffffff";
+  const textColor = isDark ? "#f0ece6" : "#1a1a1a";
+  const mutedColor = isDark ? "rgba(255,255,255,0.62)" : "#6b7280";
+  const banner = (socials?.banner || "").trim();
+
+  return React.createElement("div", {
+    style: {
+      borderRadius: 16, overflow: "hidden", border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : C.border}`,
+      background: canvasBg, boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
+    },
+  },
+    banner && React.createElement("div", {
+      style: {
+        background: primary, color: "#fff", fontSize: 12, fontWeight: 600,
+        textAlign: "center", padding: "8px 14px",
+      },
+    }, banner),
+    React.createElement("div", {
+      style: {
+        background: headerBg, color: textColor,
+        borderBottom: `3px solid ${primary}`,
+        padding: "14px 18px",
+      },
+    },
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" } },
+        logoUrl
+          ? React.createElement("img", { src: logoUrl, alt: brand.brand_name || "Logo", style: { width: logoW, height: "auto", maxHeight: 52, objectFit: "contain", display: "block" } })
+          : React.createElement("div", { style: { fontWeight: 800, fontSize: 15, color: primary } }, brand.brand_name || "Brand"),
+        React.createElement("nav", { style: { display: "flex", gap: 14, flexWrap: "wrap", marginLeft: "auto", alignItems: "center" } },
+          navLinks.map((link, i) => React.createElement("span", {
+            key: `${link.href}-${i}`,
+            style: { fontSize: 13, fontWeight: 600, color: mutedColor },
+          }, link.label)),
+          React.createElement("span", {
+            style: {
+              fontSize: 12, fontWeight: 700, padding: "8px 14px", borderRadius: 999,
+              background: accent, color: "#fff",
+            },
+          }, donateLink?.label || "Donate")
+        )
+      ),
+      React.createElement("div", { style: { marginTop: 10, fontSize: 11, color: mutedColor } },
+        brand.brand_name || "Companions of CPAS",
+        brand.site_domain ? ` · ${brand.site_domain}` : ""
+      )
+    ),
+    React.createElement("div", { style: { padding: "18px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 } },
+      [
+        { label: "Primary", color: primary },
+        { label: "Accent", color: accent },
+        { label: "Header", color: headerBg, border: true },
+      ].map(sw => React.createElement("div", {
+        key: sw.label,
+        style: {
+          borderRadius: 10, overflow: "hidden",
+          border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : C.border}`,
+        },
+      },
+        React.createElement("div", { style: { height: 44, background: sw.color, borderBottom: sw.border ? `1px solid ${C.border}` : "none" } }),
+        React.createElement("div", { style: { padding: "8px 10px", background: isDark ? "#111827" : "#fff", fontSize: 11, color: mutedColor } },
+          sw.label,
+          React.createElement("div", { style: { fontFamily: "var(--font-mono)", fontSize: 10, marginTop: 2, color: textColor } }, sw.border ? (isDark ? "Dark" : "Light") : sw.color)
+        )
+      ))
+    )
+  );
+}
+
 // ── /dashboard/cms/brand ──────────────────────────────────────────────────────
 function CmsBrandView({ onNavigate }) {
   const [brand, setBrand] = React.useState(null);
   const [org, setOrg] = React.useState({});
   const [socials, setSocials] = React.useState({});
   const [saving, setSaving] = React.useState(false);
+  const [uploadingLogo, setUploadingLogo] = React.useState(null);
+  const [previewTheme, setPreviewTheme] = React.useState("dark");
   const [notice, setNotice] = React.useState({});
   const notify = (t, type) => cmsNotify(setNotice, t, type);
 
   React.useEffect(() => {
     fetch("/api/cms/brand", { credentials: "include" }).then(r => r.json()).then(d => {
       if (d.brand) {
-        setBrand(d.brand);
+        setBrand({
+          ...d.brand,
+          logo_width: Number(d.brand.logo_width) || 140,
+          logo_height: Number(d.brand.logo_height) || 0,
+        });
         setOrg((() => { try { return JSON.parse(d.brand.organization_json || "{}"); } catch { return {}; } })());
         setSocials((() => { try { return JSON.parse(d.brand.socials_json || "{}"); } catch { return {}; } })());
       }
     }).catch(() => {});
   }, []);
 
+  const uploadLogo = async (file, targetKey) => {
+    setUploadingLogo(targetKey);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("usage_context", "brand");
+      fd.append("label", `Brand ${targetKey}`);
+      const res = await fetch("/api/cms/asset/upload", { method: "POST", credentials: "include", body: fd });
+      const d = await res.json();
+      const url = d.public_url || d.cdn_url || d.url;
+      if (!d.success || !url) {
+        notify(d.error || "Upload failed", "error");
+        return;
+      }
+      setBrand(p => ({ ...p, [targetKey]: url }));
+      notify("Logo uploaded");
+    } catch (e) {
+      notify("Upload failed: " + e.message, "error");
+    }
+    setUploadingLogo(null);
+  };
+
   const save = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/cms/brand/save", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ brand: { ...brand, organization_json: JSON.stringify(org), socials_json: JSON.stringify(socials) } }) });
+      const res = await fetch("/api/cms/brand/save", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          brand: {
+            ...brand,
+            logo_width: Number(brand.logo_width) || 140,
+            logo_height: Number(brand.logo_height) || null,
+            organization_json: JSON.stringify(org),
+            socials_json: JSON.stringify(socials),
+          },
+        }),
+      });
       const d = await res.json();
       notify(d.success ? "Brand settings saved" : (d.error || "Save failed"), d.success ? "ok" : "error");
     } catch (e) { notify("Save failed: " + e.message, "error"); }
     setSaving(false);
   };
 
-  const fStyle = { width: "100%", padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 8, background: C.surface, color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "var(--font-ui)" };
-  const lStyle = { display: "block", fontSize: 11, fontWeight: 700, color: C.textSec, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" };
-  const F = (label, key, obj, setter, type = "text", ph = "") => React.createElement("div", { key: label },
+  const fStyle = {
+    width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 8,
+    background: C.surface, color: C.text, fontSize: 13, outline: "none",
+    boxSizing: "border-box", fontFamily: "var(--font-ui)",
+  };
+  const lStyle = {
+    display: "block", fontSize: 10, fontWeight: 700, color: C.textSec,
+    marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em",
+  };
+  const tweakInput = (label, value, onChange, opts = {}) => React.createElement("div", { key: label },
     React.createElement("label", { style: lStyle }, label),
-    React.createElement("input", { type, value: (obj || {})[key] || "", onChange: e => setter(p => ({ ...p, [key]: e.target.value })), placeholder: ph, style: fStyle })
+    React.createElement("input", {
+      type: opts.type || "text",
+      value: value || "",
+      placeholder: opts.placeholder || "",
+      readOnly: opts.readOnly,
+      onChange: e => onChange(e.target.value),
+      style: { ...fStyle, ...(opts.readOnly ? { background: C.bg2, color: C.textMut, cursor: "default" } : {}), ...(opts.mono ? { fontFamily: "var(--font-mono)", fontSize: 11 } : {}) },
+    })
   );
 
-  if (!brand) return React.createElement(CmsPageWrapper, null, React.createElement("div", { style: { color: C.textSec, fontSize: 13, padding: 20 } }, "Loading brand settings…"));
+  const setColor = (key, value) => setBrand(p => ({ ...p, [key]: value }));
 
-  return React.createElement(CmsPageWrapper, null,
-    React.createElement(PageHeader, { title: "Brand & Settings", subtitle: "Global site identity, colors, and organization info", action: React.createElement(Btn, { icon: saving ? undefined : "check2", onClick: save, disabled: saving }, saving ? "Saving…" : "Save Changes") }),
+  if (!brand) {
+    return React.createElement(CmsPageWrapper, null,
+      React.createElement("div", { style: { color: C.textSec, fontSize: 13, padding: 20 } }, "Loading brand settings...")
+    );
+  }
+
+  const navLinks = parseBrandNav(brand.navigation_json);
+
+  return React.createElement(CmsPageWrapper, { padding: "20px 22px 48px" },
     React.createElement(CmsNotice, { n: notice }),
-    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, maxWidth: 900 } },
-      // Identity
-      React.createElement(Card, { style: { padding: 24, gridColumn: "1 / -1" } },
-        React.createElement("h3", { style: { fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 16 } }, "Site Identity"),
-        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 } },
-          F("Brand Name", "brand_name", brand, setBrand, "text", "Companions of CPAS"),
-          F("Site Domain", "site_domain", brand, setBrand, "text", "companionsofcaddo.org"),
+    React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1.5fr) minmax(320px, 1fr)",
+        gap: 18,
+        alignItems: "start",
+        background: "#f5f0eb",
+        borderRadius: 16,
+        padding: 16,
+        minHeight: "calc(100vh - 120px)",
+      },
+    },
+      // Live preview canvas
+      React.createElement("div", { style: { minWidth: 0 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 12 } },
           React.createElement("div", null,
-            React.createElement("label", { style: lStyle }, "Primary Color"),
-            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
-              React.createElement("input", { type: "color", value: brand.primary_color || "#7c3aed", onChange: e => setBrand(p => ({ ...p, primary_color: e.target.value })), style: { width: 48, height: 36, padding: 2, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer" } }),
-              React.createElement("input", { value: brand.primary_color || "#7c3aed", onChange: e => setBrand(p => ({ ...p, primary_color: e.target.value })), style: { ...fStyle, flex: 1, fontFamily: "var(--font-mono)" } })
-            )
+            React.createElement("h2", { style: { margin: 0, fontSize: 18, fontWeight: 800, color: C.text } }, "Brand & Settings"),
+            React.createElement("p", { style: { margin: "4px 0 0", fontSize: 12, color: C.textSec } }, "Live preview updates as you edit. Save to publish.")
           ),
-          React.createElement("div", null,
-            React.createElement("label", { style: lStyle }, "Accent Color"),
-            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
-              React.createElement("input", { type: "color", value: brand.accent_color || "#ee2336", onChange: e => setBrand(p => ({ ...p, accent_color: e.target.value })), style: { width: 48, height: 36, padding: 2, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer" } }),
-              React.createElement("input", { value: brand.accent_color || "#ee2336", onChange: e => setBrand(p => ({ ...p, accent_color: e.target.value })), style: { ...fStyle, flex: 1, fontFamily: "var(--font-mono)" } })
-            )
+          React.createElement("div", { style: { display: "flex", gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4 } },
+            ["dark", "light"].map(theme => React.createElement("button", {
+              key: theme,
+              type: "button",
+              onClick: () => setPreviewTheme(theme),
+              style: {
+                padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+                fontSize: 12, fontWeight: 600, fontFamily: "var(--font-ui)",
+                background: previewTheme === theme ? C.purple : "transparent",
+                color: previewTheme === theme ? "#fff" : C.textSec,
+              },
+            }, theme === "dark" ? "Dark preview" : "Light preview"))
           )
-        )
-      ),
-      // Logos
-      React.createElement(Card, { style: { padding: 24 } },
-        React.createElement("h3", { style: { fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 16 } }, "Logos"),
-        React.createElement("div", { style: { display: "grid", gap: 14 } },
-          React.createElement("div", null,
-            React.createElement("label", { style: lStyle }, "Logo Light (dark backgrounds)"),
-            brand.logo_light_url && React.createElement("img", { src: brand.logo_light_url, style: { height: 36, marginBottom: 8, objectFit: "contain", display: "block", background: "#111", padding: 6, borderRadius: 6 }, onError: e => e.target.style.display = "none" }),
-            React.createElement("input", { value: brand.logo_light_url || "", onChange: e => setBrand(p => ({ ...p, logo_light_url: e.target.value })), style: { ...fStyle, fontSize: 11, fontFamily: "var(--font-mono)" } })
-          ),
-          React.createElement("div", null,
-            React.createElement("label", { style: lStyle }, "Logo Dark (light backgrounds)"),
-            brand.logo_dark_url && React.createElement("img", { src: brand.logo_dark_url, style: { height: 36, marginBottom: 8, objectFit: "contain", display: "block", background: "#f5f5f5", padding: 6, borderRadius: 6 }, onError: e => e.target.style.display = "none" }),
-            React.createElement("input", { value: brand.logo_dark_url || "", onChange: e => setBrand(p => ({ ...p, logo_dark_url: e.target.value })), style: { ...fStyle, fontSize: 11, fontFamily: "var(--font-mono)" } })
-          )
-        )
-      ),
-      // Organization
-      React.createElement(Card, { style: { padding: 24 } },
-        React.createElement("h3", { style: { fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 16 } }, "Organization"),
-        React.createElement("div", { style: { display: "grid", gap: 14 } },
-          F("Legal Name", "legal_name", org, setOrg, "text", "Companions of CPAS"),
-          F("EIN / Tax ID", "ein", org, setOrg, "text", "88-4156327"),
-          F("Contact Email", "email", org, setOrg, "email", "companionsCPAS@gmail.com"),
-          F("City / Parish", "city", org, setOrg, "text", "Shreveport"),
-          React.createElement("div", null, React.createElement("label", { style: lStyle }, "Mission Statement"), React.createElement("textarea", { value: org.mission || "", rows: 3, onChange: e => setOrg(p => ({ ...p, mission: e.target.value })), style: { ...fStyle, resize: "vertical" } }))
-        )
-      ),
-      // Socials
-      React.createElement(Card, { style: { padding: 24 } },
-        React.createElement("h3", { style: { fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 16 } }, "Social & Links"),
-        React.createElement("div", { style: { display: "grid", gap: 14 } },
-          F("Facebook URL", "facebook", socials, setSocials, "url", "https://facebook.com/…"),
-          F("Instagram URL", "instagram", socials, setSocials, "url", "https://instagram.com/…"),
-          F("Donation Link", "donation_url", socials, setSocials, "url", "https://…"),
-          F("Announcement Banner", "banner", socials, setSocials, "text", "Optional header banner text")
-        )
-      ),
-      // Navigation editor
-      React.createElement(Card, { style: { padding: 24, gridColumn: "1 / -1" } },
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
-          React.createElement("h3", { style: { fontSize: 14, fontWeight: 700, color: C.text } }, "Header Navigation"),
-          React.createElement("div", { style: { fontSize: 11, color: C.textMut } }, "Saved with brand settings")
         ),
-        (() => {
-          const navLinks = (() => { try { return JSON.parse(brand.navigation_json || "[]"); } catch { return []; } })();
-          return React.createElement("div", { style: { display: "grid", gap: 8 } },
-            navLinks.map((link, i) => React.createElement("div", { key: i, style: { display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" } },
-              React.createElement("input", { value: link.label || "", onChange: e => { const n = [...navLinks]; n[i] = { ...n[i], label: e.target.value }; setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) })); }, placeholder: "Label", style: fStyle }),
-              React.createElement("input", { value: link.href || "", onChange: e => { const n = [...navLinks]; n[i] = { ...n[i], href: e.target.value }; setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) })); }, placeholder: "/path", style: { ...fStyle, fontFamily: "var(--font-mono)", fontSize: 12 } }),
-              React.createElement("button", { onClick: () => { const n = navLinks.filter((_, j) => j !== i); setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) })); }, style: { padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.redDim}`, background: C.redDim, color: C.red, cursor: "pointer", fontSize: 12 } }, "✕")
+        React.createElement(BrandPreviewCanvas, { brand, socials, previewTheme })
+      ),
+
+      // Tweaks rail
+      React.createElement("div", {
+        style: {
+          position: "sticky", top: 16, maxHeight: "calc(100vh - 96px)", overflowY: "auto",
+          background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14,
+          padding: "14px 14px 8px", boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
+        },
+      },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${C.border}` } },
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: C.text } }, "Tweaks"),
+            React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2 } }, "Site identity and navigation")
+          ),
+          React.createElement(Btn, { size: "sm", icon: saving ? undefined : "check2", onClick: save, disabled: saving }, saving ? "Saving..." : "Save Changes")
+        ),
+
+        React.createElement(BrandTweakSection, { title: "Identity", defaultOpen: true },
+          tweakInput("Brand Name", brand.brand_name, v => setBrand(p => ({ ...p, brand_name: v })), { placeholder: "Companions of CPAS" }),
+          tweakInput("Site Domain", brand.site_domain, () => {}, { readOnly: true, mono: true })
+        ),
+
+        React.createElement(BrandTweakSection, { title: "Colors", defaultOpen: true },
+          ["primary_color", "accent_color"].map(key => {
+            const label = key === "primary_color" ? "Primary Color" : "Accent Color";
+            const val = brand[key] || (key === "primary_color" ? "#7c3aed" : "#ee2336");
+            return React.createElement("div", { key },
+              React.createElement("label", { style: lStyle }, label),
+              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                React.createElement("input", {
+                  type: "color", value: val,
+                  onChange: e => setColor(key, e.target.value),
+                  style: { width: 42, height: 34, padding: 2, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", background: C.surface },
+                }),
+                React.createElement("input", {
+                  value: val,
+                  onChange: e => setColor(key, e.target.value),
+                  style: { ...fStyle, flex: 1, fontFamily: "var(--font-mono)", fontSize: 11 },
+                })
+              )
+            );
+          })
+        ),
+
+        React.createElement(BrandTweakSection, { title: "Logos", subtitle: "Drag and drop or click to upload", defaultOpen: true },
+          React.createElement(BrandLogoDropZone, {
+            label: "Logo Light",
+            hint: "Used on dark backgrounds",
+            value: brand.logo_light_url || "",
+            dropBg: "#111827",
+            uploading: uploadingLogo === "logo_light_url",
+            onChange: v => setBrand(p => ({ ...p, logo_light_url: v })),
+            onUploadFile: file => uploadLogo(file, "logo_light_url"),
+          }),
+          React.createElement(BrandLogoDropZone, {
+            label: "Logo Dark",
+            hint: "Used on light backgrounds",
+            value: brand.logo_dark_url || "",
+            dropBg: "#f5f0eb",
+            uploading: uploadingLogo === "logo_dark_url",
+            onChange: v => setBrand(p => ({ ...p, logo_dark_url: v })),
+            onUploadFile: file => uploadLogo(file, "logo_dark_url"),
+          }),
+          React.createElement("div", null,
+            React.createElement("label", { style: lStyle }, `Header Logo Width (${Number(brand.logo_width) || 140}px)`),
+            React.createElement("input", {
+              type: "range", min: 48, max: 240, step: 4,
+              value: Number(brand.logo_width) || 140,
+              onChange: e => setBrand(p => ({ ...p, logo_width: Number(e.target.value) })),
+              style: { width: "100%", accentColor: C.purple },
+            }),
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: C.textMut, marginTop: 2 } },
+              React.createElement("span", null, "48px"),
+              React.createElement("span", null, "240px")
+            )
+          )
+        ),
+
+        React.createElement(BrandTweakSection, { title: "Org Details", defaultOpen: false },
+          tweakInput("Legal Name", org.legal_name || org.name, v => setOrg(p => ({ ...p, legal_name: v, name: v })), { placeholder: "Companions of CPAS" }),
+          tweakInput("EIN / Tax ID", org.ein, v => setOrg(p => ({ ...p, ein: v })), { placeholder: "88-4156327", mono: true }),
+          tweakInput("Contact Email", org.email, v => setOrg(p => ({ ...p, email: v })), { type: "email", placeholder: "companionsCPAS@gmail.com" }),
+          tweakInput("City / Parish", org.city || org.parish, v => setOrg(p => ({ ...p, city: v, parish: v })), { placeholder: "Shreveport" }),
+          React.createElement("div", null,
+            React.createElement("label", { style: lStyle }, "Mission Statement"),
+            React.createElement("textarea", {
+              value: org.mission || "",
+              rows: 3,
+              onChange: e => setOrg(p => ({ ...p, mission: e.target.value })),
+              style: { ...fStyle, resize: "vertical", minHeight: 72 },
+            })
+          )
+        ),
+
+        React.createElement(BrandTweakSection, { title: "Links", defaultOpen: false },
+          tweakInput("Facebook URL", socials.facebook, v => setSocials(p => ({ ...p, facebook: v })), { type: "url", placeholder: "https://facebook.com/..." }),
+          tweakInput("Instagram URL", socials.instagram, v => setSocials(p => ({ ...p, instagram: v })), { type: "url", placeholder: "https://instagram.com/..." }),
+          tweakInput("Donation Link", socials.donation_url, v => setSocials(p => ({ ...p, donation_url: v })), { type: "url", placeholder: "https://..." }),
+          tweakInput("Announcement Banner", socials.banner, v => setSocials(p => ({ ...p, banner: v })), { placeholder: "Optional header banner text" })
+        ),
+
+        React.createElement(BrandTweakSection, { title: "Header Navigation", subtitle: "Saved with brand settings", defaultOpen: true },
+          React.createElement("div", { style: { display: "grid", gap: 6 } },
+            navLinks.map((link, i) => React.createElement("div", {
+              key: i,
+              style: { display: "grid", gridTemplateColumns: "1fr 1fr 30px", gap: 6, alignItems: "center" },
+            },
+              React.createElement("input", {
+                value: link.label || "",
+                placeholder: "Label",
+                onChange: e => {
+                  const n = [...navLinks];
+                  n[i] = { ...n[i], label: e.target.value };
+                  setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) }));
+                },
+                style: { ...fStyle, padding: "7px 9px", fontSize: 12 },
+              }),
+              React.createElement("input", {
+                value: link.href || "",
+                placeholder: "/path",
+                onChange: e => {
+                  const n = [...navLinks];
+                  n[i] = { ...n[i], href: e.target.value };
+                  setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) }));
+                },
+                style: { ...fStyle, padding: "7px 9px", fontSize: 11, fontFamily: "var(--font-mono)" },
+              }),
+              React.createElement("button", {
+                type: "button",
+                title: "Remove link",
+                onClick: () => {
+                  const n = navLinks.filter((_, j) => j !== i);
+                  setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) }));
+                },
+                style: {
+                  width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.redDim}`,
+                  background: C.redDim, color: C.red, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+                },
+              }, React.createElement(Icon, { name: "close", size: 12 }))
             )),
-            React.createElement("button", { onClick: () => { const n = [...navLinks, { label: "", href: "/", sort_order: (navLinks.length + 1) * 10 }]; setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) })); }, style: { padding: "8px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.textSec, cursor: "pointer", fontSize: 12, fontFamily: "var(--font-ui)", marginTop: 4, textAlign: "left" } }, "+ Add Link")
-          );
-        })()
+            React.createElement("button", {
+              type: "button",
+              onClick: () => {
+                const n = [...navLinks, { label: "", href: "/", sort_order: (navLinks.length + 1) * 10 }];
+                setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) }));
+              },
+              style: {
+                padding: "7px 10px", borderRadius: 8, border: `1px dashed ${C.border}`,
+                background: "transparent", color: C.textSec, cursor: "pointer",
+                fontSize: 12, fontFamily: "var(--font-ui)", textAlign: "left",
+              },
+            }, "+ Add Link")
+          )
+        )
       )
     )
   );

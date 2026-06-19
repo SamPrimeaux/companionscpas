@@ -1,70 +1,107 @@
 // ─── Ops Views: Intakes, Daily Care, Medical Records, Volunteers ──────────────
 
+function fetchDashboardJSON(path) {
+  return fetch(path, { credentials: 'include', headers: { Accept: 'application/json' } })
+    .then(function(res) { return res.json().then(function(data) { if (!res.ok) throw new Error(data.error || 'Request failed'); return data; }); });
+}
+
+function PdfPreview(props) {
+  var url = props.url;
+  var height = props.height || 180;
+  if (!url) return null;
+  return React.createElement('div', {
+    style: {
+      height: height,
+      background: '#f5f4f1',
+      borderBottom: '1px solid ' + C.border,
+      overflow: 'hidden',
+      position: 'relative'
+    }
+  },
+    React.createElement('iframe', {
+      src: url + '#toolbar=0&navpanes=0&view=FitH',
+      title: props.title || 'PDF preview',
+      style: { width: '100%', height: '100%', border: 'none', pointerEvents: 'none' }
+    })
+  );
+}
+
 // ─── Intakes ──────────────────────────────────────────────────────────────────
 function IntakesView({ onNavigate }) {
   const [search, setSearch] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const filtered = CPAS.intakes.filter(i =>
-    !search || i.animal.toLowerCase().includes(search.toLowerCase()) || i.id.toLowerCase().includes(search.toLowerCase()) || i.method.toLowerCase().includes(search.toLowerCase())
-  );
-  const methodCounts = CPAS.intakes.reduce((acc,i)=>{ acc[i.method]=(acc[i.method]||0)+1; return acc; },{});
+  const [rows, setRows] = useState(null);
+  const [stats, setStats] = useState({ total: 0, this_month: 0, linked_animals: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(function() {
+    setLoading(true);
+    fetchDashboardJSON('/api/dashboard/intakes')
+      .then(function(data) {
+        setRows(data.intakes || []);
+        setStats(data.stats || { total: (data.intakes || []).length, this_month: 0, linked_animals: 0 });
+        setError("");
+      })
+      .catch(function(e) {
+        setRows([]);
+        setError(e.message || 'Failed to load intake records.');
+      })
+      .finally(function() { setLoading(false); });
+  }, []);
+
+  const filtered = (rows || []).filter(function(i) {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return [i.animal_name, i.filename, i.label, i.animal_id].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
 
   return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
-      title:"Intakes",
-      subtitle:"Animal intake records and history",
-      action: React.createElement(Btn, { icon:"plus", size:"sm", onClick:()=>setShowModal(true) }, "New Intake")
+      title: "Intakes",
+      subtitle: "Kennel card intake forms stored in media/intakes",
+      action: React.createElement(Btn, { icon: "plus", size: "sm", onClick: function() { if (onNavigate) onNavigate('animals'); } }, "View Animals")
     }),
 
-    React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 } },
-      React.createElement(StatCard, { icon:"📥", label:"Total Intakes (YTD)", value:88 }),
-      React.createElement(StatCard, { icon:"🐾", label:"This Month",          value:6,  sub:"+2 vs last month", subPositive:true }),
-      React.createElement(StatCard, { icon:"🛣️", label:"Strays",              value:methodCounts["Stray"]||0 }),
-      React.createElement(StatCard, { icon:"🤝", label:"Surrenders",          value:methodCounts["Owner Surrender"]||0 }),
+    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 } },
+      React.createElement(StatCard, { icon: "📥", label: "Intake Forms", value: stats.total || 0 }),
+      React.createElement(StatCard, { icon: "🐾", label: "Linked Animals", value: stats.linked_animals || 0, sub: "matched to profiles", subPositive: true }),
+      React.createElement(StatCard, { icon: "📅", label: "Added This Month", value: stats.this_month || 0 })
     ),
 
-    React.createElement("div", { style:{ marginBottom:16 } },
-      React.createElement(Input, { value:search, onChange:setSearch, placeholder:"Search intakes…", icon:"search", style:{ maxWidth:320 } })
+    React.createElement("div", { style: { marginBottom: 16 } },
+      React.createElement(Input, { value: search, onChange: setSearch, placeholder: "Search intakes…", icon: "search", style: { maxWidth: 320 } })
     ),
 
-    React.createElement(Card, { style:{ overflow:"hidden" } },
-      React.createElement(Table, {
-        cols:[
-          { key:"id",       label:"ID",        render:v=>React.createElement("span",{style:{color:C.textSec,fontFamily:"monospace",fontSize:12}},v) },
-          { key:"date",     label:"Date" },
-          { key:"animal",   label:"Animal",    render:(v,row)=>React.createElement("div",null, React.createElement("div",{style:{fontWeight:600}},v), React.createElement("div",{style:{fontSize:11,color:C.textSec}},row.animalId)) },
-          { key:"species",  label:"Species" },
-          { key:"method",   label:"Method",    render:v=>React.createElement(Badge,{label:v.replace("Owner Surrender","Surrender")}) },
-          { key:"location", label:"Location",  render:v=>React.createElement("span",{style:{color:C.textSec,fontSize:12}},v) },
-          { key:"condition",label:"Condition", render:v=>React.createElement(Badge,{label:v,dot:true}) },
-          { key:"staff",    label:"Staff",     render:v=>React.createElement("span",{style:{color:C.textSec}},v) },
-          { key:"notes",    label:"Notes",     render:v=>React.createElement("span",{style:{color:C.textSec,fontSize:12}},v||"—") },
-        ],
-        rows: filtered,
-        onRowClick: row => onNavigate("animal-profile", { animalId: row.animalId })
+    error ? React.createElement("div", { style: { color: C.red, marginBottom: 16, fontSize: 13, fontWeight: 600 } }, error) : null,
+
+    loading ? React.createElement(Card, { style: { padding: 28, color: C.textSec } }, "Loading intake forms…") :
+    !filtered.length ? React.createElement(Card, { style: { padding: 28, color: C.textSec } }, "No intake forms found in media/intakes.") :
+    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 } },
+      filtered.map(function(row) {
+        return React.createElement(Card, { key: row.id || row.url, style: { overflow: "hidden", padding: 0 } },
+          React.createElement(PdfPreview, { url: row.url, title: row.label, height: 200 }),
+          React.createElement("div", { style: { padding: 16 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
+              row.photo_url ? React.createElement("img", {
+                src: row.photo_url,
+                alt: row.animal_name || "Animal",
+                style: { width: 48, height: 48, borderRadius: 10, objectFit: "cover", flexShrink: 0 }
+              }) : React.createElement("div", {
+                style: { width: 48, height: 48, borderRadius: 10, background: C.raised, display: "flex", alignItems: "center", justifyContent: "center", color: C.textMut, fontSize: 18 }
+              }, "📄"),
+              React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                React.createElement("div", { style: { fontWeight: 800, fontSize: 15, color: C.text } }, row.animal_name || "Unlinked intake"),
+                React.createElement("div", { style: { color: C.textSec, fontSize: 12, marginTop: 2 } }, [row.species, row.intake_date ? "Intake " + row.intake_date : null].filter(Boolean).join(" · ") || "No linked profile"),
+                React.createElement("div", { style: { color: C.textMut, fontSize: 11, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, row.filename)
+              )
+            ),
+            React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" } },
+              React.createElement(Btn, { size: "sm", variant: "secondary", onClick: function() { window.open(row.url, "_blank", "noopener,noreferrer"); } }, "Open PDF"),
+              row.animal_id ? React.createElement(Btn, { size: "sm", onClick: function() { onNavigate("animal-profile", { animalId: row.animal_id }); } }, "View Animal") : null
+            )
+          )
+        );
       })
-    ),
-
-    React.createElement(Modal, { open:showModal, onClose:()=>setShowModal(false), title:"New Intake", width:520 },
-      React.createElement("div", { style:{ display:"flex", flexDirection:"column", gap:14 } },
-        React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 } },
-          React.createElement("div", null, React.createElement("label", { style:{ fontSize:12, color:C.textSec, display:"block", marginBottom:6 } }, "Animal Name"), React.createElement(Input, { value:"", onChange:()=>{}, placeholder:"e.g. Buddy" })),
-          React.createElement("div", null, React.createElement("label", { style:{ fontSize:12, color:C.textSec, display:"block", marginBottom:6 } }, "Species"), React.createElement(Select, { value:"Dog", onChange:()=>{}, options:[{value:"Dog",label:"Dog"},{value:"Cat",label:"Cat"},{value:"Other",label:"Other"}] }))
-        ),
-        React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 } },
-          React.createElement("div", null, React.createElement("label", { style:{ fontSize:12, color:C.textSec, display:"block", marginBottom:6 } }, "Intake Method"), React.createElement(Select, { value:"Stray", onChange:()=>{}, options:["Stray","Owner Surrender","Transfer","Rescue"].map(v=>({value:v,label:v})) })),
-          React.createElement("div", null, React.createElement("label", { style:{ fontSize:12, color:C.textSec, display:"block", marginBottom:6 } }, "Condition"), React.createElement(Select, { value:"Good", onChange:()=>{}, options:["Good","Fair","Poor"].map(v=>({value:v,label:v})) }))
-        ),
-        React.createElement("div", null, React.createElement("label", { style:{ fontSize:12, color:C.textSec, display:"block", marginBottom:6 } }, "Location Found"), React.createElement(Input, { value:"", onChange:()=>{}, placeholder:"Street address or area" })),
-        React.createElement("div", null,
-          React.createElement("label", { style:{ fontSize:12, color:C.textSec, display:"block", marginBottom:6 } }, "Notes"),
-          React.createElement("textarea", { placeholder:"Any additional notes…", style:{ width:"100%", background:C.raised, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 12px", color:C.text, fontSize:13, resize:"vertical", minHeight:72, outline:"none", boxSizing:"border-box" } })
-        ),
-        React.createElement("div", { style:{ display:"flex", gap:10, justifyContent:"flex-end" } },
-          React.createElement(Btn, { variant:"secondary", onClick:()=>setShowModal(false) }, "Cancel"),
-          React.createElement(Btn, { onClick:()=>setShowModal(false) }, "Save Intake")
-        )
-      )
     )
   );
 }
@@ -130,66 +167,83 @@ function DailyCareView({ onNavigate }) {
 function MedicalView({ onNavigate }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
-  const [showModal, setShowModal] = useState(false);
-  const types = ["All", ...Array.from(new Set(CPAS.medicalRecords.map(r=>r.type)))];
-  const filtered = CPAS.medicalRecords.filter(r => {
+  const [rows, setRows] = useState(null);
+  const [stats, setStats] = useState({ total: 0, vaccination_certs: 0, linked_animals: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(function() {
+    setLoading(true);
+    fetchDashboardJSON('/api/dashboard/medical')
+      .then(function(data) {
+        setRows(data.medical || []);
+        setStats(data.stats || { total: (data.medical || []).length, vaccination_certs: 0, linked_animals: 0 });
+        setError("");
+      })
+      .catch(function(e) {
+        setRows([]);
+        setError(e.message || 'Failed to load medical documents.');
+      })
+      .finally(function() { setLoading(false); });
+  }, []);
+
+  const types = ["All", ...Array.from(new Set((rows || []).map(function(r) { return r.type; }).filter(Boolean)))];
+  const filtered = (rows || []).filter(function(r) {
     const matchType = typeFilter === "All" || r.type === typeFilter;
-    const matchSearch = !search || r.animal.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchSearch = !search || [r.animal_name, r.filename, r.label, r.type].filter(Boolean).join(' ').toLowerCase().includes(q);
     return matchType && matchSearch;
   });
 
   return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
-      title:"Medical Records",
-      subtitle:"Veterinary records across all animals",
-      action: React.createElement(Btn, { icon:"plus", size:"sm", onClick:()=>setShowModal(true) }, "Add Record")
+      title: "Medical Records",
+      subtitle: "Vaccination certificates and medical PDFs from media/medical",
+      action: React.createElement(Btn, { icon: "plus", size: "sm", onClick: function() { if (onNavigate) onNavigate('animals'); } }, "View Animals")
     }),
 
-    React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 } },
-      React.createElement(StatCard, { icon:"🩺", label:"Total Records", value:CPAS.medicalRecords.length }),
-      React.createElement(StatCard, { icon:"🔴", label:"Overdue",       value:CPAS.medicalRecords.filter(r=>r.status==="Overdue").length,   sub:"Action needed", subPositive:false }),
-      React.createElement(StatCard, { icon:"🟡", label:"Due Soon",      value:CPAS.medicalRecords.filter(r=>r.status==="Due").length }),
-      React.createElement(StatCard, { icon:"📅", label:"Scheduled",     value:CPAS.medicalRecords.filter(r=>r.status==="Scheduled").length, sub:"Upcoming", subPositive:true }),
+    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 } },
+      React.createElement(StatCard, { icon: "🩺", label: "Medical Documents", value: stats.total || 0 }),
+      React.createElement(StatCard, { icon: "💉", label: "Vaccination Certs", value: stats.vaccination_certs || 0, sub: "on file", subPositive: true }),
+      React.createElement(StatCard, { icon: "🐾", label: "Linked Animals", value: stats.linked_animals || 0 })
     ),
 
-    React.createElement("div", { style:{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" } },
-      React.createElement(Input, { value:search, onChange:setSearch, placeholder:"Search records…", icon:"search", style:{ width:260 } }),
-      React.createElement(Select, { value:typeFilter, onChange:setTypeFilter, options:types.map(t=>({value:t,label:t})), style:{ minWidth:160 } })
+    React.createElement("div", { style: { display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" } },
+      React.createElement(Input, { value: search, onChange: setSearch, placeholder: "Search records…", icon: "search", style: { width: 260 } }),
+      React.createElement(Select, { value: typeFilter, onChange: setTypeFilter, options: types.map(function(t) { return { value: t, label: t }; }), style: { minWidth: 180 } })
     ),
 
-    React.createElement(Card, { style:{ overflow:"hidden" } },
-      React.createElement(Table, {
-        cols:[
-          { key:"id",      label:"ID",      render:v=>React.createElement("span",{style:{color:C.textSec,fontFamily:"monospace",fontSize:12}},v) },
-          { key:"animal",  label:"Animal",  render:(v,row)=>React.createElement("button",{onClick:e=>{e.stopPropagation();onNavigate("animal-profile",{animalId:row.animalId})},style:{background:"none",border:"none",color:C.purpleL,cursor:"pointer",fontSize:13,fontWeight:600,padding:0}},v) },
-          { key:"date",    label:"Date" },
-          { key:"type",    label:"Type" },
-          { key:"details", label:"Details", render:v=>React.createElement("span",{style:{color:C.textSec}},v) },
-          { key:"vet",     label:"Vet",     render:v=>React.createElement("span",{style:{color:C.textSec}},v) },
-          { key:"status",  label:"Status",  render:v=>React.createElement(Badge,{label:v,dot:true}) },
-          { key:"nextDue", label:"Next Due",render:v=>React.createElement("span",{style:{color:v?C.yellow:C.textMut,fontSize:12}},v||"—") },
-        ],
-        rows: filtered
+    error ? React.createElement("div", { style: { color: C.red, marginBottom: 16, fontSize: 13, fontWeight: 600 } }, error) : null,
+
+    loading ? React.createElement(Card, { style: { padding: 28, color: C.textSec } }, "Loading medical documents…") :
+    !filtered.length ? React.createElement(Card, { style: { padding: 28, color: C.textSec } }, "No medical documents found in media/medical.") :
+    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 } },
+      filtered.map(function(row) {
+        return React.createElement(Card, { key: row.id || row.url, style: { overflow: "hidden", padding: 0 } },
+          React.createElement(PdfPreview, { url: row.url, title: row.label, height: 200 }),
+          React.createElement("div", { style: { padding: 16 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
+              row.photo_url ? React.createElement("img", {
+                src: row.photo_url,
+                alt: row.animal_name || "Animal",
+                style: { width: 48, height: 48, borderRadius: 10, objectFit: "cover", flexShrink: 0 }
+              }) : React.createElement("div", {
+                style: { width: 48, height: 48, borderRadius: 10, background: C.raised, display: "flex", alignItems: "center", justifyContent: "center", color: C.textMut, fontSize: 18 }
+              }, "💉"),
+              React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                React.createElement("div", { style: { fontWeight: 800, fontSize: 15, color: C.text } }, row.animal_name || "Unlinked document"),
+                React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Badge, { label: row.type || "Medical Document" })),
+                React.createElement("div", { style: { color: C.textMut, fontSize: 11, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, row.filename)
+              )
+            ),
+            row.medical_notes ? React.createElement("div", { style: { color: C.textSec, fontSize: 12, marginTop: 12, lineHeight: 1.5 } }, row.medical_notes) : null,
+            React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" } },
+              React.createElement(Btn, { size: "sm", variant: "secondary", onClick: function() { window.open(row.url, "_blank", "noopener,noreferrer"); } }, "Open PDF"),
+              row.animal_id ? React.createElement(Btn, { size: "sm", onClick: function() { onNavigate("animal-profile", { animalId: row.animal_id }); } }, "View Animal") : null
+            )
+          )
+        );
       })
-    ),
-
-    React.createElement(Modal, { open:showModal, onClose:()=>setShowModal(false), title:"Add Medical Record", width:520 },
-      React.createElement("div", { style:{ display:"flex", flexDirection:"column", gap:14 } },
-        React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 } },
-          React.createElement("div", null, React.createElement("label",{style:{fontSize:12,color:C.textSec,display:"block",marginBottom:6}},"Animal"), React.createElement(Select,{value:CPAS.animals[0].id,onChange:()=>{},options:CPAS.animals.map(a=>({value:a.id,label:`${a.name} (${a.id})`}))})),
-          React.createElement("div", null, React.createElement("label",{style:{fontSize:12,color:C.textSec,display:"block",marginBottom:6}},"Record Type"), React.createElement(Select,{value:"Vaccination",onChange:()=>{},options:["Vaccination","Medication","Exam","Treatment","Spay/Neuter"].map(v=>({value:v,label:v}))}))
-        ),
-        React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 } },
-          React.createElement("div", null, React.createElement("label",{style:{fontSize:12,color:C.textSec,display:"block",marginBottom:6}},"Date"), React.createElement(Input,{value:"",onChange:()=>{},placeholder:"2025-06-11"})),
-          React.createElement("div", null, React.createElement("label",{style:{fontSize:12,color:C.textSec,display:"block",marginBottom:6}},"Vet"), React.createElement(Select,{value:"Dr. Patel",onChange:()=>{},options:["Dr. Patel","Dr. Kim"].map(v=>({value:v,label:v}))}))
-        ),
-        React.createElement("div", null, React.createElement("label",{style:{fontSize:12,color:C.textSec,display:"block",marginBottom:6}},"Details"), React.createElement(Input,{value:"",onChange:()=>{},placeholder:"Description of treatment or record"})),
-        React.createElement("div", null, React.createElement("label",{style:{fontSize:12,color:C.textSec,display:"block",marginBottom:6}},"Next Due Date"), React.createElement(Input,{value:"",onChange:()=>{},placeholder:"Leave blank if not applicable"})),
-        React.createElement("div",{style:{display:"flex",gap:10,justifyContent:"flex-end"}},
-          React.createElement(Btn,{variant:"secondary",onClick:()=>setShowModal(false)},"Cancel"),
-          React.createElement(Btn,{onClick:()=>setShowModal(false)},"Save Record")
-        )
-      )
     )
   );
 }

@@ -78,11 +78,12 @@
     event.preventDefault();
     const email = form.querySelector('input[type="email"]')?.value?.trim();
     const status = form.querySelector('[data-newsletter-status]');
+    if (!email) { if (status) status.textContent = 'Please enter your email.'; return; }
     if (status) status.textContent = 'Subscribing...';
     try {
       const res = await fetch('/api/newsletter/subscribe', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ email }) });
       if (!res.ok) throw new Error('Subscribe failed');
-      if (status) status.textContent = 'You are subscribed.';
+      if (status) status.textContent = 'You are subscribed. Check your inbox for a confirmation.';
       form.reset();
     } catch {
       if (status) status.textContent = 'Could not subscribe. Please try again.';

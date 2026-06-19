@@ -21,7 +21,7 @@
 const TENANT_ID     = "tenant_companionscpas";
 const CDN_ORIGIN    = "https://assets.companionsofcaddo.org";
 const R2_BUCKET     = "companionscpas";
-const DRIVE_SCOPE   = "https://www.googleapis.com/auth/drive.file";
+const DRIVE_SCOPE   = "https://www.googleapis.com/auth/drive.readonly";
 const PROVIDER      = "google_drive";
 const CONN_ID       = `conn_gdrive_${TENANT_ID}`;  // stable ID per tenant
 
@@ -338,8 +338,15 @@ async function handleTest(env) {
   if (error) return json({ ok: false, error }, 400);
 
   try {
+    const params = new URLSearchParams({
+      pageSize: "1",
+      fields: "files(id)",
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      corpora: "allDrives",
+    });
     const res = await fetch(
-      "https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id)",
+      `https://www.googleapis.com/drive/v3/files?${params.toString()}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (!res.ok) {
@@ -379,11 +386,17 @@ async function handleFiles(env, url) {
   let driveQ = `(${mimeFilters}) and trashed=false`;
   if (q) driveQ += ` and name contains '${q.replace(/'/g, "\\'")}'`;
 
+  const folderId = env.GOOGLE_DRIVE_FOLDER_ID || "";
+  if (folderId) driveQ += ` and '${folderId}' in parents`;
+
   const params = new URLSearchParams({
     q: driveQ,
     pageSize: String(pageSize),
     orderBy: "modifiedTime desc",
     fields: "nextPageToken,files(id,name,mimeType,size,thumbnailLink,webContentLink,createdTime,modifiedTime)",
+    supportsAllDrives: "true",
+    includeItemsFromAllDrives: "true",
+    corpora: folderId ? "user" : "allDrives",
   });
   if (pageToken) params.set("pageToken", pageToken);
 
@@ -427,7 +440,7 @@ async function handleImport(request, env, url) {
     try {
       // Get file metadata
       const metaRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size`,
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size&supportsAllDrives=true`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!metaRes.ok) { errors.push({ fileId, error: "metadata fetch failed" }); continue; }
@@ -446,7 +459,7 @@ async function handleImport(request, env, url) {
 
       // Download bytes from Drive
       const dlRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!dlRes.ok) { errors.push({ fileId, error: "download failed" }); continue; }

@@ -1,4 +1,5 @@
 import { SHELL_VERSION, publicPageScripts } from "./page_shell.js";
+import { renderSiteHeader, renderSiteFooter } from "./render_site_nav.js";
 
 const PAGE_CACHE_TTL = 3600;
 
@@ -21,8 +22,8 @@ export async function assembleAboutFromFragments(env) {
   if (fragments.some((html) => !html.trim())) return null;
 
   const [headerHtml, footerHtml] = await Promise.all([
-    r2Text(env, "static/global/cpas-header.html"),
-    r2Text(env, "static/global/cpas-footer.html"),
+    renderSiteHeader(env),
+    renderSiteFooter(env),
   ]);
 
   return `<!doctype html>

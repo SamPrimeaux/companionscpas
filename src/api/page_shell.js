@@ -1,6 +1,6 @@
 /** Shared public-page asset versions and script tags. */
-export const SHELL_VERSION = "2026061901";
-export const DONATE_MODAL_VERSION = "donate-p7-20260619";
+export const SHELL_VERSION = "cover-fees-v1-20260620";
+export const DONATE_MODAL_VERSION = "cover-fees-v1-20260620";
 export const CPAS_MODALS_VERSION = "modals-v2-20260615";
 
 export function publicPageScripts() {

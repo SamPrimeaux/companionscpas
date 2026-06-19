@@ -86,6 +86,10 @@
     .dm-nl-row input[type=checkbox]{width:15px;height:15px;flex-shrink:0;margin-top:1px;accent-color:#7c3aed;cursor:pointer}
     .dm-nl-lbl{font-size:.76rem;color:#4b5563;line-height:1.4;cursor:pointer}
     .dm-nl-lbl strong{color:#1a1622;font-weight:600;display:block;margin-bottom:1px;font-size:.78rem}
+    .dm-fee-row{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;margin-bottom:10px;border:1px solid rgba(15,31,61,0.07);border-radius:9px;background:rgba(255,255,255,0.72);cursor:pointer}
+    .dm-fee-row input[type=checkbox]{width:15px;height:15px;flex-shrink:0;margin-top:2px;accent-color:#7c3aed;cursor:pointer}
+    .dm-fee-copy{font-size:.74rem;color:#6b7280;line-height:1.45;cursor:pointer}
+    .dm-fee-copy strong{color:#374151;font-weight:600;display:block;margin-bottom:2px;font-size:.76rem}
     .dm-stripe-wrap{margin:0}
     .dm-skeleton{height:112px;border-radius:9px;background:linear-gradient(90deg,rgba(15,31,61,.04) 25%,rgba(15,31,61,.08) 50%,rgba(15,31,61,.04) 75%);background-size:200% 100%;animation:dm-shimmer 1.4s infinite}
     @keyframes dm-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
@@ -107,9 +111,29 @@
   `;
 
   let tiers = [], selectedAmount = 1, frequency = 'one_time';
+  let coverFees = true;
   let presetCampaignId = null, presetAmount = null;
   let stripeInst = null, elements = null, isSubmitting = false;
   let stripePk = null, stripeTestMode = false, configPromise = null;
+  let reinitTimer = null;
+
+  function calculateWithFees(intendedCents) {
+    return Math.ceil((intendedCents + 30) / (1 - 0.029));
+  }
+
+  function feeAmount(intendedCents) {
+    return calculateWithFees(intendedCents) - intendedCents;
+  }
+
+  function getSelectedAmountCents() {
+    return Math.round(getAmount() * 100);
+  }
+
+  function chargeAmountCents() {
+    const intended = getSelectedAmountCents();
+    if (frequency !== 'one_time' || !coverFees) return intended;
+    return calculateWithFees(intended);
+  }
 
   async function fetchStripeConfig() {
     if (configPromise) return configPromise;
@@ -127,6 +151,7 @@
   }
 
   function money(v) { const n = Number(v); return Number.isFinite(n) ? '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$0'; }
+  function moneyExact(cents) { return '$' + (Number(cents || 0) / 100).toFixed(2); }
   function getAmount() { const c = document.getElementById('dm-custom'); const v = c && c.value ? Number(c.value) : 0; return v > 0 ? v : selectedAmount; }
   function getActiveTier() { return tiers.find(t => t.amount_cents === getAmount() * 100) || null; }
 
@@ -197,7 +222,7 @@
         <div class="dm-section">
           <span class="dm-label">Receipt &amp; updates <span style="color:#9ca3af;font-weight:500;text-transform:none;letter-spacing:0">— optional</span></span>
           <div class="dm-contact">
-            <input id="dm-email" class="dm-email" type="email" placeholder="Email address" autocomplete="email" />
+            <input id="receipt-email" class="dm-email" type="email" placeholder="Email address" autocomplete="email" name="email" />
             <label class="dm-nl-row" for="dm-newsletter">
               <input type="checkbox" id="dm-newsletter" />
               <span class="dm-nl-lbl"><strong>Subscribe to updates</strong>Occasional news on animals helped. No spam.</span>
@@ -210,7 +235,16 @@
         </div>
       </div>
       <div class="dm-footer">
-        <button class="dm-submit" id="dm-submit" type="button" disabled>Donate ${money(selectedAmount)}</button>
+        <div id="dm-cover-fees-wrap">
+          <label class="dm-fee-row" for="dm-cover-fees">
+            <input type="checkbox" id="dm-cover-fees" checked />
+            <span class="dm-fee-copy">
+              <strong id="fee-label">Cover processing fees (+$0.33)</strong>
+              100% of your gift goes to the animals.
+            </span>
+          </label>
+        </div>
+        <button class="dm-submit" id="dm-submit" type="button" disabled>Donate $1.33</button>
         <div class="dm-error" id="dm-error"></div>
         <div class="dm-secure">Secured by Stripe &middot; PCI compliant &middot; Receipt emailed when payment succeeds</div>
       </div>
@@ -221,13 +255,47 @@
       </div>`;
   }
 
+  function getDonorEmail() {
+    const receipt = document.getElementById('receipt-email') || document.getElementById('dm-email');
+    const receiptVal = receipt?.value?.trim() || '';
+    if (receiptVal) return receiptVal;
+    const pageEmail = document.querySelector('input[type="email"]:not([disabled])');
+    return pageEmail?.value?.trim() || '';
+  }
+
+  function friendlyStripeError(err) {
+    const msg = String(err?.message || err || '');
+    if (/billing_details\.email/i.test(msg)) {
+      return 'Please enter your email address above to complete your donation.';
+    }
+    return msg || 'Payment failed. Please try again.';
+  }
+
+  function mirrorReceiptEmail() {
+    const receiptEmail = document.getElementById('receipt-email') || document.getElementById('dm-email');
+    if (!receiptEmail) return;
+    const linkEmail = document.querySelector('input[name="email"], input[autocomplete="email"]');
+    if (linkEmail && linkEmail !== receiptEmail) {
+      linkEmail.addEventListener('input', () => {
+        if (!receiptEmail.value) receiptEmail.value = linkEmail.value;
+      });
+    }
+  }
+
   async function initElements() {
     try {
       await fetchStripeConfig();
       const Stripe = await loadStripe();
       if (!stripeInst) stripeInst = Stripe(stripePk);
       const isMonthly = frequency === 'monthly';
-      const payload = { mode: isMonthly ? 'setup' : 'payment', amount_cents: Math.round(getAmount() * 100), currency: 'usd' };
+      const intendedCents = getSelectedAmountCents();
+      const payload = {
+        mode: isMonthly ? 'setup' : 'payment',
+        intended_cents: intendedCents,
+        cover_fees: !isMonthly && coverFees,
+        amount_cents: isMonthly ? intendedCents : chargeAmountCents(),
+        currency: 'usd',
+      };
       if (presetCampaignId) payload.campaign_id = presetCampaignId;
       const res = await fetch(ENDPOINT_INTENT, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -257,23 +325,32 @@
     if (isSubmitting || !elements || !stripeInst) return;
     const amt = getAmount();
     if (!amt || amt < 1) { setErr('Please select or enter an amount.'); return; }
+    const email = getDonorEmail();
+    if (!email) {
+      setErr('Please enter your email address above to complete your donation.');
+      return;
+    }
     setErr('');
     isSubmitting = true;
     const btn = document.getElementById('dm-submit');
     if (btn) { btn.disabled = true; btn.classList.add('loading'); btn.textContent = 'Processing...'; }
-    const email = (document.getElementById('dm-email')?.value || '').trim() || null;
     const nlOptIn = document.getElementById('dm-newsletter')?.checked || false;
     const saveInfo = document.getElementById('dm-save-info')?.checked || false;
     const isMonthly = frequency === 'monthly';
     const tier = getActiveTier();
-    const amountCents = Math.round(amt * 100);
+    const intendedCents = getSelectedAmountCents();
+    const chargeCents = isMonthly ? intendedCents : chargeAmountCents();
+    const billingDetails = { email };
     try {
       if (!isMonthly) {
         const { error, paymentIntent } = await stripeInst.confirmPayment({
           elements, redirect: 'if_required',
-          confirmParams: { return_url: `${location.origin}/donate?success=1`, payment_method_data: { billing_details: { email: email || undefined } } },
+          confirmParams: {
+            return_url: `${location.origin}/donate/thank-you`,
+            payment_method_data: { billing_details: billingDetails },
+          },
         });
-        if (error) throw new Error(error.message);
+        if (error) throw new Error(friendlyStripeError(error));
         if (email || paymentIntent?.id) {
           fetch(ENDPOINT_AFTER, {
             method: 'POST',
@@ -282,7 +359,9 @@
               donor_email: email,
               nl_opt_in: nlOptIn,
               save_my_info: saveInfo,
-              amount_cents: amountCents,
+              amount_cents: chargeCents,
+              intended_cents: intendedCents,
+              cover_fees: !isMonthly && coverFees,
               payment_intent_id: paymentIntent?.id || null,
             }),
           }).catch(() => {});
@@ -291,9 +370,12 @@
       } else {
         const { error, setupIntent } = await stripeInst.confirmSetup({
           elements, redirect: 'if_required',
-          confirmParams: { return_url: `${location.origin}/donate?success=1`, payment_method_data: { billing_details: { email: email || undefined } } },
+          confirmParams: {
+            return_url: `${location.origin}/donate/thank-you`,
+            payment_method_data: { billing_details: billingDetails },
+          },
         });
-        if (error) throw new Error(error.message);
+        if (error) throw new Error(friendlyStripeError(error));
         const subRes = await fetch(ENDPOINT_SUB, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ payment_method_id: setupIntent.payment_method, price_id: tier?.stripe_price_id_monthly || null, amount_cents: tier ? null : amountCents, donor_email: email, nl_opt_in: nlOptIn, save_my_info: saveInfo }),
@@ -303,16 +385,43 @@
         showSuccess(email, true);
       }
     } catch (err) {
-      setErr(err.message || 'Payment failed. Please try again.');
+      setErr(friendlyStripeError(err));
       isSubmitting = false;
       if (btn) { btn.disabled = false; btn.classList.remove('loading'); updateLabel(); }
     }
   }
 
-  function updateLabel() {
+  function updateFeeDisplay() {
+    const wrap = document.getElementById('dm-cover-fees-wrap');
+    const feeLabel = document.getElementById('fee-label');
     const btn = document.getElementById('dm-submit');
-    if (!btn || btn.disabled) return;
-    btn.textContent = `Donate ${money(getAmount())}${frequency === 'monthly' ? '/mo' : ''}`;
+    const cb = document.getElementById('dm-cover-fees');
+    if (cb) coverFees = cb.checked;
+    if (frequency !== 'one_time') {
+      if (wrap) wrap.style.display = 'none';
+      if (btn && !btn.disabled && !isSubmitting) {
+        btn.textContent = `Donate ${money(getAmount())}/mo`;
+      }
+      return;
+    }
+    if (wrap) wrap.style.display = '';
+    const intendedCents = getSelectedAmountCents();
+    const feeCents = feeAmount(intendedCents);
+    const totalCents = coverFees ? calculateWithFees(intendedCents) : intendedCents;
+    if (feeLabel) feeLabel.textContent = `Cover processing fees (+${moneyExact(feeCents)})`;
+    if (btn && !btn.disabled && !isSubmitting) {
+      btn.textContent = `Donate ${moneyExact(totalCents)}`;
+    }
+  }
+
+  function updateLabel() {
+    updateFeeDisplay();
+  }
+
+  function scheduleReinitElements() {
+    if (frequency !== 'one_time') return;
+    clearTimeout(reinitTimer);
+    reinitTimer = setTimeout(function() { reinitElements(); }, 450);
   }
   function setErr(msg) { const el = document.getElementById('dm-error'); if (!el) return; el.textContent = msg || ''; el.style.display = msg ? 'block' : 'none'; }
   function showSuccess(email, isMonthly) {
@@ -347,6 +456,7 @@
     injectStyles();
     selectedAmount = presetAmount || 1;
     frequency = 'one_time';
+    coverFees = true;
     elements = null; isSubmitting = false;
     stripeInst = null; configPromise = null;
     const tiersPromise = fetchTiers();
@@ -363,7 +473,7 @@
       await configLoad;
       tiers = loaded;
       if (!document.getElementById('dm-overlay')) return;
-      modal.innerHTML = buildHTML(); bindEvents(); initElements();
+      modal.innerHTML = buildHTML(); bindEvents(); mirrorReceiptEmail(); initElements();
     });
   }
 
@@ -379,7 +489,8 @@
       btn.addEventListener('click', () => {
         frequency = btn.dataset.freq;
         document.querySelectorAll('.dm-freq button').forEach(b => b.classList.toggle('active', b === btn));
-        updateLabel(); reinitElements();
+        updateFeeDisplay();
+        reinitElements();
       });
     });
     document.querySelectorAll('.dm-tier').forEach(btn => {
@@ -387,12 +498,20 @@
         document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
         btn.classList.add('active'); selectedAmount = Number(btn.dataset.amount);
         const c = document.getElementById('dm-custom'); if (c) c.value = '';
-        updateLabel();
+        updateFeeDisplay();
+        scheduleReinitElements();
       });
     });
     document.getElementById('dm-custom')?.addEventListener('input', function () {
       document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
-      selectedAmount = Number(this.value) || 0; updateLabel();
+      selectedAmount = Number(this.value) || 0;
+      updateFeeDisplay();
+      scheduleReinitElements();
+    });
+    document.getElementById('dm-cover-fees')?.addEventListener('change', function () {
+      coverFees = this.checked;
+      updateFeeDisplay();
+      reinitElements();
     });
     const customInput = document.getElementById('dm-custom');
     if (presetAmount) {

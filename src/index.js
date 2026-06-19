@@ -42,10 +42,13 @@ async function asset(env, request, path) {
         png:'image/png', webp:'image/webp', jpg:'image/jpeg',
         svg:'image/svg+xml', ico:'image/x-icon', woff2:'font/woff2',
       }[ext] || obj.httpMetadata?.contentType || 'text/html';
+      const isDashboardCode = key.startsWith('dashboard/') && ['js', 'jsx', 'css', 'html'].includes(ext);
       return new Response(obj.body, {
         headers: {
           'content-type': mime,
-          'cache-control': 'public, max-age=300',
+          'cache-control': isDashboardCode
+            ? 'no-cache, must-revalidate'
+            : 'public, max-age=300',
         }
       });
     }
@@ -129,7 +132,7 @@ const LEGACY_VIEW_MAP = {
   "cms":                "/dashboard/cms/website",
   "reports":            "/dashboard/reports",
   "settings":           "/dashboard/settings",
-  "notifications":      "/dashboard/notifications",
+  "notifications":      "/dashboard/email?view=notifications",
 };
 
 const PUBLIC_ROUTES = ["/", "/about", "/community", "/adopt", "/services", "/donate"];

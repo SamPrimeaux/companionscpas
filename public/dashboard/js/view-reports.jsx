@@ -17,9 +17,15 @@ const RPT = {
 
 const fmt = {
   usd:  v => "$" + (v >= 1000 ? (v/1000).toFixed(2)+"k" : v.toFixed(2)),
+  usdCents: v => "$" + (Number(v || 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   int:  v => Math.round(v).toLocaleString(),
   pct:  v => Math.round(v) + "%",
   ms:   v => v >= 1000 ? (v/1000).toFixed(1)+"s" : Math.round(v)+"ms",
+  date: v => {
+    if (!v) return "—";
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? String(v).slice(0, 10) : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  },
 };
 
 function StatCard({ label, value, sub, subColor }) {
@@ -91,6 +97,8 @@ const REPORT_TABS = [
 function ReportsView({ onNavigate }) {
   const [tab, setTab] = useState("animals");
   const [data, setData] = useState(null);
+  const [financial, setFinancial] = useState(null);
+  const [financialLoading, setFinancialLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -113,6 +121,16 @@ function ReportsView({ onNavigate }) {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    if (tab !== "financial") return;
+    setFinancialLoading(true);
+    fetch("/api/dashboard/reports/financial", { credentials: "include", headers: { Accept: "application/json" } })
+      .then(r => r.json())
+      .then(d => setFinancial(d))
+      .catch(() => setFinancial({ summary: {}, donations: [] }))
+      .finally(() => setFinancialLoading(false));
+  }, [tab]);
 
   // ── Seed values from D1 (real, always current as fallback) ──
   const animals = {
@@ -143,18 +161,9 @@ function ReportsView({ onNavigate }) {
       color: [RPT.red, RPT.green, RPT.blue, RPT.amber, RPT.purple][i % 5]
     };
   });
-  const financeDonations = data?.donations?.donations || [];
-  const financeReceived = financeDonations.filter(d => !d.status || ["completed", "received", "paid", "succeeded"].includes(String(d.status).toLowerCase()));
-  const financeRaisedFromDonations = financeReceived.reduce((sum, d) => sum + Number(d.amount_cents || 0), 0);
-  const financeRaisedFromCampaigns = financeCampaigns.reduce((sum, c) => sum + c.raised, 0);
-  const finance = {
-    totalRaised: (financeRaisedFromCampaigns || financeRaisedFromDonations) / 100,
-    totalGoal: financeCampaigns.reduce((sum, c) => sum + c.goal, 0) / 100,
-    donorCount: financeCampaigns.reduce((sum, c) => sum + c.donors, 0) || new Set(financeReceived.map(d => d.donor_id || d.donor_email || d.id).filter(Boolean)).size,
-    activeCampaigns: financeCampaigns.filter(c => String(c.status).toLowerCase() === "active").length,
-    pendingRecords: financeDonations.filter(d => String(d.status || "").toLowerCase() === "pending").length,
-    campaigns: financeCampaigns
-  };
+  const financialSummary = financial?.summary || {};
+  const financialDonations = financial?.donations || [];
+  const paidDonations = financialDonations.filter(d => ["completed", "received", "paid", "succeeded"].includes(String(d.status || "").toLowerCase()));
   const vols = {
     total: 3, active: 3, totalHours: 54,
     rows: [
@@ -267,45 +276,65 @@ function ReportsView({ onNavigate }) {
       {/* ── FINANCIAL ── */}
       {tab === "financial" && (
         <div>
-          <div style={grid4}>
-            <StatCard label="Total raised"     value={fmt.usd(finance.totalRaised)} sub={`${finance.activeCampaigns} active campaigns`} subColor={RPT.green} />
-            <StatCard label="Goal total"       value={fmt.usd(finance.totalGoal)}   sub={fmt.pct(finance.totalGoal ? finance.totalRaised/finance.totalGoal*100 : 0)+" to goal"} subColor={RPT.amber} />
-            <StatCard label="Donors"   value={finance.donorCount}        sub={`${finance.pendingRecords} pending records`} subColor={RPT.green} />
-            <StatCard label="Remaining gap"    value={fmt.usd(Math.max(0, finance.totalGoal-finance.totalRaised))} sub="across campaigns" subColor={RPT.amber} />
-          </div>
-          <div style={card}>
-            <SectionHeader title="Campaign progress" sub="fundraising_campaigns" />
-            {finance.campaigns.map(c => (
-              <ProgressBar key={c.title} label={c.title} value={c.raised} max={c.goal} color={c.color} formatVal={v=>"$"+(Number(v || 0)/100).toFixed(0)} />
-            ))}
-          </div>
-          <div style={grid2}>
-            <div style={card}>
-              <SectionHeader title="Donations by campaign" sub="All time" />
-              <ChartBox id="rpt_camp_chart" height={200} setup={canvas => {
-                new Chart(canvas, { type:"bar", indexAxis:"y", data:{
-                  labels: finance.campaigns.map(c=>c.title.split(" ").slice(0,2).join(" ")),
-                  datasets:[
-                    { label:"Raised", data: finance.campaigns.map(c=>c.raised/100), backgroundColor: finance.campaigns.map(c=>c.color), borderRadius:4 },
-                    { label:"Goal",   data: finance.campaigns.map(c=>c.goal/100),   backgroundColor: "#2a2a45", borderRadius:4 },
-                  ]
-                }, options:{
-                  responsive:true, maintainAspectRatio:false, indexAxis:"y",
-                  plugins:{ legend:{ display:false } },
-                  scales:{ x:{ ticks:{color:"#8888aa", callback:v=>"$"+v}, grid:{color:"#1e1e35"} }, y:{ ticks:{color:"#8888aa"}, grid:{display:false} } }
-                }});
-              }} />
-            </div>
-            <div style={card}>
-              <SectionHeader title="Fundraising split" sub="By campaign" />
-              <ChartBox id="rpt_split_chart" height={200} setup={canvas => {
-                new Chart(canvas, { type:"doughnut", data:{
-                  labels: finance.campaigns.map(c=>c.title.split(" ").slice(0,2).join(" ")),
-                  datasets:[{ data: finance.campaigns.map(c=>c.raised), backgroundColor: finance.campaigns.map(c=>c.color), borderWidth:0, hoverOffset:4 }]
-                }, options:{ responsive:true, maintainAspectRatio:false, cutout:"65%", plugins:{ legend:{ display:false } } }});
-              }} />
-            </div>
-          </div>
+          {financialLoading ? (
+            <div style={{ ...card, color: RPT.muted }}>Loading Stripe donations…</div>
+          ) : (
+            <>
+              <div style={grid4}>
+                <StatCard label="Total Raised" value={financialSummary.total_raised_display || fmt.usdCents(0)} sub={`${financialSummary.total_donations || 0} succeeded payments`} subColor={RPT.green} />
+                <StatCard label="This Month" value={financialSummary.this_month_display || fmt.usdCents(0)} sub={`${financialSummary.this_month_donations || 0} donations in ${new Date().toLocaleString(undefined, { month: "long", year: "numeric" })}`} subColor={RPT.green} />
+                <StatCard label="Total Donations" value={financialSummary.total_donations || 0} sub="Stripe succeeded" subColor={RPT.muted} />
+                <StatCard label="Avg Gift" value={financialSummary.avg_gift_display || fmt.usdCents(0)} sub="per succeeded donation" subColor={RPT.muted} />
+              </div>
+              <div style={card}>
+                <SectionHeader title="Donations" sub="Live Stripe records from D1 · newest first" />
+                {!paidDonations.length ? (
+                  <div style={{ color: RPT.muted, fontSize: 13, padding: "8px 0" }}>No donations recorded yet.</div>
+                ) : (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ color: RPT.muted, textAlign: "left", borderBottom: `1px solid ${RPT.border}` }}>
+                          {["Date", "Donor", "Raised", "Charged", "Campaign", "Status", "Stripe ID"].map(col => (
+                            <th key={col} style={{ padding: "10px 8px", fontWeight: 600 }}>{col}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paidDonations.map(row => {
+                          const donorLabel = row.is_anonymous ? "Anonymous" : (row.donor_name || row.donor_email || "—");
+                          const stripeId = row.stripe_payment_intent_id || "";
+                          const raisedCents = Number(row.intended_amount_cents ?? row.amount_cents ?? 0);
+                          const chargedCents = Number(row.amount_cents ?? raisedCents);
+                          const feeNote = row.cover_fees ? "Fees covered" : null;
+                          return (
+                            <tr key={row.id} style={{ borderBottom: `1px solid ${RPT.border}` }}>
+                              <td style={{ padding: "11px 8px", color: RPT.textSec, whiteSpace: "nowrap" }}>{fmt.date(row.donated_at || row.created_at)}</td>
+                              <td style={{ padding: "11px 8px", color: RPT.text }}>{donorLabel}</td>
+                              <td style={{ padding: "11px 8px", color: RPT.green, fontWeight: 600 }}>{fmt.usdCents(raisedCents)}</td>
+                              <td style={{ padding: "11px 8px", color: RPT.textSec }}>
+                                {fmt.usdCents(chargedCents)}
+                                {feeNote && <span style={{ display: "block", fontSize: 11, color: RPT.muted, marginTop: 2 }}>{feeNote}</span>}
+                              </td>
+                              <td style={{ padding: "11px 8px", color: RPT.textSec }}>{row.campaign_title || "General"}</td>
+                              <td style={{ padding: "11px 8px" }}><Badge label={row.status || "succeeded"} color={RPT.green} bg="#0d3320" /></td>
+                              <td style={{ padding: "11px 8px" }}>
+                                {stripeId ? (
+                                  <a href={`https://dashboard.stripe.com/payments/${stripeId}`} target="_blank" rel="noopener noreferrer" style={{ color: RPT.blue, textDecoration: "none", fontFamily: "monospace", fontSize: 12 }}>
+                                    {stripeId.slice(0, 18)}…
+                                  </a>
+                                ) : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 

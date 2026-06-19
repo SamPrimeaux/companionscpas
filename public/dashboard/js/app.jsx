@@ -28,7 +28,7 @@ const ROUTE_REGISTRY = [
   { path: "/dashboard/email",            view: "email" },
   { path: "/dashboard/reports",          view: "reports" },
   { path: "/dashboard/settings",         view: "settings" },
-  { path: "/dashboard/notifications",    view: "notifications" },
+  { path: "/dashboard/notifications",    view: "email", emailView: "notifications" },
   { path: "/dashboard",                  view: "overview" },
 ];
 
@@ -48,7 +48,7 @@ const LEGACY_MAP = {
   "cms":                "/dashboard/cms/website",
   "reports":            "/dashboard/reports",
   "settings":           "/dashboard/settings",
-  "notifications":      "/dashboard/notifications",
+  "notifications":      "/dashboard/email?view=notifications",
   "animal-profile":     null,
   "application-detail": null,
 };
@@ -78,6 +78,10 @@ function resolveRoute(pathname, searchParams) {
   if (norm === "/dashboard/donations") {
     window.history.replaceState({}, "", "/dashboard/fundraising");
     return { view: "fundraising", params: { financeTab: "donations" } };
+  }
+  if (norm === "/dashboard/notifications") {
+    window.history.replaceState({}, "", "/dashboard/email?view=notifications");
+    return { view: "email", params: {} };
   }
   for (const route of ROUTE_REGISTRY) {
     if (route.paramKey) {
@@ -189,9 +193,6 @@ function App() {
     );
   }
 
-  const unreadCount = (window.CPAS.notifications || []).filter(n => !n.read).length;
-
-  // ── CMS sub-views are full-screen (no scroll padding) ─────────────────────
   const isCmsEditor = view === "cms-page-editor";
   const isEmailWorkspace = view === "email";
 
@@ -246,7 +247,6 @@ function App() {
 
       case "reports":             return React.createElement(ReportsView,            { onNavigate: navigate });
       case "settings":            return React.createElement(SettingsView,           { onNavigate: navigate });
-      case "notifications":       return React.createElement(NotificationsView,      { onNavigate: navigate });
       default:                    return React.createElement(OverviewView,           { onNavigate: navigate });
     }
   };
@@ -258,10 +258,10 @@ function App() {
 
   return React.createElement("div", { className: "cpas-shell" },
     React.createElement("div", { className: "cpas-desktop-only" },
-      React.createElement(Sidebar, { view, navigate, notifCount: unreadCount, onLogout: handleLogout })
+      React.createElement(Sidebar, { view, navigate, onLogout: handleLogout })
     ),
     React.createElement("div", { className: "cpas-main-col" },
-      React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => setNavOpen(true), navigate, notifCount: unreadCount }),
+      React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => setNavOpen(true), navigate }),
       React.createElement("main", { id: "main-scroll", className: "cpas-dash-content", style: mainScrollStyle }, renderView())
     ),
     isMobile && React.createElement("div", {

@@ -1,3 +1,6 @@
+import { notifyDonationReceived } from "./notifications.js";
+import { calculateWithFees, resolveDonationAmounts } from "./donation_fees.js";
+
 const TENANT_ID = "tenant_companionscpas";
 
 function json(data, status = 200) {
@@ -19,6 +22,16 @@ function cents(amount) {
   const n = Number(amount);
   if (!Number.isFinite(n) || n <= 0) return 0;
   return Math.round(n * 100);
+}
+
+function safeJson(value, fallback = {}) {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(String(value)) || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function stripeMode(secretKey) {
@@ -182,9 +195,39 @@ async function sendResend(env, { to, name, subject, html, text, type, related_ty
   return { ok: true, id: parsed.id || null };
 }
 
+async function sendTemplateEmail(env, { templateKey, to, vars = {}, type, related_type, related_id }) {
+  const tpl = await env.DB.prepare(
+    "SELECT subject, body_html, body_text FROM email_templates WHERE template_key = ? AND status = 'active' LIMIT 1"
+  ).bind(templateKey).first().catch(() => null);
+
+  if (!tpl) return { ok: false, error: "template_not_found" };
+
+  let subject = tpl.subject || "";
+  let html = tpl.body_html || "";
+  let text = tpl.body_text || "";
+  for (const [k, v] of Object.entries(vars)) {
+    const token = `{{${k}}}`;
+    const val = String(v ?? "");
+    subject = subject.replaceAll(token, val);
+    html = html.replaceAll(token, val);
+    text = text.replaceAll(token, val);
+  }
+
+  return sendResend(env, { to, subject, html, text, type, related_type, related_id });
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+}
+
 // ── Shared receipt sender ─────────────────────────────────────────────────────
-async function sendDonationReceipt(env, { donorEmail, donorName, amountCents, donationId, intentId, piId }) {
+async function sendDonationReceipt(env, { donorEmail, donorName, amountCents, donationId, intentId, piId, coverFees = false, chargeCents = null }) {
   if (!donorEmail) return;
+  const giftCents = Number(amountCents) || 0;
+  const chargedCents = chargeCents != null ? Number(chargeCents) : giftCents;
+  const feeLine = coverFees && chargedCents > giftCents
+    ? `<p><strong>Processing fees covered:</strong> $${((chargedCents - giftCents) / 100).toFixed(2)} (charged $${(chargedCents / 100).toFixed(2)} total)</p>`
+    : "";
   const receipt = await sendResend(env, {
     to: donorEmail,
     name: donorName,
@@ -195,7 +238,8 @@ async function sendDonationReceipt(env, { donorEmail, donorName, amountCents, do
     html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px">
       <h2>Thank you for your donation</h2>
       <p>Your support helps Companions of CPAS care for animals and serve the community.</p>
-      <p><strong>Amount:</strong> $${(amountCents / 100).toFixed(2)}</p>
+      <p><strong>Amount:</strong> $${(giftCents / 100).toFixed(2)}</p>
+      ${feeLine}
       <p><strong>Donation ID:</strong> ${donationId}</p>
     </div>`
   });
@@ -273,9 +317,15 @@ async function resolveDonationIntent(env, { providerId, localIntentId }) {
 
 async function findDonationPaymentByPi(env, piId) {
   if (!piId) return null;
-  return env.DB.prepare(
+  const byPayment = await env.DB.prepare(
     "SELECT id, donation_id FROM donation_payments WHERE provider_payment_id = ? LIMIT 1"
   ).bind(piId).first().catch(() => null);
+  if (byPayment?.id) return byPayment;
+  const byDonation = await env.DB.prepare(
+    "SELECT id AS donation_id FROM donations WHERE stripe_payment_intent_id = ? LIMIT 1"
+  ).bind(piId).first().catch(() => null);
+  if (byDonation?.donation_id) return { id: byDonation.donation_id, donation_id: byDonation.donation_id };
+  return null;
 }
 
 async function findDonationPaymentBySession(env, sessionId) {
@@ -315,6 +365,8 @@ function donorFromPaymentIntent(pi, intentRecord) {
 
 async function processDonationPayment(env, {
   amountCents,
+  intendedAmountCents = null,
+  coverFees = false,
   currency = "usd",
   donorEmail,
   donorName,
@@ -354,23 +406,38 @@ async function processDonationPayment(env, {
     }
   }
 
-  const donorId = await upsertDonor(env, { donorEmail, donorName, amountCents, isRecurring });
+  const giftCents = Number(intendedAmountCents) > 0 ? Number(intendedAmountCents) : Number(amountCents) || 0;
+  const chargeCents = Number(amountCents) || giftCents;
+
+  const donorId = await upsertDonor(env, { donorEmail, donorName, amountCents: giftCents, isRecurring });
   const donationId = id("donation");
 
   await env.DB.prepare(
     `INSERT INTO donations
-     (id, organization_id, donor_id, campaign_id, amount_cents, currency, status, payment_provider, stripe_payment_intent_id, donor_message, is_anonymous, donated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'succeeded', 'stripe', ?, ?, 0, datetime('now'))`
-  ).bind(donationId, TENANT_ID, donorId, campaignId, amountCents, currency, paymentIntentId || null, note).run();
+     (id, organization_id, donor_id, campaign_id, amount_cents, intended_amount_cents, cover_fees,
+      currency, status, payment_provider, stripe_payment_intent_id, donor_message, is_anonymous, donated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', 'stripe', ?, ?, 0, datetime('now'))`
+  ).bind(
+    donationId,
+    TENANT_ID,
+    donorId,
+    campaignId,
+    chargeCents,
+    giftCents,
+    coverFees ? 1 : 0,
+    currency,
+    paymentIntentId || null,
+    note
+  ).run();
 
-  if (campaignId && amountCents > 0) {
+  if (campaignId && giftCents > 0) {
     try {
       await env.DB.prepare(
         `UPDATE fundraising_campaigns
          SET raised_amount_cents = COALESCE(raised_amount_cents, 0) + ?,
              updated_at = datetime('now')
          WHERE id = ? AND tenant_id = ?`
-      ).bind(amountCents, campaignId, TENANT_ID).run();
+      ).bind(giftCents, campaignId, TENANT_ID).run();
     } catch {}
   }
 
@@ -385,7 +452,7 @@ async function processDonationPayment(env, {
     donationId,
     paymentIntentId || null,
     checkoutSessionId || null,
-    amountCents,
+    chargeCents,
     currency,
     typeof rawJson === "string" ? rawJson : JSON.stringify(rawJson || {})
   ).run();
@@ -422,10 +489,29 @@ async function processDonationPayment(env, {
   await sendDonationReceipt(env, {
     donorEmail,
     donorName,
-    amountCents,
+    amountCents: giftCents,
+    chargeCents,
+    coverFees,
     donationId,
     intentId,
     piId: paymentIntentId || checkoutSessionId,
+  });
+
+  let campaignTitle = null;
+  if (campaignId) {
+    const camp = await env.DB.prepare(
+      "SELECT title FROM fundraising_campaigns WHERE id = ? AND tenant_id = ? LIMIT 1"
+    ).bind(campaignId, TENANT_ID).first().catch(() => null);
+    campaignTitle = camp?.title || null;
+  }
+
+  await notifyDonationReceived(env, {
+    donationId,
+    amountCents: giftCents,
+    donorEmail,
+    donorName,
+    campaignTitle,
+    stripePaymentIntentId: paymentIntentId || checkoutSessionId,
   });
 
   return { duplicate: false, donationId, paymentId: paymentRowId };
@@ -481,16 +567,18 @@ export async function paymentsEmailRoutes(request, env, url) {
     };
 
     if (mode === "payment") {
-      const amountCents = data.amount_cents || cents(data.amount);
-      if (!amountCents || amountCents < 100) return json({ error: "Minimum donation is $1.00" }, 400);
+      const { intendedCents, chargeCents, coverFees } = resolveDonationAmounts(data);
+      if (!intendedCents || intendedCents < 100) return json({ error: "Minimum donation is $1.00" }, 400);
       const localIntentId = id("intent");
       const form = new URLSearchParams();
-      form.set("amount", String(amountCents));
+      form.set("amount", String(chargeCents));
       form.set("currency", "usd");
       form.set("automatic_payment_methods[enabled]", "true");
       form.set("metadata[tenant_id]", TENANT_ID);
       form.set("metadata[local_intent_id]", localIntentId);
       form.set("metadata[source]", "donate_modal");
+      form.set("metadata[intended_cents]", String(intendedCents));
+      form.set("metadata[cover_fees]", coverFees ? "true" : "false");
       if (data.campaign_id) form.set("metadata[campaign_id]", String(data.campaign_id));
       const res = await fetch("https://api.stripe.com/v1/payment_intents", { method: "POST", headers: stripeHeaders, body: form });
       const d = await res.json().catch(() => ({}));
@@ -505,16 +593,30 @@ export async function paymentsEmailRoutes(request, env, url) {
         ).bind(
           localIntentId,
           TENANT_ID,
-          amountCents,
+          chargeCents,
           data.campaign_id || null,
           d.id,
-          JSON.stringify({ stripe_payment_intent_id: d.id, source: "donate_modal" })
+          JSON.stringify({
+            stripe_payment_intent_id: d.id,
+            source: "donate_modal",
+            intended_cents: intendedCents,
+            cover_fees: coverFees,
+            charge_cents: chargeCents,
+          })
         ).run();
       } catch (err) {
         console.warn("donation_intents insert skipped:", err?.message);
       }
 
-      return json({ client_secret: d.client_secret, mode: "payment", intent_id: localIntentId, payment_intent_id: d.id });
+      return json({
+        client_secret: d.client_secret,
+        mode: "payment",
+        intent_id: localIntentId,
+        payment_intent_id: d.id,
+        intended_cents: intendedCents,
+        charge_cents: chargeCents,
+        cover_fees: coverFees,
+      });
     } else {
       // SetupIntent for monthly — collect card, then create subscription server-side
       const form = new URLSearchParams();
@@ -747,9 +849,15 @@ export async function paymentsEmailRoutes(request, env, url) {
         }
 
         const amountCents = pi.amount_received || pi.amount || 0;
+        const intentMeta = safeJson(intentRecord?.metadata_json, {});
+        const intendedFromMeta = Number(meta.intended_cents || intentMeta.intended_cents || 0) || null;
+        const coverFees = meta.cover_fees === "true" || intentMeta.cover_fees === true;
+        const intendedAmountCents = intendedFromMeta > 0 ? intendedFromMeta : amountCents;
         if (amountCents > 0) {
           const result = await processDonationPayment(env, {
             amountCents,
+            intendedAmountCents,
+            coverFees,
             currency: pi.currency || "usd",
             donorEmail,
             donorName,
@@ -887,15 +995,44 @@ export async function paymentsEmailRoutes(request, env, url) {
 
   if (path === "/api/newsletter/subscribe" && method === "POST") {
     const data = await body(request);
-    if (!data.email) return json({ error: "Email required" }, 400);
+    const email = String(data.email || "").toLowerCase().trim();
+    if (!isValidEmail(email)) return json({ error: "Valid email required" }, 400);
 
-    await env.DB.prepare(
-      `INSERT OR IGNORE INTO newsletter_subscribers
-       (id, tenant_id, email, name, status, source)
-       VALUES (?, ?, ?, ?, 'subscribed', ?)`
-    ).bind(id("sub"), TENANT_ID, String(data.email).toLowerCase().trim(), data.name || null, data.source || "website").run();
+    const subId = id("ns");
+    const source = data.source || "website";
 
-    return json({ success: true }, 201);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO newsletter_subscribers (id, tenant_id, email, name, status, source, created_at)
+         VALUES (?, ?, ?, ?, 'subscribed', ?, datetime('now'))
+         ON CONFLICT(tenant_id, email) DO UPDATE SET
+           status = 'subscribed',
+           unsubscribed_at = NULL,
+           name = COALESCE(excluded.name, newsletter_subscribers.name),
+           source = COALESCE(excluded.source, newsletter_subscribers.source)`
+      ).bind(subId, TENANT_ID, email, data.name || null, source).run();
+    } catch (err) {
+      console.error("[newsletter/subscribe] db:", err?.message || err);
+      return json({ error: "Could not save subscription" }, 500);
+    }
+
+    const firstName = String(data.name || email.split("@")[0] || "friend")
+      .trim()
+      .split(/[\s._-]+/)[0] || "friend";
+
+    const welcome = await sendTemplateEmail(env, {
+      templateKey: "newsletter_welcome",
+      to: email,
+      vars: { first_name: firstName },
+      type: "newsletter_welcome",
+      related_type: "newsletter_subscriber",
+      related_id: subId,
+    }).catch((err) => {
+      console.warn("[newsletter/subscribe] welcome email failed:", err?.message || err);
+      return null;
+    });
+
+    return json({ success: true, welcome_sent: Boolean(welcome?.ok) }, 201);
   }
 
   if (path === "/api/admin/donations" && method === "GET") {

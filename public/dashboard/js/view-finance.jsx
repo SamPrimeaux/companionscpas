@@ -339,11 +339,13 @@ function GivingView({ initialTab, onNavigate }) {
   const [methodFilter, setMethodFilter] = React.useState("All");
 
   // Cross-cutting metrics
-  const stripeTotal = donations.filter(d => ["succeeded","completed","paid","received"].includes(financeStatus(d.status))).reduce((s, d) => s + Number(d.amount_cents || 0), 0);
-  const campaignRaised = campaigns.reduce((s, c) => s + Number(c.raised_cents || 0), 0);
+  const succeededDonations = donations.filter(d => ["succeeded","completed","paid","received"].includes(financeStatus(d.status)));
+  const stripeTotal = succeededDonations.reduce((s, d) => s + Number(d.amount_cents || 0), 0);
   const campaignGoal = campaigns.reduce((s, c) => s + Number(c.goal_cents || 0), 0);
-  const totalDonors = campaigns.reduce((s, c) => s + Number(c.donors || 0), 0);
-  const progress = campaignGoal ? Math.round((campaignRaised / campaignGoal) * 100) : 0;
+  const uniqueDonors = new Set(
+    succeededDonations.map(d => d.donor_id || d.donor_email || d.donor_name).filter(Boolean)
+  ).size;
+  const progress = campaignGoal ? Math.round((stripeTotal / campaignGoal) * 100) : 0;
 
   // Donations tab data
   const normalized = donations.map(d => ({
@@ -390,16 +392,16 @@ function GivingView({ initialTab, onNavigate }) {
 
     // Cross-cutting stat row
     React.createElement("div", { className: "camp-stats-grid", style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 } },
-      React.createElement(StatCard, { label: "Total Raised", value: financeMoney(campaignRaised), sub: `of ${financeMoney(campaignGoal)} goal`, subPositive: true }),
-      React.createElement(StatCard, { label: "Stripe Donations", value: financeMoney(stripeTotal), sub: `${donations.length} payments`, subPositive: true }),
-      React.createElement(StatCard, { label: "Total Donors", value: totalDonors, sub: "across campaigns" }),
-      React.createElement(StatCard, { label: "Goal Progress", value: `${progress}%`, sub: "of combined goal", subPositive: true })
+      React.createElement(StatCard, { label: "Total Raised", value: financeMoney(stripeTotal), sub: `${succeededDonations.length} Stripe payment${succeededDonations.length === 1 ? "" : "s"}`, subPositive: true }),
+      React.createElement(StatCard, { label: "Stripe Donations", value: financeMoney(stripeTotal), sub: `${succeededDonations.length} succeeded`, subPositive: true }),
+      React.createElement(StatCard, { label: "Total Donors", value: uniqueDonors, sub: "unique Stripe donors" }),
+      React.createElement(StatCard, { label: "Goal Progress", value: `${progress}%`, sub: campaignGoal ? `of ${financeMoney(campaignGoal)} combined goal` : "no goals set", subPositive: true })
     ),
 
     // Tab bar
     React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 20, background: C.surface, borderRadius: 10, padding: 4, width: "fit-content", border: `1px solid ${C.border}` } },
       React.createElement("button", { style: tabStyle(tab === "campaigns"), onClick: () => setTab("campaigns") }, "Campaigns"),
-      React.createElement("button", { style: tabStyle(tab === "donations"), onClick: () => setTab("donations") }, `Donations${donations.length ? ` (${donations.length})` : ""}`)
+      React.createElement("button", { style: tabStyle(tab === "donations"), onClick: () => setTab("donations") }, `Donations${succeededDonations.length ? ` (${succeededDonations.length})` : ""}`)
     ),
 
     // ── Campaigns tab ──────────────────────────────────────────────────────

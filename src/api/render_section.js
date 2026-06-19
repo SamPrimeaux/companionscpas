@@ -1,3 +1,5 @@
+import { renderShelterHub } from "./render_shelter_hub.js";
+
 function toRecord(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -267,7 +269,7 @@ function renderTextImage(section) {
         ${eyebrow ? `<div class="ey-purple">${escapeHtml(eyebrow)}</div>` : ""}
         ${heading ? `<h2 class="story-heading">${escapeHtml(heading)}</h2>` : ""}
         ${body ? `<p class="story-body">${escapeHtml(body)}</p>` : ""}
-        ${ctaLabel ? `<a class="story-cta" href="${safeUrl(ctaHref, "/adopt")}">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>` : ""}
+        ${ctaLabel ? `<a class="btn btn-primary" href="${safeUrl(ctaHref, "/adopt")}">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>` : ""}
       </div>`;
   const imgCol = `
       <div class="story-block-img">
@@ -361,10 +363,11 @@ function renderFeatureCards(section, blocks) {
 
   const hasSubheading = Boolean(pickText(section, ["subheading"]));
   const includeBody = !hasSubheading;
+  const anchorId = sectionKey === "adoptable_dogs" ? ' id="adoptable-dogs"' : "";
 
   return `
 <style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}</style>
-<section class="section s-light" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
+<section class="section s-light"${anchorId} data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container">
     <div class="section-intro-center">
       ${renderSectionHeader(section, { includeBody })}
@@ -769,6 +772,7 @@ const SECTION_RENDERERS = {
   testimonials: renderTestimonials,
   impact_stats: renderImpactStats,
   cta_banner: renderCtaBanner,
+  shelter_hub: renderShelterHub,
   facebook_feed: renderFacebookFeed,
   facebook_embeds: renderFacebookEmbeds,
   donation_block: renderDonationBlock,
@@ -782,6 +786,8 @@ const SECTION_RENDERERS = {
   donate_freedom_hero: () => "<!-- donate_freedom_hero: rendered dynamically at assembly -->",
   donate_medical_story: () => "<!-- donate_medical_story: rendered dynamically at assembly -->",
   donate_stories_help: () => "<!-- donate_stories_help: rendered dynamically at assembly -->",
+  donate_campaign_grid: () => "<!-- donate_campaign_grid: rendered dynamically at assembly -->",
+  donate_contact: () => "<!-- donate_contact: rendered dynamically at assembly -->",
 };
 
 export function escapeHtml(value) {

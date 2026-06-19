@@ -368,6 +368,23 @@
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok && !json.success) throw new Error('server error');
+      } else if (key === 'contact') {
+        const name = [data.first_name, data.last_name].filter(Boolean).join(' ').trim() || data.first_name || '';
+        const res = await fetch('/api/contact/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            email: data.email,
+            message: data.message,
+            request_type: data.subject || 'general',
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok && !json.success) throw new Error(json.error || 'server error');
+      } else {
+        showFormSuccess(cfg.success);
+        return;
       }
       showFormSuccess(cfg.success);
     } catch (_) {

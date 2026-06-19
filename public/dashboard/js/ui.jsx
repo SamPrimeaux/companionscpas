@@ -97,6 +97,7 @@ const ICONS = {
   chevL:    `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5l-6 5 6 5"/></svg>`,
   close:    `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5l10 10M15 5l-10 10"/></svg>`,
   eye:      `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"/><circle cx="10" cy="10" r="2"/></svg>`,
+  eyeOff:   `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l14 14"/><path d="M8.5 8.7A2.5 2.5 0 0 0 10 13a2.5 2.5 0 0 0 2.1-1.1"/><path d="M6.7 6.8C4.6 8 3 10 3 10s3 6 8 6c1.2 0 2.3-.4 3.2-.9"/><path d="M12.4 6.5C11.6 6.2 10.8 6 10 6 7 6 4.5 8.5 4.5 8.5"/></svg>`,
   trash:    `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4h4v2m-5 3v6m4-6v6M5 6l1 11h8l1-11"/></svg>`,
   mail:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="13" rx="2"/><path d="M2 7l8 5 8-5"/></svg>`,
   phone:    `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h4l2 4-2.5 1.5a10 10 0 0 0 4 4L13 10l4 2v4a2 2 0 0 1-2 2A16 16 0 0 1 2 5a2 2 0 0 1 2-2z"/></svg>`,
@@ -320,7 +321,7 @@ function Select({ value, onChange, options, style:extra={} }) {
   );
 }
 
-function Sidebar({ view, navigate, notifCount, onLogout }) {
+function Sidebar({ view, navigate, onLogout }) {
   const [hovItem, setHovItem] = useState(null);
   const user = window.CPAS?.user || { name:"Admin", role:"Staff" };
   const logoUrl = window.CPAS_CONFIG?.logoUrl || LOGO_LIGHT;
@@ -366,7 +367,7 @@ function Sidebar({ view, navigate, notifCount, onLogout }) {
 
 // TopBar — desktop light, mobile dark (matches nav)
 // Mail icon now routes to /dashboard/email
-function TopBar({ view, isMobile, navOpen, onOpenNav, navigate, notifCount }) {
+function TopBar({ view, isMobile, navOpen, onOpenNav, navigate }) {
   const [search, setSearch] = useState("");
   if (isMobile) {
     const label = NAV_ITEMS.find(n=>n.key===view)?.label||"Dashboard";
@@ -389,18 +390,7 @@ function TopBar({ view, isMobile, navOpen, onOpenNav, navigate, notifCount }) {
         style:{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", color:"rgba(255,255,255,0.85)", borderRadius:10 } })
     ),
     React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto" } },
-      // Bell → notifications
-      React.createElement("button", {
-        onClick:()=>navigate("notifications"),
-        "aria-label": "Notifications",
-        style:{ position:"relative", background:"none", border:"none", color:"var(--nav-text-sec)", cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" },
-        onMouseEnter:e=>e.currentTarget.style.background="rgba(255,255,255,0.08)",
-        onMouseLeave:e=>e.currentTarget.style.background="none"
-      },
-        React.createElement(Icon, { name:"bell", size:20 }),
-        notifCount>0 && React.createElement("span", { style:{ position:"absolute", top:6, right:6, width:7, height:7, borderRadius:"50%", background:C.red, border:`2px solid ${C.surface}` } })
-      ),
-      // Mail → /dashboard/email
+      // Mail → /dashboard/email (notifications live under Email → Smart Views)
       React.createElement("button", {
         onClick:()=>navigate("email"),
         "aria-label": "Email inbox",

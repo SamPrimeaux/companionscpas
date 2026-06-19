@@ -29,7 +29,7 @@
             <a href="/">Home</a>
             <a href="/about">About</a>
             <a href="/adopt">Adopt</a>
-            <a href="/services">Services</a>
+            <a href="/community">Community</a>
             <a href="/donate">Donate</a>
           </section>
         </div>
@@ -118,7 +118,7 @@
         <a href="/">Home</a>
         <a href="/about">About</a>
         <a href="/adopt">Adopt</a>
-        <a href="/services">Services</a>
+        <a href="/community">Community</a>
         <a href="/donate" class="mobile-donate">Donate</a>
       `;
       document.body.appendChild(panel);
@@ -187,14 +187,43 @@
 
 
 
-// Donate CTA fallback (foster handled by cpas-modals.js)
+// Donate CTA fallback + legacy adopt support form bridge
 (() => {
-  document.addEventListener('click', (event) => {
-    const donate = event.target.closest('[data-action="donate"]');
-    if (donate && window.DonateModal && typeof window.DonateModal.open === 'function') {
-      event.preventDefault();
-      window.DonateModal.open(event);
+  function openUnifiedDonate(event, preset) {
+    if (window.DonateModal && typeof window.DonateModal.open === 'function') {
+      event?.preventDefault?.();
+      const legacy = document.getElementById('cpasDonateModal');
+      if (legacy) {
+        legacy.classList.remove('open');
+        legacy.setAttribute('aria-hidden', 'true');
+      }
+      window.DonateModal.open(event || { currentTarget: preset?.trigger || null, target: preset?.trigger || null });
+      return true;
     }
+    return false;
+  }
+
+  function isSupportDonateLabel(el) {
+    const text = String(el?.textContent || '').trim().toLowerCase();
+    return /support our (work|mission)/.test(text);
+  }
+
+  document.addEventListener('click', (event) => {
+    const donate = event.target.closest('[data-action="donate"], [data-donate]');
+    if (donate) {
+      if (openUnifiedDonate(event)) return;
+    }
+    const legacyTrigger = event.target.closest('a, button');
+    if (legacyTrigger && (legacyTrigger.hasAttribute('data-donate') || isSupportDonateLabel(legacyTrigger))) {
+      openUnifiedDonate(event, { trigger: legacyTrigger });
+    }
+  });
+
+  document.addEventListener('submit', (event) => {
+    const form = event.target.closest('#cpasDonateForm');
+    if (!form) return;
+    event.preventDefault();
+    openUnifiedDonate(event, { trigger: form.querySelector('button[type="submit"]') });
   });
 })();
 
@@ -206,11 +235,12 @@
     event.preventDefault();
     const email = form.querySelector('input[type="email"]')?.value?.trim();
     const status = form.querySelector('[data-newsletter-status]');
+    if (!email) { if (status) status.textContent = 'Please enter your email.'; return; }
     if (status) status.textContent = 'Subscribing...';
     try {
       const res = await fetch('/api/newsletter/subscribe', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ email }) });
       if (!res.ok) throw new Error('Subscribe failed');
-      if (status) status.textContent = 'You are subscribed.';
+      if (status) status.textContent = 'You are subscribed. Check your inbox for a confirmation.';
       form.reset();
     } catch {
       if (status) status.textContent = 'Could not subscribe. Please try again.';

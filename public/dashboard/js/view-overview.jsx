@@ -90,7 +90,7 @@ function OverviewView({ onNavigate }) {
         React.createElement(StatCard, { icon:"heart",   label:"In Foster Care",   value:stats.inFoster,     sub:`+${stats.fosterDelta} this week`,   subPositive:true,  sparkData:[28,29,31,30,32,34],       sparkColor:"#a78bfa" }),
         React.createElement(StatCard, { icon:"home",    label:"Adoptions (MTD)",  value:stats.adoptionsMTD, sub:`+${stats.adoptionsDelta} this week`,subPositive:true,  sparkData:[12,14,15,15,17,18],       sparkColor:"#10b981" }),
         React.createElement(StatCard, { icon:"medical", label:"Medical Due",      value:stats.medicalDue,   sub:`${stats.medicalOverdue} overdue`,    subPositive:false, sparkData:[5,7,6,8,9,9],             sparkColor:"#ef4444" }),
-        React.createElement(StatCard, { icon:"dollar",  label:"Donations (MTD)",  value:`$${stats.donationsMTD.toLocaleString()}`, sub:`+${stats.donationsDeltaPct}% vs last month`, subPositive:true, sparkData:[4200,5800,6100,7200,9800,8432], sparkColor:"#10b981" })
+        React.createElement(StatCard, { icon:"dollar",  label:"Donations (MTD)",  value:`$${stats.donationsMTD.toLocaleString()}`, sub: stats.donationsMtdLabel || `${stats.donationsDeltaPct || 0} Stripe payments this month`, subPositive:true, sparkData:[0,0,0,0,0,stats.donationsMTD || 0], sparkColor:"#10b981" })
       ),
 
       // Middle row

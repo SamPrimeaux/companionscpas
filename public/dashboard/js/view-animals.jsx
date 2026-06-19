@@ -183,10 +183,77 @@
   var PLATFORM_MAP = [
     { key:'facebook', label:'Facebook', color:'#1877F2', icon:FacebookIcon },
     { key:'instagram', label:'Instagram', color:'#E1306C', icon:InstagramIcon },
-    { key:'youtube', label:'YouTube', color:'#FF0000', icon:YouTubeIcon },
     { key:'email', label:'Email (Resend)', color:'#111111', icon:EmailIcon },
     { key:'google_drive', label:'Google Drive', color:'#4285F4', icon:DriveIcon }
   ];
+
+  var DOC_LABELS = {
+    intake_pdf: 'Intake Record',
+    vaccination_cert: 'Vaccination Certificate'
+  };
+
+  var POST_PLATFORMS = [
+    { key:'facebook', label:'Facebook', color:'#1877F2', icon:FacebookIcon },
+    { key:'instagram', label:'Instagram', color:'#E1306C', icon:InstagramIcon },
+    { key:'email', label:'Email (Resend)', color:'#111111', icon:EmailIcon }
+  ];
+
+  function collectAnimalPhotos(photoUrl, metadata) {
+    var items = [];
+    var seen = {};
+    function add(url, opts) {
+      if (!url || seen[url]) return;
+      seen[url] = true;
+      items.push({ url: url, primary: !!(opts && opts.primary), inPhotos: !!(opts && opts.inPhotos), inMedical: !!(opts && opts.inMedical) });
+    }
+    var primary = photoUrl || '';
+    if (primary) add(primary, { primary: true });
+    (metadata.photos || []).forEach(function(url) { add(url, { inPhotos: true }); });
+    (metadata.medical_files || []).forEach(function(f) {
+      if (isImageAttachment(f)) add(f.url || f, { inMedical: true });
+    });
+    if (primary) {
+      items.sort(function(a, b) {
+        if (a.primary && !b.primary) return -1;
+        if (!a.primary && b.primary) return 1;
+        return 0;
+      });
+    }
+    return items;
+  }
+
+  function collectAnimalDocuments(metadata) {
+    var docs = [];
+    var seen = {};
+    Object.keys(DOC_LABELS).forEach(function(key) {
+      if (metadata[key]) {
+        seen[metadata[key]] = true;
+        docs.push({ id: key, label: DOC_LABELS[key], url: metadata[key], kind: 'key' });
+      }
+    });
+    (metadata.medical_files || []).forEach(function(f, idx) {
+      if (!isPdfAttachment(f)) return;
+      var url = f.url || f;
+      if (!url || seen[url]) return;
+      seen[url] = true;
+      docs.push({ id: 'medical_' + idx, label: f.name || 'Medical document', url: url, kind: 'medical', index: idx });
+    });
+    return docs;
+  }
+
+  function isImageAttachment(item) {
+    var mime = item && (item.mime_type || item.type || '');
+    var url = item && (item.url || item);
+    if (mime && String(mime).indexOf('image/') === 0) return true;
+    return typeof url === 'string' && /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url);
+  }
+
+  function isPdfAttachment(item) {
+    var mime = item && (item.mime_type || item.type || '');
+    var url = item && (item.url || item);
+    if (mime === 'application/pdf') return true;
+    return typeof url === 'string' && /\.pdf(\?|$)/i.test(url);
+  }
 
   function Button(props) {
     var u = ui();
@@ -458,8 +525,17 @@
   }
   function percentProfile(a) {
     if (!a) return 0;
-    var checks = [a.name, a.species, a.breed, a.sex, a.age_label, a.status, a.weight_label, a.energy_level, a.photo, a.bio, a.good_with_dogs, a.good_with_cats, a.good_with_kids, a.public_visible !== null && a.public_visible !== undefined];
-    return Math.round(checks.filter(Boolean).length / checks.length * 100);
+    var meta = a.metadata || {};
+    var score = 0;
+    if (a.photo_url || a.photo) score += 20;
+    if (String(a.bio || '').trim()) score += 20;
+    if (Array.isArray(meta.photos) && meta.photos.length) score += 10;
+    if (meta.intake_pdf) score += 15;
+    if (meta.vaccination_cert) score += 15;
+    if (String(a.medical_notes || '').trim()) score += 10;
+    var st = String(a.status || 'available').toLowerCase();
+    if (st && st !== 'available') score += 10;
+    return Math.min(100, score);
   }
   function iconButtonStyle(color) {
     return { background:'transparent', border:'none', color:color, cursor:'pointer', padding:6, borderRadius:8, display:'inline-flex', alignItems:'center', justifyContent:'center' };
@@ -485,6 +561,13 @@
   function AnimalNotesTab(props) {
     var animalId = props.animalId;
     var isMobile = !!props.isMobile;
+    var data = props.data;
+    var careTasks = props.careTasks;
+    var setCareTasks = props.setCareTasks;
+    var showAddTask = props.showAddTask;
+    var setShowAddTask = props.setShowAddTask;
+    var newTask = props.newTask;
+    var setNewTask = props.setNewTask;
     var notesState = useState(null), notes = notesState[0], setNotes = notesState[1];
     var loadingState = useState(true), loading = loadingState[0], setLoading = loadingState[1];
     var submittingState = useState(false), submitting = submittingState[0], setSubmitting = submittingState[1];
@@ -583,9 +666,30 @@
     }
 
     return h('div', null,
+      data ? h('div', { style:{ marginBottom: 24 } },
+        h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:14, flexWrap:'wrap' } },
+          h('div', null,
+            h('h3', { style:{ margin:'0 0 4px', color:u.text, fontSize:16 } }, 'Care & Medical'),
+            h('div', { style:{ color:u.textMut, fontSize:12 } }, 'Medical notes, tasks, and daily care for this animal.')
+          ),
+          h(Button, { size:'sm', iconName:'plus', onClick:function(){ if (setShowAddTask) setShowAddTask(!showAddTask); } }, showAddTask ? 'Close' : 'Add Task')
+        ),
+        h(CareTab, {
+          data: data,
+          animalId: animalId,
+          isMobile: isMobile,
+          careTasks: careTasks,
+          setCareTasks: setCareTasks,
+          showAddTask: showAddTask,
+          setShowAddTask: setShowAddTask,
+          newTask: newTask,
+          setNewTask: setNewTask,
+          embedded: true
+        })
+      ) : null,
       h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:14, flexWrap:'wrap' } },
         h('div', null,
-          h('h3', { style:{ margin:'0 0 4px', color:u.text, fontSize:16 } }, 'Animal Notes'),
+          h('h3', { style:{ margin:'0 0 4px', color:u.text, fontSize:16 } }, 'Staff Notes'),
           h('div', { style:{ color:u.textMut, fontSize:12 } }, 'Create, pin, edit, and manage internal notes for this animal.')
         ),
         h(Button, { size:'sm', iconName:'plus', onClick:function(){ setShowCompose(!showCompose); } }, showCompose ? 'Close' : 'Add Note')
@@ -905,18 +1009,62 @@
 
   function ProfileHero(props) {
     var a = props.animal, foster = props.foster, isMobile = props.isMobile, onEditPhoto = props.onEditPhoto;
+    var onAddPhotos = props.onAddPhotos;
+    var metadata = props.metadata || a.metadata || {};
+    var photoUrl = a.photo_url || a.photo || '';
+    var photos = collectAnimalPhotos(photoUrl, metadata);
+    var primary = photos.find(function(p) { return p.primary; }) || photos[0] || null;
+    var extras = photos.filter(function(p) { return !primary || p.url !== primary.url; });
     var u = ui();
+
+    function photoThumb(item, size) {
+      return h('button', {
+        type: 'button',
+        key: item.url,
+        onClick: function() { if (onAddPhotos) onAddPhotos('intake'); },
+        style: {
+          width: size, height: size, borderRadius: 10, overflow: 'hidden', padding: 0, border: '2px solid ' + u.border,
+          background: '#f5f4f1', cursor: 'pointer', flexShrink: 0
+        }
+      }, h('img', { src: item.url, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', display: 'block' } }));
+    }
+
     return h(SoftCard, { style:{ padding:isMobile ? 16 : 22, marginBottom:18 } },
-      h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '160px 1fr', gap:isMobile ? 14 : 22, alignItems:'start' } },
-        h('div', { style:{ width:isMobile ? '100%' : 160, height:isMobile ? 220 : 200, borderRadius:16, overflow:'hidden', border:'1px solid ' + u.border, background:u.raised } },
-          a.photo ? h('img', { src:a.photo, alt:a.name, style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' } }) :
-          h(EmptyPanel, {
-            compact: true,
-            iconName: 'plus',
-            message: 'Add photo',
-            onClick: onEditPhoto,
-            style: { height:'100%', border:'none', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', cursor:'pointer' }
-          })
+      h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '180px 1fr', gap:isMobile ? 14 : 22, alignItems:'start' } },
+        h('div', null,
+          h('div', { style:{ width:isMobile ? '100%' : 180, height:isMobile ? 220 : 200, borderRadius:16, overflow:'hidden', border:'1px solid ' + u.border, background:'#f5f4f1', position:'relative' } },
+            primary ? h('img', { src:primary.url, alt:a.name, style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' } }) :
+            h(EmptyPanel, {
+              compact: true,
+              iconName: 'plus',
+              message: 'Add photo',
+              onClick: onEditPhoto,
+              style: { height:'100%', border:'none', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', cursor:'pointer' }
+            }),
+            h('button', {
+              type: 'button',
+              title: 'Add or manage photos',
+              onClick: function() { if (onAddPhotos) onAddPhotos('intake'); else if (onEditPhoto) onEditPhoto(); },
+              style: {
+                position: 'absolute', bottom: 10, right: 10, width: 34, height: 34, borderRadius: 999,
+                border: '1px solid ' + u.border, background: 'rgba(15,15,30,.82)', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 8px 20px rgba(0,0,0,.22)'
+              }
+            }, appIcon('plus', 16, { color: '#fff' }))
+          ),
+          extras.length ? h('div', { style:{ display:'flex', gap:8, marginTop:10, overflowX:'auto', paddingBottom:2 } },
+            extras.map(function(item) { return photoThumb(item, 52); }),
+            h('button', {
+              type: 'button',
+              title: 'Add photos',
+              onClick: function() { if (onAddPhotos) onAddPhotos('intake'); },
+              style: {
+                width: 52, height: 52, borderRadius: 10, border: '2px dashed ' + u.purple,
+                background: u.purpleDim, color: u.purpleL, cursor: 'pointer', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }
+            }, appIcon('plus', 18, { color: u.purpleL }))
+          ) : null
         ),
         h('div', null,
           h('div', { style:{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:6 } }, h('h2', { style:{ margin:0, color:u.text, fontSize:isMobile ? 24 : 28, fontWeight:950, letterSpacing:'-.04em' } }, a.name || 'Unnamed'), h(StatusPill, { status:a.status })),
@@ -956,8 +1104,212 @@
     );
   }
 
+  function PdfPreviewCard(props) {
+    var url = props.url;
+    var title = props.title || 'PDF preview';
+    var u = ui();
+    if (!url) return null;
+    return h('div', {
+      style: {
+        height: props.height || 180,
+        background: '#f5f4f1',
+        borderBottom: '1px solid ' + u.border,
+        overflow: 'hidden'
+      }
+    }, h('iframe', {
+      src: url + '#toolbar=0&navpanes=0&view=FitH',
+      title: title,
+      style: { width: '100%', height: '100%', border: 'none', pointerEvents: 'none' }
+    }));
+  }
+
+  function IntakeAttachmentsTab(props) {
+    var animalId = props.animalId;
+    var metadata = Object.assign({}, props.metadata || {});
+    var photoUrl = props.photoUrl || '';
+    var reload = props.reload;
+    var u = ui();
+    var photoUploadState = useState(false), photoUploading = photoUploadState[0], setPhotoUploading = photoUploadState[1];
+    var docUploadState = useState(false), docUploading = docUploadState[0], setDocUploading = docUploadState[1];
+    var photoDragState = useState(false), photoDragging = photoDragState[0], setPhotoDragging = photoDragState[1];
+    var docDragState = useState(false), docDragging = docDragState[0], setDocDragging = docDragState[1];
+    var errorState = useState(''), error = errorState[0], setError = errorState[1];
+
+    var photos = collectAnimalPhotos(photoUrl, metadata);
+    var documents = collectAnimalDocuments(metadata);
+
+    function saveMetadata(nextMeta, extra) {
+      var payload = Object.assign({ metadata_json: nextMeta }, extra || {});
+      return apiJSON('/api/dashboard/animals/' + encodeURIComponent(animalId), {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      }).then(function() { if (reload) reload(); });
+    }
+
+    function uploadFiles(fileList, kind) {
+      var acceptImage = kind === 'photo';
+      var files = Array.prototype.slice.call(fileList || []).filter(function(f) {
+        if (!f) return false;
+        if (acceptImage) return /^image\/(jpeg|jpg|png|webp)$/i.test(f.type);
+        return f.type === 'application/pdf';
+      });
+      if (!files.length) {
+        setError(acceptImage ? 'Only JPG, PNG, or WEBP images are allowed.' : 'Only PDF documents are allowed.');
+        return;
+      }
+      var setBusy = acceptImage ? setPhotoUploading : setDocUploading;
+      setBusy(true); setError('');
+      var pending = files.slice();
+      function step() {
+        if (!pending.length) { setBusy(false); if (reload) reload(); return; }
+        var file = pending.shift();
+        var fd = new FormData();
+        fd.append('file', file);
+        fd.append('label', file.name);
+        fetch('/api/dashboard/animals/' + encodeURIComponent(animalId) + '/attachments', {
+          method: 'POST', credentials: 'include', body: fd
+        })
+          .then(function(res) { return res.json().then(function(d) { if (!res.ok) throw new Error(d.error || 'Upload failed'); return d; }); })
+          .catch(function(e) { setError(e.message || 'Upload failed'); })
+          .finally(step);
+      }
+      step();
+    }
+
+    function setPrimary(url) {
+      saveMetadata(metadata, { photo_url: url }).catch(function() { setError('Could not set primary photo.'); });
+    }
+
+    function removePhoto(item) {
+      var url = item.url;
+      var next = Object.assign({}, metadata);
+      next.photos = (next.photos || []).filter(function(u) { return u !== url; });
+      if (Array.isArray(next.medical_files)) {
+        next.medical_files = next.medical_files.filter(function(f) { return (f.url || f) !== url; });
+      }
+      var patch = { metadata_json: next };
+      if (url === photoUrl || item.primary) {
+        patch.photo_url = next.photos[0] || null;
+      }
+      saveMetadata(next, patch).catch(function() { setError('Could not remove photo.'); });
+    }
+
+    function removeDocument(doc) {
+      if (!window.confirm('Remove this document from the profile?')) return;
+      var next = Object.assign({}, metadata);
+      if (doc.kind === 'key') {
+        delete next[doc.id];
+      } else if (doc.kind === 'medical') {
+        next.medical_files = (next.medical_files || []).filter(function(f, i) {
+          return i !== doc.index && (f.url || f) !== doc.url;
+        });
+      }
+      saveMetadata(next).catch(function() { setError('Could not remove document.'); });
+    }
+
+    function dropZone(opts) {
+      return h('div', {
+        onDragOver: function(e) { e.preventDefault(); opts.setDrag(true); },
+        onDragLeave: function() { opts.setDrag(false); },
+        onDrop: function(e) { e.preventDefault(); opts.setDrag(false); opts.onFiles(e.dataTransfer.files); },
+        onClick: function() {
+          var input = document.createElement('input');
+          input.type = 'file';
+          input.accept = opts.accept;
+          input.multiple = !!opts.multiple;
+          input.onchange = function() { opts.onFiles(input.files); };
+          input.click();
+        },
+        style: {
+          border: '2px dashed ' + (opts.dragging ? u.purple : u.border),
+          borderRadius: 14, padding: 24, textAlign: 'center', background: opts.dragging ? u.purple + '12' : u.raised,
+          cursor: 'pointer', marginTop: 12
+        }
+      },
+        appIcon('plus', 20, { color: u.purpleL }),
+        h('div', { style: { color: u.text, fontWeight: 800, fontSize: 13, marginTop: 8 } }, opts.dragging ? 'Drop files here' : opts.title),
+        h('div', { style: { color: u.textMut, fontSize: 11, marginTop: 4 } }, opts.busy ? 'Uploading...' : opts.hint)
+      );
+    }
+
+    return h('div', null,
+      h('div', { style: { marginBottom: 22 } },
+        h('h3', { style: { margin: '0 0 12px', color: u.text, fontSize: 16 } }, 'Photos & Media'),
+        photos.length
+          ? h('div', { style: { display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 } },
+              photos.map(function(item, idx) {
+                var isPrimary = item.primary || item.url === photoUrl;
+                return h('div', {
+                  key: item.url + '-' + idx,
+                  style: {
+                    flex: '0 0 200px', border: '1px solid ' + u.border, borderRadius: 12, overflow: 'hidden', background: '#f5f4f1'
+                  }
+                },
+                  h('div', { style: { position: 'relative', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+                    isPrimary ? h('div', { style: { position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 99, background: u.purple, color: '#fff' } }, 'Primary') : null,
+                    h('img', { src: item.url, alt: '', style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' } })
+                  ),
+                  h('div', { style: { padding: 10, display: 'flex', gap: 6, flexWrap: 'wrap' } },
+                    !isPrimary ? h(Button, { size: 'sm', variant: 'secondary', onClick: function() { setPrimary(item.url); } }, 'Set as Primary') : null,
+                    h(Button, { size: 'sm', variant: 'secondary', onClick: function() { removePhoto(item); } }, 'Remove')
+                  )
+                );
+              })
+            )
+          : h(EmptyPanel, { iconName: 'image', message: 'No photos yet.' }),
+        dropZone({
+          title: '+ Add Photos',
+          hint: 'JPG, PNG, WEBP',
+          accept: '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp',
+          multiple: true,
+          busy: photoUploading,
+          dragging: photoDragging,
+          setDrag: setPhotoDragging,
+          onFiles: function(files) { uploadFiles(files, 'photo'); }
+        })
+      ),
+      h('div', null,
+        h('h3', { style: { margin: '0 0 12px', color: u.text, fontSize: 16 } }, 'Documents'),
+        documents.length
+          ? h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 12, marginBottom: 4 } },
+              documents.map(function(doc) {
+                return h(SoftCard, { key: doc.id + doc.url, style: { padding: 0, overflow: 'hidden' } },
+                  h(PdfPreviewCard, { url: doc.url, title: doc.label, height: 180 }),
+                  h('div', { style: { padding: 16 } },
+                  h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 12 } },
+                    h('div', { style: { width: 40, height: 40, borderRadius: 10, background: u.purple + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } }, appIcon('file', 18, { color: u.purpleL })),
+                    h('div', { style: { flex: 1, minWidth: 0 } },
+                      h('div', { style: { color: u.text, fontWeight: 800, fontSize: 14 } }, doc.label),
+                      h('div', { style: { color: u.textMut, fontSize: 11, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, doc.url)
+                    ),
+                    h('button', { type: 'button', onClick: function() { removeDocument(doc); }, style: { border: 'none', background: 'transparent', color: u.textMut, cursor: 'pointer', fontSize: 18, lineHeight: 1 } }, '×')
+                  ),
+                  h('div', { style: { marginTop: 12 } },
+                    h(Button, { size: 'sm', variant: 'secondary', onClick: function() { window.open(doc.url, '_blank', 'noopener,noreferrer'); } }, 'Open')
+                  )
+                  )
+                );
+              })
+            )
+          : h(EmptyPanel, { iconName: 'file', message: 'No documents yet.' }),
+        dropZone({
+          title: '+ Add Document',
+          hint: 'PDF only',
+          accept: '.pdf,application/pdf',
+          multiple: true,
+          busy: docUploading,
+          dragging: docDragging,
+          setDrag: setDocDragging,
+          onFiles: function(files) { uploadFiles(files, 'doc'); }
+        })
+      ),
+      error ? h('div', { style: { color: u.red, fontSize: 12, marginTop: 14, fontWeight: 700 } }, error) : null
+    );
+  }
+
   function CareTab(props) {
     var data = props.data, animalId = props.animalId, careTasks = props.careTasks, setCareTasks = props.setCareTasks, showAddTask = props.showAddTask, setShowAddTask = props.setShowAddTask, newTask = props.newTask, setNewTask = props.setNewTask;
+    var embedded = !!props.embedded;
     var u = ui();
     var isMobile = props.isMobile;
     function setTask(k, v) { var n = Object.assign({}, newTask); n[k] = v; setNewTask(n); }
@@ -988,7 +1340,7 @@
     }
     return h('div', null,
       data.animal.medical_notes ? h('div', { style:{ padding:14, borderRadius:14, border:'1px solid ' + u.yellow + '44', background:u.yellow + '14', color:u.yellow, fontSize:13, fontWeight:700, lineHeight:1.55, marginBottom:14, display:'flex', gap:10 } }, appIcon('alert', 16, { color:u.yellow }), h('div', null, data.animal.medical_notes)) : null,
-      h('div', { style:{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'center', marginBottom:12, flexWrap:'wrap' } }, h('h3', { style:{ margin:0, color:u.text, fontSize:16 } }, 'Care & Medical Tasks'), h(Button, { size:'sm', iconName:'plus', onClick:function(){ setShowAddTask(!showAddTask); } }, showAddTask ? 'Close' : 'Add Task')),
+      !embedded ? h('div', { style:{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'center', marginBottom:12, flexWrap:'wrap' } }, h('h3', { style:{ margin:0, color:u.text, fontSize:16 } }, 'Care & Medical Tasks'), h(Button, { size:'sm', iconName:'plus', onClick:function(){ setShowAddTask(!showAddTask); } }, showAddTask ? 'Close' : 'Add Task')) : null,
       showAddTask ? h(SoftCard, { style:{ padding:16, marginBottom:16 } }, h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '140px 1fr 140px 150px', gap:10 } },
         h('div', null, h(FieldLabel, null, 'Type'), h(SelectInput, { value:newTask.task_type, onChange:function(v){ setTask('task_type', v); }, options:['feed','walk','med','vaccine','procedure','check'] })),
         h('div', null, h(FieldLabel, null, 'Title'), h(TextInput, { value:newTask.title, onChange:function(v){ setTask('title', v); }, placeholder:'Task title' })),
@@ -1040,12 +1392,6 @@
       var current = postDraft.platforms || [];
       setDraft('platforms', current.indexOf(key) === -1 ? current.concat([key]) : current.filter(function(p){ return p !== key; }));
     }
-    function generatePost() {
-      setPosting(true);
-      apiJSON('/api/agentsam/chat', { method:'POST', body:JSON.stringify({ mode:'ask', message:'Write a 2-sentence social media post for a rescue dog named ' + (a.name || 'this animal') + '. Breed: ' + (a.breed || 'Unknown') + '. Age: ' + (a.age_label || 'Unknown') + '. Bio: ' + (a.bio || '') + '. Warm, urgent tone. Under 160 characters. No hashtags.' }) })
-        .then(function(d){ var text = d.response || d.message || d.content || d.text || (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || ''; if (text) setDraft('content_text', text); })
-        .finally(function(){ setPosting(false); });
-    }
     function submitPost(schedule) {
       if (!postDraft.content_text || !(postDraft.platforms || []).length) return;
       setPosting(true);
@@ -1083,7 +1429,7 @@
         h('div', { style:{ marginTop:14 } },
           h(FieldLabel, null, 'Platforms'),
           h('div', { style:{ display:'flex', flexWrap:'wrap', gap:8, marginTop:4 } },
-            PLATFORM_MAP.filter(function(p){ return p.key !== 'google_drive'; }).map(function(p){
+            POST_PLATFORMS.map(function(p){
               var connected = isConnected(p.key);
               var selected = (postDraft.platforms || []).indexOf(p.key) !== -1;
               var IconFn = p.icon;
@@ -1108,7 +1454,6 @@
         ),
         h('div', { style:{ marginTop:12 } }, h(FieldLabel, null, 'Schedule for (optional)'), h(TextInput, { type:'datetime-local', value:postDraft.scheduled_at || '', onChange:function(v){ setDraft('scheduled_at', v); } })),
         h('div', { style:{ display:'flex', gap:8, marginTop:14, flexWrap:'wrap' } },
-          h(Button, { variant:'secondary', size:'sm', disabled:posting, onClick:generatePost, iconName:'send' }, 'Generate with AI'),
           h(Button, { size:'sm', disabled:posting || !canSubmit, onClick:function(){ submitPost(!!postDraft.scheduled_at); }, iconName:'send' }, postDraft.scheduled_at ? 'Schedule' : 'Post Now')
         ),
         (data.scheduled_posts || []).length ? h('div', { style:{ marginTop:16 } },
@@ -1226,7 +1571,7 @@
       }
     }, [animalId]);
     useEffect(function(){
-      if (tab === 'care' && careTasks === null && animalId) apiJSON('/api/dashboard/animals/' + encodeURIComponent(animalId) + '/care-tasks').then(function(d){ setCareTasks(d.care_tasks || []); }).catch(function(){ setCareTasks([]); });
+      if (tab === 'notes' && careTasks === null && animalId) apiJSON('/api/dashboard/animals/' + encodeURIComponent(animalId) + '/care-tasks').then(function(d){ setCareTasks(d.care_tasks || []); }).catch(function(){ setCareTasks([]); });
       if (tab === 'apps' && applications === null && animalId) apiJSON('/api/dashboard/animals/' + encodeURIComponent(animalId) + '/applications').then(function(d){ setApplications(d.applications || []); }).catch(function(){ setApplications([]); });
     }, [tab, animalId, careTasks, applications]);
 
@@ -1242,27 +1587,44 @@
     var a = data.animal;
     var tabs = [
       { value:'overview', label:'Overview' },
-      { value:'care', label:'Care & Medical', count:careTasks === null ? (a.medical_notes ? '!' : null) : careTasks.length },
+      { value:'intake', label:'Intake & Attachments' },
       { value:'apps', label:'Applications', count:data.application_count || null },
-      { value:'notes', label:'Notes', count:data.note_count || null }
+      { value:'notes', label:'Notes & Care', count:data.note_count || null }
     ];
     if (!isDesktop) tabs.push({ value:'publish', label:'Publish' });
     function tabContent() {
       if (tab === 'overview') return h(OverviewTab, { data:data, isMobile:isMobile, saveBio:saveBio, saving:saving, saveMsg:saveMsg });
-      if (tab === 'care') return h(CareTab, { data:data, animalId:animalId, isMobile:isMobile, careTasks:careTasks, setCareTasks:setCareTasks, showAddTask:showAddTask, setShowAddTask:setShowAddTask, newTask:newTask, setNewTask:setNewTask });
+      if (tab === 'intake') return h(IntakeAttachmentsTab, { animalId:animalId, metadata:a.metadata || {}, photoUrl:a.photo_url || a.photo || '', reload:loadProfile });
       if (tab === 'apps') return h(ApplicationsTab, { applications:applications });
-      if (tab === 'notes') return h(AnimalNotesTab, { animalId:animalId, isMobile:isMobile });
+      if (tab === 'notes') return h(AnimalNotesTab, {
+        animalId:animalId,
+        isMobile:isMobile,
+        data:data,
+        careTasks:careTasks,
+        setCareTasks:setCareTasks,
+        showAddTask:showAddTask,
+        setShowAddTask:setShowAddTask,
+        newTask:newTask,
+        setNewTask:setNewTask
+      });
       if (tab === 'publish') return h(PublishPanel, { data:data, reload:loadProfile, isCompact:true, postDraft:postDraft, setPostDraft:setPostDraft, posting:posting, setPosting:setPosting });
       return null;
     }
     return h('div', { style:{ padding:isMobile ? '18px 12px 40px' : '28px 28px 40px', flex:1, overflowY:'auto', boxSizing:'border-box' } },
       h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' } },
         h('button', { onClick:function(){ if (onNavigate) onNavigate('animals'); }, style:{ border:'none', background:'transparent', color:u.textSec, fontSize:13, fontWeight:800, cursor:'pointer' } }, '< Back to Animals'),
-        h('div', { style:{ display:'flex', gap:8 } }, h(Button, { variant:'secondary', size:'sm', iconName:'edit', onClick:function(){ setShowEdit(true); } }, 'Edit'), h(Button, { size:'sm', iconName:'plus', onClick:function(){ setTab('care'); setShowAddTask(true); } }, 'Add Record'))
+        h('div', { style:{ display:'flex', gap:8 } }, h(Button, { variant:'secondary', size:'sm', iconName:'edit', onClick:function(){ setShowEdit(true); } }, 'Edit'), h(Button, { size:'sm', iconName:'plus', onClick:function(){ setTab('notes'); setShowAddTask(true); } }, 'Add Record'))
       ),
       h('div', { style:{ display:isDesktop ? 'flex' : 'block', gap:20, alignItems:'flex-start' } },
         h('div', { style:{ flex:1, minWidth:0 } },
-          h(ProfileHero, { animal:a, foster:data.foster, isMobile:isMobile, onEditPhoto:function(){ setShowEdit(true); } }),
+          h(ProfileHero, {
+            animal:a,
+            foster:data.foster,
+            metadata:a.metadata || {},
+            isMobile:isMobile,
+            onEditPhoto:function(){ setShowEdit(true); },
+            onAddPhotos:function(target){ setTab(target || 'intake'); }
+          }),
           h('div', { style:{ overflowX:'auto', whiteSpace:'nowrap', borderBottom:'1px solid ' + u.border, marginBottom:18 } }, h('div', { style:{ display:'inline-flex', gap:4, minWidth:'100%' } }, tabs.map(function(t){ var active = tab === t.value; return h('button', { key:t.value, onClick:function(){ setTab(t.value); }, style:{ border:'none', background:'transparent', color:active ? u.purpleL : u.textSec, padding:'12px 14px', borderBottom:'2px solid ' + (active ? u.purple : 'transparent'), fontWeight:active ? 900 : 700, fontSize:13, cursor:'pointer' } }, t.label, t.count ? h('span', { style:{ marginLeft:7, fontSize:11, color:active ? u.purpleL : u.textMut } }, t.count) : null); }))),
           tabContent()
         ),

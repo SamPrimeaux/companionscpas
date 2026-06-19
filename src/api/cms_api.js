@@ -856,6 +856,8 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
         socials_json          = ?,
         organization_json     = ?,
         seo_defaults_json     = ?,
+        logo_width            = ?,
+        logo_height           = ?,
         updated_at            = datetime('now')
       WHERE tenant_id = ? AND id = 'brand_companionscpas'
     `).bind(
@@ -875,6 +877,8 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       typeof brand.socials_json === "string"    ? brand.socials_json    : JSON.stringify(brand.socials_json || {}),
       typeof brand.organization_json === "string" ? brand.organization_json : JSON.stringify(brand.organization_json || {}),
       typeof brand.seo_defaults_json === "string" ? brand.seo_defaults_json : JSON.stringify(brand.seo_defaults_json || {}),
+      Number(brand.logo_width) > 0 ? Number(brand.logo_width) : 140,
+      Number(brand.logo_height) > 0 ? Number(brand.logo_height) : null,
       TENANT_ID
     ).run();
 
@@ -936,6 +940,54 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       await env.CMS_CACHE.delete('page:' + r).catch(() => {});
     }
     return json({ success: true, config: merged });
+  }
+
+  if (path === "/api/cms/page/nav-visible" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const route = normalizeRouteInput(data.route_path || data.route || "");
+    if (!route) return json({ success: false, error: "route_path is required" }, 400);
+
+    const navVisible = data.nav_visible === 0 || data.nav_visible === false ? 0 : 1;
+    const triggeredBy = cmsUser?.email || cmsUser?.id || "dashboard";
+
+    try {
+      await env.DB.prepare(
+        `UPDATE cms_pages
+         SET nav_visible = ?, updated_at = datetime('now')
+         WHERE tenant_id = ? AND route_path = ?`
+      ).bind(navVisible, TENANT_ID, route).run();
+    } catch (err) {
+      console.error("[cms/nav-visible] update failed:", err?.message || err);
+      return json({ success: false, error: "Could not update page navigation visibility" }, 500);
+    }
+
+    await env.DB.prepare(
+      `UPDATE cms_navigation_items
+       SET is_visible = ?, updated_at = datetime('now')
+       WHERE tenant_id = ? AND href = ?`
+    ).bind(navVisible, TENANT_ID, route).run().catch(() => {});
+
+    await bustCache(env, `brand:${TENANT_ID}`, `bootstrap:${TENANT_ID}`);
+
+    const republishResults = [];
+    for (const pageRoute of PUBLIC_PAGE_ROUTES) {
+      republishResults.push(await publishPageRoute(env, pageRoute, triggeredBy));
+    }
+
+    const failed = republishResults.filter((r) => !r.success);
+    return json({
+      success: failed.length === 0,
+      route_path: route,
+      nav_visible: navVisible,
+      republished: republishResults.filter((r) => r.success).length,
+      failed: failed.length,
+      message: navVisible
+        ? "Page is visible in site navigation."
+        : "Page hidden from site navigation. Direct URL still works for editing.",
+    }, failed.length ? 207 : 200);
   }
 
   return null;

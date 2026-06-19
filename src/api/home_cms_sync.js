@@ -63,9 +63,12 @@ export const DEFAULT_HOME_SECTIONS = [
     eyebrow: "Recent Transport Win",
     heading: "A few hours on the road changed everything.",
     body: "Thanks to our transport volunteers and a community that showed up, 13 dogs rolled out on the Freedom Bus toward rescue partners and families waiting for them. Every sponsored seat — $150 — is one more dog that makes it out.",
-    image_url: `${CDN}/media/animals/goinhomejustadopted.webp`,
+    image_url: `${CDN}/media/campaign/freedomfest.webp`,
     cta_label: "Sponsor a Transport Seat",
-    config_json: { cta_action: "donate", image_alt: "A dog going home" },
+    config_json: {
+      cta_action: "donate",
+      image_alt: "2026 Freedom Fest: Red, White & Rescued",
+    },
   },
   {
     id: "section_home_impact_stats",

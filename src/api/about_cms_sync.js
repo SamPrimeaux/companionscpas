@@ -29,8 +29,11 @@ export const DEFAULT_ABOUT_SECTIONS = [
     eyebrow: "Why Companions Exists",
     heading: "When space is limited, support becomes the difference between fear and a future.",
     body: "Caddo Parish Animal Services is an open-intake shelter, where dogs can be at risk simply because there is not enough space. Companions of CPAS is not here to compete with rescues or claim animals as our own. We step in where support matters most.",
-    image_url: `${CDN}/media/animals/thefounders.webp`,
-    config_json: {},
+    config_json: {
+      media_type: "shelter_map",
+      shelter_name: "Caddo Parish Animal Services",
+      shelter_address: "1500 Monty Street, Shreveport, LA 71107",
+    },
   },
   {
     id: "section_about_paths",

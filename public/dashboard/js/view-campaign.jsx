@@ -242,6 +242,12 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         attachments: form.attachments || [],
         cover_url: coverUrl,
       });
+      if (isPublic && configJson.show_on_donate && !configJson.donate_placement) {
+        configJson.donate_placement = "story_card";
+      }
+      if (!isPublic || !configJson.show_on_donate) {
+        configJson.donate_placement = configJson.show_on_donate ? configJson.donate_placement : "";
+      }
       const isPublic = form.is_public === 1;
       const payload = {
         id: form.id || undefined,

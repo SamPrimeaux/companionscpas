@@ -203,6 +203,24 @@ function transformCampaign(row) {
   };
 }
 
+// ── Build financialBreakdown from real Stripe donations ─────────────────────
+function buildFinancialBreakdownFromDonations(donations) {
+  const DEFAULT_COLORS = ["#7c3aed", "#10b981", "#06b6d4", "#f59e0b", "#ef4444", "#a78bfa"];
+  const totals = {};
+  for (const row of donations || []) {
+    const label = row.campaign_title || "General";
+    const cents = Number(row.amount_cents || 0);
+    totals[label] = (totals[label] || 0) + cents;
+  }
+  const entries = Object.entries(totals).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
+  if (!entries.length) return null;
+  return {
+    labels: entries.map(([label]) => label),
+    values: entries.map(([, cents]) => Math.round(cents / 100)),
+    colors: entries.map((_, i) => DEFAULT_COLORS[i % DEFAULT_COLORS.length]),
+  };
+}
+
 // ── Build financialBreakdown from real campaign rows ──────────────────────────
 // Groups raised_amount_cents by campaign_type, maps to donut slices.
 // Falls back gracefully if no data.
@@ -272,11 +290,18 @@ window.__loadDashboardData = async function() {
       window.CPAS.applications = overview.applications.map(transformApp);
     }
 
-    // Campaigns
-    if (overview.campaigns?.length) {
+    // Donations — hydrate KPIs + financial donut from succeeded Stripe rows
+    if (overview.donations?.length) {
+      window.CPAS.donations = overview.donations;
+      const breakdown = buildFinancialBreakdownFromDonations(overview.donations);
+      if (breakdown) {
+        window.CPAS.chartData = {
+          ...window.CPAS.chartData,
+          financialBreakdown: breakdown
+        };
+      }
+    } else if (overview.campaigns?.length) {
       window.CPAS.campaigns = overview.campaigns.map(transformCampaign);
-
-      // Financial Overview donut — built from real campaign data
       const breakdown = buildFinancialBreakdown(overview.campaigns);
       if (breakdown) {
         window.CPAS.chartData = {
@@ -284,6 +309,10 @@ window.__loadDashboardData = async function() {
           financialBreakdown: breakdown
         };
       }
+    }
+
+    if (overview.campaigns?.length && !window.CPAS.campaigns?.length) {
+      window.CPAS.campaigns = overview.campaigns.map(transformCampaign);
     }
 
     // Volunteers
@@ -295,10 +324,14 @@ window.__loadDashboardData = async function() {
     // KPIs
     if (overview.kpis) {
       const k = overview.kpis;
+      const mtdDollars = Math.round((k.donations_mtd_cents ?? k.raised_cents ?? 0) / 100);
+      const mtdCount = k.donations_mtd_count ?? k.donation_count ?? 0;
       window.CPAS.stats = {
         ...MOCK.stats,
-        totalAnimals: k.animals    || MOCK.stats.totalAnimals,
-        donationsMTD: Math.round((k.raised_cents || 0) / 100) || MOCK.stats.donationsMTD,
+        totalAnimals: k.animals || MOCK.stats.totalAnimals,
+        donationsMTD: mtdDollars,
+        donationsDeltaPct: mtdCount,
+        donationsMtdLabel: mtdCount === 1 ? "1 Stripe payment this month" : `${mtdCount} Stripe payments this month`,
       };
     }
 

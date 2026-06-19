@@ -178,6 +178,13 @@ export async function getGlobalPartial(name, brand, env) {
   const partialName = sanitizePathSegment(name, "");
   if (!partialName) return "";
 
+  if (env?.DB && (partialName === "header" || partialName === "footer" || partialName === "cpas-header" || partialName === "cpas-footer")) {
+    const { getSiteShellPartial } = await import("./render_site_nav.js");
+    const resolved = partialName.startsWith("cpas-") ? partialName.slice(5) : partialName;
+    const dynamic = await getSiteShellPartial(resolved, env);
+    if (dynamic) return dynamic;
+  }
+
   const keyMap = { header: 'cpas-header', footer: 'cpas-footer' };
   const resolvedName = keyMap[partialName] || partialName;
   const key = `static/global/${resolvedName}.html`;

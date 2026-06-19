@@ -29,8 +29,51 @@ function animalId(name) {
     + '_' + Date.now();
 }
 
+const CDN_ORIGIN = "https://assets.companionsofcaddo.org";
+
+function safeFilename(name) {
+  return String(name || "file")
+    .normalize("NFC")
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 120) || "file";
+}
+
 function taskId() { return 'task_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
 function postId()  { return 'post_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
+
+function guessAnimalNameFromFilename(filename) {
+  const base = String(filename || '').replace(/\.[^.]+$/, '');
+  const vaccMatch = base.match(/Vaccination[-_ ]?Certificate[-_ ]?([A-Za-z]+)/i)
+    || base.match(/VaccinationCertificate([A-Za-z]+)/i);
+  if (vaccMatch?.[1]) {
+    const name = vaccMatch[1];
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  }
+  const nameBeforeDate = base.match(/([A-Za-z]+)[-_]?\d{4}$/);
+  if (nameBeforeDate?.[1] && nameBeforeDate[1].length > 2) {
+    const name = nameBeforeDate[1];
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  }
+  const kennelMatch = base.match(/KennelCard.*?([A-Za-z]{3,})/i);
+  if (kennelMatch?.[1]) {
+    const name = kennelMatch[1];
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  }
+  return base.replace(/[_-]+/g, ' ').trim() || 'Unknown';
+}
+
+function matchAnimalByFilename(animals, filename) {
+  const guess = guessAnimalNameFromFilename(filename).toLowerCase();
+  return (animals || []).find((row) => String(row.name || '').toLowerCase() === guess) || null;
+}
+
+function inferMedicalDocType(label) {
+  const text = String(label || '').toLowerCase();
+  if (text.includes('vaccination')) return 'Vaccination Certificate';
+  if (text.includes('certificate')) return 'Certificate';
+  return 'Medical Document';
+}
+
 
 // Normalize a raw animal_profiles row into the API shape
 function normalizeAnimal(a) {
@@ -63,6 +106,15 @@ function normalizeCampaign(row) {
 async function invalidateDonatePageCache(env) {
   if (!env?.CMS_CACHE) return;
   await env.CMS_CACHE.delete('page:/donate').catch(() => {});
+  try {
+    const { assembleGenericPageFromFragments } = await import('./render_generic_fragments.js');
+    const html = await assembleGenericPageFromFragments(env, '/donate');
+    if (html) {
+      await env.CMS_CACHE.put('page:/donate', html, { expirationTtl: 3600 }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn('[donate-cache] warm failed:', err?.message || err);
+  }
 }
 
 const CAMPAIGN_SELECT = `
@@ -144,7 +196,9 @@ export async function dashboardApiRoutes(request, env, url) {
 
   // ─── GET /api/dashboard/overview ─────────────────────────────────────────
   if (path === '/api/dashboard/overview') {
-    const [animalRows, appRows, campaignRows, volunteerRows] = await Promise.all([
+    const monthPrefix = new Date().toISOString().slice(0, 7);
+    const paidStatuses = new Set(['succeeded', 'paid', 'completed', 'received']);
+    const [animalRows, appRows, campaignRows, volunteerRows, donationRows] = await Promise.all([
       env.DB.prepare(`
         SELECT ap.*, ca.cdn_url AS asset_cdn_url
         FROM animal_profiles ap
@@ -155,21 +209,40 @@ export async function dashboardApiRoutes(request, env, url) {
       env.DB.prepare(`SELECT id, first_name || ' ' || last_name AS applicant_name, review_status AS status, submitted_at FROM cpas_foster_applications WHERE tenant_id = ? ORDER BY submitted_at DESC LIMIT 20`).bind(FOSTER_TENANT).all().catch(() => ({ results: [] })),
       env.DB.prepare(`SELECT *, goal_amount_cents AS goal_cents, raised_amount_cents AS raised_cents FROM fundraising_campaigns WHERE is_public = 1 ORDER BY updated_at DESC`).all().catch(() => ({ results: [] })),
       env.DB.prepare(`SELECT * FROM volunteer_records ORDER BY hours_month DESC`).all().catch(() => ({ results: [] })),
+      env.DB.prepare(`
+        SELECT d.amount_cents, d.status, d.campaign_id, d.donated_at, d.created_at,
+               fc.title AS campaign_title, fc.campaign_type
+        FROM donations d
+        LEFT JOIN fundraising_campaigns fc ON fc.id = d.campaign_id
+        WHERE d.organization_id = ?
+        ORDER BY COALESCE(d.donated_at, d.created_at) DESC
+      `).bind(TENANT).all().catch(() => ({ results: [] })),
     ]);
-    const raised = (campaignRows.results || []).reduce((s, c) => s + Number(c.raised_cents || 0), 0);
-    const goal   = (campaignRows.results || []).reduce((s, c) => s + Number(c.goal_cents  || 0), 0);
+    const paidDonations = (donationRows.results || []).filter((row) =>
+      paidStatuses.has(String(row.status || '').toLowerCase())
+    );
+    const raisedFromDonations = paidDonations.reduce((sum, row) => sum + Number(row.amount_cents || 0), 0);
+    const mtdDonations = paidDonations.filter((row) =>
+      String(row.donated_at || row.created_at || '').slice(0, 7) === monthPrefix
+    );
+    const mtdCents = mtdDonations.reduce((sum, row) => sum + Number(row.amount_cents || 0), 0);
+    const goal = (campaignRows.results || []).reduce((s, c) => s + Number(c.goal_cents || 0), 0);
     return json({
       kpis: {
         animals:      animalRows.results?.length || 0,
         applications: appRows.results?.length    || 0,
         volunteers:   volunteerRows.results?.length || 0,
-        raised_cents: raised,
+        raised_cents: raisedFromDonations,
+        donations_mtd_cents: mtdCents,
+        donation_count: paidDonations.length,
+        donations_mtd_count: mtdDonations.length,
         goal_cents:   goal,
       },
       animals:      (animalRows.results || []).map(normalizeAnimal),
       applications: appRows.results || [],
       campaigns:    campaignRows.results || [],
       volunteers:   volunteerRows.results || [],
+      donations:    paidDonations,
     });
   }
 
@@ -297,7 +370,7 @@ export async function dashboardApiRoutes(request, env, url) {
       'name','species','breed','sex','age_label','status','weight_label',
       'energy_level','bio','good_with_dogs','good_with_cats','good_with_kids',
       'medical_notes','foster_needed','featured','public_visible',
-      'sort_order','tags_json','intake_date','photo_url'
+      'sort_order','tags_json','intake_date','photo_url', 'metadata_json'
     ];
     const sets = []; const vals = [];
     for (const k of allowed) {
@@ -305,6 +378,8 @@ export async function dashboardApiRoutes(request, env, url) {
         sets.push(`${k} = ?`);
         if (['foster_needed','featured','public_visible'].includes(k)) {
           vals.push(b[k] ? 1 : 0);
+        } else if (k === 'metadata_json') {
+          vals.push(typeof b.metadata_json === 'string' ? b.metadata_json : JSON.stringify(b.metadata_json ?? {}));
         } else {
           vals.push(b[k] ?? null);
         }
@@ -317,6 +392,112 @@ export async function dashboardApiRoutes(request, env, url) {
       `UPDATE animal_profiles SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
     ).bind(...vals).run();
     return json({ ok: true, id });
+  }
+
+  // ─── POST /api/dashboard/animals/:id/attachments ─────────────────────────
+  const attachmentsMatch = path.match(/^\/api\/dashboard\/animals\/([^/]+)\/attachments$/);
+  if (attachmentsMatch && method === 'POST') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ error: 'Not authenticated' }, 401);
+
+    const animalKey = attachmentsMatch[1];
+    const row = await env.DB.prepare(
+      `SELECT id, name, metadata_json FROM animal_profiles WHERE id = ? AND tenant_id = ? LIMIT 1`
+    ).bind(animalKey, TENANT).first().catch(() => null);
+    if (!row) return json({ ok: false, error: 'Animal not found' }, 404);
+
+    const IMAGE_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+    const PDF_MIME = new Set(['application/pdf']);
+    const MAX_SIZE = 15 * 1024 * 1024;
+
+    let formData;
+    try { formData = await request.formData(); }
+    catch { return json({ ok: false, error: 'Invalid multipart body' }, 400); }
+
+    const file = formData.get('file');
+    const label = String(formData.get('label') || file?.name || '').trim();
+    if (!file || typeof file.arrayBuffer !== 'function') {
+      return json({ ok: false, error: 'No file provided' }, 400);
+    }
+
+    const isImage = IMAGE_MIME.has(file.type);
+    const isPdf = PDF_MIME.has(file.type);
+    if (!isImage && !isPdf) {
+      return json({ ok: false, error: `File type not allowed: ${file.type || 'unknown'}` }, 400);
+    }
+
+    const fileBytes = await file.arrayBuffer();
+    if (fileBytes.byteLength > MAX_SIZE) {
+      return json({ ok: false, error: 'File exceeds 15 MB limit' }, 400);
+    }
+
+    const safeName = safeFilename(file.name);
+    const r2Key = isImage
+      ? `media/animals/${animalKey}/${Date.now()}-${safeName}`
+      : `media/medical/${animalKey}/${Date.now()}-${safeName}`;
+    const pubUrl = `${CDN_ORIGIN}/${r2Key}`;
+    const assetType = isImage ? 'image' : 'document';
+    const category = isImage ? 'animal' : 'medical';
+
+    try {
+      await env.WEBSITE_ASSETS.put(r2Key, fileBytes, {
+        httpMetadata: {
+          contentType: file.type,
+          cacheControl: 'public, max-age=31536000, immutable',
+        },
+        customMetadata: { tenant_id: TENANT, animal_id: animalKey },
+      });
+    } catch (err) {
+      console.error('[animal-attachments] R2 put failed:', err?.message || err);
+      return json({ ok: false, error: 'R2 upload failed' }, 500);
+    }
+
+    const assetId = `asset_animal_${Date.now().toString(36)}`;
+    const assetKey = `animal_${animalKey}_${Date.now().toString(36).slice(2, 8)}`;
+    await env.DB.prepare(
+      `INSERT INTO cms_assets
+         (id, tenant_id, project_id, asset_key, label, filename, original_filename,
+          mime_type, size, category, asset_type, r2_key, r2_bucket,
+          pub_url, cdn_url, public_url, usage_context, status, is_live, created_at, updated_at)
+       VALUES (?, ?, 'proj_companionscpas', ?, ?, ?, ?,
+               ?, ?, ?, ?, ?, 'companionscpas',
+               ?, ?, ?, 'animal_profile', 'active', 1, datetime('now'), datetime('now'))`
+    ).bind(
+      assetId, TENANT, assetKey,
+      label || safeName, safeName, file.name,
+      file.type, fileBytes.byteLength, category, assetType, r2Key,
+      pubUrl, pubUrl, pubUrl
+    ).run().catch((err) => console.warn('[animal-attachments] cms_assets insert:', err?.message));
+
+    const metadata = safeJson(row.metadata_json, {});
+    if (isImage) {
+      const photos = Array.isArray(metadata.photos) ? metadata.photos.slice() : [];
+      if (photos.indexOf(pubUrl) === -1) photos.push(pubUrl);
+      metadata.photos = photos;
+    } else {
+      const medicalFiles = Array.isArray(metadata.medical_files) ? metadata.medical_files.slice() : [];
+      medicalFiles.push({
+        url: pubUrl,
+        name: file.name || safeName,
+        mime_type: file.type,
+        uploaded_at: nowIso(),
+      });
+      metadata.medical_files = medicalFiles;
+    }
+
+    await env.DB.prepare(
+      `UPDATE animal_profiles SET metadata_json = ?, updated_at = ? WHERE id = ? AND tenant_id = ?`
+    ).bind(JSON.stringify(metadata), nowIso(), animalKey, TENANT).run();
+
+    return json({
+      success: true,
+      ok: true,
+      url: pubUrl,
+      mime_type: file.type,
+      asset_type: assetType,
+      updated_metadata_json: metadata,
+      metadata,
+    });
   }
 
   // ─── GET /api/dashboard/animals/:id/care-tasks ───────────────────────────
@@ -681,22 +862,119 @@ export async function dashboardApiRoutes(request, env, url) {
   }
 
   if (path === '/api/dashboard/intakes') {
-    const rows = await env.DB.prepare(`SELECT * FROM animal_profiles WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100`).bind(TENANT).all().catch(() => ({ results: [] }));
-    return json({ intakes: (rows.results || []).map(normalizeAnimal) });
+    const [assetRows, animalRows] = await Promise.all([
+      env.DB.prepare(`
+        SELECT id, label, filename, original_filename, r2_key, public_url, cdn_url,
+               mime_type, size, created_at, updated_at
+        FROM cms_assets
+        WHERE tenant_id = ? AND status = 'active' AND r2_key LIKE 'media/intakes/%'
+        ORDER BY created_at DESC
+        LIMIT 200
+      `).bind(TENANT).all().catch(() => ({ results: [] })),
+      env.DB.prepare(`
+        SELECT id, name, species, breed, intake_date, photo_url, metadata_json, status
+        FROM animal_profiles
+        WHERE tenant_id = ?
+      `).bind(TENANT).all().catch(() => ({ results: [] })),
+    ]);
+
+    const animals = animalRows.results || [];
+    const byIntakePdf = {};
+    for (const row of animals) {
+      const meta = safeJson(row.metadata_json, {});
+      if (meta.intake_pdf) byIntakePdf[meta.intake_pdf] = row;
+    }
+
+    const intakes = (assetRows.results || []).map((asset) => {
+      const url = asset.public_url || asset.cdn_url || `${CDN_ORIGIN}/${asset.r2_key}`;
+      const animal = byIntakePdf[url] || matchAnimalByFilename(animals, asset.filename || asset.original_filename);
+      return {
+        id: asset.id,
+        filename: asset.filename || asset.original_filename,
+        label: asset.label || asset.filename,
+        url,
+        size: asset.size || null,
+        created_at: asset.created_at,
+        animal_id: animal?.id || null,
+        animal_name: animal?.name || guessAnimalNameFromFilename(asset.filename || asset.original_filename),
+        species: animal?.species || 'Dog',
+        intake_date: animal?.intake_date || asset.created_at?.slice(0, 10) || null,
+        photo_url: animal?.photo_url || null,
+        status: animal?.status || null,
+      };
+    });
+
+    const now = new Date();
+    const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const thisMonth = intakes.filter((row) => String(row.created_at || '').slice(0, 7) === monthKey).length;
+
+    return json({
+      intakes,
+      stats: {
+        total: intakes.length,
+        this_month: thisMonth,
+        linked_animals: intakes.filter((row) => row.animal_id).length,
+      },
+    });
   }
 
   if (path === '/api/dashboard/medical') {
-    const rows = await env.DB.prepare(`
-      SELECT ct.*, ap.name AS animal_name, ap.photo_url
-      FROM care_tasks ct
-      LEFT JOIN animal_profiles ap ON ap.id = ct.animal_id
-      WHERE ct.task_type IN ('med','vaccine','procedure','check')
-      ORDER BY CASE ct.status WHEN 'open' THEN 0 ELSE 1 END ASC,
-               CASE ct.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END ASC,
-               ct.due_at ASC NULLS LAST
-      LIMIT 200
-    `).all().catch(() => ({ results: [] }));
-    return json({ medical: rows.results || [] });
+    const [assetRows, animalRows] = await Promise.all([
+      env.DB.prepare(`
+        SELECT id, label, filename, original_filename, r2_key, public_url, cdn_url,
+               mime_type, size, created_at, updated_at
+        FROM cms_assets
+        WHERE tenant_id = ? AND status = 'active' AND r2_key LIKE 'media/medical/%'
+        ORDER BY created_at DESC
+        LIMIT 200
+      `).bind(TENANT).all().catch(() => ({ results: [] })),
+      env.DB.prepare(`
+        SELECT id, name, species, breed, intake_date, photo_url, metadata_json, status, medical_notes
+        FROM animal_profiles
+        WHERE tenant_id = ?
+      `).bind(TENANT).all().catch(() => ({ results: [] })),
+    ]);
+
+    const animals = animalRows.results || [];
+    const byMedicalUrl = {};
+    for (const row of animals) {
+      const meta = safeJson(row.metadata_json, {});
+      if (meta.vaccination_cert) byMedicalUrl[meta.vaccination_cert] = row;
+      if (Array.isArray(meta.medical_files)) {
+        for (const file of meta.medical_files) {
+          const fileUrl = file?.url || file;
+          if (fileUrl) byMedicalUrl[fileUrl] = row;
+        }
+      }
+    }
+
+    const medical = (assetRows.results || []).map((asset) => {
+      const url = asset.public_url || asset.cdn_url || `${CDN_ORIGIN}/${asset.r2_key}`;
+      const animal = byMedicalUrl[url] || matchAnimalByFilename(animals, asset.filename || asset.original_filename);
+      const docType = inferMedicalDocType(asset.label || asset.filename);
+      return {
+        id: asset.id,
+        filename: asset.filename || asset.original_filename,
+        label: asset.label || asset.filename,
+        url,
+        type: docType,
+        size: asset.size || null,
+        created_at: asset.created_at,
+        animal_id: animal?.id || null,
+        animal_name: animal?.name || guessAnimalNameFromFilename(asset.filename || asset.original_filename),
+        photo_url: animal?.photo_url || null,
+        medical_notes: animal?.medical_notes || null,
+      };
+    });
+
+    return json({
+      medical,
+      stats: {
+        total: medical.length,
+        vaccination_certs: medical.filter((row) => row.type === 'Vaccination Certificate').length,
+        linked_animals: medical.filter((row) => row.animal_id).length,
+      },
+    });
   }
 
   if (path === '/api/dashboard/daily-care') {
@@ -745,6 +1023,59 @@ export async function dashboardApiRoutes(request, env, url) {
   if (path === '/api/dashboard/tasks') {
     const rows = await env.DB.prepare(`SELECT * FROM agentsam_todo ORDER BY sort_order, created_at`).all().catch(() => ({ results: [] }));
     return json({ todos: rows.results || [] });
+  }
+
+  if (path === '/api/dashboard/reports/financial' && method === 'GET') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ error: 'Not authenticated' }, 401);
+
+    const monthPrefix = new Date().toISOString().slice(0, 7);
+    const paidStatuses = new Set(['succeeded', 'paid', 'completed', 'received']);
+
+    const [donationRows, webhookRows] = await Promise.all([
+      env.DB.prepare(`
+        SELECT d.id, d.amount_cents, d.intended_amount_cents, d.cover_fees, d.currency, d.status, d.campaign_id,
+               d.stripe_payment_intent_id, d.donated_at, d.created_at, d.is_anonymous,
+               dn.email AS donor_email, dn.full_name AS donor_name,
+               fc.title AS campaign_title
+        FROM donations d
+        LEFT JOIN donors dn ON dn.id = d.donor_id
+        LEFT JOIN fundraising_campaigns fc ON fc.id = d.campaign_id
+        WHERE d.organization_id = ?
+        ORDER BY COALESCE(d.donated_at, d.created_at) DESC
+        LIMIT 200
+      `).bind(TENANT).all().catch(() => ({ results: [] })),
+      env.DB.prepare(`
+        SELECT id, event_type, status, related_id, processed_at, created_at
+        FROM stripe_webhooks
+        WHERE tenant_id = ?
+        ORDER BY COALESCE(processed_at, created_at) DESC
+        LIMIT 50
+      `).bind(TENANT).all().catch(() => ({ results: [] })),
+    ]);
+
+    const donations = donationRows.results || [];
+    const giftCents = (row) => Number(row.intended_amount_cents ?? row.amount_cents ?? 0);
+    const paid = donations.filter((row) => paidStatuses.has(String(row.status || '').toLowerCase()));
+    const totalCents = paid.reduce((sum, row) => sum + giftCents(row), 0);
+    const thisMonth = paid.filter((row) => String(row.donated_at || row.created_at || '').slice(0, 7) === monthPrefix);
+    const thisMonthCents = thisMonth.reduce((sum, row) => sum + giftCents(row), 0);
+    const avgCents = paid.length ? Math.round(totalCents / paid.length) : 0;
+
+    return json({
+      summary: {
+        total_raised_cents: totalCents,
+        total_raised_display: `$${(totalCents / 100).toFixed(2)}`,
+        this_month_cents: thisMonthCents,
+        this_month_display: `$${(thisMonthCents / 100).toFixed(2)}`,
+        total_donations: paid.length,
+        this_month_donations: thisMonth.length,
+        avg_gift_cents: avgCents,
+        avg_gift_display: `$${(avgCents / 100).toFixed(2)}`,
+      },
+      donations,
+      recent_webhooks: webhookRows.results || [],
+    });
   }
 
   if (path === '/api/dashboard/reports') {

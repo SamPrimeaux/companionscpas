@@ -227,6 +227,16 @@ export async function handleFosterApply(request, env) {
     ).bind(msgId, appId).run().catch(() => {});
   }
 
+  try {
+    const { notifyFosterApplication } = await import("./notifications.js");
+    await notifyFosterApplication(env, {
+      applicationId: appId,
+      applicantName: `${firstName} ${body.last_name || ""}`.trim(),
+      email: body.email,
+      animalName: body.animal_name || body.preferred_animal || null,
+    });
+  } catch {}
+
   return json({
     success: true,
     application_id: appId,
