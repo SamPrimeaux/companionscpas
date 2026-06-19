@@ -363,6 +363,17 @@ async function processDonationPayment(env, {
      VALUES (?, ?, ?, ?, ?, ?, 'succeeded', 'stripe', ?, ?, 0, datetime('now'))`
   ).bind(donationId, TENANT_ID, donorId, campaignId, amountCents, currency, paymentIntentId || null, note).run();
 
+  if (campaignId && amountCents > 0) {
+    try {
+      await env.DB.prepare(
+        `UPDATE fundraising_campaigns
+         SET raised_amount_cents = COALESCE(raised_amount_cents, 0) + ?,
+             updated_at = datetime('now')
+         WHERE id = ? AND tenant_id = ?`
+      ).bind(amountCents, campaignId, TENANT_ID).run();
+    } catch {}
+  }
+
   const paymentRowId = id("payment");
   await env.DB.prepare(
     `INSERT INTO donation_payments

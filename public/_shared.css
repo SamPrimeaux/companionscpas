@@ -1270,6 +1270,37 @@ body[data-route="/donate"] main {
 .dv2-prose p + p { margin-top: 1rem; }
 .dv2-prose-center { text-align: center; max-width: 640px; margin: 0 auto; }
 .dv2-media-video { margin-top: 1.5rem; max-width: 420px; }
+.dv2-fb-video {
+  display: flex;
+  justify-content: center;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #111;
+  box-shadow: 0 18px 40px rgba(15, 31, 61, 0.12);
+}
+.dv2-fb-video iframe {
+  display: block;
+  width: min(267px, 100%);
+  max-width: 100%;
+  min-height: 420px;
+  border: 0;
+}
+.dv2-story-card .dv2-fb-video iframe { min-height: 360px; }
+.dv2-pass-media--featured {
+  aspect-ratio: auto;
+  min-height: clamp(280px, 42vw, 420px);
+  margin: 0.75rem 0 1rem;
+}
+.dv2-pass-media--featured img {
+  width: 100%;
+  height: 100%;
+  min-height: clamp(280px, 42vw, 420px);
+  object-fit: cover;
+  object-position: center top;
+}
+.dv2-story-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .dv2-campaign-card,
 .dv2-story-card {
   background: var(--dv2-card);
@@ -1359,6 +1390,80 @@ body[data-route="/donate"] main {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--dv2-muted);
+}
+
+/* Share campaign modal */
+#dv2-share-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+#dv2-share-overlay[hidden] { display: none; }
+.dv2-share-panel {
+  width: min(420px, 100%);
+  background: #faf7f2;
+  border: 1px solid var(--dv2-border);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 24px 60px rgba(15, 31, 61, 0.18);
+}
+.dv2-share-title {
+  margin: 0 0 6px;
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.35rem;
+  color: var(--dv2-navy);
+}
+.dv2-share-copy {
+  margin: 0 0 16px;
+  color: var(--dv2-muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.dv2-share-actions {
+  display: grid;
+  gap: 10px;
+}
+.dv2-share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--dv2-border);
+  background: #fff;
+  color: var(--dv2-navy);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dv2-share-btn:hover { transform: translateY(-1px); }
+.dv2-share-btn--fb { background: #1877F2; border-color: #1877F2; color: #fff; }
+.dv2-share-btn--email { background: var(--dv2-navy); border-color: var(--dv2-navy); color: #fff; }
+.dv2-share-close {
+  margin-top: 12px;
+  width: 100%;
+  min-height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--dv2-muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+.dv2-share-status {
+  min-height: 18px;
+  margin-top: 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #2d6a4f;
+  text-align: center;
 }
 
 @media (max-width: 960px) {

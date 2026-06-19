@@ -423,6 +423,79 @@
     open(e);
   });
 
+  function ensureShareOverlay() {
+    if (document.getElementById('dv2-share-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'dv2-share-overlay';
+    overlay.hidden = true;
+    overlay.innerHTML = `
+      <div class="dv2-share-panel" role="dialog" aria-modal="true" aria-labelledby="dv2-share-title">
+        <h3 class="dv2-share-title" id="dv2-share-title">Share This Campaign</h3>
+        <p class="dv2-share-copy" id="dv2-share-text"></p>
+        <div class="dv2-share-actions">
+          <button type="button" class="dv2-share-btn dv2-share-btn--fb" data-share-channel="facebook">Share on Facebook</button>
+          <button type="button" class="dv2-share-btn dv2-share-btn--email" data-share-channel="email">Share by Email</button>
+          <button type="button" class="dv2-share-btn" data-share-channel="copy">Copy Link</button>
+        </div>
+        <p class="dv2-share-status" id="dv2-share-status" aria-live="polite"></p>
+        <button type="button" class="dv2-share-close" data-share-close>Close</button>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay || e.target.closest('[data-share-close]')) closeShare();
+    });
+    overlay.querySelector('[data-share-channel="facebook"]')?.addEventListener('click', () => {
+      const url = overlay.dataset.shareUrl || window.location.href;
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer,width=640,height=560');
+    });
+    overlay.querySelector('[data-share-channel="email"]')?.addEventListener('click', () => {
+      const url = overlay.dataset.shareUrl || window.location.href;
+      const title = overlay.dataset.shareTitle || 'Help Kita Heal';
+      const text = overlay.dataset.shareText || '';
+      window.location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${text}\n\n${url}`)}`;
+    });
+    overlay.querySelector('[data-share-channel="copy"]')?.addEventListener('click', async () => {
+      const url = overlay.dataset.shareUrl || window.location.href;
+      const status = document.getElementById('dv2-share-status');
+      try {
+        await navigator.clipboard.writeText(url);
+        if (status) status.textContent = 'Link copied. Paste it on Instagram or anywhere you share.';
+      } catch {
+        if (status) status.textContent = url;
+      }
+    });
+  }
+
+  function openShare(trigger) {
+    ensureShareOverlay();
+    const overlay = document.getElementById('dv2-share-overlay');
+    if (!overlay) return;
+    const url = trigger?.dataset?.shareUrl || `${window.location.origin}/donate#donate-medical-story`;
+    const title = trigger?.dataset?.shareTitle || 'Help Kita Heal — Companions of Caddo';
+    const text = trigger?.dataset?.shareText || 'Kita needs amputation surgery and recovery care. Please help if you can.';
+    overlay.dataset.shareUrl = url;
+    overlay.dataset.shareTitle = title;
+    overlay.dataset.shareText = text;
+    const copyEl = document.getElementById('dv2-share-text');
+    if (copyEl) copyEl.textContent = text;
+    const status = document.getElementById('dv2-share-status');
+    if (status) status.textContent = '';
+    overlay.hidden = false;
+  }
+
+  function closeShare() {
+    const overlay = document.getElementById('dv2-share-overlay');
+    if (overlay) overlay.hidden = true;
+  }
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="share-campaign"]');
+    if (!btn) return;
+    e.preventDefault();
+    openShare(btn);
+  });
+
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', wireButtons); } else { wireButtons(); }
   window.DonateModal = { open, close };
   window.openDonateModal = open;

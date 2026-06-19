@@ -2,6 +2,9 @@ import { escapeHtml, safeJson } from "./render_section.js";
 
 const TENANT_ID = "tenant_companionscpas";
 const CDN = "https://assets.companionsofcaddo.org";
+const DEFAULT_KITA_FB_REEL = "https://www.facebook.com/reel/1367522045225536/";
+const DEFAULT_SUNFLOWER_PHOTO = `${CDN}/media/animals/sunflowercloseup.jpeg`;
+const KITA_SHARE_URL = "https://companionsofcaddo.org/donate#donate-medical-story";
 
 const DONATE_V2_TYPES = new Set([
   "donate_freedom_hero",
@@ -65,6 +68,19 @@ async function loadCampaign(env, campaignId) {
   ).bind(campaignId, TENANT_ID).first().catch(() => null);
 }
 
+async function loadCampaignRaisedCents(env, campaignId, fallbackCents = 0) {
+  if (!env?.DB || !campaignId) return fallbackCents;
+  const sumRow = await env.DB.prepare(
+    `SELECT COALESCE(SUM(amount_cents), 0) AS total
+     FROM donations
+     WHERE campaign_id = ? AND status = 'succeeded'`
+  ).bind(campaignId).first().catch(() => null);
+  const fromDonations = Number(sumRow?.total) || 0;
+  if (fromDonations > 0) return fromDonations;
+  const campaign = await loadCampaign(env, campaignId);
+  return Number(campaign?.raised_amount_cents) || fallbackCents;
+}
+
 async function loadCampaignAnimals(env, campaignId, limit = 3) {
   if (!env?.DB || !campaignId) return [];
   const rows = await env.DB.prepare(
@@ -97,6 +113,27 @@ function renderMedia(url, alt, placeholderLabel) {
   const src = safeUrl(url);
   if (!src) return mediaPlaceholder(placeholderLabel);
   return `<img src="${escAttr(src)}" alt="${escAttr(alt || "")}" loading="lazy" decoding="async" />`;
+}
+
+function renderFacebookVideoEmbed(reelUrl) {
+  const href = encodeURIComponent(safeUrl(reelUrl) || DEFAULT_KITA_FB_REEL);
+  return `<div class="dv2-fb-video">
+    <iframe
+      src="https://www.facebook.com/plugins/video.php?height=476&amp;href=${href}&amp;show_text=false&amp;width=267&amp;t=0"
+      width="267" height="476"
+      style="border:none;overflow:hidden"
+      scrolling="no" frameborder="0"
+      allowfullscreen="true"
+      allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+      title="Campaign video"></iframe>
+  </div>`;
+}
+
+function shareCampaignBtn(opts = {}) {
+  const url = escAttr(opts.url || KITA_SHARE_URL);
+  const title = escAttr(opts.title || "Help Kita Heal — Companions of Caddo");
+  const text = escAttr(opts.text || "Kita needs amputation surgery and recovery care. Please help if you can.");
+  return `<button class="dv2-btn dv2-btn-ghost" type="button" data-action="share-campaign" data-share-url="${url}" data-share-title="${title}" data-share-text="${text}">Share This Campaign</button>`;
 }
 
 async function renderFreedomHero(section, blocks, brand, env) {
@@ -159,13 +196,12 @@ async function renderMedicalStory(section, blocks, brand, env) {
   ].join("\n\n");
   const cardTitle = pickText(config, ["card_title"]) || campaign?.title || "Kita's Amputation Care";
   const cardEyebrow = pickText(config, ["card_eyebrow"]) || "CURRENT MEDICAL NEED";
-  const raised = campaign?.raised_amount_cents ?? Number(config.raised_amount_cents) ?? 22500;
+  const raised = await loadCampaignRaisedCents(env, campaignId, campaign?.raised_amount_cents ?? Number(config.raised_amount_cents) ?? 22500);
   const goal = campaign?.goal_amount_cents ?? Number(config.goal_amount_cents) ?? 60000;
   const supports = Array.isArray(config.supports) ? config.supports : [
     "Surgery", "Medication", "Follow-up care", "Recovery expenses",
   ];
-  const videoUrl = pickText(config, ["video_url", "video_thumbnail_url"]);
-  const imageUrl = pickText(config, ["image_url"]) || pickText(section, ["image_url"]);
+  const fbReelUrl = pickText(config, ["facebook_reel_url", "video_embed_url"]) || DEFAULT_KITA_FB_REEL;
   const sectionKey = pickText(section, ["section_key"]);
 
   const supportList = supports.map((s) => `<li>${esc(s)}</li>`).join("");
@@ -179,14 +215,14 @@ async function renderMedicalStory(section, blocks, brand, env) {
       <h2 class="dv2-h2">${esc(heading)}</h2>
       <div class="dv2-prose">${paragraphs}</div>
       <div class="dv2-media-slot dv2-media-video">
-        ${videoUrl ? renderMedia(videoUrl, "Kita video thumbnail", "Video thumbnail") : mediaPlaceholder("Video thumbnail")}
+        ${renderFacebookVideoEmbed(fbReelUrl)}
       </div>
       <div class="dv2-btn-row">
         ${donateBtn("Donate Toward Kita's Care", { campaignId })}
-        <button class="dv2-btn dv2-btn-ghost" type="button">Share This Campaign</button>
+        ${shareCampaignBtn()}
       </div>
     </div>
-    <aside class="dv2-campaign-card">
+    <aside class="dv2-campaign-card" data-campaign-id="${escAttr(campaignId)}" data-campaign-raised="${raised}" data-campaign-goal="${goal}">
       <p class="dv2-card-ey">${esc(cardEyebrow)}</p>
       <h3 class="dv2-card-title">${esc(cardTitle)}</h3>
       <p class="dv2-card-stat"><strong>${esc(money(raised))}</strong> donated so far</p>
@@ -212,11 +248,14 @@ async function renderStoriesHelp(section, blocks, brand, env) {
   const kitaCampaign = pickText(config, ["kita_campaign_id"]) || "camp_kita_amputation";
   const sectionKey = pickText(section, ["section_key"]);
   const kitaCamp = await loadCampaign(env, kitaCampaign);
+  const kitaRaised = await loadCampaignRaisedCents(env, kitaCampaign, kitaCamp?.raised_amount_cents ?? 22500);
+  const kitaGoal = kitaCamp?.goal_amount_cents ?? 60000;
 
   const sunflower = config.sunflower || {};
   const kita = config.kita || {};
+  const sunflowerPhoto = sunflower.photo_url || DEFAULT_SUNFLOWER_PHOTO;
   const kitaProgress = kita.progress_label
-    || (kitaCamp ? `${money(kitaCamp.raised_amount_cents)} donated toward ${money(kitaCamp.goal_amount_cents)}` : "$225 donated toward $600");
+    || `${money(kitaRaised)} donated toward ${money(kitaGoal)}`;
   const introParts = intro.split(/\n/).filter(Boolean).map((line) => `<p>${esc(line.trim())}</p>`).join("");
 
   return `
@@ -226,11 +265,11 @@ async function renderStoriesHelp(section, blocks, brand, env) {
       <h2 class="dv2-h2">${esc(heading)}</h2>
       <div class="dv2-prose dv2-prose-center">${introParts}</div>
     </header>
-    <div class="dv2-story-grid">
+    <div class="dv2-story-grid dv2-story-grid--two">
       <article class="dv2-story-card dv2-story-card--sponsored">
         <p class="dv2-card-ey">SPONSORED STORY</p>
         <h3 class="dv2-card-title">${esc(sunflower.name || "Sunflower")}</h3>
-        <div class="dv2-pass-media">${renderMedia(sunflower.photo_url, sunflower.name, "Sunflower photo")}</div>
+        <div class="dv2-pass-media dv2-pass-media--featured">${renderMedia(sunflowerPhoto, sunflower.name, "Sunflower photo")}</div>
         <p class="dv2-prose-sm">${esc(sunflower.body || "Sunflower's ticket to Freedom Fest has already been sponsored. That means her ride to a brighter, better future is covered.")}</p>
         <p class="dv2-prose-sm dv2-muted">${esc(sunflower.thanks || "Thank you for giving Sunflower a real chance at freedom and a future.")}</p>
         ${donateBtn("Sponsor Another Ticket", { red: true, amount: ticketDollars, campaignId: festCampaign })}
@@ -238,16 +277,10 @@ async function renderStoriesHelp(section, blocks, brand, env) {
       <article class="dv2-story-card">
         <p class="dv2-card-ey">NEXT ANIMAL / CAMPAIGN</p>
         <h3 class="dv2-card-title">${esc(kita.name || "Kita")}</h3>
-        <div class="dv2-pass-media">${renderMedia(kita.photo_url || kita.video_thumbnail_url, kita.name, "Kita photo or video")}</div>
+        <div class="dv2-pass-media dv2-media-video">${renderFacebookVideoEmbed(pickText(kita, ["facebook_reel_url"]) || DEFAULT_KITA_FB_REEL)}</div>
         <p class="dv2-prose-sm">${esc(kita.body || "Help cover her amputation, medication, follow-up care, and recovery support.")}</p>
         <p class="dv2-card-stat">${esc(kitaProgress)}</p>
         ${donateBtn("Help Kita Heal", { campaignId: kitaCampaign })}
-      </article>
-      <article class="dv2-story-card dv2-story-card--wide">
-        <p class="dv2-card-ey">GENERAL RESCUE SUPPORT</p>
-        <h3 class="dv2-card-title">Give Where Needed Most</h3>
-        <p class="dv2-prose-sm">${esc(config.general_body || "Not every need comes with a perfect campaign. General gifts help the team respond when urgent needs come up.")}</p>
-        ${donateBtn("Give Where Needed Most", {})}
       </article>
     </div>
     <p class="dv2-trust">${esc(config.trust_strip || "Volunteer-led nonprofit • Medical care • Foster support • Transport help")}</p>
