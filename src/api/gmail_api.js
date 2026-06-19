@@ -8,7 +8,7 @@ import { getAuthUser } from "./session_api.js";
 const TENANT_ID = "tenant_companionscpas";
 const ONBOARDING_FOLDER_ID = "fld_onboarding";
 const PROVIDER = "google_gmail";
-const CONN_ID = `conn_gmail_${TENANT_ID}`;
+const LEGACY_CONN_ID = `conn_gmail_${TENANT_ID}`;
 const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.send",
@@ -66,17 +66,31 @@ function encKey(env) {
   return env.DRIVE_ENCRYPT_KEY || env.GOOGLE_CLIENT_SECRET || "";
 }
 
-async function getConnection(env) {
-  return env.DB.prepare(
-    "SELECT * FROM social_provider_connections WHERE id = ? AND tenant_id = ? LIMIT 1"
-  ).bind(CONN_ID, TENANT_ID).first().catch(() => null);
+function connIdForEmail(email) {
+  const local = String(email || "").toLowerCase().split("@")[0].replace(/[^a-z0-9]/g, "") || "default";
+  return `conn_gmail_${local}`;
 }
 
-async function getAccessToken(env) {
+async function listGmailConnections(env) {
+  const rows = await env.DB.prepare(
+    `SELECT * FROM social_provider_connections
+     WHERE tenant_id = ? AND provider = ? AND status = 'connected'
+     ORDER BY last_connected_at DESC`
+  ).bind(TENANT_ID, PROVIDER).all().catch(() => ({ results: [] }));
+  return rows?.results || [];
+}
+
+async function getConnection(env, connId) {
+  return env.DB.prepare(
+    "SELECT * FROM social_provider_connections WHERE id = ? AND tenant_id = ? LIMIT 1"
+  ).bind(connId, TENANT_ID).first().catch(() => null);
+}
+
+async function getAccessToken(env, connId) {
   const key = encKey(env);
   if (!key) return { error: "DRIVE_ENCRYPT_KEY not set" };
 
-  const conn = await getConnection(env);
+  const conn = await getConnection(env, connId);
   if (!conn || conn.status !== "connected") return { error: "not_connected" };
 
   const expired = conn.token_expires_at
@@ -111,7 +125,7 @@ async function getAccessToken(env) {
     `UPDATE social_provider_connections
      SET access_token_cipher = ?, token_expires_at = ?, updated_at = datetime('now')
      WHERE id = ?`
-  ).bind(newCipher, expiresAt, CONN_ID).run().catch(() => {});
+  ).bind(newCipher, expiresAt, connId).run().catch(() => {});
 
   return { token: data.access_token };
 }
@@ -149,16 +163,18 @@ function headerValue(headers, name) {
   return h?.value || "";
 }
 
-async function syncGmailInbox(env, maxResults = 25) {
-  const { token, error } = await getAccessToken(env);
-  if (error) return { ok: false, error };
+async function syncGmailInboxForConnection(env, conn, maxResults = 25) {
+  const connId = conn.id;
+  const accountMailbox = conn.provider_account_email || "gmail";
+  const { token, error } = await getAccessToken(env, connId);
+  if (error) return { ok: false, error, account: accountMailbox };
 
   const listRes = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&labelIds=INBOX`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const listData = await listRes.json();
-  if (!listRes.ok) return { ok: false, error: listData.error?.message || "Gmail list failed" };
+  if (!listRes.ok) return { ok: false, error: listData.error?.message || "Gmail list failed", account: accountMailbox };
 
   let synced = 0;
   const messages = listData.messages || [];
@@ -166,8 +182,8 @@ async function syncGmailInbox(env, maxResults = 25) {
   for (const item of messages) {
     const gmailId = item.id;
     const exists = await env.DB.prepare(
-      "SELECT id FROM inbound_emails WHERE tenant_id = ? AND gmail_id = ? LIMIT 1"
-    ).bind(TENANT_ID, gmailId).first().catch(() => null);
+      "SELECT id FROM inbound_emails WHERE tenant_id = ? AND gmail_id = ? AND lower(mailbox) = lower(?) LIMIT 1"
+    ).bind(TENANT_ID, gmailId, accountMailbox).first().catch(() => null);
     if (exists?.id) continue;
 
     const msgRes = await fetch(
@@ -197,7 +213,7 @@ async function syncGmailInbox(env, maxResults = 25) {
       gmailId,
       headerValue(msg.payload?.headers, "Message-ID") || gmailId,
       msg.threadId || gmailId,
-      "gmail",
+      accountMailbox,
       from,
       JSON.stringify(toList),
       subject,
@@ -210,21 +226,42 @@ async function syncGmailInbox(env, maxResults = 25) {
     synced += 1;
   }
 
-  return { ok: true, synced, total: messages.length };
+  return { ok: true, synced, total: messages.length, account: accountMailbox };
+}
+
+async function syncGmailInbox(env, maxResults = 25, accountEmail = null) {
+  const connections = await listGmailConnections(env);
+  if (!connections.length) return { ok: false, error: "not_connected" };
+
+  const targets = accountEmail
+    ? connections.filter((c) => String(c.provider_account_email || "").toLowerCase() === String(accountEmail).toLowerCase())
+    : connections;
+
+  if (!targets.length) return { ok: false, error: "account_not_found" };
+
+  let synced = 0;
+  const accounts = [];
+  for (const conn of targets) {
+    const result = await syncGmailInboxForConnection(env, conn, maxResults);
+    if (result.ok) {
+      synced += result.synced || 0;
+      accounts.push({ account: result.account, synced: result.synced || 0 });
+    }
+  }
+  return { ok: true, synced, accounts };
 }
 
 async function handleStatus(env) {
-  const conn = await getConnection(env);
-  if (!conn || conn.status !== "connected") {
-    return json({ ok: true, connected: false });
-  }
+  const connections = await listGmailConnections(env);
   return json({
     ok: true,
-    connected: true,
-    account_email: conn.provider_account_email || null,
-    account_name: conn.provider_account_name || null,
-    scopes: conn.scopes || GMAIL_SCOPES,
-    last_connected_at: conn.last_connected_at || null,
+    connected: connections.length > 0,
+    accounts: connections.map((c) => ({
+      id: c.id,
+      email: c.provider_account_email,
+      name: c.provider_account_name,
+      last_connected_at: c.last_connected_at,
+    })),
   });
 }
 
@@ -318,6 +355,13 @@ async function handleCallback(request, env, url) {
   const refreshCipher = tokenData.refresh_token ? await encrypt(tokenData.refresh_token, key) : null;
   const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString();
 
+  const connId = accountEmail ? connIdForEmail(accountEmail) : LEGACY_CONN_ID;
+  await saveConnection(env, connId, accountEmail, accountName, accessCipher, refreshCipher, expiresAt);
+
+  return redirect(redirectAfter);
+}
+
+async function saveConnection(env, connId, accountEmail, accountName, accessCipher, refreshCipher, expiresAt) {
   await env.DB.prepare(
     `INSERT INTO social_provider_connections
        (id, tenant_id, provider, account_label, status, scopes,
@@ -341,18 +385,23 @@ async function handleCallback(request, env, url) {
        error_message = NULL,
        updated_at = datetime('now')`
   ).bind(
-    CONN_ID, TENANT_ID, PROVIDER,
+    connId, TENANT_ID, PROVIDER,
     accountEmail || "Gmail",
     GMAIL_SCOPES,
     accessCipher, refreshCipher, accessCipher,
     expiresAt, accountEmail, accountName
   ).run();
-
-  return redirect(redirectAfter);
 }
 
-async function handleDisconnect(env) {
-  const conn = await getConnection(env);
+async function handleDisconnect(request, env) {
+  let connId = LEGACY_CONN_ID;
+  try {
+    const data = await request.json();
+    if (data.connection_id) connId = data.connection_id;
+    else if (data.account_email) connId = connIdForEmail(data.account_email);
+  } catch {}
+
+  const conn = await getConnection(env, connId);
   if (conn?.access_token_cipher) {
     const key = encKey(env);
     const token = await decrypt(conn.access_token_cipher, key);
@@ -365,7 +414,7 @@ async function handleDisconnect(env) {
      SET status = 'disconnected', access_token_cipher = NULL, refresh_token_cipher = NULL,
          token_ciphertext = NULL, updated_at = datetime('now')
      WHERE id = ?`
-  ).bind(CONN_ID).run().catch(() => {});
+  ).bind(connId).run().catch(() => {});
   return json({ ok: true, message: "Gmail disconnected." });
 }
 
@@ -406,12 +455,17 @@ export async function gmailRoutes(request, env, url) {
   if (path === "/api/integrations/gmail/disconnect" && method === "POST") {
     const session = await requireSession(request, env);
     if (session instanceof Response) return session;
-    return handleDisconnect(env);
+    return handleDisconnect(request, env);
   }
   if (path === "/api/integrations/gmail/sync" && method === "POST") {
     const session = await requireSession(request, env);
     if (session instanceof Response) return session;
-    const result = await syncGmailInbox(env, 30);
+    let accountEmail = null;
+    try {
+      const data = await request.json();
+      accountEmail = data.account_email || null;
+    } catch {}
+    const result = await syncGmailInbox(env, 30, accountEmail);
     if (!result.ok) return json(result, 400);
     return json(result);
   }

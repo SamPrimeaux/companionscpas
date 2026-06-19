@@ -22,7 +22,7 @@ GOOGLE_REDIRECT_URI = "https://companionsofcaddo.org/api/social/oauth/youtube/ca
 ADMIN_EMAIL = "ljmusland@gmail.com"
 RESEND_FROM_EMAIL = "Companions of CPAS <no-reply@companionsofcaddo.org>"
 RESEND_SUPPORT_FROM = "Companions of CPAS <support@companionsofcaddo.org>"
-EMAIL_INBOX_MAILBOXES = "support@companionsofcaddo.org,dashboard@companionsofcaddo.org"
+EMAIL_INBOX_MAILBOXES = "support@companionsofcaddo.org"
 
 [[d1_databases]]
 binding = "DB"

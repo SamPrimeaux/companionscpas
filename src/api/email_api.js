@@ -4,7 +4,6 @@ import { syncGmailInbox } from "./gmail_api.js";
 const TENANT_ID = "tenant_companionscpas";
 const DEFAULT_MAILBOXES = [
   "support@companionsofcaddo.org",
-  "dashboard@companionsofcaddo.org",
 ];
 
 function json(data, status = 200) {
@@ -145,8 +144,8 @@ async function logOutbound(env, row) {
     const emailId = id("email");
     await env.DB.prepare(
       `INSERT INTO email_logs
-       (id, tenant_id, recipient_email, recipient_name, subject, email_type, provider_message_id, status, related_type, related_id, error_message, sent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, tenant_id, recipient_email, recipient_name, subject, email_type, from_email, provider_message_id, status, related_type, related_id, error_message, sent_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       emailId,
       TENANT_ID,
@@ -154,6 +153,7 @@ async function logOutbound(env, row) {
       row.name || null,
       row.subject,
       row.type || "manual",
+      row.from || null,
       row.provider_message_id || null,
       row.status || "queued",
       row.related_type || null,
@@ -195,7 +195,7 @@ async function sendResendEmail(env, { from, to, subject, html, text, replyTo, ty
   try { parsed = JSON.parse(raw); } catch {}
 
   if (!res.ok) {
-    await logOutbound(env, { to: Array.isArray(to) ? to[0] : to, subject, type, related_type, related_id, status: "failed", error_message: raw });
+    await logOutbound(env, { to: Array.isArray(to) ? to[0] : to, subject, type, related_type, related_id, from, status: "failed", error_message: raw });
     return { ok: false, status: res.status, error: raw };
   }
 
@@ -203,6 +203,7 @@ async function sendResendEmail(env, { from, to, subject, html, text, replyTo, ty
     to: Array.isArray(to) ? to[0] : to,
     subject,
     type,
+    from,
     related_type,
     related_id,
     provider_message_id: parsed.id || null,
@@ -336,21 +337,33 @@ export async function emailApiRoutes(request, env, url) {
   if (!session) return json({ error: "Not authenticated" }, 401);
 
   if (path === "/api/email/config" && method === "GET") {
-    const gmailConn = await env.DB.prepare(
-      "SELECT status, provider_account_email FROM social_provider_connections WHERE id = ? LIMIT 1"
-    ).bind(`conn_gmail_${TENANT_ID}`).first().catch(() => null);
+    const gmailRows = await env.DB.prepare(
+      `SELECT id, status, provider_account_email, provider_account_name, last_connected_at
+       FROM social_provider_connections
+       WHERE tenant_id = ? AND provider = 'google_gmail' AND status = 'connected'
+       ORDER BY last_connected_at DESC`
+    ).bind(TENANT_ID).all().catch(() => ({ results: [] }));
+    const gmailAccounts = (gmailRows?.results || []).map((r) => ({
+      id: r.id,
+      email: r.provider_account_email,
+      name: r.provider_account_name,
+      last_connected_at: r.last_connected_at,
+    }));
 
     return json({
+      shared_mailboxes: normalizeMailboxList(env),
       mailboxes: normalizeMailboxList(env),
       from_addresses: {
         support: env.RESEND_SUPPORT_FROM || "Companions of CPAS <support@companionsofcaddo.org>",
+        noreply: env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionsofcaddo.org>",
         default: env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionsofcaddo.org>",
       },
       resend_configured: Boolean(resendKey(env)),
       webhook_configured: Boolean(env.RESEND_INBOUND_WEBHOOK_SECRET || env.RESEND_WEBHOOK_SECRET),
+      gmail_accounts: gmailAccounts,
       gmail: {
-        connected: gmailConn?.status === "connected",
-        account_email: gmailConn?.provider_account_email || null,
+        connected: gmailAccounts.length > 0,
+        account_email: gmailAccounts[0]?.email || null,
       },
     });
   }
@@ -400,7 +413,7 @@ export async function emailApiRoutes(request, env, url) {
     }
 
     if (mailbox && mailbox !== "all") {
-      sql += " AND (lower(mailbox) = lower(?) OR source = 'gmail')";
+      sql += " AND lower(mailbox) = lower(?)";
       binds.push(mailbox);
     }
     if (readFilter === "read") sql += " AND status = 'read'";
@@ -538,13 +551,19 @@ export async function emailApiRoutes(request, env, url) {
   }
 
   if (path === "/api/email/outbound" && method === "GET") {
-    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") || 50)));
+    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") || 80)));
     const rows = await env.DB.prepare(
-      `SELECT id, recipient_email, subject, email_type, status, provider_message_id, sent_at, created_at, error_message
+      `SELECT id, recipient_email, subject, email_type, from_email, status, provider_message_id,
+              related_type, related_id, sent_at, created_at, error_message
        FROM email_logs WHERE tenant_id = ?
        ORDER BY COALESCE(sent_at, created_at) DESC LIMIT ?`
     ).bind(TENANT_ID, limit).all().catch(() => ({ results: [] }));
-    return json({ messages: rows?.results || [] });
+    const defaultFrom = env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionsofcaddo.org>";
+    const messages = (rows?.results || []).map((m) => ({
+      ...m,
+      from_email: m.from_email || defaultFrom,
+    }));
+    return json({ messages });
   }
 
   if (path === "/api/email/templates" && method === "GET") {

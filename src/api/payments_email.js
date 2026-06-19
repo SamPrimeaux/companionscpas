@@ -107,10 +107,11 @@ async function verifyStripeWebhook(request, env) {
 async function logEmail(env, row) {
   try {
     const emailId = id("email");
+    const from = row.from || env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionsofcaddo.org>";
     await env.DB.prepare(
       `INSERT INTO email_logs
-       (id, tenant_id, recipient_email, recipient_name, subject, email_type, provider_message_id, status, related_type, related_id, error_message, sent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, tenant_id, recipient_email, recipient_name, subject, email_type, from_email, provider_message_id, status, related_type, related_id, error_message, sent_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       emailId,
       TENANT_ID,
@@ -118,6 +119,7 @@ async function logEmail(env, row) {
       row.name || null,
       row.subject,
       row.type || "manual",
+      from,
       row.provider_message_id || null,
       row.status || "queued",
       row.related_type || null,
