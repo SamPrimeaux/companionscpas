@@ -18,12 +18,16 @@ function attachmentsFromCampaign(c, cfg) {
 
 function CampaignAttachments({ media, onChange, disabled }) {
   const [uploading, setUploading] = React.useState(false);
+  const [dragging, setDragging] = React.useState(false);
   const [error, setError] = React.useState("");
+  const dragDepth = React.useRef(0);
   const MAX = 10;
   const items = media || [];
 
   async function uploadFiles(fileList) {
-    const files = Array.from(fileList || []);
+    const files = Array.from(fileList || []).filter(f =>
+      f.type.startsWith("image/") || f.type.startsWith("video/") || f.type === "application/pdf"
+    );
     if (!files.length || disabled) return;
     if (items.length + files.length > MAX) {
       setError("Maximum " + MAX + " attachments.");
@@ -65,56 +69,113 @@ function CampaignAttachments({ media, onChange, disabled }) {
     onChange(copy);
   }
 
+  function onDragEnter(e) {
+    e.preventDefault();
+    dragDepth.current += 1;
+    if (!disabled && !uploading) setDragging(true);
+  }
+  function onDragLeave(e) {
+    e.preventDefault();
+    dragDepth.current -= 1;
+    if (dragDepth.current <= 0) {
+      dragDepth.current = 0;
+      setDragging(false);
+    }
+  }
+  function onDrop(e) {
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    if (!uploading && !disabled) uploadFiles(e.dataTransfer.files);
+  }
+
+  const addTile = items.length < MAX && React.createElement("label", {
+    className: "camp-attach-add" + (uploading || disabled ? " is-disabled" : ""),
+  },
+    React.createElement("span", { className: "camp-attach-plus", "aria-hidden": "true" }, "+"),
+    React.createElement("span", { className: "camp-attach-add-label" },
+      uploading ? "Uploading..." : "Drop files here"
+    ),
+    React.createElement("span", { className: "camp-attach-add-sub" }, "Images · Videos · PDFs"),
+    React.createElement("input", {
+      type: "file",
+      multiple: true,
+      accept: "image/*,application/pdf,video/mp4,video/quicktime,video/webm",
+      disabled: uploading || disabled,
+      onChange: e => { uploadFiles(e.target.files); e.target.value = ""; },
+    })
+  );
+
   return React.createElement("div", { className: "camp-attach" },
     React.createElement("div", {
-      className: "camp-attach-grid",
+      className: "camp-attach-zone" + (dragging ? " is-dragging" : "") + (items.length ? " has-items" : " is-empty"),
+      onDragEnter: onDragEnter,
       onDragOver: e => e.preventDefault(),
-      onDrop: e => {
-        e.preventDefault();
-        if (!uploading && !disabled) uploadFiles(e.dataTransfer.files);
-      },
+      onDragLeave: onDragLeave,
+      onDrop: onDrop,
     },
-      items.map((item, idx) =>
-        React.createElement("div", { key: item.url + idx, className: "camp-attach-tile" },
-          item.type === "image"
-            ? React.createElement("img", { src: item.url, alt: item.name || "Attachment" })
-            : item.type === "video"
-              ? React.createElement("div", { className: "camp-attach-file" },
-                  React.createElement(Icon, { name: "video", size: 22 }),
-                  React.createElement("span", null, "Video")
-                )
-              : React.createElement("div", { className: "camp-attach-file" },
-                  React.createElement(Icon, { name: "file", size: 22 }),
-                  React.createElement("span", null, "PDF")
-                ),
-          React.createElement("button", {
-            type: "button",
-            className: "camp-attach-remove",
-            onClick: () => removeAt(idx),
-            "aria-label": "Remove attachment",
-          }, "×")
-        )
+      dragging && React.createElement("div", { className: "camp-attach-drop-overlay" },
+        React.createElement("span", { className: "camp-attach-plus camp-attach-plus--lg" }, "+"),
+        React.createElement("span", null, "Drop to add")
       ),
-      items.length < MAX && React.createElement("label", {
-        className: "camp-attach-add" + (uploading || disabled ? " is-disabled" : ""),
-      },
-        uploading ? "Uploading..." : React.createElement(React.Fragment, null,
-          React.createElement(Icon, { name: "plus", size: 20 }),
-          React.createElement("span", null, "Add images or videos")
-        ),
-        React.createElement("input", {
-          type: "file",
-          multiple: true,
-          accept: "image/*,application/pdf,video/mp4,video/quicktime,video/webm",
-          disabled: uploading || disabled,
-          onChange: e => { uploadFiles(e.target.files); e.target.value = ""; },
-        })
-      )
+      items.length
+        ? React.createElement("div", { className: "camp-attach-grid" },
+            items.map((item, idx) =>
+              React.createElement("div", {
+                key: item.url + idx,
+                className: "camp-attach-tile" + (idx === 0 && item.type === "image" ? " is-cover" : ""),
+              },
+                idx === 0 && item.type === "image"
+                  ? React.createElement("span", { className: "camp-attach-badge" }, "Cover")
+                  : null,
+                item.type === "image"
+                  ? React.createElement("img", { src: item.url, alt: item.name || "Attachment" })
+                  : item.type === "video"
+                    ? React.createElement("div", { className: "camp-attach-file" },
+                        React.createElement(Icon, { name: "video", size: 24 }),
+                        React.createElement("span", { className: "camp-attach-filename" }, item.name || "Video")
+                      )
+                    : React.createElement("div", { className: "camp-attach-file" },
+                        React.createElement(Icon, { name: "file", size: 24 }),
+                        React.createElement("span", { className: "camp-attach-filename" }, item.name || "PDF")
+                      ),
+                React.createElement("button", {
+                  type: "button",
+                  className: "camp-attach-remove",
+                  onClick: () => removeAt(idx),
+                  "aria-label": "Remove attachment",
+                }, "×")
+              )
+            ),
+            addTile
+          )
+        : addTile
     ),
     React.createElement("p", { className: "camp-attach-hint" },
-      "First image becomes the card thumbnail. " + items.length + " / " + MAX
+      items.length
+        ? "First image is the card thumbnail · " + items.length + " / " + MAX
+        : "Drag and drop or click + to add up to " + MAX + " files"
     ),
-    error && React.createElement("div", { style: { color: C.red, fontSize: 12, marginTop: 6 } }, error)
+    error && React.createElement("div", { className: "camp-attach-error" }, error)
+  );
+}
+
+function CampaignLivePreview({ title, description, attachments }) {
+  const cover = (attachments || []).find(a => a.type === "image");
+  const excerpt = String(description || "").trim().slice(0, 160);
+  return React.createElement("div", { className: "camp-preview" },
+    React.createElement("p", { className: "camp-preview-label" }, "Card preview"),
+    React.createElement("article", { className: "camp-preview-card" },
+      React.createElement("div", { className: "camp-preview-media" },
+        cover
+          ? React.createElement("img", { src: cover.url, alt: title || "Preview" })
+          : React.createElement("div", { className: "camp-preview-ph" }, "Add a photo")
+      ),
+      React.createElement("div", { className: "camp-preview-body" },
+        React.createElement("h3", null, title || "Campaign title"),
+        React.createElement("p", null, excerpt || "Description will appear here on the website card.")
+      )
+    )
   );
 }
 
@@ -214,13 +275,18 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     }
   }
 
-  const field = (label, child) => React.createElement("div", { className: "camp-field" },
+  const field = (label, child, opts) => React.createElement("div", { className: "camp-field" + (opts?.large ? " camp-field--large" : "") },
     React.createElement("label", { className: "camp-label" }, label),
     child
   );
 
   const publishPanel = React.createElement("aside", { className: "camp-sidebar" },
     React.createElement(Card, { className: "camp-publish-card" },
+      React.createElement(CampaignLivePreview, {
+        title: form.title,
+        description: form.description,
+        attachments: form.attachments,
+      }),
       React.createElement("h4", { className: "camp-sidebar-title" }, "Publish"),
       field("Visibility", React.createElement(Select, {
         value: String(form.is_public),
@@ -247,9 +313,6 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
             onChange: e => setSurface("show_on_services", e.target.checked),
           }),
           " Foster / Services page"
-        ),
-        React.createElement("p", { className: "camp-surfaces-note" },
-          "Leave both unchecked to save without placing on a page yet."
         )
       ),
       React.createElement("div", { className: "camp-publish-actions" },
@@ -282,7 +345,14 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
           type: "button", className: "camp-back", onClick: () => onNavigate && onNavigate("fundraising"),
         }, "← Giving"),
         React.createElement("h1", { className: "camp-title" }, isNew ? "New Campaign" : (form.title || "Campaign")),
+        !isNew && React.createElement(Badge, { label: form.status, dot: true }),
         saveMsg && React.createElement("div", { className: "camp-save-msg" }, saveMsg)
+      ),
+      React.createElement("div", { className: "camp-top-actions" },
+        React.createElement(Btn, {
+          onClick: save,
+          disabled: saving || !form.title.trim(),
+        }, saving ? "Saving..." : (form.is_public ? "Save & publish" : "Save draft"))
       )
     ),
 
@@ -291,19 +361,21 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     React.createElement("div", { className: "camp-layout camp-layout--simple" },
       React.createElement("div", { className: "camp-main camp-main--simple" },
         React.createElement(Card, { className: "camp-form-card" },
-          field("Title", React.createElement(Input, {
+          field("Title", React.createElement("input", {
+            type: "text",
+            className: "camp-title-input",
             value: form.title,
-            onChange: v => setField("title", v),
+            onChange: e => setField("title", e.target.value),
             placeholder: "Summer Rescue Fundraiser",
-          })),
+          }), { large: true }),
           field("Description", React.createElement("textarea", {
             value: form.description,
             onChange: e => setField("description", e.target.value),
             className: "camp-textarea camp-textarea--lg",
-            rows: 10,
+            rows: 8,
             placeholder: "Tell people why this campaign matters...",
           })),
-          field("Additional attachments", React.createElement(CampaignAttachments, {
+          field("Attachments", React.createElement(CampaignAttachments, {
             media: form.attachments,
             onChange: v => setField("attachments", v),
             disabled: saving,

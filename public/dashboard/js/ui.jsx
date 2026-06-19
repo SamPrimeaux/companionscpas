@@ -294,9 +294,11 @@ function Tabs({ tabs, active, onChange }) {
   );
 }
 
-function Card({ children, style:extra={}, onClick, hover=false }) {
+function Card({ children, style:extra={}, className="", onClick, hover=false }) {
   const [hov, setHov] = useState(false);
-  return React.createElement("div", { onClick, onMouseEnter:()=>setHov(true), onMouseLeave:()=>setHov(false),
+  return React.createElement("div", {
+    className: className || undefined,
+    onClick, onMouseEnter:()=>setHov(true), onMouseLeave:()=>setHov(false),
     style:{ background:(hover&&hov)?C.bg2:C.surface, border:`1px solid ${(hover&&hov)?C.purple+"44":C.borderStr}`, borderRadius:12, transition:"all .15s", cursor:onClick?"pointer":"default", boxShadow:"0 2px 10px rgba(26,22,34,0.06)", ...extra } },
     children
   );
