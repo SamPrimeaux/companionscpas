@@ -89,8 +89,8 @@
     if (!el) return;
     const cards = document.querySelectorAll('.animal-card:not(.animal-card--skeleton)');
     if (cards.length) { el.textContent = cards.length; return; }
-    fetch('/api/dashboard/animals').then(r => r.json()).then(d => {
-      el.textContent = (d.animals || []).filter(a => a.public_visible !== 0).length || '--';
+    fetch('/api/public/animals').then(r => r.json()).then(d => {
+      el.textContent = (d.animals || []).length || '--';
     }).catch(() => {});
   }, 1400);
 })();

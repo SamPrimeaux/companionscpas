@@ -140,7 +140,96 @@ function ReportsView() {
 function SettingsView() {
   const [tab, setTab] = useState("org");
   const [saved, setSaved] = useState(false);
+  const [members, setMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState("");
+  const [showInvite, setShowInvite] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [inviteForm, setInviteForm] = useState({ email: "", full_name: "", role: "volunteer" });
+  const [editForm, setEditForm] = useState({ full_name: "", role: "volunteer", status: "active" });
+  const [actionMsg, setActionMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+  const currentUserId = (window.CPAS_USER && (window.CPAS_USER.id || window.CPAS_USER.user_id)) || null;
+
   const save = () => { setSaved(true); setTimeout(()=>setSaved(false), 2000); };
+
+  function membersApi(url, options) {
+    return fetch(url, Object.assign({ credentials: "include", headers: { "Content-Type": "application/json" } }, options || {}))
+      .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || "Request failed"); return d; }); });
+  }
+
+  function loadMembers() {
+    setMembersLoading(true);
+    setMembersError("");
+    membersApi("/api/dashboard/members")
+      .then(function(d) { setMembers(d.members || []); setMembersLoading(false); })
+      .catch(function(e) { setMembersError(e.message || "Failed to load members."); setMembersLoading(false); });
+  }
+
+  useEffect(function() {
+    if (tab === "users") loadMembers();
+  }, [tab]);
+
+  function roleLabel(role) {
+    if (!role) return "Member";
+    return role.charAt(0).toUpperCase() + role.slice(1);
+  }
+
+  function statusLabel(status) {
+    if (!status) return "Unknown";
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  function submitInvite() {
+    if (!inviteForm.email.trim()) return;
+    setSaving(true);
+    setActionMsg("");
+    membersApi("/api/dashboard/members/invite", {
+      method: "POST",
+      body: JSON.stringify({ email: inviteForm.email.trim(), full_name: inviteForm.full_name.trim(), role: inviteForm.role })
+    })
+      .then(function(d) {
+        setShowInvite(false);
+        setInviteForm({ email: "", full_name: "", role: "volunteer" });
+        setActionMsg(d.email_sent ? "Invite sent." : "Member invited (email not sent).");
+        loadMembers();
+      })
+      .catch(function(e) { setActionMsg(e.message || "Invite failed."); })
+      .finally(function() { setSaving(false); });
+  }
+
+  function openEdit(member) {
+    setEditing(member);
+    setEditForm({ full_name: member.full_name || "", role: member.role || "volunteer", status: member.status || "active" });
+  }
+
+  function submitEdit() {
+    if (!editing) return;
+    setSaving(true);
+    setActionMsg("");
+    membersApi("/api/dashboard/members/" + encodeURIComponent(editing.membership_id), {
+      method: "PATCH",
+      body: JSON.stringify(editForm)
+    })
+      .then(function() {
+        setEditing(null);
+        setActionMsg("Member updated.");
+        loadMembers();
+      })
+      .catch(function(e) { setActionMsg(e.message || "Update failed."); })
+      .finally(function() { setSaving(false); });
+  }
+
+  function deactivateMember(member) {
+    if (!member || !member.membership_id) return;
+    if (!confirm("Deactivate " + (member.full_name || member.email) + "? They will lose dashboard access.")) return;
+    setSaving(true);
+    setActionMsg("");
+    membersApi("/api/dashboard/members/" + encodeURIComponent(member.membership_id), { method: "DELETE" })
+      .then(function() { setActionMsg("Member deactivated."); loadMembers(); })
+      .catch(function(e) { setActionMsg(e.message || "Deactivate failed."); })
+      .finally(function() { setSaving(false); });
+  }
 
   const field = (label, defaultVal, type="text") => React.createElement("div", { key:label, style:{ marginBottom:16 } },
     React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, label),
@@ -149,31 +238,28 @@ function SettingsView() {
       : React.createElement(Input, { value:defaultVal, onChange:()=>{} })
   );
 
-  const users = [
-    { name:"Danielle Chen",  email:"danielle@companionscpas.org", role:"Admin",  status:"Active" },
-    { name:"Sam Primeaux",   email:"sam@companionscpas.org",      role:"Staff",  status:"Active" },
-    { name:"Maria Lopez",    email:"maria@companionscpas.org",    role:"Staff",  status:"Active" },
-    { name:"Guest User",     email:"guest@companionscpas.org",    role:"Viewer", status:"Inactive" },
+  const roleOptions = [
+    { value: "admin", label: "Admin" },
+    { value: "volunteer", label: "Volunteer" },
+    { value: "viewer", label: "Viewer" },
   ];
-
-  const integrations = [
-    { name:"Stripe",    desc:"Payment processing for donations",     connected:true,  icon:"💳" },
-    { name:"Mailchimp", desc:"Email marketing and donor newsletters", connected:false, icon:"📧" },
-    { name:"Google Drive", desc:"Document storage and backups",      connected:true,  icon:"☁️" },
-    { name:"PetFinder", desc:"Sync adoptable animals to PetFinder",  connected:false, icon:"🐾" },
+  const statusOptions = [
+    { value: "active", label: "Active" },
+    { value: "invited", label: "Invited" },
+    { value: "inactive", label: "Inactive" },
   ];
 
   return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Settings",
-      subtitle:"Organization, users, and integrations",
+      subtitle:"Organization, team members, and notifications",
       action: saved
         ? React.createElement(Btn, { variant:"success", icon:"check2" }, "Saved!")
         : React.createElement(Btn, { icon:"check2", onClick:save }, "Save Changes")
     }),
 
     React.createElement(Tabs, {
-      tabs:[{value:"org",label:"Organization"},{value:"users",label:"Users"},{value:"integrations",label:"Integrations"},{value:"notifications",label:"Notifications"}],
+      tabs:[{value:"org",label:"Organization"},{value:"users",label:"Users"},{value:"notifications",label:"Notifications"}],
       active:tab, onChange:setTab
     }),
 
@@ -185,38 +271,76 @@ function SettingsView() {
       field("Mailing Address", "123 Rescue Lane, Austin, TX 78701"),
       field("Mission Statement", "To rescue, rehabilitate, and rehome animals in need.", "textarea"),
       field("EIN / Tax ID", "12-3456789"),
-    ),
-
-    tab === "users" && React.createElement("div", null,
-      React.createElement("div", { style:{ display:"flex", justifyContent:"flex-end", marginBottom:14 } },
-        React.createElement(Btn, { icon:"plus", size:"sm" }, "Invite User")
-      ),
-      React.createElement(Card, { style:{ overflow:"hidden" } },
-        React.createElement(Table, {
-          cols:[
-            { key:"name",   label:"Name",   render:(v,row)=>React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}}, React.createElement(Avatar,{name:v,size:30}), React.createElement("div",null, React.createElement("div",{style:{fontWeight:600,fontSize:13}},v), React.createElement("div",{style:{fontSize:11,color:C.textSec}},row.email))) },
-            { key:"role",   label:"Role",   render:v=>React.createElement(Badge,{label:v}) },
-            { key:"status", label:"Status", render:v=>React.createElement(Badge,{label:v,dot:true}) },
-            { key:"name",   label:"",       render:()=>React.createElement("div",{style:{display:"flex",gap:6}}, React.createElement(Btn,{size:"sm",variant:"ghost",icon:"edit"},""), React.createElement(Btn,{size:"sm",variant:"ghost",icon:"trash","style":{color:C.red}},"")) },
-          ],
-          rows:users
-        })
+      React.createElement("p", { style:{ marginTop:8, fontSize:12, color:C.textSec, lineHeight:1.5 } },
+        "Google Drive and CMS assets are managed under ",
+        React.createElement("a", { href:"/dashboard/cms/images", style:{ color:C.purpleL } }, "CMS → Images"),
+        "."
       )
     ),
 
-    tab === "integrations" && React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 } },
-      integrations.map(i =>
-        React.createElement(Card, { key:i.name, style:{ padding:20 } },
-          React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:12, marginBottom:12 } },
-            React.createElement("span", { style:{ fontSize:28 } }, i.icon),
-            React.createElement("div", null,
-              React.createElement("div", { style:{ fontSize:14, fontWeight:700, color:C.text } }, i.name),
-              React.createElement("div", { style:{ fontSize:12, color:C.textSec } }, i.desc)
-            )
+    tab === "users" && React.createElement("div", null,
+      actionMsg && React.createElement("div", { style:{ marginBottom:12, fontSize:13, color:C.teal } }, actionMsg),
+      membersError && React.createElement("div", { style:{ marginBottom:12, fontSize:13, color:C.red } }, membersError),
+      React.createElement("div", { style:{ display:"flex", justifyContent:"flex-end", marginBottom:14 } },
+        React.createElement(Btn, { icon:"plus", size:"sm", onClick:function(){ setShowInvite(true); setActionMsg(""); } }, "Invite User")
+      ),
+      membersLoading
+        ? React.createElement(Card, { style:{ padding:32, textAlign:"center", color:C.textSec } }, "Loading team members…")
+        : React.createElement(Card, { style:{ overflow:"hidden" } },
+            React.createElement(Table, {
+              cols:[
+                { key:"full_name", label:"Name", render:function(v,row){ return React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}}, React.createElement(Avatar,{name:v||row.email,size:30}), React.createElement("div",null, React.createElement("div",{style:{fontWeight:600,fontSize:13}},v||row.email), React.createElement("div",{style:{fontSize:11,color:C.textSec}},row.email))); } },
+                { key:"role", label:"Role", render:function(v){ return React.createElement(Badge,{label:roleLabel(v)}); } },
+                { key:"status", label:"Status", render:function(v){ return React.createElement(Badge,{label:statusLabel(v),dot:true}); } },
+                { key:"membership_id", label:"", render:function(v,row){
+                  const isSelf = currentUserId && row.user_id === currentUserId;
+                  return React.createElement("div",{style:{display:"flex",gap:6}},
+                    React.createElement(Btn,{size:"sm",variant:"ghost",icon:"edit",onClick:function(){ openEdit(row); }}, ""),
+                    !isSelf && row.status !== "inactive" && React.createElement(Btn,{size:"sm",variant:"ghost",icon:"trash",style:{color:C.red},onClick:function(){ deactivateMember(row); }}, "")
+                  );
+                } },
+              ],
+              rows: members
+            })
           ),
-          React.createElement("div", { style:{ display:"flex", alignItems:"center", justifyContent:"space-between" } },
-            React.createElement(Badge, { label:i.connected ? "Connected" : "Not Connected", dot:true }),
-            React.createElement(Btn, { variant: i.connected ? "danger" : "secondary", size:"sm" }, i.connected ? "Disconnect" : "Connect")
+      React.createElement(Modal, { open:showInvite, onClose:function(){ setShowInvite(false); }, title:"Invite team member", width:480 },
+        React.createElement("div", { style:{ display:"flex", flexDirection:"column", gap:14 } },
+          React.createElement("div", null,
+            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Email"),
+            React.createElement(Input, { value:inviteForm.email, onChange:function(v){ setInviteForm(function(f){ return Object.assign({}, f, { email:v }); }); }, placeholder:"name@example.com" })
+          ),
+          React.createElement("div", null,
+            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Full name"),
+            React.createElement(Input, { value:inviteForm.full_name, onChange:function(v){ setInviteForm(function(f){ return Object.assign({}, f, { full_name:v }); }); }, placeholder:"Jane Doe" })
+          ),
+          React.createElement("div", null,
+            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Role"),
+            React.createElement(Select, { value:inviteForm.role, onChange:function(v){ setInviteForm(function(f){ return Object.assign({}, f, { role:v }); }); }, options:roleOptions })
+          ),
+          React.createElement("div", { style:{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8 } },
+            React.createElement(Btn, { variant:"secondary", onClick:function(){ setShowInvite(false); } }, "Cancel"),
+            React.createElement(Btn, { onClick:submitInvite, disabled:saving || !inviteForm.email.trim() }, saving ? "Sending…" : "Send invite")
+          )
+        )
+      ),
+      React.createElement(Modal, { open:!!editing, onClose:function(){ setEditing(null); }, title:"Edit team member", width:480 },
+        editing && React.createElement("div", { style:{ display:"flex", flexDirection:"column", gap:14 } },
+          React.createElement("div", { style:{ fontSize:12, color:C.textSec, marginBottom:4 } }, editing.email),
+          React.createElement("div", null,
+            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Full name"),
+            React.createElement(Input, { value:editForm.full_name, onChange:function(v){ setEditForm(function(f){ return Object.assign({}, f, { full_name:v }); }); } })
+          ),
+          React.createElement("div", null,
+            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Role"),
+            React.createElement(Select, { value:editForm.role, onChange:function(v){ setEditForm(function(f){ return Object.assign({}, f, { role:v }); }); }, options:roleOptions, style: editing.user_id === currentUserId ? { opacity:0.6, pointerEvents:"none" } : {} })
+          ),
+          React.createElement("div", null,
+            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Status"),
+            React.createElement(Select, { value:editForm.status, onChange:function(v){ setEditForm(function(f){ return Object.assign({}, f, { status:v }); }); }, options:statusOptions, style: editing.user_id === currentUserId ? { opacity:0.6, pointerEvents:"none" } : {} })
+          ),
+          React.createElement("div", { style:{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8 } },
+            React.createElement(Btn, { variant:"secondary", onClick:function(){ setEditing(null); } }, "Cancel"),
+            React.createElement(Btn, { onClick:submitEdit, disabled:saving }, saving ? "Saving…" : "Save changes")
           )
         )
       )

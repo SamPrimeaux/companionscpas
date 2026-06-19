@@ -1,0 +1,228 @@
+================================================================================
+DONATE PAGE V2 — TEXT MOCKUP
+Route: https://companionsofcaddo.org/donate
+Background: #F5F2E9 cream ONLY (no SVGs, no parallax, no texture overlays)
+Stripe: ONE modal (donate-modal.js), centered overlay, preset $175 + campaign_id
+================================================================================
+
+ARCHITECTURE REMINDER (how sections + R2 work)
+----------------------------------------------
+D1 (editable)                    R2 (served fragments)
+cms_page_sections        -->     static/pages/donate/{section_key}.html
+cms_page_content_blocks          (one HTML file per section)
+
+Images / large media     -->     R2 bucket companionscpas
+                                 CDN: https://assets.companionsofcaddo.org/media/...
+
+Publish flow:
+  CMS save → render section → put R2 fragment → bust KV page:/donate
+  Request  → assemble header + section fragments + footer → KV cache
+
+V2 = 3 section fragments in R2 (not one monolithic donate/index.html as primary).
+
+================================================================================
+PAGE WIREFRAME (desktop ≥ 980px)
+================================================================================
+
++-----------------------------------------------------------------------------+
+| [GLOBAL HEADER — existing cpas-header.html from R2]                          |
+|  logo          Home  About  Foster  Adopt  Community          [ Donate ]    |
++-----------------------------------------------------------------------------+
+
++-----------------------------------------------------------------------------+
+| SECTION 1 — donate_campaign                                                |
+| R2: static/pages/donate/donate_campaign.html                               |
+| bg: #F5F2E9                                                                |
++-----------------------------------------------------------------------------+
+|                                                                             |
+|  LEFT (text, left-aligned)              RIGHT (images, right-aligned)       |
+|  max-width ~520px                       max-width ~480px                    |
+|                                                                             |
+|  * * * * *  (5 small navy stars)                                            |
+|                                                                             |
+|  FREEDOM FEST 2026                                                          |
+|  (Abril Fatface or site hero serif — red #8B1E1E, no SVG decorations)      |
+|                                                                             |
+|  [==== RED, WHITE & RESCUED ====]                                           |
+|  (navy ribbon bar — CSS only, no flag graphic)                              |
+|                                                                             |
+|  Celebrate Freedom. Change a Life.                                          |
+|  (script/tagline — Great Vibes or site equivalent)                          |
+|                                                                             |
+|  Sponsor a ticket and help rescue dogs travel to a                           |
+|  brighter, better future.                                                   |
+|  (Source Sans / site body, #4A5568)                                         |
+|                                                                             |
+|  +---------------------------+                                              |
+|  |  SPONSOR A TICKET    [tix] |  <- glass red btn (like nav Donate shape)   |
+|  +---------------------------+     data-action=donate data-amount=175      |
+|                                                                             |
+|                          +--------+  +--------+  +--------+                 |
+|                          |* NAME * |  |* NAME *|  |* NAME *|                 |
+|                          |        |  |        |  |        |                 |
+|                          | [photo]|  | [photo]|  | [photo]|                 |
+|                          |    VIP |  |    VIP |  |    VIP |  badge BR      |
+|                          | - - - -|  | - - - -|  | - - - -|  ticket stub   |
+|                          +--------+  +--------+  +--------+                 |
+|                                                                             |
+|                          * $175 PER PASSENGER *                             |
+|                          (centered under the 3 cards)                       |
+|                                                                             |
++-----------------------------------------------------------------------------+
+| NAVY BAR (part of section 1, full width)                                    |
+| * * * ONE TICKET. ONE LIFE. FOREVER.  |  Thank you for helping us celebrate  |
+|                                        freedom and second chances. * *      |
++-----------------------------------------------------------------------------+
+
++-----------------------------------------------------------------------------+
+| SECTION 2 — donate_impact                                                  |
+| R2: static/pages/donate/donate_impact.html                                   |
+| bg: #F5F2E9                                                                |
++-----------------------------------------------------------------------------+
+|                                                                             |
+|  LEFT (text + cards)                    RIGHT (optional image)              |
+|                                                                             |
+|  YOUR IMPACT                    (eyebrow, purple/site token)                  |
+|  What your gift does            (heading, navy serif)                       |
+|                                                                             |
+|  Donations help Companions of CPAS support animals in need and keep          |
+|  rescue operations moving.                                                  |
+|                                                                             |
+|  +-------------+  +-------------+                                           |
+|  |    $25      |  |    $50      |     2x2 grid, left-aligned               |
+|  | vaccines /  |  | heartworm / |     (from D1 content blocks)             |
+|  | diagnostics |  | vet visit   |                                           |
+|  +-------------+  +-------------+                                           |
+|  +-------------+  +-------------+                                           |
+|  |   $100      |  |   $250      |                                           |
+|  | treatment / |  | full transport|                                         |
+|  | surgery prep|  | run           |                                         |
+|  +-------------+  +-------------+                                           |
+|                                                                             |
+|                          [ optional transport / rescue photo ]              |
+|                          (you provide R2 URL — or omit column)              |
+|                                                                             |
++-----------------------------------------------------------------------------+
+
++-----------------------------------------------------------------------------+
+| SECTION 3 — donate_close                                                   |
+| R2: static/pages/donate/donate_close.html                                   |
+| bg: #F5F2E9                                                                |
++-----------------------------------------------------------------------------+
+|                                                                             |
+|  LEFT                                     RIGHT (optional)                  |
+|                                                                             |
+|  Ready to help?                           [ optional: team / dogs photo ]   |
+|  (heading)                                or empty / stats placeholder      |
+|                                                                             |
+|  100% volunteer-run. Every dollar goes directly to the dogs.                |
+|                                                                             |
+|  +---------------------------+                                              |
+|  |  SPONSOR A TICKET    [tix] |  <- SAME CTA as section 1                   |
+|  +---------------------------+                                              |
+|                                                                             |
++-----------------------------------------------------------------------------+
+
++-----------------------------------------------------------------------------+
+| [GLOBAL FOOTER — existing from R2]                                          |
++-----------------------------------------------------------------------------+
+
+
+================================================================================
+MOBILE (≤ 640px) — same 3 sections, stacked
+================================================================================
+
+Section 1:
+  - Text block centered OR left-aligned (your call — recommend left)
+  - CTA full-width max 320px
+  - 3 VIP cards: horizontal scroll OR 1-col stack
+  - $175 line under cards
+  - Navy bar stacks: tagline / thank-you on two lines
+
+Section 2:
+  - Intro full width
+  - Cards 2-col then 1-col
+
+Section 3:
+  - Text + CTA stacked
+
+
+================================================================================
+D1 SECTION MAP (v2)
+================================================================================
+
+section_key       | section_type          | sort | visible | notes
+------------------|-----------------------|------|---------|---------------------------
+donate_campaign   | donate_campaign_split | 10   | 1       | replaces donate_hero
+donate_impact     | donate_impact_split   | 20   | 1       | replaces donate_tiers
+donate_close      | donate_close_split    | 30   | 1       | replaces donate_cta
+donate_intro      | fundraising           | —    | 0       | delete or leave hidden
+donate_hero       | campaign_transport... | —    | 0       | retire after v2 live
+
+
+================================================================================
+R2 ASSET PATHS (examples — you fill in before build)
+================================================================================
+
+Section fragments (generated on publish):
+  companionscpas/static/pages/donate/donate_campaign.html
+  companionscpas/static/pages/donate/donate_impact.html
+  companionscpas/static/pages/donate/donate_close.html
+
+Assembled page cache:
+  KV key: page:/donate
+  R2 artifact: static/pages/donate/index.html (publish output)
+
+Campaign / animal images (you upload):
+  companionscpas/media/campaign/freedom-fest-hero.webp     (optional section 2/3)
+  companionscpas/media/animals/{id}.webp                   (VIP card photos)
+  CDN: https://assets.companionsofcaddo.org/media/animals/...
+
+VIP dogs (D1 animal_profiles.campaign_id = camp_freedom_fest_2026):
+  - Swap Blue/Chopper/Joy for Sugar/Booger/Sunflower when assets ready
+  - Attached reference: white dog, pink collar (Joy/upclose or new upload)
+
+
+================================================================================
+STRIPE (unchanged)
+================================================================================
+
+All CTAs:
+  data-action="donate"
+  data-amount="175"
+  data-campaign-id="camp_freedom_fest_2026"
+
+Opens standard donate-modal.js:
+  - Support Our Mission header
+  - One-time / Monthly
+  - Tier grid + custom field pre-filled $175
+  - PaymentElement centered in modal overlay
+
+No new Stripe Price product (PaymentIntent amount_cents: 17500).
+
+
+================================================================================
+CSS HOME (not inline in fragments)
+================================================================================
+
+Add to shared.css (or donate-v2.css loaded once via page shell):
+  .donate-v2 { --cream: #F5F2E9; ... }
+  .donate-split { display: grid; grid-template-columns: 1fr 1fr; }
+  .donate-split__text { text-align: left; }
+  .donate-split__media { display: flex; justify-content: flex-end; }
+  .donate-glass-btn { /* mirror .nav-donate shape, red gradient */ }
+  .donate-vip-card { /* ticket frame, VIP badge bottom-right of photo */ }
+
+
+================================================================================
+WHAT I NEED FROM YOU BEFORE "build donate v2"
+================================================================================
+
+[ ] Confirm 3-section structure above (or say 2 sections: drop donate_close)
+[ ] VIP photos: keep D1 dogs or upload Sugar/Booger/Sunflower (+ R2 paths)
+[ ] Section 2 right image: URL or skip
+[ ] Section 3 right image: URL or skip
+[ ] Keep navy footer bar in section 1? (yes/no)
+[ ] Mobile VIP cards: scroll row vs stack
+
+================================================================================

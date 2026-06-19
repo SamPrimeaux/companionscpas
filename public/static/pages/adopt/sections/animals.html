@@ -193,10 +193,10 @@
 
   async function loadAnimals() {
     try {
-      const res = await fetch('/api/dashboard/animals');
+      const res = await fetch('/api/public/animals');
       if (!res.ok) throw new Error('non-ok');
       const data = await res.json();
-      allAnimals = (data.animals || []).filter(a => a.public_visible !== 0);
+      allAnimals = data.animals || [];
     } catch { allAnimals = []; }
     applyFilter(currentFilter);
   }

@@ -1,5 +1,13 @@
 import { renderSection } from "./render_section.js";
 import {
+  isDonateV2SectionType,
+  renderDonateV2Section,
+} from "./render_donate_v2.js";
+import {
+  isDynamicSectionType,
+  renderCampaignTransportHero,
+} from "./render_campaign_transport_hero.js";
+import {
   assembleFullPage,
   getBrand,
   getGlobalPartial,
@@ -62,11 +70,21 @@ export async function assembleGenericPageFromFragments(env, route, opts = {}) {
     const sectionKeyRaw = String(section?.section_key || "").trim();
     const sectionKey = sanitizePathSegment(sectionKeyRaw, "section");
     const r2Key = `${pageAssetBase}/${sectionKey}.html`;
-    let html = await r2Text(env, r2Key);
+    const sectionBlocks = blocksBySection.get(sectionKeyRaw) || [];
+    const sectionType = String(section?.section_type || "").toLowerCase();
+    let html = "";
 
-    if (!html.trim()) {
-      const sectionBlocks = blocksBySection.get(sectionKeyRaw) || [];
-      html = String(renderSection(section, sectionBlocks, brand, env) || "");
+    if (isDonateV2SectionType(sectionType)) {
+      html = String(await renderDonateV2Section(section, sectionBlocks, brand, env) || "");
+    } else if (isDynamicSectionType(sectionType)) {
+      if (sectionType === "campaign_transport_hero") {
+        html = String(await renderCampaignTransportHero(section, sectionBlocks, brand, env) || "");
+      }
+    } else {
+      html = await r2Text(env, r2Key);
+      if (!html.trim()) {
+        html = String(renderSection(section, sectionBlocks, brand, env) || "");
+      }
     }
 
     if (includeHidden && Number(section.is_visible) === 0) {

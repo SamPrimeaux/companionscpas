@@ -7,6 +7,8 @@ import { agentsamToolsRoutes } from './api/agentsam_tools.js';
 import { cmsRoutes } from './api/cms_api.js';
 import { passwordResetRoutes } from './api/password_reset.js';
 import { dashboardApiRoutes } from './api/dashboard_api.js';
+import { membersApiRoutes } from './api/members_api.js';
+import { publicApiRoutes } from './api/public_api.js';
 import { contactApiRoutes } from './api/contact_api.js';
 import { donationApiRoutes } from './api/donation_api.js';
 import { paymentsEmailRoutes } from './api/payments_email.js';
@@ -17,7 +19,8 @@ import { assembleHomeFromFragments } from "./api/render_home_fragments.js";
 import { assembleAboutFromFragments } from "./api/render_about_fragments.js";
 import { assembleGenericPageFromFragments } from "./api/render_generic_fragments.js";
 import { isFragmentPageRoute } from "./api/page_cms_registry.js";
-import { handleFosterApply, handleFosterList, handleFosterUpdate } from './api/foster_api.js';
+import { emailApiRoutes } from './api/email_api.js';
+import { gmailRoutes } from './api/gmail_api.js';
 
 
 function json(data, status = 200) {
@@ -192,6 +195,15 @@ export default {
         return json({ ok: true, service: "companionscpas", rev: "p0-20260613" });
       }
 
+      const emailResult = await emailApiRoutes(request, env, url);
+      if (emailResult) return emailResult;
+
+      const gmailResult = await gmailRoutes(request, env, url);
+      if (gmailResult) return gmailResult;
+
+      const publicResult = await publicApiRoutes(request, env, url);
+      if (publicResult) return publicResult;
+
       const cmsResult = await cmsRoutes(request, env, url);
       if (cmsResult) return cmsResult;
 
@@ -202,6 +214,7 @@ export default {
         authRoutes,
         sessionRoutes,
         passwordResetRoutes,
+        membersApiRoutes,
         dashboardApiRoutes,
         contactApiRoutes,
         donationApiRoutes,

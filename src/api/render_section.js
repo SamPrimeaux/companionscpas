@@ -275,7 +275,7 @@ function renderTextImage(section) {
       </div>`;
 
   return `
-<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#ede8df}</style>
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}</style>
 <section class="section s-light" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container">
     <div class="story-block">
@@ -363,7 +363,7 @@ function renderFeatureCards(section, blocks) {
   const includeBody = !hasSubheading;
 
   return `
-<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#ede8df}</style>
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}</style>
 <section class="section s-light" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container">
     <div class="section-intro-center">
@@ -464,7 +464,7 @@ function renderCtaBanner(section) {
   const intro = subheading || body;
 
   return `
-<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#ede8df}</style>
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}</style>
 <section class="section s-light"${idAttr} data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container section-intro-center">
     ${pickText(section, ["eyebrow"]) ? `<div class="ey-purple">${escapeHtml(pickText(section, ["eyebrow"]))}</div>` : ""}
@@ -503,7 +503,7 @@ function renderFacebookFeed(section) {
   const embedUrl = pickText(config, ["embed_url"]) || pickText(config, ["iframe_src"]) || "";
 
   return `
-<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#ede8df}</style>
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}</style>
 <section class="section s-light" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container section-intro-center">
     ${pickText(section, ["eyebrow"]) ? `<div class="ey-purple">${escapeHtml(pickText(section, ["eyebrow"]))}</div>` : ""}
@@ -717,7 +717,7 @@ function renderFosterGrid(section, blocks) {
   );
 
   return `
-<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#ede8df}</style>
+<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}</style>
 <section class="section s-light" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container">
     <div class="foster-header">
@@ -778,6 +778,10 @@ const SECTION_RENDERERS = {
   animal_grid: renderAnimalGrid,
   campaign_grid: renderCampaignGridV2,
   card_grid_foster: renderFosterGrid,
+  campaign_transport_hero: () => "<!-- campaign_transport_hero: rendered dynamically at assembly -->",
+  donate_freedom_hero: () => "<!-- donate_freedom_hero: rendered dynamically at assembly -->",
+  donate_medical_story: () => "<!-- donate_medical_story: rendered dynamically at assembly -->",
+  donate_stories_help: () => "<!-- donate_stories_help: rendered dynamically at assembly -->",
 };
 
 export function escapeHtml(value) {

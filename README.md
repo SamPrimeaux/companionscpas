@@ -57,7 +57,7 @@ For every public route:
 | `/about` | `about_cms_sync.js` | Custom per-section (`render_about_section.js`) | `static/pages/about/` | [`docs/about-readme.md`](docs/about-readme.md) |
 | `/services` | `generic_page_cms_sync.js` | Shared `render_section.js` | `static/pages/services/` | [`docs/services-page-spec.md`](docs/services-page-spec.md) |
 | `/adopt` | `generic_page_cms_sync.js` | Shared `render_section.js` | `static/pages/adopt/` | — |
-| `/donate` | `generic_page_cms_sync.js` | Shared `render_section.js` | `static/pages/donate/` | — |
+| `/donate` | `generic_page_cms_sync.js` | Shared `render_section.js` + `render_campaign_transport_hero.js` | `static/pages/donate/` | [`docs/donate-readme.md`](docs/donate-readme.md) |
 | `/community` | `generic_page_cms_sync.js` | Shared `render_section.js` | `static/pages/community/` | — |
 
 **Custom routes** (`/`, `/about`) have dedicated renderers tuned to the design system (`hero-split`, `story-block`, `ways-grid`, etc.).

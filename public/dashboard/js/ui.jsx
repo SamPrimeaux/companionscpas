@@ -64,6 +64,7 @@ const NAV_STRUCTURE = [
     }
   ]},
   { group: "Admin", items: [
+    { key: "email", label: "Email", icon: "mail", path: "/dashboard/email" },
     { key: "reports",  label: "Reports",  icon: "chart", path: "/dashboard/reports" },
     { key: "settings", label: "Settings", icon: "gear",  path: "/dashboard/settings" },
   ]},
@@ -118,6 +119,8 @@ const ICONS = {
   tag:      `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h6l8 8a2 2 0 0 1 0 2.83l-4.17 4.17a2 2 0 0 1-2.83 0L2 9V3z"/><circle cx="7" cy="7" r="1"/></svg>`,
   link:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11a4 4 0 0 0 5.66.01l2-2a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M12 9a4 4 0 0 0-5.66 0l-2 2a4 4 0 0 0 5.66 5.66l1-1"/></svg>`,
   layers:   `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2l8 4-8 4-8-4 8-4z"/><path d="M2 10l8 4 8-4"/><path d="M2 14l8 4 8-4"/></svg>`,
+  star:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 14.8 5.8 16.5l.8-4.7-3.4-3.3 4.7-.7L10 3.5z"/></svg>`,
+  refresh:  `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a6 6 0 0 1 10.2-4.2L16 4"/><path d="M16 4v4h-4"/><path d="M16 10a6 6 0 0 1-10.2 4.2L4 16"/><path d="M4 16v-4h4"/></svg>`,
 };
 
 function Icon({ name, size = 16, style: extra = {} }) {

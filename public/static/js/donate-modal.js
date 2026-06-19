@@ -29,84 +29,85 @@
   ];
 
   const APPEARANCE = {
-    theme: 'night',
+    theme: 'stripe',
     variables: {
-      colorPrimary: '#7c3aed', colorBackground: '#0d1120',
-      colorText: '#f4efe8', colorTextSecondary: '#9ca3af',
-      colorTextPlaceholder: '#4b5563', colorDanger: '#f87171',
-      fontFamily: "'DM Sans', system-ui, sans-serif", borderRadius: '8px', spacingUnit: '4px',
+      colorPrimary: '#7c3aed', colorBackground: '#faf7f3',
+      colorText: '#1a1622', colorTextSecondary: '#4b5563',
+      colorTextPlaceholder: '#9ca3af', colorDanger: '#dc2626',
+      fontFamily: "'DM Sans', system-ui, sans-serif", borderRadius: '8px', spacingUnit: '3px',
     },
     rules: {
-      '.Input': { border: '1.5px solid rgba(255,255,255,0.1)', boxShadow: 'none', padding: '10px 12px', fontSize: '14px' },
-      '.Input:focus': { border: '1.5px solid #7c3aed', boxShadow: '0 0 0 3px rgba(124,58,237,0.18)' },
-      '.Label': { fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280', marginBottom: '6px' },
-      '.Tab': { border: '1.5px solid rgba(255,255,255,0.09)', background: 'rgba(255,255,255,0.04)' },
-      '.Tab--selected': { border: '1.5px solid #7c3aed', background: 'rgba(124,58,237,0.14)' },
+      '.Input': { border: '1.5px solid rgba(15,31,61,0.12)', boxShadow: 'none', padding: '9px 11px', fontSize: '14px', backgroundColor: '#fff' },
+      '.Input:focus': { border: '1.5px solid #7c3aed', boxShadow: '0 0 0 3px rgba(124,58,237,0.14)' },
+      '.Label': { fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280', marginBottom: '5px' },
+      '.Tab': { border: '1.5px solid rgba(15,31,61,0.1)', background: '#fff' },
+      '.Tab--selected': { border: '1.5px solid #7c3aed', background: 'rgba(124,58,237,0.06)' },
     },
   };
 
   const CSS = `
     @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,400&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-    #dm-overlay{position:fixed;inset:0;z-index:9999;background:rgba(4,6,15,0.86);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:16px;animation:dm-fade 180ms ease}
+    #dm-overlay{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,0.42);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:14px;animation:dm-fade 180ms ease}
     @keyframes dm-fade{from{opacity:0}to{opacity:1}}
-    #dm-modal{width:min(100%,460px);max-height:92vh;overflow-y:auto;background:#090d18;border:1px solid rgba(255,255,255,0.09);border-radius:20px;box-shadow:0 40px 100px rgba(0,0,0,0.65),0 0 0 1px rgba(124,58,237,0.14);color:#f4efe8;font-family:'DM Sans',system-ui,sans-serif;scrollbar-width:none;animation:dm-up 260ms cubic-bezier(.16,1,.3,1)}
+    #dm-modal{width:min(100%,392px);max-height:88vh;overflow-y:auto;background:#F5F2E9;border:1px solid rgba(15,31,61,0.1);border-radius:16px;box-shadow:0 24px 64px rgba(15,23,42,0.18),0 0 0 1px rgba(124,58,237,0.08);color:#1a1622;font-family:'DM Sans',system-ui,sans-serif;scrollbar-width:none;animation:dm-up 260ms cubic-bezier(.16,1,.3,1)}
     #dm-modal::-webkit-scrollbar{display:none}
     #dm-modal *{box-sizing:border-box}
-    @keyframes dm-up{from{transform:translateY(18px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
-    .dm-header{position:relative;padding:28px 28px 0}
-    .dm-close{position:absolute;top:18px;right:18px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.1);border-radius:999px;background:rgba(255,255,255,0.06);color:#9ca3af;cursor:pointer;font-size:16px;line-height:1;transition:background 150ms,color 150ms}
-    .dm-close:hover{background:rgba(255,255,255,0.12);color:#f4efe8}
-    .dm-eyebrow{margin-bottom:7px;color:#a78bfa;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
-    .dm-title{margin:0;font-family:'Fraunces',Georgia,serif;font-size:1.68rem;font-weight:700;letter-spacing:-.025em;line-height:1.08;color:#f4efe8}
-    .dm-sub{margin:8px 0 0;color:#a9afbd;font-size:.88rem;line-height:1.5}
-    .dm-body{padding:20px 28px 0}
-    .dm-label{margin:0 0 9px;color:#727989;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;display:block}
-    .dm-freq{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:18px;padding:4px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;background:rgba(255,255,255,0.035)}
-    .dm-freq button{min-height:40px;border:1px solid transparent;border-radius:9px;background:transparent;color:#a9afbd;cursor:pointer;font-family:inherit;font-size:.86rem;font-weight:700;transition:all 150ms}
-    .dm-freq button.active{border-color:rgba(124,58,237,0.7);background:rgba(124,58,237,0.18);color:#ddd6fe}
-    .dm-tiers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
-    .dm-tier{background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.08);border-radius:11px;padding:14px;cursor:pointer;transition:all .14s;text-align:left;font-family:inherit}
-    .dm-tier:hover{border-color:rgba(124,58,237,.4);background:rgba(124,58,237,.06)}
-    .dm-tier.active{border-color:#7c3aed;background:rgba(124,58,237,.14);box-shadow:0 0 0 1px rgba(124,58,237,.25)}
-    .dm-tier-amt{font-family:'Fraunces',Georgia,serif;font-size:1.2rem;font-weight:700;color:#f4efe8;display:block;margin-bottom:2px}
-    .dm-tier.active .dm-tier-amt{color:#c4b5fd}
-    .dm-tier-lbl{font-size:.74rem;color:#6b7280;font-weight:500}
-    .dm-custom-wrap{position:relative;margin-bottom:18px}
-    .dm-dollar{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#7c8598;font-weight:800;pointer-events:none;font-size:.9rem}
-    .dm-custom{width:100%;min-height:42px;padding:10px 12px 10px 28px;border:1.5px solid rgba(255,255,255,0.09);border-radius:10px;outline:none;appearance:textfield;background:rgba(255,255,255,0.045);color:#f4efe8;font-family:inherit;font-size:.9rem;font-weight:700;transition:border-color 150ms,box-shadow 150ms}
+    @keyframes dm-up{from{transform:translateY(14px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+    .dm-header{position:relative;padding:20px 22px 0}
+    .dm-close{position:absolute;top:14px;right:14px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(15,31,61,0.12);border-radius:999px;background:#fff;color:#6b7280;cursor:pointer;font-size:15px;line-height:1;transition:background 150ms,color 150ms}
+    .dm-close:hover{background:#faf7f3;color:#1a1622}
+    .dm-eyebrow{margin-bottom:5px;color:#7c3aed;font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    .dm-title{margin:0;font-family:'Fraunces',Georgia,serif;font-size:1.42rem;font-weight:700;letter-spacing:-.025em;line-height:1.1;color:#0f1f3d}
+    .dm-sub{margin:6px 0 0;color:#4b5563;font-size:.82rem;line-height:1.45}
+    .dm-body{padding:14px 22px 0}
+    .dm-section{margin-bottom:16px;padding:14px;border:1px solid rgba(15,31,61,0.08);border-radius:12px;background:#faf7f3}
+    .dm-label{margin:0 0 8px;color:#4b5563;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;display:block}
+    .dm-freq{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:3px;border:1px solid rgba(15,31,61,0.1);border-radius:10px;background:#fff}
+    .dm-freq button{min-height:36px;border:1px solid transparent;border-radius:8px;background:transparent;color:#6b7280;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;transition:all 150ms}
+    .dm-freq button.active{border-color:rgba(124,58,237,0.55);background:rgba(124,58,237,0.1);color:#5b21b6}
+    .dm-tiers{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+    .dm-tier{background:#fff;border:1.5px solid rgba(15,31,61,0.1);border-radius:10px;padding:11px 12px;cursor:pointer;transition:all .14s;text-align:left;font-family:inherit}
+    .dm-tier:hover{border-color:rgba(124,58,237,.35);background:rgba(124,58,237,.04)}
+    .dm-tier.active{border-color:#7c3aed;background:rgba(124,58,237,.08);box-shadow:0 0 0 1px rgba(124,58,237,.18)}
+    .dm-tier-amt{font-family:'Fraunces',Georgia,serif;font-size:1.05rem;font-weight:700;color:#0f1f3d;display:block;margin-bottom:1px}
+    .dm-tier.active .dm-tier-amt{color:#5b21b6}
+    .dm-tier-lbl{font-size:.7rem;color:#6b7280;font-weight:500}
+    .dm-custom-wrap{position:relative}
+    .dm-dollar{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#6b7280;font-weight:800;pointer-events:none;font-size:.85rem}
+    .dm-custom{width:100%;min-height:38px;padding:9px 11px 9px 26px;border:1.5px solid rgba(15,31,61,0.12);border-radius:9px;outline:none;appearance:textfield;background:#fff;color:#1a1622;font-family:inherit;font-size:.88rem;font-weight:700;transition:border-color 150ms,box-shadow 150ms}
     .dm-custom::-webkit-inner-spin-button{-webkit-appearance:none}
-    .dm-custom::placeholder{color:#4b5563}
-    .dm-custom:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.18)}
-    .dm-divider{height:1px;background:rgba(255,255,255,0.07);margin:4px 0 20px}
-    .dm-contact{margin-bottom:16px}
-    .dm-email{width:100%;min-height:42px;padding:10px 12px;border:1.5px solid rgba(255,255,255,0.09);border-radius:10px;outline:none;background:rgba(255,255,255,0.045);color:#f4efe8;font-family:inherit;font-size:.88rem;font-weight:500;transition:border-color 150ms,box-shadow 150ms;margin-bottom:10px}
-    .dm-email::placeholder{color:#4b5563}
-    .dm-email:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.18)}
-    .dm-nl-row{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid rgba(255,255,255,0.07);border-radius:10px;background:rgba(255,255,255,0.03);cursor:pointer}
-    .dm-nl-row input[type=checkbox]{width:16px;height:16px;flex-shrink:0;margin-top:1px;accent-color:#7c3aed;cursor:pointer}
-    .dm-nl-lbl{font-size:.8rem;color:#9ca3af;line-height:1.45;cursor:pointer}
-    .dm-nl-lbl strong{color:#d1d5db;font-weight:600;display:block;margin-bottom:1px}
-    .dm-stripe-wrap{margin-bottom:18px}
-    .dm-skeleton{height:130px;border-radius:10px;background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.04) 75%);background-size:200% 100%;animation:dm-shimmer 1.4s infinite}
+    .dm-custom::placeholder{color:#9ca3af}
+    .dm-custom:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.14)}
+    .dm-contact{display:flex;flex-direction:column;gap:8px}
+    .dm-email{width:100%;min-height:38px;padding:9px 11px;border:1.5px solid rgba(15,31,61,0.12);border-radius:9px;outline:none;background:#fff;color:#1a1622;font-family:inherit;font-size:.84rem;font-weight:500;transition:border-color 150ms,box-shadow 150ms}
+    .dm-email::placeholder{color:#9ca3af}
+    .dm-email:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.14)}
+    .dm-nl-row{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;border:1px solid rgba(15,31,61,0.08);border-radius:9px;background:#fff;cursor:pointer}
+    .dm-nl-row input[type=checkbox]{width:15px;height:15px;flex-shrink:0;margin-top:1px;accent-color:#7c3aed;cursor:pointer}
+    .dm-nl-lbl{font-size:.76rem;color:#4b5563;line-height:1.4;cursor:pointer}
+    .dm-nl-lbl strong{color:#1a1622;font-weight:600;display:block;margin-bottom:1px;font-size:.78rem}
+    .dm-stripe-wrap{margin:0}
+    .dm-skeleton{height:112px;border-radius:9px;background:linear-gradient(90deg,rgba(15,31,61,.04) 25%,rgba(15,31,61,.08) 50%,rgba(15,31,61,.04) 75%);background-size:200% 100%;animation:dm-shimmer 1.4s infinite}
     @keyframes dm-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-    .dm-footer{padding:0 28px 26px}
-    .dm-submit{width:100%;min-height:48px;border:0;border-radius:12px;background:linear-gradient(135deg,#6d28d9,#7c3aed);color:#fff;cursor:pointer;font-family:inherit;font-size:.95rem;font-weight:900;letter-spacing:-.01em;transition:opacity 150ms,transform 120ms;position:relative;overflow:hidden}
+    .dm-footer{padding:0 22px 20px}
+    .dm-submit{width:100%;min-height:44px;border:0;border-radius:10px;background:linear-gradient(135deg,#6d28d9,#7c3aed);color:#fff;cursor:pointer;font-family:inherit;font-size:.9rem;font-weight:900;letter-spacing:-.01em;transition:opacity 150ms,transform 120ms;position:relative;overflow:hidden}
     .dm-submit:hover:not(:disabled){opacity:.9;transform:translateY(-1px)}
     .dm-submit:disabled{opacity:.5;cursor:not-allowed;transform:none}
     .dm-submit.loading::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);animation:dm-shine 1.1s infinite}
     @keyframes dm-shine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
-    .dm-error{display:none;margin-top:11px;padding:10px 12px;border:1px solid rgba(248,113,113,.25);border-radius:10px;background:rgba(248,113,113,.09);color:#fca5a5;font-size:.82rem;line-height:1.4}
-    .dm-secure{margin-top:11px;color:#4b5563;text-align:center;font-size:.72rem;line-height:1.4}
-    .dm-success{display:none;text-align:center;padding:48px 28px}
-    .dm-success-icon{width:56px;height:56px;border-radius:50%;margin:0 auto 18px;background:rgba(124,58,237,.15);border:1.5px solid rgba(124,58,237,.35);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#a78bfa}
-    .dm-success h3{font-family:'Fraunces',Georgia,serif;font-size:1.3rem;color:#f4efe8;margin:0 0 8px}
-    .dm-success p{font-size:.86rem;color:#9ca3af;margin:0;line-height:1.5}
-    .dm-test-banner{display:none;margin:12px 0 0;padding:9px 12px;border:1px solid rgba(251,191,36,.35);border-radius:10px;background:rgba(251,191,36,.1);color:#fcd34d;font-size:.78rem;line-height:1.45;text-align:center}
+    .dm-error{display:none;margin-top:9px;padding:9px 11px;border:1px solid rgba(220,38,38,.2);border-radius:9px;background:rgba(220,38,38,.06);color:#b91c1c;font-size:.78rem;line-height:1.4}
+    .dm-secure{margin-top:9px;color:#6b7280;text-align:center;font-size:.68rem;line-height:1.4}
+    .dm-success{display:none;text-align:center;padding:40px 22px}
+    .dm-success-icon{width:50px;height:50px;border-radius:50%;margin:0 auto 14px;background:rgba(124,58,237,.1);border:1.5px solid rgba(124,58,237,.25);display:flex;align-items:center;justify-content:center;font-size:1.3rem;color:#7c3aed}
+    .dm-success h3{font-family:'Fraunces',Georgia,serif;font-size:1.2rem;color:#0f1f3d;margin:0 0 7px}
+    .dm-success p{font-size:.82rem;color:#4b5563;margin:0;line-height:1.5}
+    .dm-test-banner{display:none;margin:10px 0 0;padding:8px 10px;border:1px solid rgba(217,119,6,.3);border-radius:9px;background:rgba(251,191,36,.12);color:#92400e;font-size:.74rem;line-height:1.4;text-align:center}
     .dm-test-banner.is-visible{display:block}
-    @media(max-width:460px){#dm-overlay{align-items:flex-end;padding:8px}#dm-modal{border-radius:18px 18px 0 0;max-height:96vh}.dm-header{padding:22px 20px 0}.dm-body{padding:18px 20px 0}.dm-footer{padding:0 20px 24px}.dm-tiers{grid-template-columns:1fr 1fr}}
+    @media(max-width:460px){#dm-overlay{align-items:flex-end;padding:8px}#dm-modal{border-radius:14px 14px 0 0;max-height:94vh}.dm-header{padding:18px 18px 0}.dm-body{padding:12px 18px 0}.dm-footer{padding:0 18px 18px}.dm-tiers{grid-template-columns:1fr 1fr}}
   `;
 
-  let tiers = [], selectedAmount = 25, frequency = 'one_time';
+  let tiers = [], selectedAmount = 1, frequency = 'one_time';
+  let presetCampaignId = null, presetAmount = null;
   let stripeInst = null, elements = null, isSubmitting = false;
   let stripePk = null, stripeTestMode = false, configPromise = null;
 
@@ -151,11 +152,16 @@
   }
 
   function buildHTML() {
-    const tierBtns = tiers.map((t, i) => `
-      <button type="button" class="dm-tier${i===0?' active':''}" data-idx="${i}" data-amount="${t.amount_cents/100}">
-        <span class="dm-tier-amt">${money(t.amount_cents/100)}</span>
+    const customDefault = presetAmount ? String(presetAmount) : '1';
+    const tierBtns = tiers.map((t, i) => {
+      const amt = t.amount_cents / 100;
+      const active = presetAmount && presetAmount === amt;
+      return `
+      <button type="button" class="dm-tier${active ? ' active' : ''}" data-idx="${i}" data-amount="${amt}">
+        <span class="dm-tier-amt">${money(amt)}</span>
         <span class="dm-tier-lbl">${t.label}</span>
-      </button>`).join('');
+      </button>`;
+    }).join('');
 
     return `
       <div class="dm-header">
@@ -166,31 +172,41 @@
         <div class="dm-test-banner${stripeTestMode ? ' is-visible' : ''}" id="dm-test-banner">Stripe test mode — use card <strong>4242 4242 4242 4242</strong>, any future expiry &amp; CVC. No real charges.</div>
       </div>
       <div class="dm-body">
-        <span class="dm-label">Gift frequency</span>
-        <div class="dm-freq">
-          <button type="button" class="active" data-freq="one_time">One-time</button>
-          <button type="button" data-freq="monthly">Monthly</button>
+        <div class="dm-section">
+          <span class="dm-label">Choose an amount</span>
+          <div class="dm-tiers">${tierBtns}</div>
+          <div class="dm-custom-wrap">
+            <span class="dm-dollar">$</span>
+            <input id="dm-custom" class="dm-custom" type="number" min="1" max="50000" step="0.01" inputmode="decimal" placeholder="Custom amount" autocomplete="off" value="${customDefault}" />
+          </div>
         </div>
-        <span class="dm-label">Choose an amount</span>
-        <div class="dm-tiers">${tierBtns}</div>
-        <div class="dm-custom-wrap">
-          <span class="dm-dollar">$</span>
-          <input id="dm-custom" class="dm-custom" type="number" min="1" max="50000" step="1" inputmode="decimal" placeholder="Custom amount" autocomplete="off" />
+        <div class="dm-section">
+          <span class="dm-label">Payment details</span>
+          <div class="dm-stripe-wrap">
+            <div id="dm-skeleton" class="dm-skeleton"></div>
+            <div id="dm-mount" style="display:none"></div>
+          </div>
         </div>
-        <div class="dm-divider"></div>
-        <div class="dm-contact">
-          <span class="dm-label">Receipt &amp; updates <span style="color:#4b5563;font-weight:500;text-transform:none;letter-spacing:0">— optional</span></span>
-          <input id="dm-email" class="dm-email" type="email" placeholder="Email address" autocomplete="email" />
-          <label class="dm-nl-row" for="dm-newsletter">
-            <input type="checkbox" id="dm-newsletter" />
-            <span class="dm-nl-lbl"><strong>Subscribe to updates</strong>Occasional news on animals helped. No spam.</span>
-          </label>
+        <div class="dm-section">
+          <span class="dm-label">Gift frequency</span>
+          <div class="dm-freq">
+            <button type="button" class="active" data-freq="one_time">One-time</button>
+            <button type="button" data-freq="monthly">Monthly</button>
+          </div>
         </div>
-        <div class="dm-divider"></div>
-        <span class="dm-label">Payment details</span>
-        <div class="dm-stripe-wrap">
-          <div id="dm-skeleton" class="dm-skeleton"></div>
-          <div id="dm-mount" style="display:none"></div>
+        <div class="dm-section">
+          <span class="dm-label">Receipt &amp; updates <span style="color:#9ca3af;font-weight:500;text-transform:none;letter-spacing:0">— optional</span></span>
+          <div class="dm-contact">
+            <input id="dm-email" class="dm-email" type="email" placeholder="Email address" autocomplete="email" />
+            <label class="dm-nl-row" for="dm-newsletter">
+              <input type="checkbox" id="dm-newsletter" />
+              <span class="dm-nl-lbl"><strong>Subscribe to updates</strong>Occasional news on animals helped. No spam.</span>
+            </label>
+            <label class="dm-nl-row" for="dm-save-info">
+              <input type="checkbox" id="dm-save-info" />
+              <span class="dm-nl-lbl"><strong>Save my information</strong>Faster checkout next time you donate.</span>
+            </label>
+          </div>
         </div>
       </div>
       <div class="dm-footer">
@@ -211,9 +227,11 @@
       const Stripe = await loadStripe();
       if (!stripeInst) stripeInst = Stripe(stripePk);
       const isMonthly = frequency === 'monthly';
+      const payload = { mode: isMonthly ? 'setup' : 'payment', amount_cents: Math.round(getAmount() * 100), currency: 'usd' };
+      if (presetCampaignId) payload.campaign_id = presetCampaignId;
       const res = await fetch(ENDPOINT_INTENT, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: isMonthly ? 'setup' : 'payment', amount_cents: Math.round(getAmount() * 100), currency: 'usd' }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!data.client_secret) throw new Error(data.error || 'Could not initialize payment.');
@@ -245,17 +263,30 @@
     if (btn) { btn.disabled = true; btn.classList.add('loading'); btn.textContent = 'Processing...'; }
     const email = (document.getElementById('dm-email')?.value || '').trim() || null;
     const nlOptIn = document.getElementById('dm-newsletter')?.checked || false;
+    const saveInfo = document.getElementById('dm-save-info')?.checked || false;
     const isMonthly = frequency === 'monthly';
     const tier = getActiveTier();
     const amountCents = Math.round(amt * 100);
     try {
       if (!isMonthly) {
-        const { error } = await stripeInst.confirmPayment({
+        const { error, paymentIntent } = await stripeInst.confirmPayment({
           elements, redirect: 'if_required',
           confirmParams: { return_url: `${location.origin}/donate?success=1`, payment_method_data: { billing_details: { email: email || undefined } } },
         });
         if (error) throw new Error(error.message);
-        if (email) fetch(ENDPOINT_AFTER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ donor_email: email, nl_opt_in: nlOptIn, amount_cents: amountCents }) }).catch(() => {});
+        if (email || paymentIntent?.id) {
+          fetch(ENDPOINT_AFTER, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              donor_email: email,
+              nl_opt_in: nlOptIn,
+              save_my_info: saveInfo,
+              amount_cents: amountCents,
+              payment_intent_id: paymentIntent?.id || null,
+            }),
+          }).catch(() => {});
+        }
         showSuccess(email, false);
       } else {
         const { error, setupIntent } = await stripeInst.confirmSetup({
@@ -265,7 +296,7 @@
         if (error) throw new Error(error.message);
         const subRes = await fetch(ENDPOINT_SUB, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payment_method_id: setupIntent.payment_method, price_id: tier?.stripe_price_id_monthly || null, amount_cents: tier ? null : amountCents, donor_email: email, nl_opt_in: nlOptIn }),
+          body: JSON.stringify({ payment_method_id: setupIntent.payment_method, price_id: tier?.stripe_price_id_monthly || null, amount_cents: tier ? null : amountCents, donor_email: email, nl_opt_in: nlOptIn, save_my_info: saveInfo }),
         });
         const subData = await subRes.json();
         if (!subData.success) throw new Error(subData.error || 'Subscription could not be created.');
@@ -307,8 +338,16 @@
   function open(event) {
     if (event && typeof event.preventDefault === 'function') event.preventDefault();
     if (document.getElementById('dm-overlay')) return;
+    const trigger = event?.currentTarget?.closest?.('[data-action="donate"],[data-donate]')
+      || event?.target?.closest?.('[data-action="donate"],[data-donate]');
+    presetCampaignId = trigger?.dataset?.campaignId || null;
+    const presetAmt = Number(trigger?.dataset?.amount || 0);
+    const presetCents = Number(trigger?.dataset?.amountCents || 0);
+    presetAmount = presetAmt > 0 ? presetAmt : (presetCents > 0 ? presetCents / 100 : null);
     injectStyles();
-    selectedAmount = 25; frequency = 'one_time'; elements = null; isSubmitting = false;
+    selectedAmount = presetAmount || 1;
+    frequency = 'one_time';
+    elements = null; isSubmitting = false;
     stripeInst = null; configPromise = null;
     const tiersPromise = fetchTiers();
     const configLoad = fetchStripeConfig().catch(() => null);
@@ -322,7 +361,7 @@
     document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } }, { once: true });
     tiersPromise.then(async (loaded) => {
       await configLoad;
-      tiers = loaded; if (tiers.length) selectedAmount = tiers[0].amount_cents / 100;
+      tiers = loaded;
       if (!document.getElementById('dm-overlay')) return;
       modal.innerHTML = buildHTML(); bindEvents(); initElements();
     });
@@ -331,6 +370,7 @@
   function close() {
     const el = document.getElementById('dm-overlay'); if (el) el.remove();
     elements = null; isSubmitting = false;
+    presetCampaignId = null; presetAmount = null;
   }
 
   function bindEvents() {
@@ -354,6 +394,18 @@
       document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
       selectedAmount = Number(this.value) || 0; updateLabel();
     });
+    const customInput = document.getElementById('dm-custom');
+    if (presetAmount) {
+      document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
+      const match = document.querySelector(`.dm-tier[data-amount="${presetAmount}"]`);
+      if (match) match.classList.add('active');
+      selectedAmount = presetAmount;
+      updateLabel();
+    } else if (customInput) {
+      selectedAmount = Number(customInput.value) || 1;
+      updateLabel();
+      requestAnimationFrame(() => { customInput.focus(); customInput.select(); });
+    }
     document.getElementById('dm-submit').addEventListener('click', submit);
   }
 

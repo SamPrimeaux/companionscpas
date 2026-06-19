@@ -4,6 +4,8 @@
 // Foster apps tenant: 'companions_cpas'  (legacy mismatch, kept as-is)
 // Org: org_companionscpas
 
+import { getAuthUser } from "./session_api.js";
+
 const TENANT = 'tenant_companionscpas';
 const FOSTER_TENANT = 'companions_cpas';
 const ORG = 'org_companionscpas';
@@ -81,6 +83,9 @@ export async function dashboardApiRoutes(request, env, url) {
 
   // ─── GET /api/dashboard/animals ──────────────────────────────────────────
   if (path === '/api/dashboard/animals' && method === 'GET') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ error: 'Not authenticated' }, 401);
+
     const rows = await env.DB.prepare(`
       SELECT ap.*, ca.cdn_url AS asset_cdn_url, ca.public_url AS asset_public_url, ca.alt_text AS asset_alt_text
       FROM animal_profiles ap

@@ -1,4 +1,12 @@
 import { renderSection } from "./render_section.js";
+import {
+  isDonateV2SectionType,
+  renderDonateV2Section,
+} from "./render_donate_v2.js";
+import {
+  isDynamicSectionType,
+  renderCampaignTransportHero,
+} from "./render_campaign_transport_hero.js";
 import { getBrand, getPageAssetBase, sanitizePathSegment } from "./render_page.js";
 import {
   assembleGenericPageFromFragments,
@@ -54,7 +62,15 @@ export function createGenericPageModule(route) {
     const sectionKeyRaw = String(section?.section_key || "").trim();
     if (!sectionKeyRaw) return { skipped: true };
     const sectionKey = sanitizePathSegment(sectionKeyRaw, "section");
-    let html = String(renderSection(section, blocks, brand, env) || "");
+    const sectionType = String(section?.section_type || "").toLowerCase();
+    let html = "";
+    if (isDonateV2SectionType(sectionType)) {
+      html = String(await renderDonateV2Section(section, blocks, brand, env) || "");
+    } else if (isDynamicSectionType(sectionType) && sectionType === "campaign_transport_hero") {
+      html = String(await renderCampaignTransportHero(section, blocks, brand, env) || "");
+    } else {
+      html = String(renderSection(section, blocks, brand, env) || "");
+    }
     if (Number(section.is_visible) === 0) {
       html = "<!-- cms: section hidden -->";
     }

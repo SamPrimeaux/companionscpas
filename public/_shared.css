@@ -483,6 +483,13 @@ body { padding-top: var(--header-h); }
 }
 .ways-card-link:hover { opacity: 0.78; transform: translateX(2px); }
 
+/* ── Adopt page card images: show full photo, no crop ─────────── */
+[data-cpas-section="adoptable_dogs"] .ways-card img {
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: #ede8df;
+}
+
 /* ── FOSTER GRID (services dog cards) ─────────────────────────── */
 .foster-header {
   display: flex;
@@ -1045,4 +1052,325 @@ body.menu-open::before {
   opacity: 0.55;
   outline: 2px dashed rgba(124, 58, 237, 0.45);
   outline-offset: -2px;
+}
+
+/* ── DONATE V2 (/donate) ─────────────────────────────────────── */
+body[data-route="/donate"] {
+  background: #F5F2E9;
+  color: #1a1622;
+}
+body[data-route="/donate"] main {
+  background: #F5F2E9;
+}
+
+.dv2 {
+  --dv2-cream: #F5F2E9;
+  --dv2-navy: #0f1f3d;
+  --dv2-red: #8B1E1E;
+  --dv2-red-deep: #6e1616;
+  --dv2-text: #1a1622;
+  --dv2-muted: #4A5568;
+  --dv2-card: #faf7f2;
+  --dv2-border: rgba(15, 31, 61, 0.12);
+  background: var(--dv2-cream);
+  color: var(--dv2-text);
+  font-family: var(--font-body);
+}
+.dv2-wrap {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 clamp(1.25rem, 4vw, 2.5rem);
+}
+
+/* Section 1 — Freedom Fest hero */
+.dv2-hero { padding: clamp(2.5rem, 6vw, 4.5rem) 0 0; }
+.dv2-hero-head {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto clamp(2rem, 5vw, 3rem);
+}
+.dv2-kicker {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--dv2-navy);
+  margin-bottom: 0.75rem;
+}
+.dv2-ribbon {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 7vw, 4.2rem);
+  line-height: 1.05;
+  color: var(--dv2-red);
+  margin-bottom: 0.5rem;
+}
+.dv2-tagline {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(1.35rem, 3.5vw, 2rem);
+  color: var(--dv2-navy);
+  margin-bottom: 1.25rem;
+}
+.dv2-lead {
+  font-size: clamp(1rem, 2.2vw, 1.125rem);
+  line-height: 1.7;
+  color: var(--dv2-muted);
+  margin-bottom: 1.75rem;
+}
+.dv2-pass-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(1rem, 3vw, 1.75rem);
+  max-width: 960px;
+  margin: 0 auto;
+}
+.dv2-pass {
+  background: var(--dv2-card);
+  border: 1px solid var(--dv2-border);
+  border-radius: 16px;
+  padding: 1rem 1rem 1.25rem;
+  text-align: center;
+  box-shadow: 0 8px 28px rgba(15, 31, 61, 0.06);
+}
+.dv2-pass-name {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--dv2-navy);
+  margin-bottom: 0.75rem;
+}
+.dv2-pass-media,
+.dv2-media-slot {
+  border-radius: 12px;
+  overflow: hidden;
+  background: #e8e4db;
+  aspect-ratio: 4 / 5;
+}
+.dv2-pass-media img,
+.dv2-media-slot img,
+.dv2-pass-media .dv2-ph,
+.dv2-media-slot .dv2-ph {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dv2-pass-status {
+  margin-top: 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dv2-red);
+}
+.dv2-pass-status.is-sponsored { color: #2d6a4f; }
+.dv2-ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--dv2-muted);
+  background: linear-gradient(145deg, #ebe6dc, #e0dbd0);
+}
+.dv2-bar {
+  margin-top: clamp(2.5rem, 5vw, 3.5rem);
+  background: var(--dv2-navy);
+  color: #f5f2e9;
+  padding: clamp(1.25rem, 3vw, 1.75rem) clamp(1.25rem, 4vw, 2.5rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 2rem;
+}
+.dv2-bar-strong {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2.5vw, 1.35rem);
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+.dv2-bar-note {
+  font-size: 0.95rem;
+  color: rgba(245, 242, 233, 0.82);
+  max-width: 42ch;
+}
+
+/* Buttons */
+.dv2-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 1.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.dv2-btn:hover { transform: translateY(-1px); }
+.dv2-btn-red {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(139, 30, 30, 0.95), rgba(110, 22, 22, 0.92));
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 14px 36px rgba(139, 30, 30, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.dv2-btn-primary {
+  color: #fff;
+  background: var(--dv2-navy);
+  box-shadow: 0 10px 28px rgba(15, 31, 61, 0.22);
+}
+.dv2-btn-ghost {
+  color: var(--dv2-navy);
+  background: transparent;
+  border-color: var(--dv2-border);
+}
+.dv2-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+/* Section 2 — Medical story split */
+.dv2-split { padding: clamp(3rem, 7vw, 5rem) 0; }
+.dv2-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: clamp(2rem, 5vw, 3.5rem);
+  align-items: start;
+}
+.dv2-ey {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dv2-red);
+  margin-bottom: 0.65rem;
+}
+.dv2-h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 4.5vw, 2.75rem);
+  color: var(--dv2-navy);
+  margin-bottom: 1.25rem;
+}
+.dv2-prose p,
+.dv2-prose-sm {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--dv2-muted);
+}
+.dv2-prose p + p { margin-top: 1rem; }
+.dv2-prose-center { text-align: center; max-width: 640px; margin: 0 auto; }
+.dv2-media-video { margin-top: 1.5rem; max-width: 420px; }
+.dv2-campaign-card,
+.dv2-story-card {
+  background: var(--dv2-card);
+  border: 1px solid var(--dv2-border);
+  border-radius: 18px;
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  box-shadow: 0 12px 40px rgba(15, 31, 61, 0.08);
+}
+.dv2-card-ey {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dv2-muted);
+  margin-bottom: 0.5rem;
+}
+.dv2-card-title {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  color: var(--dv2-navy);
+  margin-bottom: 0.85rem;
+}
+.dv2-card-stat {
+  font-size: 0.95rem;
+  color: var(--dv2-muted);
+  margin-bottom: 0.35rem;
+}
+.dv2-card-stat strong { color: var(--dv2-navy); }
+.dv2-progress {
+  height: 10px;
+  border-radius: 999px;
+  background: #e4dfd4;
+  overflow: hidden;
+  margin: 1rem 0 1.25rem;
+}
+.dv2-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--dv2-red), #c53030);
+}
+.dv2-card-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dv2-navy);
+  margin-bottom: 0.5rem;
+}
+.dv2-list {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+}
+.dv2-list li {
+  position: relative;
+  padding-left: 1.1rem;
+  font-size: 0.95rem;
+  color: var(--dv2-muted);
+  margin-bottom: 0.35rem;
+}
+.dv2-list li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--dv2-red);
+}
+.dv2-campaign-card .dv2-btn { width: 100%; margin-top: 0.5rem; }
+
+/* Section 3 — Stories grid */
+.dv2-stories { padding: clamp(3rem, 7vw, 5rem) 0 clamp(3.5rem, 8vw, 5.5rem); }
+.dv2-stories-head { text-align: center; margin-bottom: clamp(2rem, 5vw, 3rem); }
+.dv2-story-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1.25rem, 3vw, 1.75rem);
+}
+.dv2-story-card--wide { grid-column: 1 / -1; max-width: 560px; }
+.dv2-story-card--sponsored { border-color: rgba(45, 106, 79, 0.25); }
+.dv2-story-card .dv2-pass-media { margin: 0.75rem 0 1rem; aspect-ratio: 16 / 10; }
+.dv2-story-card .dv2-btn { margin-top: 1rem; }
+.dv2-muted { color: rgba(74, 85, 104, 0.75); }
+.dv2-trust {
+  text-align: center;
+  margin-top: clamp(2rem, 5vw, 3rem);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dv2-muted);
+}
+
+@media (max-width: 960px) {
+  .dv2-split-grid { grid-template-columns: 1fr; }
+  .dv2-campaign-card { max-width: 520px; }
+}
+@media (max-width: 720px) {
+  .dv2-pass-row { grid-template-columns: 1fr; max-width: 320px; }
+  .dv2-bar { flex-direction: column; text-align: center; }
+  .dv2-bar-note { max-width: none; }
+  .dv2-story-grid { grid-template-columns: 1fr; }
+  .dv2-story-card--wide { max-width: none; }
+  .dv2-btn-row { flex-direction: column; }
+  .dv2-btn-row .dv2-btn { width: 100%; }
 }

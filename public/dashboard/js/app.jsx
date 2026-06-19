@@ -191,6 +191,7 @@ function App() {
 
   // ── CMS sub-views are full-screen (no scroll padding) ─────────────────────
   const isCmsEditor = view === "cms-page-editor";
+  const isEmailWorkspace = view === "email";
 
   const renderView = () => {
     switch (view) {
@@ -234,22 +235,11 @@ function App() {
           ? React.createElement(CmsTemplatesView, { onNavigate: navigate })
           : cmsShell("Templates", "Loading…");
 
-      // Email — scaffold for later sprint
+      // Email inbox
       case "email":
-        return React.createElement("div", { style: { padding: "40px 32px", flex: 1 } },
-          React.createElement("div", { style: { maxWidth: 520, background: "var(--dash-surface)", border: "1px solid var(--dash-border)", borderRadius: 14, padding: "32px 28px" } },
-            React.createElement("div", { style: { fontSize: 22, fontWeight: 700, marginBottom: 8, color: "var(--dash-text)" } }, "Email Inbox"),
-            React.createElement("div", { style: { fontSize: 14, color: "var(--dash-text-sec)", lineHeight: 1.6, marginBottom: 16 } },
-              "Inbound email at ", React.createElement("strong", null, "dashboard@companionsofcaddo.org"),
-              " will appear here. To activate, set up a Resend inbound route pointing to ",
-              React.createElement("code", { style: { background: "var(--dash-bg2)", padding: "2px 6px", borderRadius: 4, fontSize: 12 } }, "/api/email/inbound"),
-              "."
-            ),
-            React.createElement("div", { style: { fontSize: 12, color: "var(--dash-text-muted)", background: "var(--dash-bg2)", padding: "10px 14px", borderRadius: 8 } },
-              "Resend setup: Add an Inbound webhook domain in Resend dashboard → Domains → Inbound → Create Catch-All route → POST to https://companionsofcaddo.org/api/email/inbound"
-            )
-          )
-        );
+        return typeof EmailView === "function"
+          ? React.createElement(EmailView)
+          : cmsShell("Email", "Loading…");
 
       case "reports":             return React.createElement(ReportsView,            { onNavigate: navigate });
       case "settings":            return React.createElement(SettingsView,           { onNavigate: navigate });
@@ -259,7 +249,7 @@ function App() {
   };
 
   // CMS page editor gets full height with no scroll padding
-  const mainScrollStyle = isCmsEditor
+  const mainScrollStyle = (isCmsEditor || isEmailWorkspace)
     ? { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }
     : { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0 };
 

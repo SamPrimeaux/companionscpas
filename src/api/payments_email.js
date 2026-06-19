@@ -244,6 +244,180 @@ async function upsertDonor(env, { donorEmail, donorName, amountCents, isRecurrin
   return donorId;
 }
 
+async function fetchStripePaymentIntent(env, piId) {
+  if (!env.STRIPE_SECRET_KEY || !piId) return null;
+  const res = await fetch(
+    `https://api.stripe.com/v1/payment_intents/${encodeURIComponent(piId)}?expand[]=latest_charge`,
+    { headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` } }
+  ).catch(() => null);
+  if (!res?.ok) return null;
+  return res.json().catch(() => null);
+}
+
+async function resolveDonationIntent(env, { providerId, localIntentId }) {
+  if (providerId) {
+    const byProvider = await env.DB.prepare(
+      "SELECT * FROM donation_intents WHERE provider_checkout_id = ? LIMIT 1"
+    ).bind(providerId).first().catch(() => null);
+    if (byProvider) return byProvider;
+  }
+  if (localIntentId) {
+    return env.DB.prepare(
+      "SELECT * FROM donation_intents WHERE id = ? LIMIT 1"
+    ).bind(localIntentId).first().catch(() => null);
+  }
+  return null;
+}
+
+async function findDonationPaymentByPi(env, piId) {
+  if (!piId) return null;
+  return env.DB.prepare(
+    "SELECT id, donation_id FROM donation_payments WHERE provider_payment_id = ? LIMIT 1"
+  ).bind(piId).first().catch(() => null);
+}
+
+async function findDonationPaymentBySession(env, sessionId) {
+  if (!sessionId) return null;
+  return env.DB.prepare(
+    "SELECT id, donation_id FROM donation_payments WHERE provider_checkout_session_id = ? LIMIT 1"
+  ).bind(sessionId).first().catch(() => null);
+}
+
+async function logStripeWebhookEvent(env, { eventType, status, relatedId, rawEvent }) {
+  try {
+    await env.DB.prepare(
+      `INSERT INTO stripe_webhooks (id, tenant_id, event_type, status, related_id, payload_json, processed_at)
+       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).bind(id("stripewh"), TENANT_ID, eventType, status, relatedId || null, rawEvent).run();
+  } catch (err) {
+    console.warn("stripe_webhooks log skipped:", err?.message || err);
+  }
+}
+
+function donorFromPaymentIntent(pi, intentRecord) {
+  const meta = pi.metadata || {};
+  let billing = {};
+  if (pi.charges?.data?.[0]?.billing_details) {
+    billing = pi.charges.data[0].billing_details;
+  } else if (typeof pi.latest_charge === "object" && pi.latest_charge?.billing_details) {
+    billing = pi.latest_charge.billing_details;
+  }
+  const campaignIdRaw = meta.campaign_id || intentRecord?.campaign_id || null;
+  return {
+    donorEmail: pi.receipt_email || billing.email || intentRecord?.donor_email || meta.donor_email || null,
+    donorName: billing.name || intentRecord?.donor_name || meta.donor_name || null,
+    note: meta.message || intentRecord?.note || null,
+    campaignId: campaignIdRaw && campaignIdRaw !== "general" ? campaignIdRaw : null,
+  };
+}
+
+async function processDonationPayment(env, {
+  amountCents,
+  currency = "usd",
+  donorEmail,
+  donorName,
+  note,
+  campaignId,
+  isRecurring = false,
+  paymentIntentId,
+  checkoutSessionId,
+  intentRecord,
+  rawJson,
+  webhookEventType,
+  rawEvent,
+}) {
+  if (paymentIntentId) {
+    const existingByPi = await findDonationPaymentByPi(env, paymentIntentId);
+    if (existingByPi?.id) {
+      await logStripeWebhookEvent(env, {
+        eventType: webhookEventType,
+        status: "duplicate",
+        relatedId: existingByPi.donation_id || existingByPi.id,
+        rawEvent,
+      });
+      return { duplicate: true, donationId: existingByPi.donation_id || null };
+    }
+  }
+
+  if (checkoutSessionId) {
+    const existingBySession = await findDonationPaymentBySession(env, checkoutSessionId);
+    if (existingBySession?.id) {
+      await logStripeWebhookEvent(env, {
+        eventType: webhookEventType,
+        status: "duplicate",
+        relatedId: existingBySession.donation_id || existingBySession.id,
+        rawEvent,
+      });
+      return { duplicate: true, donationId: existingBySession.donation_id || null };
+    }
+  }
+
+  const donorId = await upsertDonor(env, { donorEmail, donorName, amountCents, isRecurring });
+  const donationId = id("donation");
+
+  await env.DB.prepare(
+    `INSERT INTO donations
+     (id, organization_id, donor_id, campaign_id, amount_cents, currency, status, payment_provider, stripe_payment_intent_id, donor_message, is_anonymous, donated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'succeeded', 'stripe', ?, ?, 0, datetime('now'))`
+  ).bind(donationId, TENANT_ID, donorId, campaignId, amountCents, currency, paymentIntentId || null, note).run();
+
+  const paymentRowId = id("payment");
+  await env.DB.prepare(
+    `INSERT INTO donation_payments
+     (id, tenant_id, donation_id, provider, provider_payment_id, provider_checkout_session_id, amount_cents, currency, status, raw_json, updated_at)
+     VALUES (?, ?, ?, 'stripe', ?, ?, ?, ?, 'succeeded', ?, datetime('now'))`
+  ).bind(
+    paymentRowId,
+    TENANT_ID,
+    donationId,
+    paymentIntentId || null,
+    checkoutSessionId || null,
+    amountCents,
+    currency,
+    typeof rawJson === "string" ? rawJson : JSON.stringify(rawJson || {})
+  ).run();
+
+  const intentId = intentRecord?.id || null;
+  const providerKey = checkoutSessionId || paymentIntentId || "";
+
+  try {
+    await env.DB.prepare(
+      `UPDATE donation_intents
+       SET status = 'completed',
+           donor_email = COALESCE(?, donor_email),
+           donor_name = COALESCE(?, donor_name),
+           provider_checkout_id = COALESCE(provider_checkout_id, ?),
+           resend_receipt_status = 'processing',
+           updated_at = datetime('now')
+       WHERE id = ? OR provider_checkout_id = ?`
+    ).bind(
+      donorEmail,
+      donorName,
+      paymentIntentId || checkoutSessionId || null,
+      intentId || "",
+      providerKey
+    ).run();
+  } catch {}
+
+  await logStripeWebhookEvent(env, {
+    eventType: webhookEventType,
+    status: "processed",
+    relatedId: donationId,
+    rawEvent,
+  });
+
+  await sendDonationReceipt(env, {
+    donorEmail,
+    donorName,
+    amountCents,
+    donationId,
+    intentId,
+    piId: paymentIntentId || checkoutSessionId,
+  });
+
+  return { duplicate: false, donationId, paymentId: paymentRowId };
+}
+
 export async function paymentsEmailRoutes(request, env, url) {
   const path = url.pathname;
   const method = request.method;
@@ -296,15 +470,38 @@ export async function paymentsEmailRoutes(request, env, url) {
     if (mode === "payment") {
       const amountCents = data.amount_cents || cents(data.amount);
       if (!amountCents || amountCents < 100) return json({ error: "Minimum donation is $1.00" }, 400);
+      const localIntentId = id("intent");
       const form = new URLSearchParams();
       form.set("amount", String(amountCents));
       form.set("currency", "usd");
       form.set("automatic_payment_methods[enabled]", "true");
       form.set("metadata[tenant_id]", TENANT_ID);
+      form.set("metadata[local_intent_id]", localIntentId);
+      form.set("metadata[source]", "donate_modal");
+      if (data.campaign_id) form.set("metadata[campaign_id]", String(data.campaign_id));
       const res = await fetch("https://api.stripe.com/v1/payment_intents", { method: "POST", headers: stripeHeaders, body: form });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) return json({ error: d?.error?.message || "Stripe error" }, 500);
-      return json({ client_secret: d.client_secret, mode: "payment" });
+
+      try {
+        await env.DB.prepare(
+          `INSERT INTO donation_intents
+           (id, tenant_id, donor_name, donor_email, amount_cents, frequency, campaign_id, note, provider,
+            provider_checkout_id, status, resend_receipt_status, metadata_json, updated_at)
+           VALUES (?, ?, NULL, NULL, ?, 'one_time', ?, NULL, 'stripe', ?, 'pending_payment', 'pending_after_payment', ?, datetime('now'))`
+        ).bind(
+          localIntentId,
+          TENANT_ID,
+          amountCents,
+          data.campaign_id || null,
+          d.id,
+          JSON.stringify({ stripe_payment_intent_id: d.id, source: "donate_modal" })
+        ).run();
+      } catch (err) {
+        console.warn("donation_intents insert skipped:", err?.message);
+      }
+
+      return json({ client_secret: d.client_secret, mode: "payment", intent_id: localIntentId, payment_intent_id: d.id });
     } else {
       // SetupIntent for monthly — collect card, then create subscription server-side
       const form = new URLSearchParams();
@@ -384,6 +581,13 @@ export async function paymentsEmailRoutes(request, env, url) {
   if (path === "/api/donations/after-payment" && method === "POST") {
     const data = await body(request);
     try {
+      if (data.payment_intent_id && data.donor_email) {
+        await env.DB.prepare(
+          `UPDATE donation_intents
+           SET donor_email = ?, updated_at = datetime('now')
+           WHERE provider_checkout_id = ?`
+        ).bind(String(data.donor_email).toLowerCase().trim(), data.payment_intent_id).run();
+      }
       if (data.donor_email && data.nl_opt_in) {
         await env.DB.prepare(
           `INSERT OR IGNORE INTO newsletter_subscribers
@@ -498,11 +702,64 @@ export async function paymentsEmailRoutes(request, env, url) {
     const rawEvent = JSON.stringify(event);
 
     if (event.type === "payment_intent.succeeded") {
-      const pi = event.data?.object || {};
-      await env.DB.prepare(
-        `INSERT INTO stripe_webhooks (id, tenant_id, event_type, status, related_id, payload_json, processed_at)
-         VALUES (?, ?, ?, 'acknowledged', ?, ?, datetime('now'))`
-      ).bind(id("stripewh"), TENANT_ID, event.type, pi.id || null, rawEvent).run();
+      let pi = event.data?.object || {};
+      const meta = pi.metadata || {};
+      const paymentIntentId = pi.id || null;
+
+      if (paymentIntentId) {
+        let intentRecord = await resolveDonationIntent(env, {
+          providerId: paymentIntentId,
+          localIntentId: meta.local_intent_id || null,
+        });
+
+        let donorEmail = null;
+        let donorName = null;
+        let note = null;
+        let campaignId = null;
+        ({ donorEmail, donorName, note, campaignId } = donorFromPaymentIntent(pi, intentRecord));
+
+        if (!donorEmail) {
+          const enriched = await fetchStripePaymentIntent(env, paymentIntentId);
+          if (enriched) {
+            pi = enriched;
+            ({ donorEmail, donorName, note, campaignId } = donorFromPaymentIntent(pi, intentRecord));
+          }
+        }
+
+        if (!intentRecord) {
+          intentRecord = await resolveDonationIntent(env, {
+            providerId: paymentIntentId,
+            localIntentId: meta.local_intent_id || null,
+          });
+        }
+
+        const amountCents = pi.amount_received || pi.amount || 0;
+        if (amountCents > 0) {
+          const result = await processDonationPayment(env, {
+            amountCents,
+            currency: pi.currency || "usd",
+            donorEmail,
+            donorName,
+            note,
+            campaignId,
+            isRecurring: false,
+            paymentIntentId,
+            checkoutSessionId: null,
+            intentRecord,
+            rawJson: pi,
+            webhookEventType: event.type,
+            rawEvent,
+          });
+          return json({ received: true, processed: !result.duplicate, duplicate: result.duplicate || false });
+        }
+      }
+
+      await logStripeWebhookEvent(env, {
+        eventType: event.type,
+        status: "acknowledged",
+        relatedId: paymentIntentId,
+        rawEvent,
+      });
       return json({ received: true, acknowledged: true });
     }
 
@@ -512,76 +769,58 @@ export async function paymentsEmailRoutes(request, env, url) {
       const amount = s.amount_total || 0;
       const currency = s.currency || "usd";
 
-      const existingPayment = await env.DB.prepare(
-        "SELECT id FROM donation_payments WHERE provider_checkout_session_id = ? LIMIT 1"
-      ).bind(s.id).first();
+      if (s.payment_intent) {
+        const existingByPi = await findDonationPaymentByPi(env, s.payment_intent);
+        if (existingByPi?.id) {
+          await logStripeWebhookEvent(env, {
+            eventType: event.type,
+            status: "duplicate",
+            relatedId: existingByPi.donation_id || existingByPi.id,
+            rawEvent,
+          });
+          return json({ received: true, duplicate: true });
+        }
+      }
 
+      const existingPayment = await findDonationPaymentBySession(env, s.id);
       if (existingPayment?.id) {
-        try {
-          await env.DB.prepare(
-            `INSERT INTO stripe_webhooks (id, tenant_id, event_type, status, related_id, payload_json, processed_at)
-             VALUES (?, ?, ?, 'duplicate', ?, ?, datetime('now'))`
-          ).bind(id("stripewh"), TENANT_ID, event.type, existingPayment.id, rawEvent).run();
-        } catch {}
+        await logStripeWebhookEvent(env, {
+          eventType: event.type,
+          status: "duplicate",
+          relatedId: existingPayment.donation_id || existingPayment.id,
+          rawEvent,
+        });
         return json({ received: true, duplicate: true });
       }
 
-      let intent = null;
+      let intentRecord = null;
       if (s.id) {
-        intent = await env.DB.prepare(
-          "SELECT * FROM donation_intents WHERE provider_checkout_id = ? LIMIT 1"
-        ).bind(s.id).first();
+        intentRecord = await resolveDonationIntent(env, { providerId: s.id });
       }
-      if (!intent && meta.local_checkout_id) {
-        intent = await env.DB.prepare(
-          "SELECT * FROM donation_intents WHERE id = ? LIMIT 1"
-        ).bind(meta.local_checkout_id).first();
+      if (!intentRecord && meta.local_checkout_id) {
+        intentRecord = await resolveDonationIntent(env, { localIntentId: meta.local_checkout_id });
       }
 
-      const donorEmail = s.customer_details?.email || s.customer_email || intent?.donor_email || null;
-      const donorName  = meta.donor_name || s.customer_details?.name  || intent?.donor_name  || null;
-      const note       = meta.message    || intent?.note               || null;
-      const campaignIdRaw = meta.campaign_id || intent?.campaign_id   || null;
-      const campaignId    = campaignIdRaw && campaignIdRaw !== "general" ? campaignIdRaw : null;
+      const donorEmail = s.customer_details?.email || s.customer_email || intentRecord?.donor_email || null;
+      const donorName = meta.donor_name || s.customer_details?.name || intentRecord?.donor_name || null;
+      const note = meta.message || intentRecord?.note || null;
+      const campaignIdRaw = meta.campaign_id || intentRecord?.campaign_id || null;
+      const campaignId = campaignIdRaw && campaignIdRaw !== "general" ? campaignIdRaw : null;
 
-      const donorId = await upsertDonor(env, {
-        donorEmail, donorName, amountCents: amount,
-        isRecurring: s.mode === "subscription"
-      });
-
-      const donationId = id("donation");
-      await env.DB.prepare(
-        `INSERT INTO donations
-         (id, organization_id, donor_id, campaign_id, amount_cents, currency, status, payment_provider, stripe_payment_intent_id, donor_message, is_anonymous, donated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'succeeded', 'stripe', ?, ?, 0, datetime('now'))`
-      ).bind(donationId, TENANT_ID, donorId, campaignId, amount, currency, s.payment_intent || null, note).run();
-
-      await env.DB.prepare(
-        `INSERT INTO donation_payments
-         (id, tenant_id, donation_id, provider, provider_payment_id, provider_checkout_session_id, amount_cents, currency, status, raw_json, updated_at)
-         VALUES (?, ?, ?, 'stripe', ?, ?, ?, ?, 'succeeded', ?, datetime('now'))`
-      ).bind(id("payment"), TENANT_ID, donationId, s.payment_intent || null, s.id, amount, currency, JSON.stringify(s)).run();
-
-      try {
-        await env.DB.prepare(
-          `UPDATE donation_intents
-           SET status = 'completed',
-               provider_checkout_id = COALESCE(provider_checkout_id, ?),
-               resend_receipt_status = 'processing',
-               updated_at = datetime('now')
-           WHERE id = ? OR provider_checkout_id = ?`
-        ).bind(s.id, meta.local_checkout_id || "", s.id).run();
-      } catch {}
-
-      await env.DB.prepare(
-        `INSERT INTO stripe_webhooks (id, tenant_id, event_type, status, related_id, payload_json, processed_at)
-         VALUES (?, ?, ?, 'processed', ?, ?, datetime('now'))`
-      ).bind(id("stripewh"), TENANT_ID, event.type, donationId, rawEvent).run();
-
-      await sendDonationReceipt(env, {
-        donorEmail, donorName, amountCents: amount, donationId,
-        intentId: meta.local_checkout_id,
-        piId: s.id
+      await processDonationPayment(env, {
+        amountCents: amount,
+        currency,
+        donorEmail,
+        donorName,
+        note,
+        campaignId,
+        isRecurring: s.mode === "subscription",
+        paymentIntentId: s.payment_intent || null,
+        checkoutSessionId: s.id,
+        intentRecord,
+        rawJson: s,
+        webhookEventType: event.type,
+        rawEvent,
       });
     }
 
