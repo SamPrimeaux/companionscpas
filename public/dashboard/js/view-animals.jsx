@@ -130,6 +130,7 @@
       check: [h('path', { key:'a', d:'M20 6L9 17l-5-5' })],
       clock: [h('circle', { key:'a', cx:'12', cy:'12', r:'9' }), h('path', { key:'b', d:'M12 7v5l3 2' })],
       file: [h('path', { key:'a', d:'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z' }), h('path', { key:'b', d:'M14 2v6h6' })],
+      video: [h('rect', { key:'a', x:'3', y:'5', width:'18', height:'14', rx:'2' }), h('path', { key:'b', d:'M10 9l6 3-6 3z' })],
       alert: [h('path', { key:'a', d:'M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z' }), h('path', { key:'b', d:'M12 9v4' }), h('path', { key:'c', d:'M12 17h.01' })],
       send: [h('path', { key:'a', d:'M22 2L11 13' }), h('path', { key:'b', d:'M22 2l-7 20-4-9-9-4z' })],
       phone: [h('path', { key:'a', d:'M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10a19.79 19.79 0 01-3.07-8.67A2 2 0 012 .18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z' })],
@@ -256,6 +257,157 @@
       onBlur: props.onBlur,
       style: Object.assign({ width:'100%', minHeight:props.minHeight || 120, boxSizing:'border-box', borderRadius:10, border:'1px solid ' + u.border, background:u.raised, color:u.text, padding:'10px 12px', fontSize:13, lineHeight:1.6, outline:'none', resize:'vertical', fontFamily:'inherit' }, props.style || {})
     });
+  }
+
+  function parseAgeFields(label) {
+    if (!label || label === 'Unknown') return { value:'', unit:'years', hint:'' };
+    var m = String(label).match(/^(\d+(?:\.\d+)?)\s*(years?|yrs?|months?|mos?|weeks?|wks?)?$/i);
+    if (m) {
+      var unit = (m[2] || 'years').toLowerCase();
+      if (unit.indexOf('mo') === 0) unit = 'months';
+      else if (unit.indexOf('wk') === 0) unit = 'weeks';
+      else unit = 'years';
+      return { value:m[1], unit:unit, hint:'' };
+    }
+    return { value:'', unit:'years', hint:label };
+  }
+  function formatAgeLabel(value, unit) {
+    var v = String(value || '').trim();
+    if (!v) return '';
+    if (!/^\d+(\.\d+)?$/.test(v)) return null;
+    var n = parseFloat(v);
+    if (unit === 'months') return v + ' ' + (n === 1 ? 'month' : 'months');
+    if (unit === 'weeks') return v + ' ' + (n === 1 ? 'week' : 'weeks');
+    return v + ' ' + (n === 1 ? 'year' : 'years');
+  }
+  function parseWeightField(label) {
+    if (!label || label === 'Unknown') return { value:'', unit:'lbs', hint:'' };
+    var m = String(label).match(/^(\d+(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)?$/i);
+    if (m) return { value:m[1], unit:(m[2] || 'lbs').toLowerCase().indexOf('kg') === 0 ? 'kg' : 'lbs', hint:'' };
+    return { value:'', unit:'lbs', hint:label };
+  }
+  function formatWeightLabel(value, unit) {
+    var v = String(value || '').trim();
+    if (!v) return '';
+    if (!/^\d+(\.\d+)?$/.test(v)) return null;
+    return v + ' ' + (unit === 'kg' ? 'kg' : 'lbs');
+  }
+  function mediaTypeFromUpload(d, file) {
+    var mime = d.mime_type || (file && file.type) || '';
+    if (d.asset_type === 'video' || mime.indexOf('video/') === 0) return 'video';
+    if (d.asset_type === 'document' || mime === 'application/pdf') return 'pdf';
+    return 'image';
+  }
+  function parsePostMedia(post) {
+    if (post.media_json) {
+      try {
+        var parsed = typeof post.media_json === 'string' ? JSON.parse(post.media_json) : post.media_json;
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      } catch (e) {}
+    }
+    if (post.media_url) return [{ url:post.media_url, type:post.media_type || 'image', name:'' }];
+    return [];
+  }
+
+  function AgeFieldGroup(props) {
+    var u = ui();
+    var err = props.error;
+    return h('div', null,
+      h(FieldLabel, null, 'Age'),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 110px', gap:8 } },
+        h(TextInput, { type:'number', min:'0', step:'any', value:props.value, placeholder:'e.g. 2', onChange:props.onValueChange }),
+        h(SelectInput, { value:props.unit, onChange:props.onUnitChange, options:[{value:'years', label:'Years'}, {value:'months', label:'Months'}, {value:'weeks', label:'Weeks'}] })
+      ),
+      props.hint ? h('div', { style:{ color:u.textMut, fontSize:11, marginTop:4 } }, 'Previous: ' + props.hint) : null,
+      err ? h('div', { style:{ color:u.red, fontSize:11, marginTop:4, fontWeight:700 } }, err) : null
+    );
+  }
+  function WeightFieldGroup(props) {
+    var u = ui();
+    var err = props.error;
+    return h('div', null,
+      h(FieldLabel, null, 'Weight'),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 72px', gap:8 } },
+        h(TextInput, { type:'number', min:'0', step:'any', value:props.value, placeholder:'e.g. 45', onChange:props.onValueChange }),
+        h(SelectInput, { value:props.unit, onChange:props.onUnitChange, options:[{value:'lbs', label:'lbs'}, {value:'kg', label:'kg'}] })
+      ),
+      props.hint ? h('div', { style:{ color:u.textMut, fontSize:11, marginTop:4 } }, 'Previous: ' + props.hint) : null,
+      err ? h('div', { style:{ color:u.red, fontSize:11, marginTop:4, fontWeight:700 } }, err) : null
+    );
+  }
+
+  function PostMediaAttachments(props) {
+    var media = props.media || [];
+    var onChange = props.onChange;
+    var uploadingState = useState(false), uploading = uploadingState[0], setUploading = uploadingState[1];
+    var errorState = useState(''), error = errorState[0], setError = errorState[1];
+    var u = ui();
+    var MAX_ATTACHMENTS = 10;
+
+    function uploadFiles(fileList) {
+      var files = Array.prototype.slice.call(fileList || []);
+      if (!files.length) return;
+      if (media.length + files.length > MAX_ATTACHMENTS) {
+        setError('Maximum ' + MAX_ATTACHMENTS + ' attachments per post.');
+        return;
+      }
+      setUploading(true); setError('');
+      var pending = files.slice();
+      var next = media.slice();
+      function step() {
+        if (!pending.length) { setUploading(false); onChange(next); return; }
+        var file = pending.shift();
+        var fd = new FormData();
+        fd.append('file', file);
+        fd.append('usage_context', 'social_post');
+        fd.append('category', 'social');
+        fd.append('label', file.name);
+        fetch('/api/cms/asset/upload', { method:'POST', credentials:'include', body:fd })
+          .then(function(res){ return res.json().then(function(d){ if (!res.ok) throw new Error(d.error || 'Upload failed'); return d; }); })
+          .then(function(d){
+            var url = d.public_url || d.cdn_url || d.pub_url || d.url;
+            if (!url) throw new Error('Upload succeeded but no URL returned.');
+            next.push({ url:url, type:mediaTypeFromUpload(d, file), name:file.name, mime_type:d.mime_type || file.type });
+          })
+          .catch(function(e){ setError(e.message || 'Upload failed'); })
+          .finally(step);
+      }
+      step();
+    }
+
+    function removeAt(idx) {
+      var copy = media.slice();
+      copy.splice(idx, 1);
+      onChange(copy);
+    }
+
+    return h('div', { style:{ marginTop:12 } },
+      h(FieldLabel, null, 'Attachments'),
+      h('div', {
+        onDragOver: function(e){ e.preventDefault(); },
+        onDrop: function(e){ e.preventDefault(); if (!uploading) uploadFiles(e.dataTransfer.files); },
+        style:{ border:'1px dashed ' + u.border, borderRadius:12, padding:12, background:'rgba(255,255,255,.02)' }
+      },
+        media.length ? h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(88px, 1fr))', gap:8, marginBottom:10 } },
+          media.map(function(item, idx){
+            return h('div', { key:item.url + idx, style:{ position:'relative', border:'1px solid ' + u.border, borderRadius:10, overflow:'hidden', background:u.raised, minHeight:72 } },
+              item.type === 'image' ? h('img', { src:item.url, alt:item.name || 'Attachment', style:{ width:'100%', height:72, objectFit:'cover', display:'block' } }) :
+              item.type === 'video' ? h('div', { style:{ height:72, display:'flex', alignItems:'center', justifyContent:'center', color:u.purpleL, fontSize:11, fontWeight:800, padding:8, textAlign:'center' } }, appIcon('video', 18), h('span', { style:{ marginLeft:6 } }, 'Video')) :
+              h('div', { style:{ height:72, display:'flex', alignItems:'center', justifyContent:'center', color:u.yellow, fontSize:11, fontWeight:800, padding:8, textAlign:'center' } }, appIcon('file', 18), h('span', { style:{ marginLeft:6 } }, 'PDF')),
+              h('button', { type:'button', onClick:function(){ removeAt(idx); }, style:{ position:'absolute', top:4, right:4, width:22, height:22, borderRadius:99, border:'none', background:'rgba(0,0,0,.72)', color:'#fff', cursor:'pointer', fontSize:12, lineHeight:'22px' } }, '×')
+            );
+          })
+        ) : h('div', { style:{ color:u.textMut, fontSize:12, marginBottom:10, textAlign:'center', padding:'8px 0' } }, 'Add images, PDFs, or MP4 videos'),
+        h('div', { style:{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'center' } },
+          h('label', { style:{ height:34, border:'1px solid ' + u.purple, borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', padding:'0 12px', color:'#fff', background:u.purple, fontSize:12, fontWeight:800, cursor:uploading ? 'not-allowed' : 'pointer', opacity:uploading ? .6 : 1 } },
+            uploading ? 'Uploading...' : 'Add files',
+            h('input', { type:'file', multiple:true, accept:'image/*,application/pdf,video/mp4,video/quicktime,video/webm', disabled:uploading || media.length >= MAX_ATTACHMENTS, style:{ display:'none' }, onChange:function(e){ uploadFiles(e.target.files); e.target.value = ''; } })
+          ),
+          h('span', { style:{ color:u.textMut, fontSize:11, alignSelf:'center' } }, media.length + ' / ' + MAX_ATTACHMENTS)
+        )
+      ),
+      error ? h('div', { style:{ color:u.red, fontSize:11, marginTop:6, fontWeight:700 } }, error) : null
+    );
   }
 
   function StatusPill(props) {
@@ -647,15 +799,27 @@
   function AnimalAddModal(props) {
     var isMobile = props.isMobile;
     var u = ui();
-    var formState = useState({ name:'', species:'Dog', breed:'', age_label:'Unknown', sex:'Unknown', status:'available', photo_url:'' });
+    var formState = useState({ name:'', species:'Dog', breed:'', sex:'Unknown', status:'available', photo_url:'', age_value:'', age_unit:'years', weight_value:'', weight_unit:'lbs' });
     var form = formState[0], setForm = formState[1];
     var savingState = useState(false), saving = savingState[0], setSaving = savingState[1];
     var errorState = useState(''), error = errorState[0], setError = errorState[1];
+    var fieldErrorsState = useState({}), fieldErrors = fieldErrorsState[0], setFieldErrors = fieldErrorsState[1];
     function set(k, v) { var next = Object.assign({}, form); next[k] = v; setForm(next); }
     function submit() {
       if (!form.name.trim()) { setError('Name is required.'); return; }
+      var ageLabel = formatAgeLabel(form.age_value, form.age_unit);
+      var weightLabel = formatWeightLabel(form.weight_value, form.weight_unit);
+      var errors = {};
+      if (String(form.age_value || '').trim() && !ageLabel) errors.age = 'Enter a valid age number.';
+      if (String(form.weight_value || '').trim() && !weightLabel) errors.weight = 'Enter a valid weight number.';
+      if (Object.keys(errors).length) { setFieldErrors(errors); return; }
+      setFieldErrors({});
+      var payload = {
+        name:form.name, species:form.species, breed:form.breed, sex:form.sex, status:form.status,
+        photo_url:form.photo_url, age_label:ageLabel || 'Unknown', weight_label:weightLabel || null
+      };
       setSaving(true); setError('');
-      apiJSON('/api/dashboard/animals', { method:'POST', body:JSON.stringify(form) })
+      apiJSON('/api/dashboard/animals', { method:'POST', body:JSON.stringify(payload) })
         .then(function(d){ if (!d.ok) throw new Error(d.error || 'Could not add animal.'); if (props.onSaved) props.onSaved(); })
         .catch(function(e){ setError(e.message || 'Could not add animal.'); })
         .finally(function(){ setSaving(false); });
@@ -668,8 +832,9 @@
           h('div', null, h(FieldLabel, null, 'Name'), h(TextInput, { value:form.name, onChange:function(v){ set('name', v); } })),
           h('div', null, h(FieldLabel, null, 'Species'), h(SelectInput, { value:form.species, onChange:function(v){ set('species', v); }, options:['Dog','Cat','Other'] })),
           h('div', null, h(FieldLabel, null, 'Breed'), h(TextInput, { value:form.breed, onChange:function(v){ set('breed', v); } })),
-          h('div', null, h(FieldLabel, null, 'Age'), h(SelectInput, { value:form.age_label, onChange:function(v){ set('age_label', v); }, options:['Puppy','Young Adult','Adult','Senior','Mixed Ages','Unknown'] })),
+          h(AgeFieldGroup, { value:form.age_value, unit:form.age_unit, error:fieldErrors.age, onValueChange:function(v){ set('age_value', v); }, onUnitChange:function(v){ set('age_unit', v); } }),
           h('div', null, h(FieldLabel, null, 'Sex'), h(SelectInput, { value:form.sex, onChange:function(v){ set('sex', v); }, options:['Male','Female','Unknown'] })),
+          h(WeightFieldGroup, { value:form.weight_value, unit:form.weight_unit, error:fieldErrors.weight, onValueChange:function(v){ set('weight_value', v); }, onUnitChange:function(v){ set('weight_unit', v); } }),
           h('div', null, h(FieldLabel, null, 'Status'), h(SelectInput, { value:form.status, onChange:function(v){ set('status', v); }, options:[{value:'available', label:'Available'}, {value:'foster', label:'Foster'}, {value:'medical', label:'Medical'}, {value:'adopted', label:'Adopted'}] }))
         ),
         error ? h('div', { style:{ color:u.red, fontSize:12, marginTop:12 } }, error) : null,
@@ -877,36 +1042,95 @@
     }
     function generatePost() {
       setPosting(true);
-      apiJSON('/api/agentsam/chat', { method:'POST', body:JSON.stringify({ mode:'ask', message:'Write a 2-sentence social media post for a rescue dog named ' + (a.name || 'this animal') + '. Breed: ' + (a.breed || 'Unknown') + '. Bio: ' + (a.bio || '') + '. Warm, urgent tone. Under 160 characters. No hashtags.' }) })
+      apiJSON('/api/agentsam/chat', { method:'POST', body:JSON.stringify({ mode:'ask', message:'Write a 2-sentence social media post for a rescue dog named ' + (a.name || 'this animal') + '. Breed: ' + (a.breed || 'Unknown') + '. Age: ' + (a.age_label || 'Unknown') + '. Bio: ' + (a.bio || '') + '. Warm, urgent tone. Under 160 characters. No hashtags.' }) })
         .then(function(d){ var text = d.response || d.message || d.content || d.text || (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || ''; if (text) setDraft('content_text', text); })
         .finally(function(){ setPosting(false); });
     }
     function submitPost(schedule) {
       if (!postDraft.content_text || !(postDraft.platforms || []).length) return;
       setPosting(true);
-      apiJSON('/api/dashboard/animals/' + encodeURIComponent(a.id) + '/publish', { method:'POST', body:JSON.stringify({ content_text:postDraft.content_text, platforms:postDraft.platforms, media_url:a.photo, scheduled_at:schedule ? postDraft.scheduled_at : null }) })
-        .then(function(){ setDraft('content_text', ''); reload(); }).finally(function(){ setPosting(false); });
+      var media = postDraft.media || [];
+      apiJSON('/api/dashboard/animals/' + encodeURIComponent(a.id) + '/publish', { method:'POST', body:JSON.stringify({
+        content_text: postDraft.content_text,
+        platforms: postDraft.platforms,
+        media: media,
+        media_url: media[0] ? media[0].url : (a.photo || null),
+        media_type: media[0] ? media[0].type : 'image',
+        scheduled_at: schedule ? postDraft.scheduled_at : null
+      }) })
+        .then(function(){ setPostDraft({ content_text:'', platforms:[], scheduled_at:'', media:[] }); reload(); }).finally(function(){ setPosting(false); });
     }
     function cancelPost(post) {
       apiJSON('/api/dashboard/animals/' + encodeURIComponent(a.id) + '/posts/' + encodeURIComponent(post.id), { method:'DELETE' }).then(reload).catch(function(){});
     }
-    function section(title, children) { return h(SoftCard, { style:{ padding:16, marginBottom:14 } }, h('h3', { style:{ margin:'0 0 12px', color:u.text, fontSize:15 } }, title), children); }
-    return h('div', { style:{ width:isCompact ? '100%' : 300 } },
+    function section(title, children, style) { return h(SoftCard, { style:Object.assign({ padding:16, marginBottom:14 }, style || {}) }, h('h3', { style:{ margin:'0 0 12px', color:u.text, fontSize:15 } }, title), children); }
+    var charCount = (postDraft.content_text || '').length;
+    var canSubmit = !!(postDraft.content_text || '').trim() && (postDraft.platforms || []).length;
+    return h('div', { style:{ width:isCompact ? '100%' : 340 } },
       section('Publishing', h('div', null,
         h('div', { style:{ marginBottom:10 } }, h(FieldLabel, null, 'Status'), h(SelectInput, { value:a.status || 'available', onChange:function(v){ patchAnimal({ status:v }); }, options:[{value:'available', label:'Available'}, {value:'foster', label:'Foster'}, {value:'medical', label:'Medical'}, {value:'adopted', label:'Adopted'}] })),
         h(ToggleRow, { label:'Visible', help:'Show on public website', checked:Number(a.public_visible) === 1, onClick:function(){ patchAnimal({ public_visible:Number(a.public_visible) === 1 ? 0 : 1 }); } }),
         h(ToggleRow, { label:'Featured', help:'Prioritize in animal grids', checked:Number(a.featured) === 1, onClick:function(){ patchAnimal({ featured:Number(a.featured) === 1 ? 0 : 1 }); } }),
         h('div', { style:{ marginTop:12 } }, h(FieldLabel, null, 'Profile completeness'), h('div', { style:{ display:'flex', alignItems:'center', gap:8 } }, h('div', { style:{ flex:1, height:7, borderRadius:99, background:'rgba(255,255,255,.08)', overflow:'hidden' } }, h('div', { style:{ width:percentProfile(a) + '%', height:'100%', background:u.purple } })), h('span', { style:{ color:u.textMut, fontSize:12, fontWeight:800 } }, percentProfile(a) + '%')))
       )),
-      section('Channels & Apps', h('div', null, PLATFORM_MAP.map(function(p){ var connected = isConnected(p.key); var IconFn = p.icon; return h('div', { key:p.key, style:{ display:'flex', alignItems:'center', gap:10, padding:'9px 0', borderBottom:'1px solid ' + u.border, opacity:connected ? 1 : .42 } }, h('div', { style:{ width:22, display:'flex', justifyContent:'center', color:p.color } }, h(IconFn)), h('div', { style:{ flex:1, color:u.text, fontSize:13, fontWeight:800 } }, p.label), connected ? h('span', { style:{ width:8, height:8, borderRadius:99, background:u.green } }) : null, h('span', { style:{ color:connected ? u.green : u.textMut, fontSize:11, fontWeight:800 } }, connected ? 'Connected' : 'Disconnected')); }))),
       section('Post & Schedule', h('div', null,
-        h(TextArea, { value:postDraft.content_text || '', onChange:function(v){ setDraft('content_text', v); }, minHeight:110, placeholder:'Write a post about this animal...' }),
-        h('div', { style:{ textAlign:'right', color:(postDraft.content_text || '').length > 280 ? u.red : u.textMut, fontSize:11, marginTop:4 } }, (postDraft.content_text || '').length + ' / 280'),
-        h('div', { style:{ marginTop:10 } }, h(FieldLabel, null, 'Platforms'), PLATFORM_MAP.map(function(p){ var connected = isConnected(p.key); var selected = (postDraft.platforms || []).indexOf(p.key) !== -1; var IconFn = p.icon; return h('label', { key:p.key, style:{ display:'flex', alignItems:'center', gap:10, padding:'7px 0', color:u.textSec, opacity:connected ? 1 : .42 } }, h('input', { type:'checkbox', checked:selected, disabled:!connected, onChange:function(){ togglePlatform(p.key); } }), h(IconFn), p.label); })),
-        h('div', { style:{ marginTop:10 } }, h(FieldLabel, null, 'Schedule for'), h(TextInput, { type:'datetime-local', value:postDraft.scheduled_at || '', onChange:function(v){ setDraft('scheduled_at', v); } })),
-        h('div', { style:{ display:'flex', gap:8, marginTop:12, flexWrap:'wrap' } }, h(Button, { variant:'secondary', size:'sm', disabled:posting, onClick:generatePost }, 'Generate with AI'), h(Button, { size:'sm', disabled:posting || !(postDraft.content_text || '').trim() || !(postDraft.platforms || []).length, onClick:function(){ submitPost(!!postDraft.scheduled_at); } }, postDraft.scheduled_at ? 'Schedule' : 'Post Now')),
-        (data.scheduled_posts || []).length ? h('div', { style:{ marginTop:14 } }, (data.scheduled_posts || []).map(function(post){ return h('div', { key:post.id, style:{ padding:'9px 0', borderTop:'1px solid ' + u.border, display:'flex', gap:8, alignItems:'center' } }, h('div', { style:{ flex:1 } }, h('div', { style:{ color:u.text, fontSize:12, fontWeight:800 } }, labelize(post.platform || 'post')), h('div', { style:{ color:u.textMut, fontSize:11 } }, [labelize(post.status || 'scheduled'), fmtDateTime(post.scheduled_at || post.created_at)].join(' - '))), h(Button, { variant:'secondary', size:'sm', onClick:function(){ cancelPost(post); } }, 'Cancel')); })) : null
-      ))
+        h(TextArea, { value:postDraft.content_text || '', onChange:function(v){ setDraft('content_text', v); }, minHeight:120, placeholder:'Write a post about this animal...' }),
+        h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:4 } },
+          h('span', { style:{ color:u.textMut, fontSize:11 } }, 'Images, PDFs, and videos can be attached below'),
+          h('span', { style:{ color:charCount > 280 ? u.red : u.textMut, fontSize:11, fontWeight:800 } }, charCount + ' / 280')
+        ),
+        h(PostMediaAttachments, { media:postDraft.media || [], onChange:function(v){ setDraft('media', v); } }),
+        h('div', { style:{ marginTop:14 } },
+          h(FieldLabel, null, 'Platforms'),
+          h('div', { style:{ display:'flex', flexWrap:'wrap', gap:8, marginTop:4 } },
+            PLATFORM_MAP.filter(function(p){ return p.key !== 'google_drive'; }).map(function(p){
+              var connected = isConnected(p.key);
+              var selected = (postDraft.platforms || []).indexOf(p.key) !== -1;
+              var IconFn = p.icon;
+              return h('button', {
+                key:p.key,
+                type:'button',
+                disabled:!connected,
+                onClick:function(){ togglePlatform(p.key); },
+                title:connected ? p.label : p.label + ' (not connected)',
+                style:{
+                  display:'inline-flex', alignItems:'center', gap:6, height:34, padding:'0 10px', borderRadius:999,
+                  border:'1px solid ' + (selected ? p.color : u.border),
+                  background:selected ? p.color + '22' : u.raised,
+                  color:selected ? p.color : u.textSec,
+                  opacity:connected ? 1 : .45,
+                  cursor:connected ? 'pointer' : 'not-allowed',
+                  fontSize:12, fontWeight:800
+                }
+              }, h(IconFn), p.label, connected ? null : h('span', { style:{ fontSize:10, color:u.textMut } }, '· off'));
+            })
+          )
+        ),
+        h('div', { style:{ marginTop:12 } }, h(FieldLabel, null, 'Schedule for (optional)'), h(TextInput, { type:'datetime-local', value:postDraft.scheduled_at || '', onChange:function(v){ setDraft('scheduled_at', v); } })),
+        h('div', { style:{ display:'flex', gap:8, marginTop:14, flexWrap:'wrap' } },
+          h(Button, { variant:'secondary', size:'sm', disabled:posting, onClick:generatePost, iconName:'send' }, 'Generate with AI'),
+          h(Button, { size:'sm', disabled:posting || !canSubmit, onClick:function(){ submitPost(!!postDraft.scheduled_at); }, iconName:'send' }, postDraft.scheduled_at ? 'Schedule' : 'Post Now')
+        ),
+        (data.scheduled_posts || []).length ? h('div', { style:{ marginTop:16 } },
+          h(FieldLabel, null, 'Queued & scheduled'),
+          (data.scheduled_posts || []).map(function(post){
+            var attachments = parsePostMedia(post);
+            return h('div', { key:post.id, style:{ padding:'10px 0', borderTop:'1px solid ' + u.border } },
+              h('div', { style:{ display:'flex', gap:8, alignItems:'flex-start' } },
+                attachments.length && attachments[0].type === 'image' ? h('img', { src:attachments[0].url, alt:'', style:{ width:44, height:44, borderRadius:8, objectFit:'cover', flexShrink:0 } }) :
+                attachments.length ? h('div', { style:{ width:44, height:44, borderRadius:8, background:u.raised, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 } }, appIcon(attachments[0].type === 'video' ? 'video' : 'file', 16)) : null,
+                h('div', { style:{ flex:1, minWidth:0 } },
+                  h('div', { style:{ color:u.text, fontSize:12, fontWeight:800 } }, labelize(post.platform || 'post')),
+                  h('div', { style:{ color:u.textMut, fontSize:11, marginTop:2 } }, [labelize(post.status || 'scheduled'), fmtDateTime(post.scheduled_at || post.created_at)].join(' · ')),
+                  post.content_text ? h('div', { style:{ color:u.textSec, fontSize:11, marginTop:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, post.content_text) : null,
+                  attachments.length > 1 ? h('div', { style:{ color:u.textMut, fontSize:10, marginTop:2 } }, attachments.length + ' attachments') : null
+                ),
+                h(Button, { variant:'secondary', size:'sm', onClick:function(){ cancelPost(post); } }, 'Cancel')
+              )
+            );
+          })
+        ) : null
+      ), { marginBottom:0 })
     );
   }
 
@@ -914,15 +1138,33 @@
     var data = props.data, isMobile = props.isMobile, onClose = props.onClose, reload = props.reload;
     var a = data.animal;
     var u = ui();
+    var parsedAge = parseAgeFields(a.age_label);
+    var parsedWeight = parseWeightField(a.weight_label);
     var formState = useState({
-      name:a.name || '', species:a.species || 'Dog', breed:a.breed || '', age_label:a.age_label || 'Unknown', sex:a.sex || 'Unknown', weight_label:a.weight_label || 'Unknown', energy_level:a.energy_level || 'Unknown', status:a.status || 'available', intake_date:a.intake_date || '', good_with_dogs:a.good_with_dogs || 'Unknown', good_with_cats:a.good_with_cats || 'Unknown', good_with_kids:a.good_with_kids || 'Unknown', medical_notes:a.medical_notes || '', foster_needed:Number(a.foster_needed) === 1, featured:Number(a.featured) === 1, public_visible:Number(a.public_visible) === 1,
-      photo_url:a.photo_url || a.photo || ''
+      name:a.name || '', species:a.species || 'Dog', breed:a.breed || '', sex:a.sex || 'Unknown', energy_level:a.energy_level || 'Unknown', status:a.status || 'available', intake_date:a.intake_date || '', good_with_dogs:a.good_with_dogs || 'Unknown', good_with_cats:a.good_with_cats || 'Unknown', good_with_kids:a.good_with_kids || 'Unknown', medical_notes:a.medical_notes || '', foster_needed:Number(a.foster_needed) === 1, featured:Number(a.featured) === 1, public_visible:Number(a.public_visible) === 1,
+      photo_url:a.photo_url || a.photo || '',
+      age_value:parsedAge.value, age_unit:parsedAge.unit, age_hint:parsedAge.hint,
+      weight_value:parsedWeight.value, weight_unit:parsedWeight.unit, weight_hint:parsedWeight.hint
     });
     var form = formState[0], setForm = formState[1];
     var savingState = useState(false), saving = savingState[0], setSaving = savingState[1];
+    var fieldErrorsState = useState({}), fieldErrors = fieldErrorsState[0], setFieldErrors = fieldErrorsState[1];
     function set(k, v) { var n = Object.assign({}, form); n[k] = v; setForm(n); }
     function save() {
-      var payload = Object.assign({}, form, { foster_needed:form.foster_needed ? 1 : 0, featured:form.featured ? 1 : 0, public_visible:form.public_visible ? 1 : 0 });
+      var ageLabel = formatAgeLabel(form.age_value, form.age_unit);
+      var weightLabel = formatWeightLabel(form.weight_value, form.weight_unit);
+      var errors = {};
+      if (String(form.age_value || '').trim() && !ageLabel) errors.age = 'Enter a valid age number.';
+      if (String(form.weight_value || '').trim() && !weightLabel) errors.weight = 'Enter a valid weight number.';
+      if (Object.keys(errors).length) { setFieldErrors(errors); return; }
+      setFieldErrors({});
+      var payload = {
+        name:form.name, species:form.species, breed:form.breed, sex:form.sex, energy_level:form.energy_level,
+        status:form.status, intake_date:form.intake_date || null, good_with_dogs:form.good_with_dogs,
+        good_with_cats:form.good_with_cats, good_with_kids:form.good_with_kids, medical_notes:form.medical_notes,
+        foster_needed:form.foster_needed ? 1 : 0, featured:form.featured ? 1 : 0, public_visible:form.public_visible ? 1 : 0,
+        photo_url:form.photo_url, age_label:ageLabel || null, weight_label:weightLabel || null
+      };
       setSaving(true);
       apiJSON('/api/dashboard/animals/' + encodeURIComponent(a.id), { method:'PATCH', body:JSON.stringify(payload) }).then(function(){ onClose(); reload(); }).finally(function(){ setSaving(false); });
     }
@@ -933,9 +1175,9 @@
         h('div', null, h(FieldLabel, null, 'Name'), h(TextInput, { value:form.name, onChange:function(v){ set('name', v); } })),
         h('div', null, h(FieldLabel, null, 'Species'), h(SelectInput, { value:form.species, onChange:function(v){ set('species', v); }, options:['Dog','Cat','Other'] })),
         h('div', null, h(FieldLabel, null, 'Breed'), h(TextInput, { value:form.breed, onChange:function(v){ set('breed', v); } })),
-        h('div', null, h(FieldLabel, null, 'Age'), h(SelectInput, { value:form.age_label, onChange:function(v){ set('age_label', v); }, options:['Puppy','Young Adult','Adult','Senior','Mixed Ages','Unknown'] })),
+        h(AgeFieldGroup, { value:form.age_value, unit:form.age_unit, hint:form.age_hint, error:fieldErrors.age, onValueChange:function(v){ set('age_value', v); }, onUnitChange:function(v){ set('age_unit', v); } }),
         h('div', null, h(FieldLabel, null, 'Sex'), h(SelectInput, { value:form.sex, onChange:function(v){ set('sex', v); }, options:['Male','Female','Unknown'] })),
-        h('div', null, h(FieldLabel, null, 'Weight'), h(SelectInput, { value:form.weight_label, onChange:function(v){ set('weight_label', v); }, options:['Small','Medium','Large','Underweight','Unknown'] })),
+        h(WeightFieldGroup, { value:form.weight_value, unit:form.weight_unit, hint:form.weight_hint, error:fieldErrors.weight, onValueChange:function(v){ set('weight_value', v); }, onUnitChange:function(v){ set('weight_unit', v); } }),
         h('div', null, h(FieldLabel, null, 'Energy Level'), h(SelectInput, { value:form.energy_level, onChange:function(v){ set('energy_level', v); }, options:['Low','Medium','High','Unknown'] })),
         h('div', null, h(FieldLabel, null, 'Status'), h(SelectInput, { value:form.status, onChange:function(v){ set('status', v); }, options:[{value:'available', label:'Available'}, {value:'foster', label:'Foster'}, {value:'medical', label:'Medical'}, {value:'adopted', label:'Adopted'}] })),
         h('div', null, h(FieldLabel, null, 'Intake Date'), h(TextInput, { type:'date', value:form.intake_date || '', onChange:function(v){ set('intake_date', v); } })),
@@ -965,7 +1207,7 @@
     var editState = useState(false), showEdit = editState[0], setShowEdit = editState[1];
     var addTaskState = useState(false), showAddTask = addTaskState[0], setShowAddTask = addTaskState[1];
     var newTaskState = useState({ task_type:'feed', title:'', priority:'normal', due_at:'' }), newTask = newTaskState[0], setNewTask = newTaskState[1];
-    var draftState = useState({ content_text:'', platforms:[], scheduled_at:'' }), postDraft = draftState[0], setPostDraft = draftState[1];
+    var draftState = useState({ content_text:'', platforms:[], scheduled_at:'', media:[] }), postDraft = draftState[0], setPostDraft = draftState[1];
     var postingState = useState(false), posting = postingState[0], setPosting = postingState[1];
     var bp = useBreakpoint();
     var isMobile = bp === 'mobile';
@@ -1024,7 +1266,7 @@
           h('div', { style:{ overflowX:'auto', whiteSpace:'nowrap', borderBottom:'1px solid ' + u.border, marginBottom:18 } }, h('div', { style:{ display:'inline-flex', gap:4, minWidth:'100%' } }, tabs.map(function(t){ var active = tab === t.value; return h('button', { key:t.value, onClick:function(){ setTab(t.value); }, style:{ border:'none', background:'transparent', color:active ? u.purpleL : u.textSec, padding:'12px 14px', borderBottom:'2px solid ' + (active ? u.purple : 'transparent'), fontWeight:active ? 900 : 700, fontSize:13, cursor:'pointer' } }, t.label, t.count ? h('span', { style:{ marginLeft:7, fontSize:11, color:active ? u.purpleL : u.textMut } }, t.count) : null); }))),
           tabContent()
         ),
-        isDesktop ? h('div', { style:{ width:300, flexShrink:0, position:'sticky', top:20 } }, h(PublishPanel, { data:data, reload:loadProfile, isCompact:false, postDraft:postDraft, setPostDraft:setPostDraft, posting:posting, setPosting:setPosting })) : null
+        isDesktop ? h('div', { style:{ width:340, flexShrink:0, position:'sticky', top:20 } }, h(PublishPanel, { data:data, reload:loadProfile, isCompact:false, postDraft:postDraft, setPostDraft:setPostDraft, posting:posting, setPosting:setPosting })) : null
       ),
       showEdit ? h(EditDrawer, { data:data, isMobile:isMobile, onClose:function(){ setShowEdit(false); }, reload:loadProfile }) : null
     );

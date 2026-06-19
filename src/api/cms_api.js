@@ -664,8 +664,10 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     const ALLOWED_UPLOAD_MIME = new Set([
       "image/jpeg","image/jpg","image/png","image/webp",
       "image/gif","image/svg+xml","image/avif",
+      "application/pdf",
+      "video/mp4","video/quicktime","video/webm",
     ]);
-    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    const MAX_SIZE = 25 * 1024 * 1024; // 25 MB (video/PDF)
 
     let formData;
     try { formData = await request.formData(); }
@@ -717,6 +719,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     // Insert cms_assets row
     const assetId  = id("asset");
     const assetKey = `upload_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,6)}`;
+    const assetType = file.type.startsWith("video/") ? "video"
+      : file.type === "application/pdf" ? "document"
+      : "image";
     await env.DB.prepare(
       `INSERT INTO cms_assets
          (id, tenant_id, project_id, asset_key, label, filename, original_filename,
@@ -724,14 +729,14 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
           pub_url, cdn_url, public_url, alt_text,
           usage_context, status, is_live, created_by, created_at, updated_at)
        VALUES (?, ?, 'proj_companionscpas', ?, ?, ?, ?,
-               ?, ?, ?, 'image', ?, 'companionscpas',
+               ?, ?, ?, ?, ?, 'companionscpas',
                ?, ?, ?, ?,
                ?, 'active', 1, ?, datetime('now'), datetime('now'))`
     ).bind(
       assetId, TENANT_ID, assetKey,
       label || safeName, safeName, file.name,
       file.type, fileBytes.byteLength,
-      category,
+      category, assetType,
       r2Key,
       pubUrl, pubUrl, pubUrl,
       altText,
@@ -739,7 +744,16 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       cmsUser.id || "unknown"
     ).run();
 
-    return json({ success: true, asset_key: assetKey, public_url: pubUrl, r2_key: r2Key, id: assetId });
+    return json({
+      success: true,
+      asset_key: assetKey,
+      public_url: pubUrl,
+      r2_key: r2Key,
+      id: assetId,
+      mime_type: file.type,
+      asset_type: assetType,
+      filename: file.name,
+    });
   }
 
     // POST /api/cms/asset/save

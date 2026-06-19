@@ -161,7 +161,8 @@ export async function dashboardApiRoutes(request, env, url) {
         ORDER BY provider ASC
       `).bind(TENANT).all().catch(() => ({ results: [] })),
       env.DB.prepare(`
-        SELECT id, platform, status, content_text, media_url, scheduled_at, published_at, created_at
+        SELECT id, platform, status, content_text, media_url, media_type, media_json,
+               scheduled_at, published_at, created_at
         FROM scheduled_posts
         WHERE animal_id = ? AND tenant_id = ?
         ORDER BY created_at DESC LIMIT 20
@@ -365,6 +366,23 @@ export async function dashboardApiRoutes(request, env, url) {
     if (!platforms.length) return json({ ok: false, error: 'platforms array is required' }, 400);
     const contentText = String(b.content_text || '').trim();
     if (!contentText) return json({ ok: false, error: 'content_text is required' }, 400);
+
+    const mediaItems = Array.isArray(b.media)
+      ? b.media.filter(m => m && (m.url || m.public_url)).map(m => ({
+          url: String(m.url || m.public_url),
+          type: String(m.type || m.media_type || 'image').toLowerCase(),
+          name: String(m.name || m.filename || '').trim() || null,
+          mime_type: m.mime_type || null,
+        }))
+      : [];
+    const primaryMedia = mediaItems[0] || (b.media_url ? {
+      url: String(b.media_url),
+      type: String(b.media_type || 'image').toLowerCase(),
+      name: null,
+      mime_type: null,
+    } : null);
+    const mediaJson = mediaItems.length ? JSON.stringify(mediaItems) : null;
+
     const now        = nowIso();
     const scheduledAt = b.scheduled_at || null;
     const status     = scheduledAt ? 'scheduled' : 'queued';
@@ -372,7 +390,23 @@ export async function dashboardApiRoutes(request, env, url) {
     for (const platform of platforms) {
       const id = postId();
       postIds.push(id);
-      await env.DB.prepare(`
+      const insertWithJson = env.DB.prepare(`
+        INSERT INTO scheduled_posts
+          (id, tenant_id, animal_id, platform, status, content_text,
+           media_url, media_type, media_json, scheduled_at, created_by, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `).bind(
+        id, TENANT, animalIdVal,
+        String(platform).toLowerCase(),
+        status, contentText,
+        primaryMedia?.url || null,
+        primaryMedia?.type || 'image',
+        mediaJson,
+        scheduledAt,
+        b.created_by || 'dashboard',
+        now, now
+      );
+      const insertLegacy = env.DB.prepare(`
         INSERT INTO scheduled_posts
           (id, tenant_id, animal_id, platform, status, content_text,
            media_url, media_type, scheduled_at, created_by, created_at, updated_at)
@@ -381,12 +415,17 @@ export async function dashboardApiRoutes(request, env, url) {
         id, TENANT, animalIdVal,
         String(platform).toLowerCase(),
         status, contentText,
-        b.media_url  || null,
-        b.media_type || 'image',
+        primaryMedia?.url || null,
+        primaryMedia?.type || 'image',
         scheduledAt,
         b.created_by || 'dashboard',
         now, now
-      ).run();
+      );
+      try {
+        await insertWithJson.run();
+      } catch {
+        await insertLegacy.run();
+      }
 
       // Mirror to dashboard_calendar_events for scheduling visibility
       await env.DB.prepare(`
