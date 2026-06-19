@@ -639,6 +639,23 @@ body.cpas-nav-open { overflow: hidden !important; }
 .mail-sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25); }
 .mail-sync-dot.warn { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25); }
 
+.mail-gmail-warning {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: rgba(254, 243, 199, 0.85);
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.mail-gmail-warning.in-settings { margin-bottom: 14px; }
+.mail-gmail-warning-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.mail-gmail-warning-row + .mail-gmail-warning-row { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(245, 158, 11, 0.25); }
+.mail-gmail-warning strong { color: #78350f; }
+.mail-gmail-warning code { font-size: 12px; background: rgba(255,255,255,0.6); padding: 1px 6px; border-radius: 4px; }
+.mail-account-row.personal-gmail { border-color: rgba(245, 158, 11, 0.45); background: rgba(254, 243, 199, 0.35); }
+
 .mail-list {
   display: flex;
   flex-direction: column;

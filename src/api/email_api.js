@@ -1,6 +1,13 @@
 import { getAuthUser } from "./session_api.js";
 import { syncGmailInbox } from "./gmail_api.js";
 import {
+  listUserGmailConnections,
+  allowedInboxMailboxes,
+  appendInboxMailboxGuard,
+  gmailWarningsForAccounts,
+  isTenantOrgMailbox,
+} from "./gmail_scope.js";
+import {
   listDashboardNotifications,
   getDashboardNotification,
   patchDashboardNotification,
@@ -338,17 +345,13 @@ export async function emailApiRoutes(request, env, url) {
   if (!session) return json({ error: "Not authenticated" }, 401);
 
   if (path === "/api/email/config" && method === "GET") {
-    const gmailRows = await env.DB.prepare(
-      `SELECT id, status, provider_account_email, provider_account_name, last_connected_at
-       FROM social_provider_connections
-       WHERE tenant_id = ? AND provider = 'google_gmail' AND status = 'connected'
-       ORDER BY last_connected_at DESC`
-    ).bind(TENANT_ID).all().catch(() => ({ results: [] }));
-    const gmailAccounts = (gmailRows?.results || []).map((r) => ({
+    const gmailRows = await listUserGmailConnections(env, session.user_id);
+    const gmailAccounts = gmailRows.map((r) => ({
       id: r.id,
       email: r.provider_account_email,
       name: r.provider_account_name,
       last_connected_at: r.last_connected_at,
+      is_org: isTenantOrgMailbox(r.provider_account_email),
     }));
 
     return json({
@@ -362,6 +365,7 @@ export async function emailApiRoutes(request, env, url) {
       resend_configured: Boolean(resendKey(env)),
       webhook_configured: Boolean(env.RESEND_INBOUND_WEBHOOK_SECRET || env.RESEND_WEBHOOK_SECRET),
       gmail_accounts: gmailAccounts,
+      gmail_warnings: gmailWarningsForAccounts(gmailAccounts),
       gmail: {
         connected: gmailAccounts.length > 0,
         account_email: gmailAccounts[0]?.email || null,
@@ -396,11 +400,12 @@ export async function emailApiRoutes(request, env, url) {
     const readFilter = url.searchParams.get("read_filter") || "all";
     const q = (url.searchParams.get("q") || "").trim().toLowerCase();
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") || 50)));
+    const allowedMailboxes = await allowedInboxMailboxes(env, session);
 
     let sql = `SELECT id, mailbox, from_email, subject, preview_text, status, received_at, thread_key,
                       is_important, is_deleted, folder_id, source
                FROM inbound_emails WHERE tenant_id = ?`;
-    const binds = [TENANT_ID];
+    let binds = [TENANT_ID];
 
     if (view === "important") {
       sql += " AND is_important = 1 AND COALESCE(is_deleted, 0) = 0";
@@ -414,9 +419,16 @@ export async function emailApiRoutes(request, env, url) {
     }
 
     if (mailbox && mailbox !== "all") {
+      const mailboxLower = String(mailbox).toLowerCase();
+      if (!allowedMailboxes.includes(mailboxLower)) {
+        return json({ messages: [], unread_count: 0, important_count: 0 });
+      }
       sql += " AND lower(mailbox) = lower(?)";
       binds.push(mailbox);
     }
+
+    ({ sql, binds } = appendInboxMailboxGuard(sql, binds, allowedMailboxes));
+
     if (readFilter === "read") sql += " AND status = 'read'";
     if (readFilter === "unread") sql += " AND status = 'unread'";
 
@@ -433,12 +445,13 @@ export async function emailApiRoutes(request, env, url) {
       );
     }
 
-    const counts = await env.DB.prepare(
-      `SELECT
+    let countSql = `SELECT
          SUM(CASE WHEN COALESCE(is_deleted,0)=0 AND status='unread' AND (folder_id IS NULL OR folder_id='') THEN 1 ELSE 0 END) AS unread_inbox,
          SUM(CASE WHEN COALESCE(is_deleted,0)=0 AND is_important=1 THEN 1 ELSE 0 END) AS important_count
-       FROM inbound_emails WHERE tenant_id = ?`
-    ).bind(TENANT_ID).first().catch(() => ({}));
+       FROM inbound_emails WHERE tenant_id = ?`;
+    let countBinds = [TENANT_ID];
+    ({ sql: countSql, binds: countBinds } = appendInboxMailboxGuard(countSql, countBinds, allowedMailboxes));
+    const counts = await env.DB.prepare(countSql).bind(...countBinds).first().catch(() => ({}));
 
     return json({
       messages,
@@ -453,6 +466,13 @@ export async function emailApiRoutes(request, env, url) {
       "SELECT * FROM inbound_emails WHERE tenant_id = ? AND id = ? LIMIT 1"
     ).bind(TENANT_ID, inboxMatch[1]).first();
     if (!row) return json({ error: "Not found" }, 404);
+    const allowedMailboxes = await allowedInboxMailboxes(env, session);
+    if (row.source === "gmail") {
+      const mailbox = String(row.mailbox || "").toLowerCase();
+      if (!allowedMailboxes.includes(mailbox)) {
+        return json({ error: "Not found" }, 404);
+      }
+    }
     return json({ message: normalizeInboundRow(row) });
   }
 
@@ -522,7 +542,7 @@ export async function emailApiRoutes(request, env, url) {
   }
 
   if (path === "/api/email/sync-gmail" && method === "POST") {
-    const result = await syncGmailInbox(env, 40);
+    const result = await syncGmailInbox(env, 40, null, session.user_id);
     if (!result.ok) return json(result, 400);
     return json(result);
   }

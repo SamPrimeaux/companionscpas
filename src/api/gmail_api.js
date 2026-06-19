@@ -4,6 +4,7 @@
  */
 
 import { getAuthUser } from "./session_api.js";
+import { listUserGmailConnections } from "./gmail_scope.js";
 
 const TENANT_ID = "tenant_companionscpas";
 const ONBOARDING_FOLDER_ID = "fld_onboarding";
@@ -66,18 +67,10 @@ function encKey(env) {
   return env.DRIVE_ENCRYPT_KEY || env.GOOGLE_CLIENT_SECRET || "";
 }
 
-function connIdForEmail(email) {
+function connIdForEmail(email, userId) {
   const local = String(email || "").toLowerCase().split("@")[0].replace(/[^a-z0-9]/g, "") || "default";
-  return `conn_gmail_${local}`;
-}
-
-async function listGmailConnections(env) {
-  const rows = await env.DB.prepare(
-    `SELECT * FROM social_provider_connections
-     WHERE tenant_id = ? AND provider = ? AND status = 'connected'
-     ORDER BY last_connected_at DESC`
-  ).bind(TENANT_ID, PROVIDER).all().catch(() => ({ results: [] }));
-  return rows?.results || [];
+  const uid = String(userId || "").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 32) || "user";
+  return `conn_gmail_${uid}_${local}`;
 }
 
 async function getConnection(env, connId) {
@@ -229,8 +222,8 @@ async function syncGmailInboxForConnection(env, conn, maxResults = 25) {
   return { ok: true, synced, total: messages.length, account: accountMailbox };
 }
 
-async function syncGmailInbox(env, maxResults = 25, accountEmail = null) {
-  const connections = await listGmailConnections(env);
+async function syncGmailInbox(env, maxResults = 25, accountEmail = null, userId = null) {
+  const connections = userId ? await listUserGmailConnections(env, userId) : [];
   if (!connections.length) return { ok: false, error: "not_connected" };
 
   const targets = accountEmail
@@ -251,8 +244,8 @@ async function syncGmailInbox(env, maxResults = 25, accountEmail = null) {
   return { ok: true, synced, accounts };
 }
 
-async function handleStatus(env) {
-  const connections = await listGmailConnections(env);
+async function handleStatus(env, userId) {
+  const connections = await listUserGmailConnections(env, userId);
   return json({
     ok: true,
     connected: connections.length > 0,
@@ -265,7 +258,7 @@ async function handleStatus(env) {
   });
 }
 
-async function handleConnect(request, env, url) {
+async function handleConnect(request, env, url, userId) {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
     return json({ error: "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not configured" }, 503);
   }
@@ -275,8 +268,8 @@ async function handleConnect(request, env, url) {
 
   await env.DB.prepare(
     `INSERT INTO integration_oauth_states
-       (id, tenant_id, provider, state, redirect_after, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, datetime('now'), ?)
+       (id, tenant_id, provider, state, redirect_after, created_at, expires_at, user_id)
+     VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?)
      ON CONFLICT(state) DO NOTHING`
   ).bind(
     `ostate_${crypto.randomUUID().slice(0, 8)}`,
@@ -284,7 +277,8 @@ async function handleConnect(request, env, url) {
     PROVIDER,
     state,
     `${url.origin}/dashboard/email?connected=gmail`,
-    expiresAt
+    expiresAt,
+    userId || null
   ).run().catch(() => {});
 
   const redirectUri = `${url.origin}/api/social/oauth/google/callback`;
@@ -355,23 +349,26 @@ async function handleCallback(request, env, url) {
   const refreshCipher = tokenData.refresh_token ? await encrypt(tokenData.refresh_token, key) : null;
   const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString();
 
-  const connId = accountEmail ? connIdForEmail(accountEmail) : LEGACY_CONN_ID;
-  await saveConnection(env, connId, accountEmail, accountName, accessCipher, refreshCipher, expiresAt);
+  const userId = stateRow.user_id || null;
+  if (!userId) return redirect(`${fallbackRedirect}?error=session_expired`);
+
+  const connId = accountEmail ? connIdForEmail(accountEmail, userId) : LEGACY_CONN_ID;
+  await saveConnection(env, connId, accountEmail, accountName, accessCipher, refreshCipher, expiresAt, userId);
 
   return redirect(redirectAfter);
 }
 
-async function saveConnection(env, connId, accountEmail, accountName, accessCipher, refreshCipher, expiresAt) {
+async function saveConnection(env, connId, accountEmail, accountName, accessCipher, refreshCipher, expiresAt, userId) {
   await env.DB.prepare(
     `INSERT INTO social_provider_connections
        (id, tenant_id, provider, account_label, status, scopes,
         access_token_cipher, refresh_token_cipher, token_ciphertext,
         token_expires_at, provider_account_email, provider_account_name,
-        last_connected_at, created_at, updated_at)
+        connected_by_user_id, last_connected_at, created_at, updated_at)
      VALUES (?, ?, ?, ?, 'connected', ?,
              ?, ?, ?,
              ?, ?, ?,
-             datetime('now'), datetime('now'), datetime('now'))
+             ?, datetime('now'), datetime('now'), datetime('now'))
      ON CONFLICT(id) DO UPDATE SET
        status = 'connected',
        scopes = excluded.scopes,
@@ -381,6 +378,7 @@ async function saveConnection(env, connId, accountEmail, accountName, accessCiph
        token_expires_at = excluded.token_expires_at,
        provider_account_email = excluded.provider_account_email,
        provider_account_name = excluded.provider_account_name,
+       connected_by_user_id = excluded.connected_by_user_id,
        last_connected_at = datetime('now'),
        error_message = NULL,
        updated_at = datetime('now')`
@@ -389,33 +387,62 @@ async function saveConnection(env, connId, accountEmail, accountName, accessCiph
     accountEmail || "Gmail",
     GMAIL_SCOPES,
     accessCipher, refreshCipher, accessCipher,
-    expiresAt, accountEmail, accountName
+    expiresAt, accountEmail, accountName,
+    userId || null
   ).run();
 }
 
-async function handleDisconnect(request, env) {
-  let connId = LEGACY_CONN_ID;
-  try {
-    const data = await request.json();
-    if (data.connection_id) connId = data.connection_id;
-    else if (data.account_email) connId = connIdForEmail(data.account_email);
-  } catch {}
+async function revokeAndDisconnectConnection(env, conn) {
+  if (!conn) return { ok: true, message: "Already disconnected." };
 
-  const conn = await getConnection(env, connId);
-  if (conn?.access_token_cipher) {
+  if (conn.access_token_cipher) {
     const key = encKey(env);
     const token = await decrypt(conn.access_token_cipher, key);
     if (token) {
       fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, { method: "POST" }).catch(() => {});
     }
   }
+  if (conn.refresh_token_cipher) {
+    const key = encKey(env);
+    const refresh = await decrypt(conn.refresh_token_cipher, key);
+    if (refresh) {
+      fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refresh)}`, { method: "POST" }).catch(() => {});
+    }
+  }
+
   await env.DB.prepare(
     `UPDATE social_provider_connections
      SET status = 'disconnected', access_token_cipher = NULL, refresh_token_cipher = NULL,
          token_ciphertext = NULL, updated_at = datetime('now')
      WHERE id = ?`
-  ).bind(connId).run().catch(() => {});
-  return json({ ok: true, message: "Gmail disconnected." });
+  ).bind(conn.id).run().catch(() => {});
+  return { ok: true, message: "Gmail disconnected." };
+}
+
+async function handleDisconnect(request, env, userId) {
+  let connId = null;
+  let accountEmail = null;
+  try {
+    const data = await request.json();
+    if (data.connection_id) connId = data.connection_id;
+    else if (data.account_email) accountEmail = data.account_email;
+  } catch {}
+
+  let conn = connId ? await getConnection(env, connId) : null;
+  if (!conn && accountEmail && userId) {
+    connId = connIdForEmail(accountEmail, userId);
+    conn = await getConnection(env, connId);
+  }
+  if (!conn && connId) conn = await getConnection(env, connId);
+  if (!conn && !connId) conn = await getConnection(env, LEGACY_CONN_ID);
+
+  if (!conn) return json({ ok: true, message: "Already disconnected." });
+
+  if (conn.connected_by_user_id && conn.connected_by_user_id !== userId) {
+    return json({ error: "Not authorized to disconnect this Gmail account" }, 403);
+  }
+
+  return json(await revokeAndDisconnectConnection(env, conn));
 }
 
 async function requireSession(request, env) {
@@ -445,17 +472,18 @@ export async function gmailRoutes(request, env, url) {
   if (path === "/api/integrations/gmail/status" && method === "GET") {
     const session = await requireSession(request, env);
     if (session instanceof Response) return session;
-    return handleStatus(env);
+    return handleStatus(env, session.user_id);
   }
   if (path === "/api/integrations/gmail/connect" && method === "GET") {
     const session = await requireSession(request, env);
     if (session instanceof Response) return session;
-    return handleConnect(request, env, url);
+    return handleConnect(request, env, url, session.user_id);
   }
-  if (path === "/api/integrations/gmail/disconnect" && method === "POST") {
+  if ((path === "/api/integrations/gmail/disconnect" && method === "POST")
+    || (path === "/api/email/gmail/disconnect" && (method === "POST" || method === "DELETE"))) {
     const session = await requireSession(request, env);
     if (session instanceof Response) return session;
-    return handleDisconnect(request, env);
+    return handleDisconnect(request, env, session.user_id);
   }
   if (path === "/api/integrations/gmail/sync" && method === "POST") {
     const session = await requireSession(request, env);
@@ -465,7 +493,7 @@ export async function gmailRoutes(request, env, url) {
       const data = await request.json();
       accountEmail = data.account_email || null;
     } catch {}
-    const result = await syncGmailInbox(env, 30, accountEmail);
+    const result = await syncGmailInbox(env, 30, accountEmail, session.user_id);
     if (!result.ok) return json(result, 400);
     return json(result);
   }

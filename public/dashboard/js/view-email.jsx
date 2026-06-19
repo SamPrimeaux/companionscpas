@@ -505,6 +505,7 @@ function EmailView() {
 
   const sharedMailboxes = config?.shared_mailboxes || config?.mailboxes || [];
   const gmailAccounts = config?.gmail_accounts || [];
+  const gmailWarnings = config?.gmail_warnings || [];
   const onboardingFolder = folders.find(function(f) { return f.slug === "onboarding"; });
   const customFolders = folders.filter(function(f) { return !f.is_system && f.slug !== "onboarding"; });
 
@@ -590,6 +591,24 @@ function EmailView() {
   return React.createElement("div", { className: "email-workspace" },
     toast && React.createElement("div", { className: "mail-toast" + (toast.indexOf("err:") === 0 ? " is-error" : "") },
       toast.replace(/^(err:|ok:)/, "")
+    ),
+
+    gmailWarnings.length > 0 && React.createElement("div", { className: "mail-gmail-warning", role: "alert" },
+      gmailWarnings.map(function(w, i) {
+        return React.createElement("div", { key: w.email || i, className: "mail-gmail-warning-row" },
+          React.createElement("strong", null, "⚠ Personal Gmail detected"),
+          React.createElement("span", null, " — this inbox is connected to ", React.createElement("code", null, w.email), ". Disconnect and reconnect with your org account (companionscpas@gmail.com or *@companionsofcaddo.org) to avoid sharing personal email."),
+          React.createElement("button", {
+            type: "button",
+            className: "mail-btn ghost sm",
+            onClick: function() {
+              const acct = gmailAccounts.find(function(a) { return a.email === w.email; });
+              if (acct) disconnectGmail(acct);
+              else setSettingsOpen(true);
+            },
+          }, "Disconnect")
+        );
+      })
     ),
 
     React.createElement("div", { className: "mail-stage" },
@@ -974,6 +993,14 @@ function EmailView() {
           )
         ),
         React.createElement("div", { className: "mail-settings-body" },
+          gmailWarnings.length > 0 && React.createElement("div", { className: "mail-gmail-warning in-settings", role: "alert" },
+            gmailWarnings.map(function(w, i) {
+              return React.createElement("p", { key: w.email || i },
+                React.createElement("strong", null, "⚠ Personal Gmail detected"),
+                " — this inbox is connected to ", w.email, ". Disconnect and reconnect with your org account to avoid sharing personal email."
+              );
+            })
+          ),
           React.createElement("div", { className: "mail-settings-card full" },
             React.createElement("strong", null, "Connected sources"),
             React.createElement("div", { className: "mail-accounts-list" },
@@ -986,11 +1013,11 @@ function EmailView() {
                 React.createElement("span", { className: "mail-pill connected" }, "Active")
               ),
               gmailAccounts.map(function(acct) {
-                return React.createElement("div", { key: acct.id || acct.email, className: "mail-account-row" },
+                return React.createElement("div", { key: acct.id || acct.email, className: "mail-account-row" + (acct.is_org === false ? " personal-gmail" : "") },
                   React.createElement("div", { className: "mail-prov-icon gmail" }, "GM"),
                   React.createElement("div", null,
                     React.createElement("strong", null, acct.email),
-                    React.createElement("span", null, "Gmail inbox sync")
+                    React.createElement("span", null, acct.is_org === false ? "Personal Gmail — disconnect and use org account" : "Gmail inbox sync (your account only)")
                   ),
                   React.createElement("div", { className: "mail-account-actions" },
                     React.createElement("button", { type: "button", className: "mail-btn ghost sm", disabled: busy, onClick: function() { syncGmail(acct.email); } }, "Sync"),

@@ -147,6 +147,23 @@ One global donate modal (`static/js/donate-modal.js`) on every public page via `
 
 Stripe publishable key from `GET /api/donations/config` (secret: `STRIPE_PUBLISHABLE_KEY`). Test card: `4242 4242 4242 4242`.
 
+### Dashboard email (Gmail + Resend)
+
+`/dashboard/email` combines Resend inbound (`support@companionsofcaddo.org`, shared tenant-wide) with optional **per-user** Gmail OAuth inbox sync.
+
+| Endpoint | Handler | Purpose |
+|---|---|---|
+| `GET /api/email/config` | `email_api.js` | Mailboxes, Resend status, **your** connected Gmail accounts |
+| `GET /api/email/inbox` | `email_api.js` | Inbound messages — Gmail rows filtered to shared + **your** connections only |
+| `POST /api/email/sync-gmail` | `email_api.js` | Sync **your** connected Gmail account(s) |
+| `GET /api/integrations/gmail/connect` | `gmail_api.js` | Start Google OAuth (stores `user_id` on OAuth state) |
+| `POST /api/integrations/gmail/disconnect` | `gmail_api.js` | Revoke token + disconnect **your** connection |
+| `DELETE /api/email/gmail/disconnect` | `gmail_api.js` | Alias for disconnect |
+
+**Gmail isolation (P0):** OAuth tokens live in D1 `social_provider_connections` with `connected_by_user_id`. Connection IDs are scoped as `conn_gmail_{userId}_{localPart}`. Inbox queries hide Gmail messages from other users' mailboxes. Org accounts: `*@companionsofcaddo.org` or `companionscpas@gmail.com`. Personal Gmail shows a warning banner in Mail settings.
+
+**Disconnect:** revokes Google token, clears ciphers, sets `status = disconnected`. Does **not** delete historical `inbound_emails` rows (audit); run targeted SQL purge if personal mail was synced tenant-wide.
+
 ### CMS dashboard workflow
 
 1. Edit at `/dashboard/cms/pages` → pick route → section fields
