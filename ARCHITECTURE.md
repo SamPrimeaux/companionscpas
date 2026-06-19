@@ -2,7 +2,9 @@
 
 > **Canonical reference for AI agents, developers, and future sprints.**
 > Read this before writing any code or querying any database on this project.
-> Last verified: 2026-06-11 against live remote D1.
+> Last verified: 2026-06-19 against live remote D1, deployed Worker, and handoff-sprint dashboard code.
+>
+> **Route-level file ownership:** [`docs/current-file-map.md`](docs/current-file-map.md) (v2). This file's dashboard contract table below matches that map.
 
 ---
 
@@ -199,8 +201,7 @@ Columns: `id | tenant_id | animal_id | foster_name | foster_email | status | sta
 
 ### Applications — Source of Truth Decision (verified)
 
-#### `applications` — **4 rows. LEGACY STUB. 6 columns only: id, applicant_name, applicant_email, animal_name, status, created_at.**
-This is a thin placeholder. It does NOT have tenant_id, address, answers_json, review workflow, or any CPAS-specific fields. Do NOT build new features on this table.
+#### `applications` — **DROPPED from live D1 (2026-06-23).** Was a 6-column legacy stub. All application work uses `cpas_foster_applications`.
 
 #### `cpas_foster_applications` — **4 rows. CANONICAL. Full production schema.**
 Columns: `id | form_id | tenant_id | status | review_status | source | first_name | last_name | email | phone | street_address | apartment_suite | city | state_province | postal_code | answers_json | resend_message_id | submitted_at | reviewed_at | approved_at | denied_at | assigned_to | internal_notes | ip_hash | user_agent | created_at | updated_at`
@@ -247,10 +248,10 @@ This was the original auth table. It still powers `/admin/login` via `auth_login
 
 ### Volunteers
 
-#### `volunteer_records` — **3 rows.**
+#### `volunteer_records` — **3+ rows (Amanda, Kim added Jun 2026).**
 Columns: `id | tenant_id | full_name | email | role | status | hours_month | created_at`
 
-Backend has `/api/dashboard/team` querying this but frontend calls `/api/dashboard/volunteers`. Add the volunteers endpoint alias in `dashboard_api.js`.
+Backend: `GET/POST /api/dashboard/volunteers` (canonical). `GET /api/dashboard/team` remains an alias. Frontend `VolunteersView` uses volunteers endpoint + Add Volunteer modal.
 
 ---
 
@@ -272,36 +273,46 @@ Backend has `/api/dashboard/team` querying this but frontend calls `/api/dashboa
 
 ### Agent Sam Tables (in this CPAS D1 — these are IAM platform tables shared here)
 
-**Important:** `agentsam_tools` (34 rows) is the canonical MCP tool registry. `agentsam_mcp_tools` (25 rows) is a legacy/parallel table from before the refactor — `agentsam_tools` wins. GPT's suggestion that `agentsam_mcp_tools` is the current registry is **incorrect**.
+**Canonical:** `agentsam_tools`, `agentsam_workflows`, `agentsam_usage_events`, `agentsam_usage_rollups_daily`, `agentsam_sessions`, `agentsam_messages`, `agentsam_tool_chain`. Runtime tool dispatch is code-defined in `src/api/agentsam_tools.js`.
 
-`agentsam_tools` schema: `id | tenant_id | tool_key | tool_name | category | description | function_schema | is_enabled | requires_approval | allowed_roles | min_model_tier | usage_count | last_used_at | sort_order | created_at | updated_at`
+**Dropped from live D1 (2026-06-23):** `agentsam_mcp_tools`, `agentsam_mcp_workflows` — legacy pre-refactor duplicates. See [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
-`agentsam_mcp_tools` schema: `id | tenant_id | tool_key | tool_name | display_name | tool_category | description | input_schema | output_schema | intent_tags | modes_json | handler_type | handler_config | provider | requires_auth | requires_secret_keys | safety_level | is_enabled | sort_order | created_at | updated_at`
-
-For `/dashboard/reports → AI Usage`: query `agentsam_usage_events` and `agentsam_usage_rollups_daily`.
-
-Similarly: `agentsam_workflows` (17 rows) is the canonical workflow table. `agentsam_mcp_workflows` (33 rows) is a legacy/parallel structure — do not build new features on `agentsam_mcp_workflows`.
+For `/dashboard/reports → AI Usage`: query `agentsam_usage_events` and `agentsam_usage_rollups_daily` (UI still partially hardcoded — Agent Sam refresh sprint). **Phase 2 plan:** [`docs/AGENTSAM_CPAS_ROADMAP.md`](docs/AGENTSAM_CPAS_ROADMAP.md).
 
 ---
 
-## Dashboard → API → D1 Contracts (sprint target)
+## Dashboard → API → D1 Contracts
 
-| Dashboard route | API endpoint(s) | D1 table(s) | Current status |
-|---|---|---|---|
-| `/dashboard/overview` | `GET /api/dashboard/overview` | `animal_profiles`, `cpas_foster_applications`, `donations`, `volunteer_records` | ✅ wired |
-| `/dashboard/animals` | `GET /api/dashboard/animals` | `animal_profiles` (tenant filter) | ✅ wired |
-| `/dashboard/intakes` | `GET /api/dashboard/intakes` | `animal_profiles` (intake_date, status) | ⚠️ API exists, frontend not fetching |
-| `/dashboard/medical` | `GET /api/dashboard/medical` | `care_tasks` (organization_id, type=medical) | ⚠️ 0 rows — empty, not broken |
-| `/dashboard/daily-care` | `GET /api/dashboard/daily-care` | `care_tasks` (organization_id) | ⚠️ 0 rows — empty, not broken |
-| `/dashboard/fosters` | `GET /api/dashboard/fosters` | `foster_records` | ⚠️ API exists, frontend stub |
-| `/dashboard/adoptions` | `GET /api/dashboard/adoptions` | `cpas_foster_applications` (status=adopted) | ⚠️ stub |
-| `/dashboard/applications` | `GET /api/dashboard/applications` | **`cpas_foster_applications`** (not `applications`) | ⚠️ currently queries wrong table |
-| `/dashboard/volunteers` | `GET /api/dashboard/volunteers` | `volunteer_records` | ⚠️ endpoint missing (exists as `/api/dashboard/team`) |
-| `/dashboard/donations` | `GET /api/dashboard/donations` | `donations`, `donors`, `donation_payments` | ⚠️ endpoint missing |
-| `/dashboard/fundraising` | `GET /api/dashboard/fundraising` | `fundraising_campaigns` (NOT demo table) | ⚠️ backburner — Stripe setup pending |
-| `/dashboard/reports` | multiple | animals, applications, donations, volunteers, `agentsam_usage_events` | ✅ fetches 5 endpoints, sub-tab render pending |
-| `/dashboard/settings` | org/users/integrations | `organizations`, `users`, `social_provider_connections` | ⚠️ stub shell |
-| `/dashboard/cms/*` | `/api/cms/*` | `cms_pages`, `cms_page_sections`, `cms_page_content_blocks`, `cms_brand_settings`, `cms_assets` | ✅ mostly wired — block editor UI pending |
+Verified 2026-06-19. Status: **Live** = production data path wired; **Mixed** = partial mock/hardcoded UI; **Stub** = API or UI not fully connected; **Partial** = fetches API but display not driven by response.
+
+| Dashboard route | View / file | API endpoint(s) | D1 table(s) | Status |
+|---|---|---|---|---|
+| `/dashboard/overview` | `OverviewView` · `view-overview.jsx` | `GET /api/dashboard/overview` | `animal_profiles`, `cpas_foster_applications`, `donations`, `volunteer_records` | **Mixed** — counts from API; deltas/sparklines/care bars still mock |
+| `/dashboard/animals` | `AnimalsView` · `view-animals.jsx` | `GET/POST /api/dashboard/animals` | `animal_profiles`, `cms_assets` | **Live** |
+| `/dashboard/animals/:id` | `AnimalProfileView` · `view-animals.jsx` | `GET/PATCH /api/dashboard/animals/:id`, notes, care-tasks, attachments, publish, applications | `animal_profiles`, `foster_records`, `animal_notes`, `care_tasks`, `scheduled_posts` | **Live** — foster assign/end in Care & Medical |
+| `/dashboard/intakes` | `IntakesView` · `view-ops.jsx` | `GET /api/dashboard/intakes` | `cms_assets` (intake PDFs), `animal_profiles` | **Live** |
+| `/dashboard/medical` | `MedicalView` · `view-ops.jsx` | `GET /api/dashboard/medical` | `cms_assets` (medical PDFs), `animal_profiles` | **Live** |
+| `/dashboard/daily-care` | `DailyCareView` · `view-ops.jsx` | `GET /api/dashboard/daily-care` (unused by UI) | `care_tasks` | **Stub** — UI reads `CPAS.dailyCare` mock only |
+| `/dashboard/fosters` | `FostersView` · `view-animals.jsx` | `GET /api/dashboard/fosters?status=active`, `POST`, `PATCH /:id` | `foster_records`, `animal_profiles` | **Live** — active placements list; POST/PATCH end placement |
+| `/dashboard/adoptions` | `AdoptionsView` · `view-animals.jsx` | `GET /api/dashboard/adoptions` | `cpas_foster_applications` (`review_status=approved`) | **Live** — label misleading (approved foster apps, not adoption records) |
+| `/dashboard/applications` | `ApplicationsView` · `view-applications.jsx` | `GET /api/dashboard/applications` | `cpas_foster_applications` | **Live** — legacy `applications` table cleared |
+| `/dashboard/applications/:id` | `ApplicationDetailView` · `view-applications.jsx` | `GET/PATCH /api/dashboard/applications/:id` | `cpas_foster_applications` | **Live** |
+| `/dashboard/volunteers` | `VolunteersView` · `view-ops.jsx` | `GET/POST /api/dashboard/volunteers` | `volunteer_records` | **Live** — Add Volunteer modal wired |
+| `/dashboard/donations` | `DonationsView` · `view-finance.jsx` | `GET/POST /api/dashboard/donations` | `donations`, `donors`, `donation_payments` | **Live** (Stripe test mode) |
+| `/dashboard/fundraising` | `FundraisingView` · `view-finance.jsx` | `GET/POST/PUT /api/dashboard/fundraising` | `fundraising_campaigns` (not demo table) | **Live** |
+| `/dashboard/fundraising/:id` | `CampaignWorkspaceView` · `view-campaign.jsx` | `GET/PUT /api/dashboard/fundraising/:id` | `fundraising_campaigns` | **Live** |
+| `/dashboard/reports` | `ReportsView` · `view-reports.jsx` | `GET /api/dashboard/animals`, `/applications`, `/volunteers`, `/reports/financial`, `/agentsam/runs` | Mixed | **Partial** — several tabs use hardcoded seed stats; AI Usage ignores runs API (Agent Sam refresh sprint) |
+| `/dashboard/settings` | `SettingsView` · `view-admin.jsx` | `GET /api/dashboard/config` | `organizations`, `users`, `social_provider_connections` | **Shell** |
+| `/dashboard/email` | `EmailWorkspaceView` · `view-email.jsx` | `/api/email/*`, Gmail OAuth | `inbound_emails`, Gmail scope | **Live** |
+| `/dashboard/notifications` | → redirects to `/dashboard/email?view=notifications` | Same as email | `dashboard_notifications` | **Live** (legacy URL) |
+| `/dashboard/cms/website` | `CmsWebsiteView` · `view-cms.jsx` | `GET /api/cms/bootstrap`, `POST /api/cms/publish` | `cms_pages`, R2, KV | **Live** — page status from D1 |
+| `/dashboard/cms/pages` | `CmsPagesView` · `view-cms.jsx` | `GET /api/cms/bootstrap`, `/api/dashboard/cms`, `/api/cms/sections` | `cms_pages`, sections | **Live** — status from D1 |
+| `/dashboard/cms/pages/:pageId` | `CmsPageEditorView` · `view-cms.jsx` | `GET /api/cms/page`, section/block save, publish | `cms_page_sections`, `cms_page_content_blocks` | **Live** |
+| `/dashboard/cms/images` | `CmsImagesView` · `view-cms.jsx` | `GET /api/cms/assets`, Drive import | `cms_assets`, R2 | **Live** |
+| `/dashboard/cms/brand` | `CmsBrandView` · `view-cms.jsx` | `GET/POST /api/cms/brand` | `cms_brand_settings` | **Live** — polish backlog |
+| `/dashboard/cms/templates` | `CmsTemplatesView` · `view-cms.jsx` | Section type catalog (UI only) | — | **Reference UI** |
+
+**Lane B — Dashboard social publishing (future, not active):** `GET /api/social/status`, `GET /api/social/oauth/meta/start`, stubbed `GET /api/social/oauth/meta/callback`, `POST /api/social/facebook/page-posts` returns **501** until Meta app review, client approval, CSRF persistence, and token encryption are complete. Real publish must never silently succeed.
 
 ---
 
@@ -309,12 +320,12 @@ Similarly: `agentsam_workflows` (17 rows) is the canonical workflow table. `agen
 
 | File | Routes |
 |---|---|
-| `dashboard_api.js` | `GET /api/dashboard/overview\|animals\|applications\|intakes\|medical\|daily-care\|fosters\|adoptions\|fundraising\|team\|reports` |
+| `dashboard_api.js` | Overview, animals CRUD, fosters GET/POST/PATCH, volunteers GET/POST (+ `/team` alias), applications, adoptions, fundraising, donations, intakes, medical, daily-care, cms snapshot, config, reports/financial |
 | `cms_api.js` | `GET /api/cms/bootstrap\|page\|sections\|assets\|brand` — `POST /api/cms/section/save\|block/save\|page/save\|publish\|asset/upload\|asset/save\|brand/save\|brand/config\|section/delete` |
 | `drive_api.js` | `GET /api/integrations/google-drive/status\|connect\|files\|test` — `POST /api/integrations/google-drive/import\|disconnect` |
 | `auth_google.js` | `GET /api/auth/google/login\|callback\|debug` |
 | `auth_login.js` | `POST /api/auth/login\|logout` |
-| `social.js` | `GET /api/social/oauth/google/callback\|youtube/callback` |
+| `social.js` | Lane A: embed config (`/api/social/embed/facebook-page`, `/api/social/status`). Lane B stubs: Meta OAuth start/callback, `POST /api/social/facebook/page-posts` → 501 |
 | `foster_api.js` | Foster-specific endpoints |
 | `agentsam_api.js` | `POST /api/agentsam/chat` — `GET /api/agentsam/runs` |
 
@@ -337,9 +348,11 @@ Similarly: `agentsam_workflows` (17 rows) is the canonical workflow table. `agen
 | `/dashboard/applications/{id}` | `ApplicationDetailView` | `view-applications.jsx` |
 | `/dashboard/donations` | `DonationsView` | `view-finance.jsx` |
 | `/dashboard/fundraising` | `FundraisingView` | `view-finance.jsx` |
-| `/dashboard/reports` | `ReportsView` | `view-reports.jsx` |
+| `/dashboard/fundraising/:id` | `CampaignWorkspaceView` | `view-campaign.jsx` |
+| `/dashboard/reports` | `ReportsView` | `view-reports.jsx` (do not edit stale duplicate in `view-admin.jsx`) |
 | `/dashboard/settings` | `SettingsView` | `view-admin.jsx` |
-| `/dashboard/notifications` | `NotificationsView` | `view-admin.jsx` |
+| `/dashboard/email` | `EmailWorkspaceView` | `view-email.jsx` |
+| `/dashboard/notifications` | → `email` view | `view-email.jsx` (legacy redirect) |
 | `/dashboard/cms/website` | `CmsWebsiteView` | `view-cms.jsx` |
 | `/dashboard/cms/pages` | `CmsPagesView` | `view-cms.jsx` |
 | `/dashboard/cms/pages/{slug}` | `CmsPageEditorView` | `view-cms.jsx` |
@@ -421,6 +434,6 @@ DB ID: `fd6dd6fb-156b-4b6a-8ff0-505422652391`. Worker binding: `DB`. Tenant: `te
 | "`applications` may be source of truth for adoptions" | `applications` is a 6-column legacy stub with 4 rows and no tenant_id. `cpas_foster_applications` is canonical (4 rows, 27 columns, full review workflow). |
 | "`agentsam_mcp_tools` is the MCP tool registry" | `agentsam_tools` (34 rows) is canonical. `agentsam_mcp_tools` (25 rows) is legacy from pre-refactor. Build on `agentsam_tools`. |
 | "`agentsam_mcp_workflows` for workflow definitions" | `agentsam_workflows` (17 rows) is canonical. `agentsam_mcp_workflows` (33 rows) is legacy. |
-| "`fundraising_campaigns` is production" | `fundraising_campaigns` has 0 rows. `fundraising_campaigns_demo` has 3 rows but is demo data — never drive production UI from it. Both are backburner until Stripe setup completes. |
+| "`fundraising_campaigns` is production" | `fundraising_campaigns` is canonical (may be 0 rows). `fundraising_campaigns_demo` is demo data — never drive production UI from it. Fundraising dashboard UI queries the real table. |
 | "`care_tasks` filters by tenant_id" | `care_tasks` uses `organization_id`, not `tenant_id`. Filter: `WHERE organization_id = 'tenant_companionscpas'`. Currently 0 rows (empty, not broken). |
-| "Add `/api/dashboard/volunteers` as new endpoint" | Endpoint already exists as `/api/dashboard/team` in `dashboard_api.js`. Frontend needs to call `/api/dashboard/team` or the backend needs an alias. |
+| "Add `/api/dashboard/volunteers` as new endpoint" | `GET/POST /api/dashboard/volunteers` shipped Jun 2026. `/api/dashboard/team` remains an alias. |

@@ -17,13 +17,45 @@ This platform combines a public-facing rescue website with a private admin dashb
 
 The dashboard is a React SPA (raw JSX via Babel CDN) served from R2. The public site uses `shared.css` design tokens, modular popups (`cpas-modals.js`, `donate-modal.js`), and Stripe test-mode donations until the client goes live.
 
-**Start here tomorrow:** read [Sectionalized CMS System](#sectionalized-cms-system) below, then the per-page docs in `docs/`.
+**Start here:** [Client handoff status](#client-handoff-status-june-2026) for what's live today, then [Sectionalized CMS System](#sectionalized-cms-system) for CMS/public-site work. Dashboard file ownership: [`docs/current-file-map.md`](docs/current-file-map.md). Per-feature docs (vectorization-ready): [`docs/features/README.md`](docs/features/README.md).
+
+---
+
+## Client Handoff Status (June 2026)
+
+Production domain: `companionsofcaddo.org`. Final client sprint shipped:
+
+| Area | Status |
+|---|---|
+| Public site (6 fragment routes) | Live — D1 → R2 → KV |
+| Animals + profiles + foster placement | Live — `POST/PATCH /api/dashboard/fosters`, Care & Medical panel |
+| Fosters list | Live — active placements from API |
+| Applications | Live — `cpas_foster_applications` only; legacy `applications` table empty |
+| Volunteers | Live — `GET/POST /api/dashboard/volunteers`, Add Volunteer form |
+| CMS pages list | Live — `status` from D1 (not hardcoded) |
+| Donations / Stripe | Live in test mode |
+| Email inbox | Live — Resend + per-user Gmail scope |
+
+**Still mixed or stub (do not treat as full production metrics):**
+
+- **Overview** — partial API hydration; sparklines/deltas/care bars still from `data.js` mock
+- **Daily Care** — mock tasks only (`CPAS.dailyCare`); API exists but UI not wired
+- **Reports** — Financial tab live; Animals/Applications/Volunteers/AI Usage tabs still use hardcoded seed fallbacks in `view-reports.jsx` (see file map)
+- **Settings** — shell; org/users/integrations need build-out
+- **Adoptions route** — shows approved foster applications, not adoption records (naming only)
+
+**Maintenance backlog (future sprints — not blockers for handoff):**
+
+- [Lane B — Dashboard social publishing](#lane-b--dashboard-social-publishing-future) (Meta app review, client approval required)
+- [Agent Sam / AI cost ownership refresh](#agent-sam--ai-cost-ownership) — Reports AI tab + chat reliability; full Phase 2 plan in [`docs/AGENTSAM_CPAS_ROADMAP.md`](docs/AGENTSAM_CPAS_ROADMAP.md)
+- Overview/Daily Care wire-up or explicit "demo metrics" labels
+- `/adopt` animal grid depth, CMS block editor, live Stripe keys
 
 ---
 
 ## Sectionalized CMS System
 
-> Last updated: 2026-06-14. This is the canonical handoff for continuing CMS/public-site work.
+> Last updated: 2026-06-19. Canonical reference for CMS/public-site work.
 
 ### Mental model
 
@@ -233,20 +265,19 @@ npm run sync
 | `brand:tenant_companionscpas` | Brand settings cache |
 | `bootstrap:tenant_companionscpas` | CMS bootstrap JSON |
 
-### Where to pick up tomorrow
+### CMS maintenance (post-handoff)
 
 | Area | Status | Next step |
 |---|---|---|
-| Fragment pipeline (all 6 routes) | Working | Refine section types / block editor UI |
-| Home + About custom renderers | Reference implementations | Use as templates when remastering other pages |
-| Generic pages (`render_section.js`) | Working; uses `shared.css` classes | Tune D1 content per page; add block-level CMS editing |
-| Donate modal + CTAs | Working (Stripe test mode) | Client sign-off on UI; then live Stripe keys |
-| Apply modals (foster/volunteer/contact) | Modular in `cpas-modals.js` | Wire more CTAs via `data-modal` / `cta_action` |
-| CMS preview iframe | Working | Continue contrast/layout polish in dashboard |
-| `/adopt` animal grid | Thinner than old baked page | Restore animal D1-driven grid/modal if needed |
-| Block editor UI | Section-level only | Add block editing for card-heavy sections (tiers, campaigns, stats) |
+| Fragment pipeline (all 6 routes) | Live | Block-level CMS editing for card-heavy sections |
+| Home + About custom renderers | Reference implementations | Template for future page remasters |
+| Generic pages (`render_section.js`) | Live | Per-page D1 content polish |
+| Donate modal + CTAs | Live (Stripe test mode) | Client sign-off; swap to live Stripe keys |
+| Apply modals (foster/volunteer/contact) | Live in `cpas-modals.js` | More CTAs via `data-modal` / `cta_action` |
+| `/adopt` animal grid | Live but thinner than legacy bake | D1-driven grid/modal depth if client wants |
+| CMS brand | Live | Make org identity source of truth for all public copy |
 
-Deeper schema/API reference: [`ARCHITECTURE.md`](ARCHITECTURE.md). Dashboard file ownership: [`docs/current-file-map.md`](docs/current-file-map.md).
+Deeper schema/API reference: [`ARCHITECTURE.md`](ARCHITECTURE.md) (update dashboard contract table when editing). **Live dashboard map:** [`docs/current-file-map.md`](docs/current-file-map.md).
 
 **Agent Sam context (D1):** canonical rows in `agentsam_project_context` on **both** databases:
 
@@ -276,10 +307,15 @@ npx wrangler d1 execute inneranimalmedia-business --remote --file db/agent_conte
 | [`docs/homepage-readme.md`](docs/homepage-readme.md) | Home (`/`) custom fragment renderers, 7 sections, bootstrap. |
 | [`docs/about-readme.md`](docs/about-readme.md) | About (`/about`) custom fragments and design-system classes. |
 | [`docs/services-page-spec.md`](docs/services-page-spec.md) | Foster/services page layout spec and generic pipeline notes. |
-| [`docs/current-file-map.md`](docs/current-file-map.md) | Dashboard route → file → API → table ownership map. |
+| [`docs/features/README.md`](docs/features/README.md) | **Feature doc catalog** — vectorization-ready, one doc per main product surface. |
+| [`docs/templates/FEATURE_DOC_TEMPLATE.md`](docs/templates/FEATURE_DOC_TEMPLATE.md) | Template for new feature docs. |
+| [`docs/HANDOFF.md`](docs/HANDOFF.md) | **Canonical vs legacy D1 tables** — what to use, what was dropped, what needs code first. |
+| [`docs/AGENTSAM_CPAS_ROADMAP.md`](docs/AGENTSAM_CPAS_ROADMAP.md) | **Agent Sam Phase 2 plan** — tools, workflows, approval queue, sprint build order. |
+| [`docs/current-file-map.md`](docs/current-file-map.md) | **Live** dashboard route → file → API → table map (v2, Jun 2026). |
+| [`docs/cleanup-report-2026-06-19.md`](docs/cleanup-report-2026-06-19.md) | Repo/R2 files already removed in cleanup pass. |
 | [`docs/live-url-sitemap.md`](docs/live-url-sitemap.md) | Live public/admin/dashboard/CMS route inventory. |
 | [`docs/companions-brand-readme.md`](docs/companions-brand-readme.md) | Brand voice, copy system, page copy direction. |
-| [`docs/sam-todo-final-polish-sprint.md`](docs/sam-todo-final-polish-sprint.md) | Polish sprint checklist (dashboard, reports, settings). |
+| [`docs/sam-todo-final-polish-sprint.md`](docs/sam-todo-final-polish-sprint.md) | Historical polish checklist — superseded by README [Maintenance Backlog](#maintenance-backlog-post-handoff). |
 
 ---
 
@@ -347,30 +383,26 @@ See [`docs/live-url-sitemap.md`](docs/live-url-sitemap.md) for the detailed live
 | `/admin/reset-password` | Password reset flow. |
 | `/dashboard/*` | Auth-gated dashboard SPA. |
 
-**Dashboard / CMS routes to keep refining**
+**Dashboard routes — live status (Jun 2026)**
 
-| Route | Focus |
+| Route | Status |
 |---|---|
-| `/dashboard/overview` | Real overview metrics and mobile shell polish. |
-| `/dashboard/animals` | Animal CRUD, image connection, public visibility. |
-| `/dashboard/intakes` | Intake records and animal profile relationship. |
-| `/dashboard/medical` | Medical status, care notes, and cost tracking. |
-| `/dashboard/daily-care` | Care tracking; keep only if useful for this client. |
-| `/dashboard/fosters` | Foster homes, foster needs, placements. |
-| `/dashboard/adoptions` | Adoption tracking and inquiry flow. |
-| `/dashboard/applications` | Foster/adoption application intake. |
-| `/dashboard/volunteers` | Volunteer roster, roles, availability, notes. |
-| `/dashboard/donations` | Donation records and verification. |
-| `/dashboard/fundraising` | Campaigns, transport/medical funds, giving goals. |
-| `/dashboard/cms/website` | Website management hub. |
-| `/dashboard/cms/pages` | Page editor and publish workflow. |
-| `/dashboard/cms/images` | R2 media library, tags, alt text, selection flow. |
-| `/dashboard/cms/brand` | Brand source of truth. Tomorrow priority. |
-| `/dashboard/cms/templates` | Template library. Needs full-screen responsive enhancement. |
-| `/dashboard/reports` | Real-data reports; remove or label demo data. |
-| `/dashboard/settings` | Real operational settings, users, roles, integrations. |
-| `/dashboard/notifications` | Redirects to `/dashboard/email?view=notifications` (legacy URL) |
-| `/dashboard/email` | Gmail + Resend inbox; **Notifications** smart view (donations, contact forms, foster apps) |
+| `/dashboard/overview` | Mixed — partial API; mock deltas/sparklines |
+| `/dashboard/animals`, `/dashboard/animals/:id` | Live — CRUD, foster placement, publish |
+| `/dashboard/intakes`, `/dashboard/medical` | Live — R2 PDF lanes |
+| `/dashboard/daily-care` | Stub — mock UI only |
+| `/dashboard/fosters` | Live — active placements |
+| `/dashboard/adoptions` | Live — approved foster apps (naming caveat) |
+| `/dashboard/applications` | Live — `cpas_foster_applications` |
+| `/dashboard/volunteers` | Live — roster + Add Volunteer |
+| `/dashboard/donations`, `/dashboard/fundraising` | Live — `fundraising_campaigns` (not demo table) |
+| `/dashboard/cms/*` | Live — pages read status from D1 |
+| `/dashboard/reports` | Partial — Financial live; AI/Volunteers/Animals tabs have seed fallbacks |
+| `/dashboard/settings` | Shell |
+| `/dashboard/notifications` | Redirects to `/dashboard/email?view=notifications` |
+| `/dashboard/email` | Live — Gmail + Resend inbox |
+
+Full route → file → API map: [`docs/current-file-map.md`](docs/current-file-map.md).
 
 **API**
 
@@ -381,7 +413,7 @@ See [`docs/live-url-sitemap.md`](docs/live-url-sitemap.md) for the detailed live
 | `/api/cms/*` | `cms_api.js` |
 | `/api/social/*` | `social.js` |
 | `/api/agentsam/*` | `agentsam_api.js`, `agentsam_tools.js` |
-| `/api/dashboard/*` | `dashboard_api.js`, `dashboard_config_api.js` |
+| `/api/dashboard/*` | `dashboard_api.js`, `dashboard_config_api.js` — includes `POST/PATCH /api/dashboard/fosters`, `GET/POST /api/dashboard/volunteers` |
 | `/api/donations/*` | `payments_email.js` + `donation_api.js` — config, intent, create-intent (adopt), subscribe, webhook |
 | `/api/contact` | `contact_api.js` |
 | `/api/foster/*` | `foster_api.js` |
@@ -455,46 +487,50 @@ Target: no horizontal scroll at 375px, no clipped cards, sidebar hidden below 90
 
 ## Facebook / Social Integration Plan
 
-Two separate integration lanes:
+Two separate integration lanes. **Lane A is in scope today. Lane B is explicitly deferred** until the client approves Meta app review and publishing risk.
 
-### Lane A — Public website Facebook embed
-
-Low risk.
+### Lane A — Public website Facebook embed (low risk, current)
 
 - No publishing permissions required.
-- Uses Facebook Page Plugin embedded on `/community`.
-- Config stored in `social_embed_settings` D1 table.
-- `GET /api/social/embed/facebook-page` returns current embed config.
-- `POST /api/social/embed/facebook-page` lets admin save page URL and options.
-- Must gracefully fail if Facebook blocks embed, cookies, or tracking.
+- Facebook Page Plugin on `/community`.
+- Config in `social_embed_settings` D1 table.
+- `GET /api/social/embed/facebook-page` / `POST /api/social/embed/facebook-page`
+- Must gracefully fail if Facebook blocks embed.
 
-### Lane B — Dashboard social publishing
+### Lane B — Dashboard social publishing (future — not in handoff)
 
-Higher risk.
+**Planned for a later sprint after explicit client approval.** Do not enable or imply live publishing until complete.
 
 - Requires Meta Developer App and app review.
 - Requires Facebook Login for Business / page permissions.
-- Requires explicit client approval before activation.
-- `GET /api/social/status` shows whether credentials are configured.
-- `GET /api/social/oauth/meta/start` begins Meta OAuth flow when `META_APP_ID` exists.
-- `GET /api/social/oauth/meta/callback` remains stubbed until `META_APP_SECRET`, CSRF state persistence, and token encryption are ready.
-- `POST /api/social/facebook/page-posts` must return 501 until page token is connected and real publishing is implemented.
-- Real publish calls must never silently succeed.
+- `GET /api/social/status` — shows whether credentials are configured.
+- `GET /api/social/oauth/meta/start` — begins Meta OAuth when `META_APP_ID` exists.
+- `GET /api/social/oauth/meta/callback` — remains stubbed until `META_APP_SECRET`, CSRF state persistence, and token encryption are ready.
+- `POST /api/social/facebook/page-posts` — must return **501** until page token is connected and real publishing is implemented.
+- **Real publish calls must never silently succeed.**
 
-Migration: `migration/d1/social_integrations.sql` adds `social_provider_connections`, `social_embed_settings`, and `social_post_drafts_v2`.
+Handler: `src/api/social.js`. Migration: `db/schema_social.sql` (`social_provider_connections`, `social_embed_settings`, `social_post_drafts_v2`).
 
 ---
 
-## AI / API Cost Ownership
+## Agent Sam / AI Cost Ownership
 
-Agent Sam social drafting must satisfy one of these before client handoff:
+Agent Sam chat (`agentsam.jsx`) and Reports → **AI Usage** are live but need a **dedicated refresh sprint** (not part of June 2026 handoff).
 
-1. Client provides their own OpenAI/API provider key.
-2. AI drafting is disabled.
-3. Client is on a managed monthly plan with explicit included usage.
-4. Usage is capped and visible in the dashboard.
+**Known issues (Jun 2026):**
 
-Never silently run client production AI drafting on Sam's OpenAI account after handoff.
+- `view-reports.jsx` fetches `/api/agentsam/runs` but the AI Usage tab renders a **hardcoded seed object** (placeholder model names like `gpt-5.4-mini`, fixed run/cost totals) instead of API data.
+- Agent Sam chat can fail with provider capacity errors (e.g. Workers AI / routed models); error handling needs hardening.
+- Cost ownership policy (who pays for inference) must be decided before expanding Agent Sam drafting in production.
+
+**Policy before expanded client use:**
+
+1. Client provides their own API provider key, OR
+2. AI drafting stays disabled, OR
+3. Managed monthly plan with explicit included usage, OR
+4. Usage capped and visible from **real** `agentsam_usage_events` / rollups (not mock report seeds).
+
+Never silently run client production AI drafting on Inner Animal's accounts after handoff.
 
 Planned config vars:
 
@@ -503,6 +539,10 @@ AI_PROVIDER_MODE = "disabled" | "client_key" | "managed"
 AI_MONTHLY_TOKEN_CAP = 500000
 AI_USAGE_VISIBLE_TO_ADMIN = true
 ```
+
+Backend: `agentsam_api.js`, `agentsam_tools.js`, `resolveModel.js`. Canonical tables: `agentsam_tools`, `agentsam_workflows`, `agentsam_usage_events` (not `agentsam_mcp_*` legacy tables).
+
+**Phase 2 build plan (tool picker, approval queue, bio/app/campaign flows, live overview stats):** [`docs/AGENTSAM_CPAS_ROADMAP.md`](docs/AGENTSAM_CPAS_ROADMAP.md).
 
 ---
 
@@ -533,49 +573,50 @@ See [Sectionalized CMS System](#sectionalized-cms-system) for the full ops refer
 
 ---
 
-## Development TODO
+## Maintenance Backlog (post-handoff)
 
-For the full polish sequence, use [`docs/sam-todo-final-polish-sprint.md`](docs/sam-todo-final-polish-sprint.md).
+Not blockers for invoicing. Track in [`docs/current-file-map.md`](docs/current-file-map.md).
 
-### Content / CMS (fragment system)
+### Done in June 2026 handoff
 
-- All six public routes use the fragment pipeline — see [Sectionalized CMS System](#sectionalized-cms-system).
-- Make `/dashboard/cms/brand` the source of truth for org identity, logos, theme tokens, footer.
-- Add block-level editing in CMS for card-heavy sections (tiers, stats, campaigns).
-- Refine page copy per [`docs/companions-brand-readme.md`](docs/companions-brand-readme.md).
-- `/adopt`: verify animal grid renders from `animal_profiles` D1 data.
-- `/community`: keep curated story-driven content.
-- Stripe: client UI sign-off on donate modal, then swap to live keys.
+- Foster placement API + animal profile UI + fosters list
+- Volunteers `GET/POST` + Add Volunteer form
+- Applications on `cpas_foster_applications`; legacy `applications` table cleared
+- CMS pages list reads `status` from D1
+- Repo cleanup pass — see [`docs/cleanup-report-2026-06-19.md`](docs/cleanup-report-2026-06-19.md)
 
-### Dashboard / CRUD / CMS
+### CMS / public site
 
-- Verify Animals CRUD and Adopt page public rendering.
-- Verify R2 media library upload, tagging, alt text, copy URL, selection, and public render.
-- Fix low-contrast dashboard text/buttons.
-- Improve `/dashboard/cms/templates` with previews, categories, and full-screen responsive layout.
-- Improve `/dashboard/reports` with real data or clearly marked empty states.
-- Overhaul `/dashboard/settings` into real settings: organization, users, roles, integrations, notifications, email, billing/usage boundaries.
-- Wire `/dashboard/email` to Resend inbound once webhook is configured.
+- Block-level editing for card-heavy sections (tiers, stats, campaigns)
+- `/dashboard/cms/brand` as org identity source of truth
+- `/adopt` animal grid depth from `animal_profiles`
+- Live Stripe keys after client sign-off
 
-### Social / Facebook
+### Dashboard polish
 
-- Run `migration/d1/social_integrations.sql` on D1 if not already applied.
-- Configure Facebook Page embed URL via `POST /api/social/embed/facebook-page`.
-- Create Meta Developer App if social publishing is approved.
-- Add `META_APP_ID` and `META_APP_SECRET` via Wrangler secrets.
-- Implement OAuth state token persistence before enabling live OAuth.
-- Implement token encryption before storing page access tokens.
-- Submit Meta app review if `pages_manage_posts` permission is required.
-- Wire token decryption and Meta Graph API call only after client approval.
+- Wire Overview / Daily Care to APIs or label demo metrics explicitly
+- Fix Reports tabs to use fetched data (especially AI Usage — see [Agent Sam section](#agent-sam--ai-cost-ownership))
+- Settings: organization, users, roles, integrations
+- Emoji removal in `view-ops.jsx`, `view-finance.jsx` (per file map)
 
-### Deploy / Infra
+### Social (Lane B — future)
 
-- Confirm `APP_DOMAIN`, `ALLOWED_ORIGINS`, `GOOGLE_REDIRECT_URI`, and `META_REDIRECT_URI` use `companionsofcaddo.org`.
-- Decide AI billing owner before enabling Agent Sam social drafting.
-- Deploy and verify live Worker after domain env var updates.
-- Sync updated R2 dashboard assets.
-- Purge KV cache for all public routes after deploy.
-- Complete Resend inbound webhook setup before relying on `/dashboard/email`.
+- Meta Developer App + client approval
+- OAuth state persistence, token encryption, real Graph API publish (never fake success)
+
+### Agent Sam refresh sprint
+
+See [`docs/AGENTSAM_CPAS_ROADMAP.md`](docs/AGENTSAM_CPAS_ROADMAP.md) for sprint order and tool wiring.
+
+- Reports AI Usage from real `/api/agentsam/runs` + rollups
+- Chat error handling and model routing cleanup
+- AI billing owner decision documented in dashboard
+- Tool picker, approval queue, `generate_animal_bio` / `draft_app_response` (roadmap Sprints 1–2)
+
+### Infra
+
+- Resend inbound webhook hardening if needed
+- Account transfer to client Cloudflare when approved
 
 ---
 
@@ -591,52 +632,120 @@ For the full polish sequence, use [`docs/sam-todo-final-polish-sprint.md`](docs/
 
 ---
 
-## Source File Map
+## Source File Map (live)
+
+**Authoritative dashboard detail:** [`docs/current-file-map.md`](docs/current-file-map.md)
 
 ```text
 src/
-  index.js                      Worker entry. servePublicPage(), fragment assembly branch.
+  index.js                         Worker entry, auth gate, public serve, API dispatch
   api/
-    page_cms_registry.js        Route → fragment module registry (6 public pages).
-    page_shell.js                 Shared public script tags + cache-bust versions.
-    home_cms_sync.js              Home D1 ↔ R2 fragment sync.
-    about_cms_sync.js             About D1 ↔ R2 fragment sync.
-    generic_page_cms_sync.js      Services/adopt/donate/community sync.
-    render_home_section.js        Home section renderers (custom).
-    render_about_section.js       About section renderers (custom).
-    render_section.js             Generic section renderers + unified CTA resolver.
-    render_home_fragments.js      Assemble home from R2 fragments.
-    render_about_fragments.js     Assemble about from R2 fragments.
-    render_generic_fragments.js   Assemble generic routes from R2 fragments.
-    render_page.js                assembleFullPage(), getBrand(), legacy renderPage().
-    cms_api.js                    CMS CRUD, save/preview/publish/bootstrap.
-    payments_email.js             Stripe config/intent/webhook, Resend email, cover fees.
-    donation_api.js               Legacy adopt create-intent (same fee math as modal).
-    donation_fees.js              Shared Stripe fee gross-up helpers.
-    notifications.js              Dashboard notifications (donations, contact, foster).
-    foster_api.js                 Foster application API (modal posts here).
+    dashboard_api.js               Dashboard CRUD: animals, fosters POST/PATCH, volunteers,
+                                     applications, fundraising, donations, intakes, medical
+    dashboard_config_api.js        Dashboard config snapshot
+    cms_api.js                     CMS bootstrap, save, publish, assets, brand
+    page_cms_registry.js             Fragment route registry (6 public pages)
+    page_shell.js                  Public script tags + cache-bust versions
+    home_cms_sync.js               Home D1 ↔ R2 fragments
+    about_cms_sync.js              About D1 ↔ R2 fragments
+    generic_page_cms_sync.js       Services / adopt / donate / community sync
+    render_home_section.js         Home section renderers
+    render_about_section.js        About section renderers
+    render_section.js              Generic sections + CTA resolver
+    render_home_fragments.js       Assemble /
+    render_about_fragments.js      Assemble /about
+    render_generic_fragments.js    Assemble generic routes
+    render_donate_v2.js            Donate dynamic hero
+    render_shelter_hub.js          Adopt shelter hub
+    render_page.js                 assembleFullPage(), legacy renderPage() fallback
+    render_site_nav.js             Header / footer / nav
+    foster_api.js                  Public POST /api/foster/apply
+    payments_email.js              Stripe + receipts + webhook
+    donation_api.js                Legacy adopt create-intent
+    donation_fees.js               Cover-fees math
+    email_api.js                   Inbound email + drafts
+    gmail_api.js                   Gmail OAuth
+    drive_api.js                   Google Drive import → R2
+    social.js                      Lane A embed + Lane B stubs (501)
+    contact_api.js                 Public contact form
+    notifications.js               Dashboard notification writes
+    agentsam_api.js                Agent Sam chat + runs
+    agentsam_tools.js              Tool dispatch
+    resolveModel.js                Model routing + usage rollups
+    auth_login.js, auth_google.js, session_api.js, password_reset.js
+    members_api.js                 Team admin (settings lane)
+
+public/dashboard/js/
+  app.jsx                          Router + session + mobile shell
+  ui.jsx                           Shared components
+  data.js                          API bootstrap (mock fallback — see file map)
+  config.js                        Dashboard config loader
+  view-overview.jsx                Overview (mixed mock/live)
+  view-animals.jsx                 Animals, profile, fosters list, adoptions
+  view-applications.jsx            Applications list + detail
+  view-ops.jsx                     Intakes, medical, volunteers
+  view-finance.jsx                 Donations + fundraising
+  view-campaign.jsx                Campaign workspace editor
+  view-cms.jsx                     All CMS views
+  view-reports.jsx                 Reports (partial — AI tab seeded)
+  view-email.jsx                   Email + notifications workspace
+  view-admin.jsx                   Settings shell (+ stale Reports stub — do not use)
+  agentsam.jsx                     Agent Sam chat drawer
 
 public/
-  _shared.css                     Source for static/global/shared.css (upload to R2).
-  static/
-    global/
-      cpas-modals.js              Foster/volunteer/contact apply popups.
-      shared.js                   Nav + footer (upload to R2).
-    js/
-      donate-modal.js             Stripe donate modal + cover processing fees (global).
+  _shared.css, _shared.js          Public design system (sync to R2)
+  static/global/cpas-modals.js     Foster / volunteer / contact modals
+  static/js/donate-modal.js        Stripe donate modal
 
-static/
-  global/
-    cpas-header.html              Site header partial (R2).
-    cpas-footer.html              Site footer partial (R2).
-  pages/
-    home/                         Local copies of home section fragments.
-    about/                        Local copies of about section fragments.
+static/global/
+  cpas-header.html, cpas-footer.html   R2 shell partials
 
-scripts/
-  sync-page-fragments.mjs         CLI: D1 → R2 for generic routes.
-  republish-shell-pages.mjs       Rebuild home/about HTML + bust KV.
+scripts/ (ops — keep)
+  sync-r2.sh                       npm run sync
+  sync-page-fragments.mjs          Generic CMS → R2
+  republish-shell-pages.mjs          Home/about republish + KV bust
+  audit_public_images.py             Handoff image validation
 ```
+
+---
+
+## Files candidates for removal (not deleted yet)
+
+Safe to cut in a future housekeeping pass. **Do not delete without confirming no import/reference.**
+
+### One-off build / patch scripts (historical)
+
+Most `scripts/patch_*.py`, `scripts/fix_*.py`, `scripts/repair_*.py`, `scripts/phase*.py`, `scripts/nuke_*.py`, `scripts/build_dashboard_full.py`, `scripts/build_full_cms_editor_system.py`, `scripts/install_agentsam_drawer.py` — used during June 2026 remaster; superseded by CMS fragment pipeline and live dashboard.
+
+### Generated / snapshot docs
+
+| Path | Reason |
+|---|---|
+| `audits/` (entire tree) | Point-in-time Agent Sam + remaster audits |
+| `audits/companionscpas/remaster_proposal.md` | Pre-cleanup proposal; many items done |
+| `docs/sam-todo-final-polish-sprint.md` | Superseded by README maintenance backlog |
+| `docs/sam-todo-2026-06-19-client-handoff.md` | Point-in-time handoff notes (Google Drive) |
+| `docs/donate-v2-mockup.txt` | Design mockup artifact |
+| `docs/cleanup-report-2026-06-19.json` | Machine snapshot; keep `.md` summary only if desired |
+| `docs/live-url-file-map.json` | Regenerate via `scripts/live_url_file_map.py` |
+
+### Demo DB artifacts (keep migrations; optional seed purge)
+
+| Path | Reason |
+|---|---|
+| `db/seed_dashboard_demo.sql` | Seeds `fundraising_campaigns_demo` |
+| `db/schema_dashboard_demo.sql` | Demo table definitions (`adoption_applications_demo`, etc.) |
+| `db/seed_cpas_platform_demo_workflows_safe.sql` | Commented demo workflows only |
+
+### Dead / duplicate frontend
+
+| Path | Reason |
+|---|---|
+| `view-admin.jsx` inner `ReportsView` | Stale duplicate; active reports in `view-reports.jsx` |
+
+### D1 legacy tables
+
+**Dropped from live D1 (2026-06-23):** `applications`, `agentsam_mcp_tools`, `agentsam_mcp_workflows`, `cms_editor_sessions`, `cms_editor_events`. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for canonical vs legacy guidance and the defer list (`contact_requests`, `social_post_drafts`, `cms_navigation_items`, etc.).
 
 ---
 
