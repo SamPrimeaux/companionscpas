@@ -221,7 +221,7 @@ async function upsertDonor(env, { donorEmail, donorName, amountCents, isRecurrin
   }
   const donorId = id("donor");
   await env.DB.prepare(
-    `INSERT INTO donors
+    `INSERT OR IGNORE INTO donors
      (id, tenant_id, full_name, email, total_given_cents, donation_count, last_donated_at,
       is_recurring, recurring_interval, stripe_customer_id, stripe_subscription_id, resend_subscribed)
      VALUES (?, ?, ?, ?, ?, 1, datetime('now'), ?, ?, ?, ?, 1)`
@@ -559,18 +559,65 @@ export async function paymentsEmailRoutes(request, env, url) {
 
   if (path === "/api/donations/after-payment" && method === "POST") {
     const data = await body(request);
+    const donorEmail = data.donor_email ? String(data.donor_email).toLowerCase().trim() : null;
+    const nlOptIn = Boolean(data.nl_opt_in);
+    const saveInfo = Boolean(data.save_my_info);
+    const piId = data.payment_intent_id || null;
+
     try {
-      if (data.payment_intent_id && data.donor_email) {
+      // 1. Backfill donor_email + consent flags onto the intent row
+      if (piId) {
         await env.DB.prepare(
-          `UPDATE donation_intents SET donor_email = ?, updated_at = datetime('now') WHERE provider_checkout_id = ?`
-        ).bind(String(data.donor_email).toLowerCase().trim(), data.payment_intent_id).run();
+          `UPDATE donation_intents
+           SET donor_email = COALESCE(?, donor_email),
+               nl_opt_in = ?,
+               save_info_consent = ?,
+               updated_at = datetime('now')
+           WHERE provider_checkout_id = ? AND tenant_id = ?`
+        ).bind(donorEmail, nlOptIn ? 1 : 0, saveInfo ? 1 : 0, piId, TENANT_ID).run();
       }
-      if (data.donor_email && data.nl_opt_in) {
+
+      // 2. Upsert donor record with consent flags
+      if (donorEmail) {
+        const existing = await env.DB.prepare(
+          "SELECT id FROM donors WHERE tenant_id = ? AND lower(email) = lower(?) LIMIT 1"
+        ).bind(TENANT_ID, donorEmail).first().catch(() => null);
+
+        if (existing?.id) {
+          await env.DB.prepare(
+            `UPDATE donors SET
+               save_info_consent = CASE WHEN ? = 1 THEN 1 ELSE save_info_consent END,
+               save_info_consented_at = CASE WHEN ? = 1 AND save_info_consented_at IS NULL THEN datetime('now') ELSE save_info_consented_at END,
+               newsletter_subscribed = CASE WHEN ? = 1 THEN 1 ELSE newsletter_subscribed END,
+               updated_at = datetime('now')
+             WHERE id = ?`
+          ).bind(saveInfo ? 1 : 0, saveInfo ? 1 : 0, nlOptIn ? 1 : 0, existing.id).run();
+        } else if (saveInfo || nlOptIn) {
+          // Donor record not created yet (webhook may not have fired) — create a thin record
+          await env.DB.prepare(
+            `INSERT OR IGNORE INTO donors
+               (id, tenant_id, email, total_given_cents, donation_count,
+                save_info_consent, save_info_consented_at, newsletter_subscribed, resend_subscribed)
+             VALUES (?, ?, ?, 0, 0, ?, CASE WHEN ? = 1 THEN datetime('now') ELSE NULL END, ?, 1)`
+          ).bind(id("donor"), TENANT_ID, donorEmail,
+            saveInfo ? 1 : 0, saveInfo ? 1 : 0, nlOptIn ? 1 : 0
+          ).run();
+        }
+      }
+
+      // 3. Newsletter subscriber table — nl_opt_in = explicit content subscription
+      if (donorEmail && nlOptIn) {
         await env.DB.prepare(
-          `INSERT OR IGNORE INTO newsletter_subscribers (id, tenant_id, email, status, source, created_at) VALUES (?, ?, ?, 'subscribed', 'donate_modal', datetime('now'))`
-        ).bind(id("sub"), TENANT_ID, String(data.donor_email).toLowerCase().trim()).run();
+          `INSERT INTO newsletter_subscribers (id, tenant_id, email, status, source, created_at)
+           VALUES (?, ?, ?, 'subscribed', 'donate_modal', datetime('now'))
+           ON CONFLICT(tenant_id, email) DO UPDATE SET
+             status = 'subscribed',
+             unsubscribed_at = NULL`
+        ).bind(id("ns"), TENANT_ID, donorEmail).run();
       }
-    } catch {}
+    } catch (err) {
+      console.warn("[after-payment] error:", err?.message || err);
+    }
     return json({ ok: true });
   }
 
