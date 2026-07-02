@@ -175,27 +175,103 @@ async function sendDonationReceipt(env, { donorEmail, donorName, amountCents, do
 // ── Admin donation alert ──────────────────────────────────────────────────────
 async function sendAdminDonationAlert(env, { donorLabel, donorEmail, giftCents, chargeCents, campaignTitle, donationId, paymentIntentId, receiptUrl, isRecurring = false }) {
   if (!env.ADMIN_EMAIL) return;
-  const chargeDisplay = chargeCents && chargeCents !== giftCents ? ` (charged ${money(chargeCents)} with fees)` : "";
-  const campaignLine = campaignTitle ? `<p><strong>Campaign:</strong> ${campaignTitle}</p>` : "";
-  const piLine = paymentIntentId ? `<p><strong>Stripe PI:</strong> ${paymentIntentId}</p>` : "";
-  const receiptLine = receiptUrl ? `<p><a href="${receiptUrl}">Stripe receipt</a></p>` : "";
-  const recurringTag = isRecurring ? " (monthly)" : "";
+  const recurringTag = isRecurring ? " · Monthly" : "";
+  const feeNote = chargeCents && chargeCents !== giftCents
+    ? ` <span style="color:rgba(255,255,255,0.65);font-size:16px;font-weight:400">(${money(chargeCents)} charged — fees covered)</span>`
+    : "";
+  const emailRow = donorEmail ? `
+    <tr>
+      <td style="padding:11px 0;border-bottom:1px solid #f0ede8;color:#6b7280;font-size:13px;width:110px;vertical-align:top">Email</td>
+      <td style="padding:11px 0;border-bottom:1px solid #f0ede8">
+        <a href="mailto:${donorEmail}" style="color:#7c3aed;font-size:13px;font-weight:500;text-decoration:none">${donorEmail}</a>
+      </td>
+    </tr>` : "";
+  const campaignRow = campaignTitle ? `
+    <tr>
+      <td style="padding:11px 0;border-bottom:1px solid #f0ede8;color:#6b7280;font-size:13px;vertical-align:top">Campaign</td>
+      <td style="padding:11px 0;border-bottom:1px solid #f0ede8;color:#1a1622;font-size:13px;font-weight:500">${campaignTitle}</td>
+    </tr>` : "";
+  const typeRow = `
+    <tr>
+      <td style="padding:11px 0;border-bottom:1px solid #f0ede8;color:#6b7280;font-size:13px;vertical-align:top">Type</td>
+      <td style="padding:11px 0;border-bottom:1px solid #f0ede8;color:#1a1622;font-size:13px;font-weight:500">${isRecurring ? "Monthly recurring" : "One-time gift"}</td>
+    </tr>`;
+  const receiptRow = receiptUrl ? `
+    <tr>
+      <td style="padding:11px 0;color:#6b7280;font-size:13px;vertical-align:top">Receipt</td>
+      <td style="padding:11px 0">
+        <a href="${receiptUrl}" style="color:#7c3aed;font-size:13px;font-weight:500;text-decoration:none">View Stripe receipt →</a>
+      </td>
+    </tr>` : "";
+  const emailDonorBtn = donorEmail
+    ? `<a href="mailto:${donorEmail}?subject=Thank you for supporting Companions of CPAS" style="display:inline-block;margin-left:14px;color:#7c3aed;font-size:14px;font-weight:500;text-decoration:none;line-height:46px">Email donor →</a>`
+    : "";
+
   await sendResend(env, {
     to: env.ADMIN_EMAIL,
-    subject: `Donation received — ${money(giftCents)}${recurringTag} from ${donorLabel}`,
+    subject: `${money(giftCents)}${recurringTag} donation from ${donorLabel}`,
     type: "admin_donation_alert", related_type: "donation", related_id: donationId,
-    html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px">
-      <h2>New donation received${recurringTag}</h2>
-      <p><strong>Donor:</strong> ${donorLabel}</p>
-      ${donorEmail ? `<p><strong>Email:</strong> ${donorEmail}</p>` : ""}
-      <p><strong>Amount:</strong> ${money(giftCents)}${chargeDisplay}</p>
-      ${campaignLine}
-      <p><strong>Donation ID:</strong> ${donationId}</p>
-      ${piLine}
-      ${receiptLine}
-      <p style="margin-top:24px"><a href="https://companionsofcaddo.org/dashboard/fundraising">View in dashboard</a></p>
-    </div>`
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>New Donation — Companions of CPAS</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f2ed;font-family:Arial,Helvetica,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f2ed;padding:48px 16px">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:580px">
+
+        <tr><td style="padding-bottom:20px;text-align:center">
+          <span style="font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#7c3aed">Companions of CPAS</span>
+        </td></tr>
+
+        <tr><td style="background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.07)">
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="background:#7c3aed;padding:32px 36px 28px">
+              <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.65)">New donation received${recurringTag}</p>
+              <p style="margin:0;font-size:44px;font-weight:700;color:#ffffff;line-height:1.1">${money(giftCents)}${feeNote}</p>
+              <p style="margin:10px 0 0;font-size:15px;color:rgba(255,255,255,0.85)">from ${donorLabel}</p>
+            </td></tr>
+          </table>
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:4px 36px 0">
+            <tr><td>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                ${emailRow}
+                ${campaignRow}
+                ${typeRow}
+                ${receiptRow}
+              </table>
+            </td></tr>
+          </table>
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:28px 36px 36px">
+            <tr><td>
+              <a href="https://companionsofcaddo.org/dashboard/fundraising"
+                 style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:0 28px;border-radius:8px;line-height:46px">
+                View in dashboard
+              </a>
+              ${emailDonorBtn}
+            </td></tr>
+          </table>
+
+        </td></tr>
+
+        <tr><td style="padding-top:28px;text-align:center">
+          <p style="margin:0;font-size:12px;color:#9ca3af">Companions of CPAS · Caddo Parish Animal Services, Louisiana</p>
+          <p style="margin:5px 0 0;font-size:12px;color:#b9b5b0">Donation alerts sent to ${env.ADMIN_EMAIL}</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
   });
+}
 }
 
 // ── Donor upsert ──────────────────────────────────────────────────────────────
