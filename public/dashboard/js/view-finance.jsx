@@ -285,6 +285,79 @@ function DonationModal({ open, onClose, onSaved, campaigns }) {
   );
 }
 
+
+// ── Donor detail drawer ───────────────────────────────────────────────────────
+function DonorDrawer({ donor, onClose }) {
+  const name = donor._name || donor._email || "Anonymous";
+  const email = donor._email;
+  const giftDisplay = financeMoney(donor.amount);
+  const chargedDisplay = donor.cover_fees && donor.charged > donor.amount ? financeMoney(donor.charged) : null;
+
+  const row = (label, value) => value ? React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid " + C.border } },
+    React.createElement("span", { style: { fontSize: 12, color: C.textSec } }, label),
+    React.createElement("span", { style: { fontSize: 13, color: C.text, fontWeight: 500, textAlign: "right", maxWidth: 260, wordBreak: "break-all" } }, value)
+  ) : null;
+
+  return React.createElement("div", {
+    style: {
+      position: "fixed", top: 0, right: 0, bottom: 0, width: 380,
+      background: C.surface, borderLeft: "1px solid " + C.border,
+      boxShadow: "-4px 0 32px rgba(0,0,0,.28)", zIndex: 900,
+      display: "flex", flexDirection: "column", overflow: "hidden"
+    }
+  },
+    // Header
+    React.createElement("div", { style: { padding: "20px 24px 16px", borderBottom: "1px solid " + C.border, display: "flex", alignItems: "center", justifyContent: "space-between" } },
+      React.createElement("div", null,
+        React.createElement("div", { style: { fontSize: 16, fontWeight: 700, color: C.text } }, name),
+        email && React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginTop: 2 } }, email)
+      ),
+      React.createElement("button", {
+        onClick: onClose,
+        style: { background: "none", border: "none", color: C.textSec, fontSize: 20, cursor: "pointer", padding: "4px 8px", borderRadius: 6 }
+      }, "×")
+    ),
+    // Body
+    React.createElement("div", { style: { flex: 1, overflowY: "auto", padding: "8px 24px 24px" } },
+      // Amount block
+      React.createElement("div", { style: { background: C.raised, borderRadius: 10, padding: "16px 20px", margin: "16px 0" } },
+        React.createElement("div", { style: { fontSize: 28, fontWeight: 700, color: C.green } }, giftDisplay),
+        chargedDisplay && React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginTop: 4 } }, chargedDisplay + " charged (fees covered)"),
+        React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginTop: 4 } }, donor.date + " · " + (donor.campaign || "General"))
+      ),
+      // Detail rows
+      row("Donor name", donor._name),
+      row("Email", email),
+      row("Method", donor.method),
+      row("Status", donor.status),
+      row("Campaign", donor.campaign !== "General" ? donor.campaign : null),
+      row("Note", donor.donor_message),
+      row("Recurring", donor.recurring ? "Monthly" : null),
+      row("Donation ID", donor.id),
+      row("Stripe PI", donor.stripe_payment_intent_id),
+      donor.stripe_receipt_url && React.createElement("div", { style: { padding: "14px 0" } },
+        React.createElement("a", {
+          href: donor.stripe_receipt_url,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          style: { fontSize: 13, color: C.purple, textDecoration: "none", fontWeight: 500 }
+        }, "View Stripe receipt →")
+      )
+    ),
+    // Footer actions
+    email && React.createElement("div", { style: { padding: "16px 24px", borderTop: "1px solid " + C.border, display: "flex", gap: 10 } },
+      React.createElement("a", {
+        href: "mailto:" + email + "?subject=Thank you for supporting Companions of CPAS",
+        style: {
+          flex: 1, display: "block", textAlign: "center",
+          background: C.purple, color: "#fff", borderRadius: 8,
+          padding: "10px 0", fontSize: 13, fontWeight: 600, textDecoration: "none"
+        }
+      }, "Email donor")
+    )
+  );
+}
+
 // ── Unified GivingView (replaces both FundraisingView and DonationsView) ───────
 function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab }) {
   const pct = campaign.goal_cents ? Math.min(100, Math.round((campaign.raised_cents / campaign.goal_cents) * 100)) : 0;
@@ -347,21 +420,34 @@ function GivingView({ initialTab, onNavigate }) {
   ).size;
   const progress = campaignGoal ? Math.round((stripeTotal / campaignGoal) * 100) : 0;
 
-  // Donations tab data
-  const normalized = donations.map(d => ({
-    ...d,
-    donor: d.is_anonymous ? "Anonymous" : (d.donor_name || d.full_name || d.email || "Anonymous"),
-    amount: Number(d.amount_cents || 0),
-    method: d.payment_provider || "manual",
-    campaign: d.campaign_title || "General",
-    date: financeDate(d.donated_at || d.created_at) || "—",
-    recurring: Number(d.is_recurring || 0) === 1
-  }));
+  const [selectedDonor, setSelectedDonor] = React.useState(null);
+
+  // Donations tab data — donor_name/donor_email come from the LEFT JOIN in /api/dashboard/donations
+  const normalized = donations.map(d => {
+    const email = d.donor_email || null;
+    const name = d.donor_name || null;
+    const isAnon = Number(d.is_anonymous || 0) === 1;
+    return {
+      ...d,
+      _email: email,
+      _name: name,
+      _anon: isAnon,
+      donor: isAnon ? "Anonymous" : (name || email || "Unknown"),
+      donorSub: isAnon ? null : (name && email ? email : null),
+      amount: Number(d.intended_amount_cents || d.amount_cents || 0),
+      charged: Number(d.amount_cents || 0),
+      cover_fees: Number(d.cover_fees || 0) === 1,
+      method: d.payment_provider || "manual",
+      campaign: d.campaign_title || "General",
+      date: financeDate(d.donated_at || d.created_at) || "—",
+      recurring: Number(d.is_recurring || 0) === 1
+    };
+  });
   const methods = ["All", ...Array.from(new Set(normalized.map(d => d.method).filter(Boolean)))];
   const filtered = normalized.filter(d => {
     const q = search.toLowerCase();
     const matchMethod = methodFilter === "All" || d.method === methodFilter;
-    const matchSearch = !q || [d.donor, d.id, d.campaign, d.donor_email].some(v => String(v || "").toLowerCase().includes(q));
+    const matchSearch = !q || [d.donor, d.donorSub, d.id, d.campaign, d._email, d._name].some(v => String(v || "").toLowerCase().includes(q));
     return matchMethod && matchSearch;
   });
 
@@ -431,15 +517,30 @@ function GivingView({ initialTab, onNavigate }) {
         ? React.createElement(FinanceEmpty, { title: "Loading donations", body: "Reading donations from D1." })
         : React.createElement(Card, { style: { overflow: "hidden" } },
             filtered.length
-              ? React.createElement(Table, { cols: [
-                  { key: "id", label: "ID", render: v => React.createElement("span", { style: { color: C.textSec, fontFamily: "monospace", fontSize: 12 } }, String(v).slice(0, 18) + "…") },
-                  { key: "donor", label: "Donor", render: v => React.createElement("span", { style: { fontWeight: 600 } }, v) },
-                  { key: "amount", label: "Amount", render: v => React.createElement("span", { style: { fontWeight: 700, color: C.green } }, financeMoney(v)) },
-                  { key: "date", label: "Date", render: v => React.createElement("span", { style: { color: C.textSec, fontSize: 12 } }, v) },
-                  { key: "method", label: "Method", render: v => React.createElement(Badge, { label: v }) },
-                  { key: "campaign", label: "Campaign", render: v => React.createElement("span", { style: { color: C.textSec, fontSize: 12 } }, v || "General") },
-                  { key: "status", label: "Status", render: v => React.createElement(Badge, { label: v || "received", dot: true }) }
-                ], rows: filtered })
+              ? React.createElement(React.Fragment, null,
+                  React.createElement(Table, { cols: [
+                    { key: "donor", label: "Donor", render: (v, row) => React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 2 } },
+                        React.createElement("span", { style: { fontWeight: 600, color: C.text } }, v),
+                        row.donorSub && React.createElement("span", { style: { fontSize: 11, color: C.textSec } }, row.donorSub)
+                      )
+                    },
+                    { key: "amount", label: "Gift", render: (v, row) => React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 2 } },
+                        React.createElement("span", { style: { fontWeight: 700, color: C.green } }, financeMoney(v)),
+                        row.cover_fees && row.charged > v && React.createElement("span", { style: { fontSize: 11, color: C.textSec } }, "charged " + financeMoney(row.charged))
+                      )
+                    },
+                    { key: "date", label: "Date", render: v => React.createElement("span", { style: { color: C.textSec, fontSize: 12 } }, v) },
+                    { key: "campaign", label: "Campaign", render: v => React.createElement("span", { style: { color: C.textSec, fontSize: 12 } }, v || "General") },
+                    { key: "method", label: "Method", render: v => React.createElement(Badge, { label: v }) },
+                    { key: "status", label: "Status", render: v => React.createElement(Badge, { label: v || "received", dot: true }) },
+                    { key: "id", label: "", render: (v, row) => React.createElement("button", {
+                        onClick: () => setSelectedDonor(row),
+                        style: { background: "none", border: , borderRadius: 6, padding: "4px 10px", color: C.textSec, fontSize: 12, cursor: "pointer" }
+                      }, "View")
+                    }
+                  ], rows: filtered }),
+                  selectedDonor && React.createElement(DonorDrawer, { donor: selectedDonor, onClose: () => setSelectedDonor(null) })
+                )
               : React.createElement(FinanceEmpty, { title: "No donation records yet", body: "Record manual donations or wait for Stripe webhooks to populate this table." })
           )
     ),
