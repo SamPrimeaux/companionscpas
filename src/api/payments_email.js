@@ -272,7 +272,6 @@ async function sendAdminDonationAlert(env, { donorLabel, donorEmail, giftCents, 
 </html>`
   });
 }
-}
 
 // ── Donor upsert ──────────────────────────────────────────────────────────────
 async function upsertDonor(env, { donorEmail, donorName, amountCents, isRecurring, stripeCustomerId = null, stripeSubscriptionId = null }) {
