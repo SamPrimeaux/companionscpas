@@ -569,6 +569,8 @@ export async function paymentsEmailRoutes(request, env, url) {
     if (mode === "payment") {
       const { intendedCents, chargeCents, coverFees } = resolveDonationAmounts(data);
       if (!intendedCents || intendedCents < 100) return json({ error: "Minimum donation is $1.00" }, 400);
+      // Capture optional donor note/memo (max 500 chars)
+      const donorNote = String(data.note || data.message || "").trim().slice(0, 500) || null;
       const localIntentId = id("intent");
       const form = new URLSearchParams();
       form.set("amount", String(chargeCents));
@@ -580,6 +582,8 @@ export async function paymentsEmailRoutes(request, env, url) {
       form.set("metadata[intended_cents]", String(intendedCents));
       form.set("metadata[cover_fees]", coverFees ? "true" : "false");
       if (data.campaign_id) form.set("metadata[campaign_id]", String(data.campaign_id));
+      // Pass donor note into Stripe metadata so webhook can recover it
+      if (donorNote) form.set("metadata[message]", donorNote);
       const res = await fetch("https://api.stripe.com/v1/payment_intents", { method: "POST", headers: stripeHeaders, body: form });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) return json({ error: d?.error?.message || "Stripe error" }, 500);
@@ -589,12 +593,13 @@ export async function paymentsEmailRoutes(request, env, url) {
           `INSERT INTO donation_intents
            (id, tenant_id, donor_name, donor_email, amount_cents, frequency, campaign_id, note, provider,
             provider_checkout_id, status, resend_receipt_status, metadata_json, updated_at)
-           VALUES (?, ?, NULL, NULL, ?, 'one_time', ?, NULL, 'stripe', ?, 'pending_payment', 'pending_after_payment', ?, datetime('now'))`
+           VALUES (?, ?, NULL, NULL, ?, 'one_time', ?, ?, 'stripe', ?, 'pending_payment', 'pending_after_payment', ?, datetime('now'))`
         ).bind(
           localIntentId,
           TENANT_ID,
           chargeCents,
           data.campaign_id || null,
+          donorNote,
           d.id,
           JSON.stringify({
             stripe_payment_intent_id: d.id,
@@ -602,6 +607,7 @@ export async function paymentsEmailRoutes(request, env, url) {
             intended_cents: intendedCents,
             cover_fees: coverFees,
             charge_cents: chargeCents,
+            note: donorNote,
           })
         ).run();
       } catch (err) {
