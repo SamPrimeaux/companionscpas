@@ -82,6 +82,9 @@
     .dm-email{width:100%;min-height:38px;padding:9px 11px;border:1.5px solid rgba(15,31,61,0.12);border-radius:9px;outline:none;background:#fff;color:#1a1622;font-family:inherit;font-size:.84rem;font-weight:500;transition:border-color 150ms,box-shadow 150ms}
     .dm-email::placeholder{color:#9ca3af}
     .dm-email:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.14)}
+    .dm-memo{width:100%;min-height:38px;padding:9px 11px;border:1.5px solid rgba(15,31,61,0.12);border-radius:9px;outline:none;background:#fff;color:#1a1622;font-family:inherit;font-size:.84rem;font-weight:500;transition:border-color 150ms,box-shadow 150ms}
+    .dm-memo::placeholder{color:#9ca3af}
+    .dm-memo:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.14)}
     .dm-nl-row{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;border:1px solid rgba(15,31,61,0.08);border-radius:9px;background:#fff;cursor:pointer}
     .dm-nl-row input[type=checkbox]{width:15px;height:15px;flex-shrink:0;margin-top:1px;accent-color:#7c3aed;cursor:pointer}
     .dm-nl-lbl{font-size:.76rem;color:#4b5563;line-height:1.4;cursor:pointer}
@@ -154,6 +157,7 @@
   function moneyExact(cents) { return '$' + (Number(cents || 0) / 100).toFixed(2); }
   function getAmount() { const c = document.getElementById('dm-custom'); const v = c && c.value ? Number(c.value) : 0; return v > 0 ? v : selectedAmount; }
   function getActiveTier() { return tiers.find(t => t.amount_cents === getAmount() * 100) || null; }
+  function getDonorNote() { return (document.getElementById('dm-memo')?.value || '').trim().slice(0, 500) || null; }
 
   function injectStyles() {
     if (document.getElementById('dm-styles')) return;
@@ -233,6 +237,10 @@
             </label>
           </div>
         </div>
+        <div class="dm-section">
+          <span class="dm-label">Donation purpose <span style="color:#9ca3af;font-weight:500;text-transform:none;letter-spacing:0">— optional</span></span>
+          <input id="dm-memo" class="dm-memo" type="text" maxlength="200" placeholder="e.g. Transport fund, Biscuit's vet care, general..." autocomplete="off" />
+        </div>
       </div>
       <div class="dm-footer">
         <div id="dm-cover-fees-wrap">
@@ -297,6 +305,9 @@
         currency: 'usd',
       };
       if (presetCampaignId) payload.campaign_id = presetCampaignId;
+      // Include memo at intent creation time so it's stored in D1 + Stripe metadata
+      const note = getDonorNote();
+      if (note) payload.note = note;
       const res = await fetch(ENDPOINT_INTENT, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -378,7 +389,7 @@
         if (error) throw new Error(friendlyStripeError(error));
         const subRes = await fetch(ENDPOINT_SUB, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payment_method_id: setupIntent.payment_method, price_id: tier?.stripe_price_id_monthly || null, amount_cents: tier ? null : amountCents, donor_email: email, nl_opt_in: nlOptIn, save_my_info: saveInfo }),
+          body: JSON.stringify({ payment_method_id: setupIntent.payment_method, price_id: tier?.stripe_price_id_monthly || null, amount_cents: tier ? null : intendedCents, donor_email: email, nl_opt_in: nlOptIn, save_my_info: saveInfo }),
         });
         const subData = await subRes.json();
         if (!subData.success) throw new Error(subData.error || 'Subscription could not be created.');
@@ -511,6 +522,10 @@
     document.getElementById('dm-cover-fees')?.addEventListener('change', function () {
       coverFees = this.checked;
       updateFeeDisplay();
+      reinitElements();
+    });
+    // Re-init when memo changes so the note is captured at intent creation time
+    document.getElementById('dm-memo')?.addEventListener('change', function () {
       reinitElements();
     });
     const customInput = document.getElementById('dm-custom');
