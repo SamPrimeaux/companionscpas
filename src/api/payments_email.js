@@ -514,6 +514,31 @@ async function processDonationPayment(env, {
     stripePaymentIntentId: paymentIntentId || checkoutSessionId,
   });
 
+  if (env.ADMIN_EMAIL) {
+    const donorLabel = donorName || donorEmail || "Anonymous";
+    const giftDisplay = `$${(giftCents / 100).toFixed(2)}`;
+    const chargeDisplay = chargeCents && chargeCents !== giftCents ? ` (charged $${(chargeCents / 100).toFixed(2)} with fees)` : "";
+    const campaignLine = campaignTitle ? `<p><strong>Campaign:</strong> ${campaignTitle}</p>` : "";
+    const piLine = paymentIntentId ? `<p><strong>Stripe PI:</strong> ${paymentIntentId}</p>` : "";
+    await sendResend(env, {
+      to: env.ADMIN_EMAIL,
+      subject: `Donation received — ${giftDisplay} from ${donorLabel}`,
+      type: "admin_donation_alert",
+      related_type: "donation",
+      related_id: donationId,
+      html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px">
+        <h2>New donation received</h2>
+        <p><strong>Donor:</strong> ${donorLabel}</p>
+        ${donorEmail ? `<p><strong>Email:</strong> ${donorEmail}</p>` : ""}
+        <p><strong>Amount:</strong> ${giftDisplay}${chargeDisplay}</p>
+        ${campaignLine}
+        <p><strong>Donation ID:</strong> ${donationId}</p>
+        ${piLine}
+        <p style="margin-top:24px"><a href="https://companionsofcaddo.org/dashboard/fundraising">View in dashboard</a></p>
+      </div>`
+    });
+  }
+
   return { duplicate: false, donationId, paymentId: paymentRowId };
 }
 
