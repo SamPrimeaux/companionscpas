@@ -71,8 +71,8 @@ export async function renderSiteHeader(env) {
 
   return `<header class="site-header">
   <div class="container header-inner">
-    <a href="/admin/login" class="logo-link" aria-label="Companions of CPAS — staff login">
-      <img src="/static/global/companionsofcpa-newlogo.webp" alt="Companions of CPAS" />
+    <a href="/" class="logo-link" aria-label="Companions of CPAS — home">
+      <img src="/static/global/companionsofcpa-newlogo.webp" alt="Companions of CPAS" style="height:72px;width:auto;max-width:240px;" />
     </a>
     <nav aria-label="Main navigation">
       <ul class="site-nav">
@@ -123,6 +123,17 @@ export async function renderSiteFooter(env) {
           <span>Caddo Parish, Louisiana</span>
           <span><a href="mailto:companionsCPAS@gmail.com">companionsCPAS@gmail.com</a></span>
         </div>
+      </div>
+      <div>
+        <p class="footer-col-label">Follow Us</p>
+        <ul class="footer-links">
+          <li><a href="https://www.facebook.com/people/Companions-of-CPAS/100069291576354/" target="_blank" rel="noopener">Facebook</a></li>
+          <li><a href="https://www.instagram.com/companionscpas" target="_blank" rel="noopener">Instagram</a></li>
+        </ul>
+        <p class="footer-col-label" style="margin-top:1rem;">Staff</p>
+        <ul class="footer-links">
+          <li><a href="/admin/login" style="opacity:0.4;font-size:11px;">Admin login</a></li>
+        </ul>
       </div>
       <div class="footer-dev">
         <p class="footer-dev-label">Developed by</p>
