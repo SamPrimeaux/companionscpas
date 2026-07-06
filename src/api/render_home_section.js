@@ -42,10 +42,20 @@ function blockCfg(block) {
 function heroActionBtn(label, sub, action, variant = "primary") {
   if (!label) return "";
   const cls = variant === "ghost" ? "hero-cta hero-cta-ghost" : "hero-cta hero-cta-primary";
-  const icon = variant === "ghost"
-    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>`
-    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>`;
-  return `<button class="${cls}" type="button" data-action="${escAttr(action)}">
+  const normalized = String(action || "").trim().toLowerCase();
+  let triggerAttr = "";
+  if (normalized === "contact") triggerAttr = 'data-modal="contact"';
+  else if (normalized === "donate") triggerAttr = 'data-action="donate"';
+  else triggerAttr = `data-action="${escAttr(normalized || "foster")}"`;
+
+  const icons = {
+    contact: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
+    donate: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>`,
+    foster: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>`,
+  };
+  const icon = icons[normalized] || icons.foster;
+
+  return `<button class="${cls}" type="button" ${triggerAttr}>
             <span class="hero-cta-icon">${icon}</span>
             <span class="hero-cta-text">
               <span class="hero-cta-label">${escapeHtml(label)}</span>
@@ -54,17 +64,50 @@ function heroActionBtn(label, sub, action, variant = "primary") {
           </button>`;
 }
 
+function renderHeroTitle(heading, cfg = {}) {
+  const raw = String(heading || "Every dog deserves a brighter tomorrow.").trim();
+  const accent = pick(cfg, ["accent_phrase"]) || "a brighter tomorrow.";
+  const doodleHeart = `<svg class="hero-doodle-heart" viewBox="0 0 100 90" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" aria-hidden="true"><path d="M50 80 C24 60 10 42 10 27 C10 14 20 7 29 7 C38 7 46 13 50 22 C54 13 62 7 71 7 C80 7 90 14 90 27 C90 42 76 60 50 80 Z"/></svg>`;
+  const idx = raw.toLowerCase().indexOf(accent.toLowerCase());
+  if (idx >= 0) {
+    const before = raw.slice(0, idx).trim();
+    const tail = raw.slice(idx).trim();
+    return `${escapeHtml(before)} <span class="hero-title-accent">${escapeHtml(tail)}${doodleHeart}</span>`;
+  }
+  return escapeHtml(raw);
+}
+
+const HERO_WAVES = `<div class="hero-waves" aria-hidden="true">
+    <svg class="wave-a" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg"><path d="M0,180 C220,60 480,300 720,200 C960,100 1100,260 1200,180 L1200,0 L0,0 Z" fill="#c23689"/></svg>
+    <svg class="wave-b" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg"><path d="M0,420 C260,540 520,320 780,430 C1020,530 1140,400 1200,460 L1200,600 L0,600 Z" fill="#8e3a7d"/></svg>
+    <svg class="wave-c" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg"><path d="M0,300 C300,200 500,420 800,320 C1050,240 1150,360 1200,300 L1200,380 C1000,460 700,340 400,420 C200,470 80,380 0,400 Z" fill="#ffffff"/></svg>
+    <svg class="wave-d" viewBox="0 0 1200 400" xmlns="http://www.w3.org/2000/svg"><path d="M0,180 C240,100 520,260 800,170 C1020,100 1140,200 1200,160 L1200,400 L0,400 Z" fill="#8e3a7d"/></svg>
+  </div>`;
+
+const HERO_MARK_PAW = `<svg class="hero-mark paw" viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
+    <ellipse cx="50" cy="66" rx="20" ry="17"/>
+    <ellipse cx="26" cy="42" rx="9" ry="12" transform="rotate(-18 26 42)"/>
+    <ellipse cx="42" cy="30" rx="9" ry="12" transform="rotate(-6 42 30)"/>
+    <ellipse cx="60" cy="30" rx="9" ry="12" transform="rotate(6 60 30)"/>
+    <ellipse cx="76" cy="42" rx="9" ry="12" transform="rotate(18 76 42)"/>
+  </svg>`;
+
+const HERO_MARK_HEART = `<svg class="hero-mark heart" viewBox="0 0 100 90" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+    <path d="M50 82 C20 60 6 42 6 26 C6 12 17 4 28 4 C38 4 46 10 50 19 C54 10 62 4 72 4 C83 4 94 12 94 26 C94 42 80 60 50 82 Z"/>
+  </svg>`;
+
 function renderHeroFragment(section) {
   const cfg = safeJson(section.config_json, {});
   const eyebrow = pick(section, ["eyebrow"]) || pick(cfg, ["eyebrow"]) || "Caddo Parish · Volunteer Powered";
-  const heading = pick(section, ["heading"]) || pick(cfg, ["heading"]) || "Every dog deserves a way out.";
-  const sub = pick(section, ["subheading"]) || pick(section, ["body"]) || pick(cfg, ["subheading"]);
+  const heading = pick(section, ["heading"]) || pick(cfg, ["heading"]) || "Every dog deserves a brighter tomorrow.";
+  const sub = pick(section, ["subheading"]) || pick(section, ["body"]) || pick(cfg, ["subheading"])
+    || "We move dogs from crisis to care—providing safe transport, veterinary support, foster connections, and loving homes. Together, we can give every dog the second chance they deserve.";
   const image = safeUrl(pick(section, ["image_url"]) || pick(cfg, ["image_url"]), `${CDN}/media/animals/upclose.webp`);
-  const alt = pick(cfg, ["image_alt"]) || "A dog at Caddo Parish Animal Services";
+  const alt = pick(cfg, ["image_alt"]) || "A happy grey dog looking up at the camera on green grass";
   const cta1 = heroActionBtn(
-    pick(section, ["cta_label"]) || "Apply to Foster",
-    pick(cfg, ["cta_sub"]) || "Open your home",
-    pick(cfg, ["cta_action"]) || "foster",
+    pick(section, ["cta_label"]) || "Contact Us",
+    pick(cfg, ["cta_sub"]) || "Let's work together",
+    pick(cfg, ["cta_action"]) || "contact",
     "primary"
   );
   const cta2 = heroActionBtn(
@@ -74,25 +117,29 @@ function renderHeroFragment(section) {
     "ghost"
   );
 
-  return `<style>
-[data-cpas-section="hero"]{isolation:isolate}
-@media(max-width:768px){[data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(320px,62vw,520px)}[data-cpas-section="hero"] .hero-body{background:linear-gradient(180deg,#faf8f4 0%,#f2ede4 100%)}}
-</style>
-<section class="hero-split" data-cpas-section="hero">
-  <div class="hero-media-bg">
-    <img src="${escAttr(image)}" alt="${escAttr(alt)}" />
-    <div class="hero-scrim"></div>
-  </div>
-  <div class="hero-body">
-    <div class="container">
-      <div class="hero-content">
-        <div class="hero-badge">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+  return `<section class="hero-mockup hero-watercolor" data-cpas-section="hero">
+  <div class="hero-header-bridge" aria-hidden="true"></div>
+  ${HERO_WAVES}
+  ${HERO_MARK_PAW}
+  ${HERO_MARK_HEART}
+  <div class="hero-mockup-fade" aria-hidden="true"></div>
+  <div class="container hero-mockup-inner">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <span class="hero-eyebrow">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21 C5.4 16.2 2 12 2 8.2 C2 5 4.5 3 7.2 3 C9.2 3 11 4.2 12 6 C13 4.2 14.8 3 16.8 3 C19.5 3 22 5 22 8.2 C22 12 18.6 16.2 12 21 Z"/></svg>
           ${escapeHtml(eyebrow)}
+        </span>
+        <h1 class="hero-title">${renderHeroTitle(heading, cfg)}</h1>
+        <p class="hero-lede">${escapeHtml(sub)}</p>
+        <div class="hero-cta-slot">
+          <div class="hero-actions">${cta1}${cta2}</div>
         </div>
-        <h1 class="hero-heading">${escapeHtml(heading)}</h1>
-        <p class="hero-sub">${escapeHtml(sub)}</p>
-        <div class="hero-actions">${cta1}${cta2}</div>
+      </div>
+      <div class="hero-media">
+        <div class="hero-photo">
+          <img src="${escAttr(image)}" alt="${escAttr(alt)}" loading="eager" decoding="async" />
+        </div>
       </div>
     </div>
   </div>
@@ -121,8 +168,7 @@ function renderMissionFragment(section, blocks) {
           </div>${i < steps.length - 1 ? '<div class="mission-arrow">→</div>' : ""}`;
   }).join("\n          ");
 
-  return `<style>[data-cpas-section="mission"]{display:block;background:#ede8df}</style>
-<section class="mission-wrap" data-cpas-section="mission">
+  return `<section class="mission-wrap" data-cpas-section="mission">
   <div class="container">
     <div class="mission-card">
       <div class="mission-card-left">
@@ -159,8 +205,7 @@ function renderHowItHelpsFragment(section, blocks) {
       </div>`;
   }).join("\n      ");
 
-  return `<style>[data-cpas-section="how-it-helps"]{background:#ede8df}</style>
-<section class="section s-light" data-cpas-section="how-it-helps">
+  return `<section class="section s-light" data-cpas-section="how-it-helps">
   <div class="container">
     <div class="ey-purple" style="text-align:center">${escapeHtml(eyebrow)}</div>
     <div class="pillars-row">${pillarHtml}</div>
@@ -181,8 +226,7 @@ function renderTransportWinFragment(section) {
   const ctaLabel = pick(section, ["cta_label"]) || "Sponsor a Transport Seat";
   const ctaAction = pick(cfg, ["cta_action"]) || "donate";
 
-  return `<style>[data-cpas-section="transport-win"]{background:#ede8df}</style>
-<section class="section s-light" data-cpas-section="transport-win">
+  return `<section class="section s-light" data-cpas-section="transport-win">
   <div class="container">
     <div class="story-block">
       <div class="story-block-img story-block-img--contain">
@@ -269,8 +313,7 @@ function renderCampaignsFragment(section, blocks) {
   const commEyebrow = pick(cfg, ["community_eyebrow"]) || "From Our Community";
   const commLink = safeUrl(pick(cfg, ["community_link"]) || "/community", "/community");
 
-  return `<style>[data-cpas-section="campaigns"]{background:#ede8df}</style>
-<section class="section s-light" data-cpas-section="campaigns">
+  return `<section class="section s-light" data-cpas-section="campaigns">
   <div class="container">
     <div class="cc-grid">
       <div>

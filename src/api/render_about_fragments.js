@@ -1,6 +1,6 @@
 import { SHELL_VERSION, publicPageScripts, brandTokensStylesheetTag } from "./page_shell.js";
 import { renderSiteHeader, renderSiteFooter } from "./render_site_nav.js";
-import { SHELL_CSS, resolveRouteTheme } from "./render_page.js";
+import { SHELL_CSS, resolveRouteTheme, themeClassName } from "./render_page.js";
 
 const PAGE_CACHE_TTL = 3600;
 
@@ -39,7 +39,7 @@ export async function assembleAboutFromFragments(env) {
   ${brandTokensStylesheetTag()}
   <link rel="icon" href="/logo.png">
 </head>
-<body class="theme-${theme}" data-theme="${theme}" data-route="/about">
+<body class="theme-${themeClassName(theme)}" data-theme="${theme}" data-route="/about">
 ${headerHtml}
 <main>
 ${fragments.join("\n")}

@@ -51,7 +51,9 @@ export function buildBrandTokensCss(brand = {}) {
 
   return `:root,
 .theme-light,
-[data-theme="light"] {
+.theme-plum-glass,
+[data-theme="light"],
+[data-theme="plum_glass"] {
   --purple: ${primary};
   --purple-mid: ${purpleMid};
   --purple-light: ${purpleLight};
@@ -62,11 +64,14 @@ export function buildBrandTokensCss(brand = {}) {
   --brand-logo-height: ${logoHeight}px;
 }
 
+.header-logo-img,
 .logo-link img {
-  height: var(--brand-logo-height, 72px);
-  width: auto;
-  max-width: var(--brand-logo-width, 240px);
+  height: calc(var(--header-h) + 18px);
+  width: calc(var(--header-h) + 18px);
+  max-width: none;
+  margin-block: -9px;
   object-fit: contain;
+  object-position: left center;
 }
 `;
 }

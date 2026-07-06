@@ -1,7 +1,7 @@
 /** Shared public-page asset versions and script tags. */
-export const SHELL_VERSION = "contact-adopt-20260706";
+export const SHELL_VERSION = "hero-watercolor-20260706b";
 export const DONATE_MODAL_VERSION = "memo-20260702";
-export const CPAS_MODALS_VERSION = "modals-v2-20260615";
+export const CPAS_MODALS_VERSION = "modals-v3-20260706";
 
 export { brandTokensStylesheetTag } from "./brand_tokens.js";
 

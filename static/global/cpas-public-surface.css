@@ -3,7 +3,8 @@
    Uses theme-light tokens (--bg, --text-1, etc.) from cpas-shell.css.
    ───────────────────────────────────────────────────────────── */
 
-.theme-light {
+.theme-light,
+.theme-plum-glass {
   --light-bg: var(--bg);
   --light-card: #ffffff;
   --light-border: var(--border);
@@ -62,7 +63,9 @@
   }
 }
 
-/* ── HERO SPLIT (light) ─────────────────────────────────────── */
+/* ── HERO MOCKUP — see cpas-hero-watercolor.css (merged into shell) ── */
+
+/* ── HERO SPLIT (legacy / about) ────────────────────────────── */
 .hero-split {
   position: relative;
   min-height: calc(100vh - var(--header-h));
@@ -116,15 +119,17 @@
   background: rgba(107, 33, 232, 0.06);
   margin-bottom: 1.5rem;
 }
+.hero-mockup .hero-badge { margin-bottom: 1.1rem; }
 .hero-heading {
   font-family: var(--font-display);
-  font-size: clamp(2.6rem, 6.5vw, 5rem);
+  font-size: clamp(2.4rem, 5.8vw, 4.6rem);
   font-weight: 700;
-  line-height: 0.95;
+  line-height: 1.02;
   letter-spacing: -0.04em;
   color: var(--text-1);
   margin-bottom: 1.25rem;
 }
+.hero-mockup .hero-heading { margin-bottom: 1rem; }
 .hero-sub {
   font-size: 1rem;
   line-height: 1.65;
@@ -132,6 +137,7 @@
   max-width: 480px;
   margin-bottom: 2rem;
 }
+.hero-mockup .hero-sub { margin-bottom: 1.5rem; }
 .hero-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .hero-cta {
   display: inline-flex;
@@ -222,7 +228,16 @@
 }
 
 /* Mission, pillars, story */
-.mission-wrap { background: var(--bg-2); padding-bottom: 0; }
+.mission-wrap {
+  background: var(--bg-2);
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+}
+.mission-wrap + .section,
+.mission-wrap + .s-light {
+  background: var(--bg);
+}
 .mission-card {
   background: #fff;
   border-radius: 20px;

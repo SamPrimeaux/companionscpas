@@ -185,7 +185,29 @@
 })();
 // End mobile side navigation controller
 
-
+// Header scroll state (plum glass at top → solid ivory glass on scroll)
+(() => {
+  function initHeaderScroll() {
+    const hdr = document.querySelector(".site-header");
+    if (!hdr || hdr.dataset.scrollReady === "1") return;
+    hdr.dataset.scrollReady = "1";
+    let lastY = 0;
+    const onScroll = () => {
+      const y = window.scrollY || 0;
+      hdr.classList.toggle("scrolled", y > 20);
+      hdr.classList.toggle("header-hidden", y > lastY + 80 && y > 300);
+      if (y < lastY || y < 80) hdr.classList.remove("header-hidden");
+      lastY = y;
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initHeaderScroll);
+  } else {
+    initHeaderScroll();
+  }
+})();
 
 // Donate CTA fallback + legacy adopt support form bridge
 (() => {

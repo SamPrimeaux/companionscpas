@@ -16,6 +16,37 @@ function wrangler(args) {
   return execFileSync("npx", ["wrangler", ...args], { encoding: "utf8" });
 }
 
+function makeDbShim() {
+  const run = (sql, params = []) => {
+    let i = 0;
+    const command = sql.replace(/\?/g, () => {
+      const v = params[i++];
+      if (v === null || v === undefined) return "NULL";
+      return `'${String(v).replace(/'/g, "''")}'`;
+    });
+    try {
+      const raw = wrangler(["d1", "execute", "companionscpas", "--remote", "--command", command, "--json"]);
+      const parsed = JSON.parse(raw);
+      const results = parsed?.[0]?.results ?? parsed?.results ?? [];
+      return Array.isArray(results) ? results : [];
+    } catch {
+      return [];
+    }
+  };
+  return {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          return {
+            first: async () => run(sql, params)[0] ?? null,
+            all: async () => ({ results: run(sql, params) }),
+          };
+        },
+      };
+    },
+  };
+}
+
 async function r2Get(key) {
   const tmp = mkdtempSync(join(tmpdir(), "cpas-r2-"));
   const file = join(tmp, "obj");
@@ -71,7 +102,7 @@ function bustKv(route) {
   }
 }
 
-const env = makeEnv();
+const env = { ...makeEnv(), DB: makeDbShim() };
 const home = await assembleHomeFromFragments(env);
 if (home) {
   upload("static/pages/index.html", home);

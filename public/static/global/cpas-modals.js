@@ -72,7 +72,7 @@
     },
     contact: {
       title: 'Get in Touch',
-      sub: 'Questions about fostering, transport, or how to help? Send us a note.',
+      sub: 'Questions about fostering, transport, or how to help? Send us a note — we typically reply within 1–2 business days.',
       submitLabel: 'Send Message',
       success: {
         title: 'Message sent!',
@@ -141,36 +141,40 @@
   ];
 
   const CSS = `
-    .cm-backdrop{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(4,7,17,.78);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+    .cm-backdrop{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(18,8,28,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
     .cm-backdrop.is-open{display:flex}
-    .cm-card{width:min(100%,520px);max-height:92vh;overflow-y:auto;border:1px solid rgba(255,255,255,.12);border-radius:22px;background:#090d18;color:#f4efe8;box-shadow:0 40px 100px rgba(0,0,0,.58);font-family:'DM Sans',system-ui,sans-serif;scrollbar-width:none}
+    .cm-card{width:min(100%,540px);max-height:92vh;overflow-y:auto;border:1px solid rgba(255,255,255,.14);border-radius:24px;background:linear-gradient(165deg,#1a0a24 0%,#12061a 48%,#0d0412 100%);color:#f8f4ff;box-shadow:0 40px 100px rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.08);font-family:'DM Sans',system-ui,sans-serif;scrollbar-width:none}
     .cm-card::-webkit-scrollbar{display:none}
     .cm-card *{box-sizing:border-box}
-    .cm-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:28px 28px 0}
-    .cm-eyebrow{margin:0 0 7px;color:#a78bfa;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
-    .cm-title{margin:0;font-family:'Fraunces',Georgia,serif;font-size:clamp(1.55rem,4vw,2rem);line-height:1.05;color:#f4efe8}
-    .cm-sub{margin:8px 0 0;color:#a9afbd;font-size:.95rem;line-height:1.55}
-    .cm-body{padding:16px 28px 24px;color:#c8cdd8;font-size:.95rem;line-height:1.7;white-space:pre-line}
-    .cm-close{width:34px;height:34px;border:0;background:transparent;color:#a78bfa;cursor:pointer;position:relative;flex:0 0 auto}
-    .cm-close::before,.cm-close::after{content:'';position:absolute;left:50%;top:50%;width:22px;height:2px;border-radius:999px;background:currentColor}
+    .cm-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:30px 30px 0}
+    .cm-eyebrow{margin:0 0 7px;color:#e879f9;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    .cm-title{margin:0;font-family:'Fraunces',Georgia,serif;font-size:clamp(1.65rem,4vw,2.15rem);line-height:1.08;color:#fff}
+    .cm-sub{margin:10px 0 0;color:#c4b8d4;font-size:.96rem;line-height:1.6;max-width:42ch}
+    .cm-body{padding:16px 30px 24px;color:#c8cdd8;font-size:.95rem;line-height:1.7;white-space:pre-line}
+    .cm-close{width:36px;height:36px;border:1px solid rgba(255,255,255,.12);border-radius:50%;background:rgba(255,255,255,.06);color:#e9d5ff;cursor:pointer;position:relative;flex:0 0 auto;transition:background .15s,border-color .15s}
+    .cm-close:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22)}
+    .cm-close::before,.cm-close::after{content:'';position:absolute;left:50%;top:50%;width:18px;height:2px;border-radius:999px;background:currentColor}
     .cm-close::before{transform:translate(-50%,-50%) rotate(45deg)}.cm-close::after{transform:translate(-50%,-50%) rotate(-45deg)}
-    .cm-cta-wrap{padding:0 28px 28px}
-    .cm-cta{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:48px;border:0;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;font-weight:800;font-size:.95rem;text-decoration:none;cursor:pointer;font-family:inherit}
+    .cm-cta-wrap{padding:0 30px 30px}
+    .cm-cta{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:50px;border:0;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;font-weight:800;font-size:.95rem;text-decoration:none;cursor:pointer;font-family:inherit}
     .cm-cta:hover{opacity:.92}
-    .cm-error{display:none;margin:0 28px 16px;color:#fca5a5;font-size:.86rem;line-height:1.4}
-    .cm-form{padding:0 28px 28px;display:grid;gap:14px}
-    .cm-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .cm-form label{display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em}
-    .cm-form input,.cm-form select,.cm-form textarea{width:100%;padding:10px 12px;border:1.5px solid rgba(255,255,255,.09);border-radius:10px;font-size:.88rem;font-family:inherit;color:#f4efe8;background:rgba(255,255,255,.045);outline:none;transition:border-color .15s,box-shadow .15s}
-    .cm-form input:focus,.cm-form select:focus,.cm-form textarea:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.18)}
-    .cm-form textarea{resize:vertical;min-height:80px}
-    .cm-submit{margin-top:6px;width:100%;min-height:46px;border:0;border-radius:11px;background:#7c3aed;color:#fff;font-family:inherit;font-size:.92rem;font-weight:700;cursor:pointer}
+    .cm-error{display:none;margin:0 30px 16px;color:#fca5a5;font-size:.86rem;line-height:1.4}
+    .cm-form{padding:0 30px 30px;display:grid;gap:16px}
+    .cm-form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .cm-form label{display:block;font-size:11px;font-weight:700;color:#a89fba;margin-bottom:7px;text-transform:uppercase;letter-spacing:.08em}
+    .cm-form input,.cm-form select,.cm-form textarea{width:100%;padding:12px 14px;border:1.5px solid rgba(255,255,255,.12);border-radius:12px;font-size:.92rem;font-family:inherit;color:#f8f4ff;background:rgba(255,255,255,.055);outline:none;transition:border-color .15s,box-shadow .15s,background .15s}
+    .cm-form input::placeholder,.cm-form textarea::placeholder{color:#7c7290}
+    .cm-form input:focus,.cm-form select:focus,.cm-form textarea:focus{border-color:#c026d3;background:rgba(255,255,255,.08);box-shadow:0 0 0 3px rgba(192,38,211,.2)}
+    .cm-form textarea{resize:vertical;min-height:96px}
+    .cm-submit{margin-top:4px;width:100%;min-height:50px;border:0;border-radius:12px;background:linear-gradient(135deg,#9333ea 0%,#6b21a8 52%,#4c1d6e 100%);color:#fff;font-family:inherit;font-size:.95rem;font-weight:700;cursor:pointer;box-shadow:0 10px 28px rgba(107,33,168,.35);transition:transform .15s,box-shadow .15s,opacity .15s}
+    .cm-submit:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 14px 34px rgba(107,33,168,.42)}
     .cm-submit:disabled{opacity:.55;cursor:not-allowed}
-    .cm-form-note{font-size:.78rem;color:#6b7280;text-align:center;margin:0;line-height:1.5}
-    .cm-form-note a{color:#a78bfa}
-    .cm-success{text-align:center;padding:40px 28px}
-    .cm-success-title{font-family:'Fraunces',Georgia,serif;font-size:1.25rem;color:#f4efe8;margin-bottom:8px}
-    .cm-success-msg{font-size:.88rem;color:#9ca3af;line-height:1.55}
+    .cm-form-note{font-size:.82rem;color:#9ca3af;text-align:center;margin:0;line-height:1.55;padding-top:4px}
+    .cm-form-note a{color:#e879f9;text-decoration:none;font-weight:600}
+    .cm-form-note a:hover{text-decoration:underline}
+    .cm-success{text-align:center;padding:44px 30px}
+    .cm-success-title{font-family:'Fraunces',Georgia,serif;font-size:1.35rem;color:#fff;margin-bottom:8px}
+    .cm-success-msg{font-size:.9rem;color:#b0a8be;line-height:1.6}
     .fa-backdrop{position:fixed;inset:0;z-index:9100;background:rgba(4,7,17,.82);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:16px}
     .fa-backdrop.is-open{display:flex}
     .fa-card{width:min(100%,540px);max-height:92vh;overflow-y:auto;background:#090d18;border:1px solid rgba(255,255,255,.1);border-radius:20px;box-shadow:0 40px 100px rgba(0,0,0,.65);font-family:'DM Sans',system-ui,sans-serif;color:#f4efe8;scrollbar-width:none}
@@ -619,7 +623,7 @@
       openFormModal('volunteer');
       return;
     }
-    if (modal === 'contact') {
+    if (modal === 'contact' || action === 'contact') {
       e.preventDefault();
       openFormModal('contact');
     }

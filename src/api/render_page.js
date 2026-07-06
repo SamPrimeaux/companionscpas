@@ -9,13 +9,26 @@ const PAGE_CACHE_TTL = 3600;
 // by uploading the same file to both keys. Never split them again.
 export const SHELL_CSS = "/static/global/cpas-shell.css";
 
+const KNOWN_PAGE_THEMES = new Set(["light", "dark", "plum_glass"]);
+
+export function normalizePageTheme(raw, fallback = "light") {
+  const theme = String(raw || "").trim();
+  if (KNOWN_PAGE_THEMES.has(theme)) return theme;
+  return fallback;
+}
+
+/** Maps D1 theme key → CSS class suffix (theme-plum-glass). */
+export function themeClassName(theme) {
+  const normalized = normalizePageTheme(theme, "light");
+  if (normalized === "plum_glass") return "plum-glass";
+  return normalized;
+}
+
 export async function resolveRouteTheme(env, route, fallback = "light") {
   const page = await env?.DB?.prepare?.(
     "SELECT theme FROM cms_pages WHERE tenant_id = ? AND route_path = ? LIMIT 1"
   )?.bind(TENANT_ID, route)?.first?.().catch?.(() => null);
-  if (page?.theme === "light") return "light";
-  if (page?.theme === "dark") return "dark";
-  return fallback;
+  return normalizePageTheme(page?.theme, fallback);
 }
 
 function nowIso() {
@@ -220,7 +233,8 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
       safeBrand?.seoDefaults?.description ||
       "Companions of CPAS community animal rescue support."
   );
-  const theme = safePage.theme === "light" ? "light" : "dark";
+  const theme = normalizePageTheme(safePage.theme, "light");
+  const themeClass = themeClassName(theme);
   const route = escapeHtml(safePage.route_path || "/");
   // Font preset from brand config
   const fontPresets = Array.isArray(safeBrand?.config?.font_presets) ? safeBrand.config.font_presets : [];
@@ -257,7 +271,7 @@ ${brandTokensStylesheetTag()}
 ${fontImportTag}
 ${brandScript}
 </head>
-<body class="theme-${theme}${preview ? " cms-preview" : ""}" data-theme="${theme}" data-route="${route}"${fontDataAttr}>
+<body class="theme-${themeClass}${preview ? " cms-preview" : ""}" data-theme="${theme}" data-route="${route}"${fontDataAttr}>
 ${headerHtml || ""}
 <main>
 ${sectionsMarkup}
