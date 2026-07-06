@@ -3,8 +3,8 @@
 Companions of CPAS — 501(c)(3) volunteer-powered rescue helping dogs at Caddo Parish Animal Services receive medical care, transport support, and second chances.
 
 - **Live site:** `https://companionsofcaddo.org`
-- **Dev URL:** `https://companionscpas.meauxbility.workers.dev` *(internal/testing only)*
-- **Dashboard:** `/dashboard` *(auth-gated, session-enforced at Worker level)*
+- **Admin route:** `admin.companionsofcaddo.org/*` (Cloudflare custom domain + wrangler route)
+- **Dashboard:** `https://companionsofcaddo.org/dashboard` *(auth-gated)*
 - **Repo:** `github.com/SamPrimeaux/companionscpas`
 - **Developed by:** [Inner Animal Media](https://inneranimalmedia.com)
 - **Stack:** Cloudflare Workers, D1, R2, KV, Workers AI
