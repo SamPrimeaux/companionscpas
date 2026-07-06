@@ -5,7 +5,9 @@ const TENANT_ID = "tenant_companionscpas";
 const BRAND_CACHE_KEY = `brand:${TENANT_ID}`;
 const PAGE_CACHE_TTL = 3600;
 
-const SHELL_CSS = "/static/global/shared.css";
+// cpas-shell.css is the canonical stylesheet. shared.css in R2 is kept as an alias
+// by uploading the same file to both keys. Never split them again.
+const SHELL_CSS = "/static/global/cpas-shell.css";
 
 function nowIso() {
   return new Date().toISOString();
