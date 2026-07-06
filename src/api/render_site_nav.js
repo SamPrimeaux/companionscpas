@@ -1,9 +1,11 @@
 import { getBrand } from "./render_page.js";
 
 const TENANT_ID = "tenant_companionscpas";
-const DEFAULT_LOGO = "/static/global/companionsofcpa-newlogo.webp";
 
-/** Public nav order + labels (route may differ from page title, e.g. Foster → /services). */
+// Cloudflare Images — avatar variant (square crop). Double the rendered size via CSS.
+const DEFAULT_LOGO = "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/9a00de35-fa41-49da-e431-a5f004cf5e00/avatar";
+
+/** Public nav order + labels. */
 export const SITE_NAV_ITEMS = [
   { route: "/", label: "Home", sort: 10, inHeader: true, inFooter: true },
   { route: "/about", label: "About", sort: 20, inHeader: true, inFooter: true },
@@ -25,7 +27,6 @@ function esc(v) {
 export async function loadNavVisibility(env) {
   const map = new Map();
   if (!env?.DB) return map;
-
   try {
     const { results } = await env.DB.prepare(
       "SELECT route_path, nav_visible FROM cms_pages WHERE tenant_id = ?"
@@ -59,6 +60,7 @@ function footerNavItems(visibilityMap) {
 }
 
 function headerLogoSrc(brand) {
+  // Prefer brand logo from D1; fall back to CFI avatar
   const raw = brand?.logo_light_url || brand?.logo_url || DEFAULT_LOGO;
   if (typeof raw !== "string" || !raw.trim()) return DEFAULT_LOGO;
   return raw.trim();
@@ -86,7 +88,7 @@ export async function renderSiteHeader(env) {
   return `<header class="site-header">
   <div class="container header-inner">
     <a href="/" class="logo-link" aria-label="${logoAlt} — home">
-      <img src="${logoSrc}" alt="${logoAlt}" />
+      <img src="${logoSrc}" alt="${logoAlt}" class="header-logo-img" />
     </a>
     <nav aria-label="Main navigation">
       <ul class="site-nav">
