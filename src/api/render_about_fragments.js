@@ -1,5 +1,6 @@
-import { SHELL_VERSION, publicPageScripts } from "./page_shell.js";
+import { SHELL_VERSION, publicPageScripts, brandTokensStylesheetTag } from "./page_shell.js";
 import { renderSiteHeader, renderSiteFooter } from "./render_site_nav.js";
+import { SHELL_CSS, resolveRouteTheme } from "./render_page.js";
 
 const PAGE_CACHE_TTL = 3600;
 
@@ -21,9 +22,10 @@ export async function assembleAboutFromFragments(env) {
   const fragments = await Promise.all(ABOUT_FRAGMENT_KEYS.map((key) => r2Text(env, key)));
   if (fragments.some((html) => !html.trim())) return null;
 
-  const [headerHtml, footerHtml] = await Promise.all([
+  const [headerHtml, footerHtml, theme] = await Promise.all([
     renderSiteHeader(env),
     renderSiteFooter(env),
+    resolveRouteTheme(env, "/about"),
   ]);
 
   return `<!doctype html>
@@ -33,10 +35,11 @@ export async function assembleAboutFromFragments(env) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>About Us • Companions of CPAS</title>
   <meta name="description" content="Meet the people behind Companions of CPAS and learn how we help Caddo Parish dogs receive medical care, transport support, and second chances.">
-  <link rel="stylesheet" href="/static/global/shared.css?v=${SHELL_VERSION}">
+  <link rel="stylesheet" href="${SHELL_CSS}?v=${SHELL_VERSION}">
+  ${brandTokensStylesheetTag()}
   <link rel="icon" href="/logo.png">
 </head>
-<body class="theme-dark" data-theme="dark" data-route="/about">
+<body class="theme-${theme}" data-theme="${theme}" data-route="/about">
 ${headerHtml}
 <main>
 ${fragments.join("\n")}

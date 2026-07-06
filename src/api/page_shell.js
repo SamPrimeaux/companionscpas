@@ -3,6 +3,8 @@ export const SHELL_VERSION = "nav-p0-20260613";
 export const DONATE_MODAL_VERSION = "memo-20260702";
 export const CPAS_MODALS_VERSION = "modals-v2-20260615";
 
+export { brandTokensStylesheetTag } from "./brand_tokens.js";
+
 export function publicPageScripts() {
   return `
 <script src="/static/js/donate-modal.js?v=${DONATE_MODAL_VERSION}" defer></script>

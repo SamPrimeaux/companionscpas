@@ -1,5 +1,5 @@
 import { renderSection } from "./render_section.js";
-import { SHELL_VERSION, publicPageScripts } from "./page_shell.js";
+import { SHELL_VERSION, publicPageScripts, brandTokensStylesheetTag } from "./page_shell.js";
 
 const TENANT_ID = "tenant_companionscpas";
 const BRAND_CACHE_KEY = `brand:${TENANT_ID}`;
@@ -7,7 +7,16 @@ const PAGE_CACHE_TTL = 3600;
 
 // cpas-shell.css is the canonical stylesheet. shared.css in R2 is kept as an alias
 // by uploading the same file to both keys. Never split them again.
-const SHELL_CSS = "/static/global/cpas-shell.css";
+export const SHELL_CSS = "/static/global/cpas-shell.css";
+
+export async function resolveRouteTheme(env, route, fallback = "light") {
+  const page = await env?.DB?.prepare?.(
+    "SELECT theme FROM cms_pages WHERE tenant_id = ? AND route_path = ? LIMIT 1"
+  )?.bind(TENANT_ID, route)?.first?.().catch?.(() => null);
+  if (page?.theme === "light") return "light";
+  if (page?.theme === "dark") return "dark";
+  return fallback;
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -244,6 +253,7 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   <title>${title}</title>
   <meta name="description" content="${description}">
   <link rel="stylesheet" href="${shellCssHref}">
+${brandTokensStylesheetTag()}
 ${fontImportTag}
 ${brandScript}
 </head>

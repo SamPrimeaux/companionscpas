@@ -114,8 +114,8 @@ for (const route of routes) {
     console.error(`  ✗ assembly failed for ${route}`);
     continue;
   }
-  if (!html.includes("/static/global/shared.css")) {
-    console.error(`  ✗ missing shared.css in assembled HTML for ${route}`);
+  if (!html.includes("/static/global/cpas-shell.css") && !html.includes("/static/global/shared.css")) {
+    console.error(`  ✗ missing shell CSS in assembled HTML for ${route}`);
     process.exitCode = 1;
     continue;
   }

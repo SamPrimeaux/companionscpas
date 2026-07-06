@@ -76,7 +76,7 @@ function renderHeroFragment(section) {
 
   return `<style>
 [data-cpas-section="hero"]{isolation:isolate}
-@media(max-width:768px){[data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(320px,62vw,520px)}[data-cpas-section="hero"] .hero-body{background:linear-gradient(180deg,#0b0f1a,#070b14)}}
+@media(max-width:768px){[data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(320px,62vw,520px)}[data-cpas-section="hero"] .hero-body{background:linear-gradient(180deg,#faf8f4 0%,#f2ede4 100%)}}
 </style>
 <section class="hero-split" data-cpas-section="hero">
   <div class="hero-media-bg">

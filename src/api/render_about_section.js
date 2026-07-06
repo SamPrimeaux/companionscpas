@@ -56,7 +56,7 @@ function renderHero(section) {
 
   return `<style>
 [data-cpas-section="hero"]{isolation:isolate}
-@media(max-width:768px){[data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(320px,62vw,520px)}[data-cpas-section="hero"] .hero-body{background:linear-gradient(180deg,#0b0f1a,#070b14)}}
+@media(max-width:768px){[data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(320px,62vw,520px)}[data-cpas-section="hero"] .hero-body{background:linear-gradient(180deg,#faf8f4 0%,#f2ede4 100%)}}
 </style>
 <section class="hero-split" data-cpas-section="hero" data-section-key="hero">
   <div class="hero-media-bg">
@@ -146,13 +146,10 @@ function renderPaths(section, blocks) {
   }).join("\n      ");
 
   return `<style>
-[data-cpas-section="paths"]{background:var(--dark-bg)}
-[data-cpas-section="paths"] .paths-heading{text-align:center;font-family:var(--font-display);font-size:clamp(1.5rem,2.5vw,2rem);font-weight:700;color:#f0ece6;margin-bottom:0.25rem}
-[data-cpas-section="paths"] .pillars-row .pillar{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1)}
-[data-cpas-section="paths"] .pillars-row .pillar h3{color:#f0ece6;font-family:var(--font-body)}
-[data-cpas-section="paths"] .pillars-row .pillar p{color:var(--dark-muted)}
+[data-cpas-section="paths"]{background:var(--bg-2)}
+[data-cpas-section="paths"] .paths-heading{text-align:center;font-family:var(--font-display);font-size:clamp(1.5rem,2.5vw,2rem);font-weight:700;color:var(--text-1);margin-bottom:0.25rem}
 </style>
-<section class="section s-dark" data-cpas-section="paths" data-section-key="paths">
+<section class="section s-light" data-cpas-section="paths" data-section-key="paths">
   <div class="container">
     <h2 class="paths-heading">${escapeHtml(heading)}</h2>
     <div class="pillars-row" style="grid-template-columns:repeat(${Math.min(cards.length || 2, 2)},1fr);max-width:880px;margin-left:auto;margin-right:auto">${cardHtml}</div>

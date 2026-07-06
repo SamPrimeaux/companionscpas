@@ -239,6 +239,18 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
   const path = url.pathname;
   const method = request.method;
 
+  if (path === "/api/cms/brand/tokens.css" && method === "GET") {
+    const { getBrand } = await import("./render_page.js");
+    const { buildBrandTokensCss } = await import("./brand_tokens.js");
+    const brand = await getBrand(env);
+    return new Response(buildBrandTokensCss(brand), {
+      headers: {
+        "content-type": "text/css; charset=utf-8",
+        "cache-control": "public, max-age=120, stale-while-revalidate=300",
+      },
+    });
+  }
+
   if (path === "/api/cms/modal/foster_cta" && method === "GET") {
     const row = await env.DB.prepare(`
       SELECT modal_key, title, subtitle, body, cta_label, cta_href, cta_action, image_url, config_json

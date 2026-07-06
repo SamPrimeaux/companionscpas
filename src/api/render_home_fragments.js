@@ -1,5 +1,6 @@
-import { SHELL_VERSION, publicPageScripts } from "./page_shell.js";
+import { SHELL_VERSION, publicPageScripts, brandTokensStylesheetTag } from "./page_shell.js";
 import { renderSiteHeader, renderSiteFooter } from "./render_site_nav.js";
+import { SHELL_CSS, resolveRouteTheme } from "./render_page.js";
 
 const PAGE_CACHE_TTL = 3600;
 
@@ -23,9 +24,10 @@ export async function assembleHomeFromFragments(env) {
   const fragments = await Promise.all(HOME_FRAGMENT_KEYS.map((key) => r2Text(env, key)));
   if (fragments.some((html) => !html.trim())) return null;
 
-  const [headerHtml, footerHtml] = await Promise.all([
+  const [headerHtml, footerHtml, theme] = await Promise.all([
     renderSiteHeader(env),
     renderSiteFooter(env),
+    resolveRouteTheme(env, "/"),
   ]);
 
   return `<!doctype html>
@@ -35,10 +37,11 @@ export async function assembleHomeFromFragments(env) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Companions of CPAS moves dogs from crisis to care through transport, urgent medical support, foster pathways, and a community that shows up when it matters most.">
   <title>Companions of CPAS — Second Chances for Caddo Dogs</title>
-  <link rel="stylesheet" href="/static/global/shared.css?v=${SHELL_VERSION}">
+  <link rel="stylesheet" href="${SHELL_CSS}?v=${SHELL_VERSION}">
+  ${brandTokensStylesheetTag()}
   <link rel="icon" href="/logo.png">
 </head>
-<body class="theme-dark" data-theme="dark" data-route="/">
+<body class="theme-${theme}" data-theme="${theme}" data-route="/">
 ${headerHtml}
 <main>
 ${fragments.join("\n")}
