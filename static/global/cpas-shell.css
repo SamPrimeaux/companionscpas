@@ -155,7 +155,7 @@ p  { text-wrap: pretty; }
   top: 0; left: 0; right: 0;
   z-index: 500;
   height: var(--header-h);
-  background: rgba(9, 13, 24, 0.22);
+  background: rgba(26, 12, 42, 0.28);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px) saturate(120%);
   -webkit-backdrop-filter: blur(10px) saturate(120%);
