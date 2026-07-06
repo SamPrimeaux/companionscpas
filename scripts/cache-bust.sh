@@ -4,7 +4,7 @@
 # Single page: npm run cache:bust -- /adopt
 
 KV_NS="0b410337a8494fc982ea04c5bde1eab4"
-ROUTES=("/" "/about" "/adopt" "/services" "/donate" "/community")
+ROUTES=("/" "/about" "/adopt" "/services" "/donate" "/community" "/contact")
 
 if [ -n "$1" ]; then
   ROUTES=("$1")

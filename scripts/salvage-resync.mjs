@@ -100,11 +100,7 @@ execFileSync("node", ["scripts/republish-shell-pages.mjs"], { stdio: "inherit" }
 console.log("Running publish-generic-page.mjs…");
 execFileSync("node", ["scripts/publish-generic-page.mjs"], { stdio: "inherit" });
 
-console.log("\nSeeding contact page KV…");
-wrangler([
-  "kv", "key", "put", "page:/contact",
-  "--namespace-id", KV, "--remote",
-  "--path", "public/static/pages/contact/index.html",
-]);
+console.log("\nPublishing contact page…");
+execFileSync("node", ["scripts/publish-contact-page.mjs"], { stdio: "inherit" });
 
 console.log("Salvage resync complete.");
