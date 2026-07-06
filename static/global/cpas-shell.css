@@ -327,7 +327,7 @@ p  { text-wrap: pretty; }
   width: min(86vw, 360px);
   display: flex;
   flex-direction: column;
-  background: rgba(10, 12, 26, 0.92);
+  background: rgba(22, 12, 36, 0.95);
   border-left: 1px solid rgba(255,255,255,0.08);
   box-shadow: -32px 0 80px rgba(0,0,0,0.6);
   backdrop-filter: blur(32px) saturate(160%);
