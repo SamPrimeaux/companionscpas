@@ -535,7 +535,7 @@ function GivingView({ initialTab, onNavigate }) {
                     { key: "status", label: "Status", render: v => React.createElement(Badge, { label: v || "received", dot: true }) },
                     { key: "id", label: "", render: (v, row) => React.createElement("button", {
                         onClick: () => setSelectedDonor(row),
-                        style: { background: "none", border: , borderRadius: 6, padding: "4px 10px", color: C.textSec, fontSize: 12, cursor: "pointer" }
+                        style: { background: "none", border: `1px solid ${C.border}`, borderRadius: 6, padding: "4px 10px", color: C.textSec, fontSize: 12, cursor: "pointer" }
                       }, "View")
                     }
                   ], rows: filtered }),
