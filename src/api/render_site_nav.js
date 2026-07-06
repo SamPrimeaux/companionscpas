@@ -64,8 +64,6 @@ export async function renderSiteHeader(env) {
     .map((item) => `<li><a href="${esc(item.route)}">${esc(item.label)}</a></li>`)
     .join("\n        ");
 
-  // Debug: force Home visible — it's in SITE_NAV_ITEMS with inHeader:true
-
   const mobileLinks = [
     ...navItems.map((item) => `<a href="${esc(item.route)}">${esc(item.label)}</a>`),
     ...(showDonate ? ['<a href="/donate" class="mobile-donate">Donate</a>'] : []),
