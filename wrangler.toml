@@ -42,3 +42,7 @@ bucket_name = "companionscpas"
 [[kv_namespaces]]
 binding = "CMS_CACHE"
 id = "0b410337a8494fc982ea04c5bde1eab4"
+
+[[routes]]
+pattern = "admin.companionsofcaddo.org/*"
+zone_name = "companionsofcaddo.org"
