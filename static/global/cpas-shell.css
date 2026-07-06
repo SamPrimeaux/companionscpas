@@ -9,9 +9,10 @@
 :root {
   --font-display: 'Fraunces', Georgia, serif;
   --font-body:    'DM Sans', system-ui, sans-serif;
-  --purple:        #7c3aed;
-  --purple-mid:    #8b5cf6;
-  --purple-light:  #a78bfa;
+  --purple:        #6b21e8;
+  --purple-mid:    #7c3aed;
+  --purple-light:  #9d6cf3;
+  --red-accent:    #d62b2b;
   --ease:          cubic-bezier(0.16, 1, 0.3, 1);
   --header-h:      72px;
   --header-h-mob:  68px;
