@@ -404,9 +404,9 @@ p  { text-wrap: pretty; }
   overflow: hidden;
   padding: 72px 22px 32px;
   background:
-    radial-gradient(circle at 20% 0%, rgba(124,58,237,0.22), transparent 36%),
-    radial-gradient(circle at 88% 20%, rgba(180,100,255,0.10), transparent 40%),
-    linear-gradient(180deg, #1e1030 0%, #120920 100%);
+    radial-gradient(circle at 15% 0%, rgba(107,33,232,0.25), transparent 40%),
+    radial-gradient(circle at 85% 30%, rgba(214,43,43,0.10), transparent 44%),
+    linear-gradient(180deg, #2d1456 0%, #1a0c38 100%);
   color: rgba(255, 255, 255, 0.78);
   border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
