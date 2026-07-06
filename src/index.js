@@ -4,6 +4,7 @@ import { googleAuthRoutes } from './api/auth_google.js';
 import { sessionRoutes, getAuthUser } from './api/session_api.js';
 import { agentsamRoutes } from './api/agentsam_api.js';
 import { agentsamToolsRoutes } from './api/agentsam_tools.js';
+import { mcpHandler } from './api/mcp_handler.js';
 import { cmsRoutes } from './api/cms_api.js';
 import { passwordResetRoutes } from './api/password_reset.js';
 import { dashboardApiRoutes } from './api/dashboard_api.js';
