@@ -1,4 +1,7 @@
+import { getBrand } from "./render_page.js";
+
 const TENANT_ID = "tenant_companionscpas";
+const DEFAULT_LOGO = "/static/global/companionsofcpa-newlogo.webp";
 
 /** Public nav order + labels (route may differ from page title, e.g. Foster → /services). */
 export const SITE_NAV_ITEMS = [
@@ -55,10 +58,21 @@ function footerNavItems(visibilityMap) {
     .sort((a, b) => a.sort - b.sort);
 }
 
+function headerLogoSrc(brand) {
+  const raw = brand?.logo_light_url || brand?.logo_url || DEFAULT_LOGO;
+  if (typeof raw !== "string" || !raw.trim()) return DEFAULT_LOGO;
+  return raw.trim();
+}
+
 export async function renderSiteHeader(env) {
-  const visibilityMap = await loadNavVisibility(env);
+  const [visibilityMap, brand] = await Promise.all([
+    loadNavVisibility(env),
+    getBrand(env).catch(() => ({})),
+  ]);
   const navItems = headerNavItems(visibilityMap);
   const showDonate = isRouteNavVisible(visibilityMap, "/donate");
+  const logoSrc = esc(headerLogoSrc(brand));
+  const logoAlt = esc(brand?.brand_name || "Companions of CPAS");
 
   const navLis = navItems
     .map((item) => `<li><a href="${esc(item.route)}">${esc(item.label)}</a></li>`)
@@ -71,8 +85,8 @@ export async function renderSiteHeader(env) {
 
   return `<header class="site-header">
   <div class="container header-inner">
-    <a href="/" class="logo-link" aria-label="Companions of CPAS — home">
-      <img src="/static/global/companionsofcpa-newlogo.webp" alt="Companions of CPAS" style="height:72px;width:auto;max-width:240px;" />
+    <a href="/" class="logo-link" aria-label="${logoAlt} — home">
+      <img src="${logoSrc}" alt="${logoAlt}" />
     </a>
     <nav aria-label="Main navigation">
       <ul class="site-nav">

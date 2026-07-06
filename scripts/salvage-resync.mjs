@@ -97,6 +97,8 @@ console.log("Syncing about sections from D1 → R2…");
 await syncAbout(env, { ensure: false });
 console.log("Running republish-shell-pages.mjs…");
 execFileSync("node", ["scripts/republish-shell-pages.mjs"], { stdio: "inherit" });
+console.log("Running publish-generic-page.mjs…");
+execFileSync("node", ["scripts/publish-generic-page.mjs"], { stdio: "inherit" });
 
 console.log("\nSeeding contact page KV…");
 wrangler([

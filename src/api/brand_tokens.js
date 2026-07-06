@@ -44,6 +44,10 @@ export function buildBrandTokensCss(brand = {}) {
   const accent = normalizeHex(brand.accent_color, "#d62b2b");
   const purpleMid = mixHex(primary, "#ffffff", 0.18);
   const purpleLight = mixHex(primary, "#ffffff", 0.42);
+  const logoWidth = Math.max(48, Math.min(320, Number(brand.logo_width) || 140));
+  const logoHeight = Number(brand.logo_height) > 0
+    ? Math.max(28, Math.min(120, Number(brand.logo_height)))
+    : Math.round(logoWidth * 0.52);
 
   return `:root,
 .theme-light,
@@ -54,6 +58,15 @@ export function buildBrandTokensCss(brand = {}) {
   --red-accent: ${accent};
   --btn-bg: ${primary};
   --eyebrow-color: ${primary};
+  --brand-logo-width: ${logoWidth}px;
+  --brand-logo-height: ${logoHeight}px;
+}
+
+.logo-link img {
+  height: var(--brand-logo-height, 72px);
+  width: auto;
+  max-width: var(--brand-logo-width, 240px);
+  object-fit: contain;
 }
 `;
 }
