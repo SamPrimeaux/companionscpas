@@ -711,6 +711,38 @@ p  { text-wrap: pretty; }
 body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;height:100dvh;width:clamp(320px,52vw,440px);max-width:calc(100vw - 18px)}
 @media(max-width:420px){.nav-drawer{width:min(86vw,340px)}}
 
+/* ── FOOTER SOCIAL BUTTONS ───────────────────────────────────── */
+.footer-social-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.footer-social-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff !important;
+  text-decoration: none;
+  transition: transform 160ms, box-shadow 160ms, opacity 160ms;
+  letter-spacing: 0.01em;
+}
+.footer-social-btn:hover { transform: translateY(-1px); opacity: 0.92; }
+.footer-social-btn--fb {
+  background: #1877f2;
+  box-shadow: 0 4px 14px rgba(24,119,242,0.35);
+}
+.footer-social-btn--fb:hover { box-shadow: 0 6px 20px rgba(24,119,242,0.50); }
+.footer-social-btn--ig {
+  background: linear-gradient(135deg, #f58529, #dd2a7b, #8134af);
+  box-shadow: 0 4px 14px rgba(221,42,123,0.30);
+}
+.footer-social-btn--ig:hover { box-shadow: 0 6px 20px rgba(221,42,123,0.45); }
+
 /* CMS draft preview — hidden sections shown at reduced opacity */
 .cms-preview .cms-preview-hidden-section {
   opacity: 0.5;
