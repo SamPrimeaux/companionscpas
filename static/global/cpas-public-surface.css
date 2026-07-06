@@ -60,6 +60,24 @@
     background: var(--purple);
     color: #fff !important;
     font-weight: 600;
+    border-radius: 999px;
+  }
+  .theme-plum-glass .mobile-menu-panel {
+    background: linear-gradient(180deg, rgba(44, 10, 56, 0.98) 0%, rgba(58, 16, 72, 0.97) 100%);
+    border-left-color: rgba(255, 255, 255, 0.10);
+    box-shadow: -24px 0 64px rgba(20, 4, 28, 0.35);
+  }
+  .theme-plum-glass .mobile-menu-panel a {
+    color: rgba(255, 255, 255, 0.76);
+  }
+  .theme-plum-glass .mobile-menu-panel a:hover,
+  .theme-plum-glass .mobile-menu-panel a.active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .theme-plum-glass .mobile-menu-panel .mobile-donate {
+    background: linear-gradient(135deg, var(--tg-cta-donate-start), var(--tg-cta-donate-end));
+    box-shadow: 0 8px 22px var(--tg-cta-donate-shadow);
   }
 }
 

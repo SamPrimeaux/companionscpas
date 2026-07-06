@@ -1,5 +1,5 @@
 /** Shared public-page asset versions and script tags. */
-export const SHELL_VERSION = "home-campaigns-newsletter-20260707";
+export const SHELL_VERSION = "plum-header-global-20260707";
 export const DONATE_MODAL_VERSION = "memo-20260702";
 export const CPAS_MODALS_VERSION = "modals-v3-20260706";
 

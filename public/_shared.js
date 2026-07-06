@@ -114,13 +114,20 @@
       panel.className = "mobile-menu-panel";
       panel.id = "mobileMenuPanel";
       panel.setAttribute("aria-label", "Mobile navigation");
-      panel.innerHTML = `
+      const navLinks = [...document.querySelectorAll(".site-nav a")].map((a) => {
+        const href = a.getAttribute("href") || "/";
+        const label = (a.textContent || "").trim() || href;
+        return `<a href="${href}">${label}</a>`;
+      });
+      if (document.querySelector('.header-actions .btn-primary[href="/donate"], .header-actions a[href="/donate"]')) {
+        navLinks.push('<a href="/donate" class="mobile-donate">Donate</a>');
+      }
+      panel.innerHTML = navLinks.join("\n        ") || `
         <a href="/">Home</a>
         <a href="/about">About</a>
         <a href="/adopt">Adopt</a>
-        <a href="/community">Community</a>
-        <a href="/donate" class="mobile-donate">Donate</a>
-      `;
+        <a href="/contact">Contact</a>
+        <a href="/donate" class="mobile-donate">Donate</a>`;
       document.body.appendChild(panel);
     }
 

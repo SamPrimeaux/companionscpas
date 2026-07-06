@@ -24,7 +24,7 @@ export function themeClassName(theme) {
   return normalized;
 }
 
-export async function resolveRouteTheme(env, route, fallback = "light") {
+export async function resolveRouteTheme(env, route, fallback = "plum_glass") {
   const page = await env?.DB?.prepare?.(
     "SELECT theme FROM cms_pages WHERE tenant_id = ? AND route_path = ? LIMIT 1"
   )?.bind(TENANT_ID, route)?.first?.().catch?.(() => null);
@@ -233,7 +233,7 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
       safeBrand?.seoDefaults?.description ||
       "Companions of CPAS community animal rescue support."
   );
-  const theme = normalizePageTheme(safePage.theme, "light");
+  const theme = normalizePageTheme(safePage.theme, "plum_glass");
   const themeClass = themeClassName(theme);
   const route = escapeHtml(safePage.route_path || "/");
   // Font preset from brand config
