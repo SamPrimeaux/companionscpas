@@ -4,10 +4,11 @@ const TENANT_ID = "tenant_companionscpas";
 export const SITE_NAV_ITEMS = [
   { route: "/", label: "Home", sort: 10, inHeader: true, inFooter: true },
   { route: "/about", label: "About", sort: 20, inHeader: true, inFooter: true },
-  { route: "/services", label: "Foster", sort: 30, inHeader: true, inFooter: true },
-  { route: "/adopt", label: "Adopt", sort: 40, inHeader: true, inFooter: true },
-  { route: "/community", label: "Community", sort: 50, inHeader: true, inFooter: true },
-  { route: "/donate", label: "Donate", sort: 60, inHeader: false, inFooter: true, headerButton: true },
+  { route: "/adopt", label: "Adopt", sort: 30, inHeader: true, inFooter: true },
+  { route: "/community", label: "Community", sort: 40, inHeader: true, inFooter: true },
+  { route: "/contact", label: "Contact", sort: 50, inHeader: true, inFooter: true },
+  { route: "/services", label: "Foster", sort: 60, inHeader: false, inFooter: false },
+  { route: "/donate", label: "Donate", sort: 70, inHeader: false, inFooter: true, headerButton: true },
 ];
 
 function esc(v) {
