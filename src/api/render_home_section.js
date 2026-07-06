@@ -1,4 +1,10 @@
 import { escapeHtml, safeJson } from "./render_section.js";
+import {
+  campaignCoverUrl,
+  campaignSummary,
+  formatCampaignMoney,
+  loadHomeFeaturedCampaigns,
+} from "./campaign_public.js";
 
 const CDN = "https://assets.companionsofcaddo.org";
 
@@ -274,6 +280,33 @@ function renderImpactStatsFragment(section, blocks) {
 </section>`;
 }
 
+function renderCampaignItemFromRow(campaign) {
+  const raised = Number(campaign.raised_cents ?? campaign.raised_amount_cents) || 0;
+  const goal = Number(campaign.goal_amount_cents) || 0;
+  const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+  const image = campaignCoverUrl(campaign);
+  const title = pick(campaign, ["title"]) || "Campaign";
+  const desc = campaignSummary(campaign);
+  const donateHref = `/donate?campaign=${encodeURIComponent(campaign.id)}`;
+  const progressHtml = goal > 0
+    ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+              <p class="progress-label">${formatCampaignMoney(raised)} of ${formatCampaignMoney(goal)} · ${pct}%</p>`
+    : raised > 0
+      ? `<p class="progress-label progress-label--open">${formatCampaignMoney(raised)} raised · ongoing</p>`
+      : `<p class="progress-label progress-label--open">Support this campaign →</p>`;
+
+  return `<a class="camp-item camp-item-link" href="${escAttr(donateHref)}" data-campaign-id="${escAttr(campaign.id)}">
+            <div class="camp-item-thumb">
+              <img src="${escAttr(image)}" alt="${escAttr(title)}" loading="lazy" decoding="async" />
+            </div>
+            <div class="camp-item-body">
+              <p class="camp-item-title">${escapeHtml(title)}</p>
+              <p class="camp-item-desc">${escapeHtml(desc)}</p>
+              ${progressHtml}
+            </div>
+          </a>`;
+}
+
 function renderCampaignItem(block) {
   const cfg = blockCfg(block);
   const raised = Number(cfg.raised || 0);
@@ -303,28 +336,42 @@ function renderCommunityItem(block) {
           </div>`;
 }
 
-function renderCampaignsFragment(section, blocks) {
+async function renderCampaignsFragment(section, blocks, env) {
   const cfg = safeJson(section.config_json, {});
   const all = sortBlocks(blocks).filter((b) => Number(b.is_visible) !== 0);
-  const campaigns = all.filter((b) => (b.block_type || "").includes("campaign") || pick(blockCfg(b), ["column"]) === "campaigns");
   const community = all.filter((b) => (b.block_type || "").includes("community") || pick(blockCfg(b), ["column"]) === "community");
   const campEyebrow = pick(cfg, ["campaigns_eyebrow"]) || pick(section, ["eyebrow"]) || "Featured Campaigns";
   const campLink = safeUrl(pick(cfg, ["campaigns_link"]) || "/donate", "/donate");
   const commEyebrow = pick(cfg, ["community_eyebrow"]) || "From Our Community";
   const commLink = safeUrl(pick(cfg, ["community_link"]) || "/community", "/community");
+  const limit = Number(cfg.home_campaign_limit) || 3;
 
-  return `<section class="section s-light" data-cpas-section="campaigns">
+  let campaignHtml = "";
+  if (env?.DB) {
+    const liveCampaigns = await loadHomeFeaturedCampaigns(env, { limit });
+    if (liveCampaigns.length) {
+      campaignHtml = liveCampaigns.map(renderCampaignItemFromRow).join("\n          ");
+    }
+  }
+  if (!campaignHtml) {
+    const fallbackBlocks = all.filter((b) => (b.block_type || "").includes("campaign") || pick(blockCfg(b), ["column"]) === "campaigns");
+    campaignHtml = fallbackBlocks.length
+      ? fallbackBlocks.map(renderCampaignItem).join("\n          ")
+      : `<p class="camp-empty">Active campaigns appear here as you publish them in <a href="/dashboard/fundraising">Fundraising</a>. <a href="${escAttr(campLink)}">Give now →</a></p>`;
+  }
+
+  return `<section class="section s-light home-campaigns" data-cpas-section="campaigns">
   <div class="container">
     <div class="cc-grid">
-      <div>
+      <div class="cc-col cc-col-campaigns">
         <div class="cc-header">
           <div class="ey-purple">${escapeHtml(campEyebrow)}</div>
           <a class="cc-view-all" href="${escAttr(campLink)}">View all →</a>
         </div>
-        <div class="camp-list">${campaigns.map(renderCampaignItem).join("\n          ")}</div>
+        <div class="camp-list">${campaignHtml}</div>
       </div>
-      <div>
-        <div class="ey-purple">${escapeHtml(commEyebrow)}</div>
+      <div class="cc-col cc-col-community">
+        <div class="ey-purple cc-community-label">${escapeHtml(commEyebrow)}</div>
         <div class="comm-list">${community.map(renderCommunityItem).join("\n          ")}</div>
         <a class="comm-see-all" href="${escAttr(commLink)}">See all updates →</a>
       </div>
@@ -381,12 +428,13 @@ export const HOME_FRAGMENT_RENDERERS = {
   newsletter: renderNewsletterFragment,
 };
 
-export function renderHomeFragment(section, blocks = []) {
+export async function renderHomeFragment(env, section, blocks = []) {
   const key = pick(section, ["section_key"]);
   const renderer = HOME_FRAGMENT_RENDERERS[key];
   if (!renderer) return null;
   if (Number(section.is_visible) === 0) return "<!-- cms: section hidden -->";
-  return renderer(section, blocks);
+  const result = renderer(section, blocks, env);
+  return result instanceof Promise ? await result : result;
 }
 
 export function fragmentKeyForSection(sectionKey) {

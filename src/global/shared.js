@@ -129,7 +129,7 @@
     if(!email){if(status)status.textContent='Please enter your email.';return;}
     if(status)status.textContent='Subscribing...';
     try{
-      const res=await fetch('/api/newsletter/subscribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email})});
+      const res=await fetch('/api/newsletter/subscribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,source:'home_newsletter'})});
       if(!res.ok)throw new Error();
       if(status)status.textContent='You are subscribed. Check your inbox for a confirmation.';form.reset();
     }catch{if(status)status.textContent='Could not subscribe. Please try again.';}

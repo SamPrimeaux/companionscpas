@@ -28,6 +28,14 @@ function money(c) {
   return `$${(Number(c || 0) / 100).toFixed(2)}`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function safeJson(value, fallback = {}) {
   if (value === null || value === undefined || value === "") return fallback;
   if (typeof value === "object") return value;
@@ -1022,9 +1030,23 @@ export async function paymentsEmailRoutes(request, env, url) {
       return json({ error: "Could not save subscription" }, 500);
     }
     const firstName = String(data.name || email.split("@")[0] || "friend").trim().split(/[\s._-]+/)[0] || "friend";
+    const adminTo = env.ADMIN_EMAIL || "companionsCPAS@gmail.com";
     const welcome = await sendTemplateEmail(env, {
       templateKey: "newsletter_welcome", to: email, vars: { first_name: firstName },
       type: "newsletter_welcome", related_type: "newsletter_subscriber", related_id: subId,
+    }).catch(() => null);
+    await sendResend(env, {
+      to: adminTo,
+      subject: `New newsletter subscriber — ${email}`,
+      type: "admin_newsletter_alert",
+      related_type: "newsletter_subscriber",
+      related_id: subId,
+      html: `<div style="font-family:'DM Sans',Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1c1420">
+        <h2 style="margin:0 0 12px;font-size:20px;color:#4e1a52">New newsletter signup</h2>
+        <p style="margin:0 0 8px;line-height:1.6"><strong>Email:</strong> ${escapeHtml(email)}</p>
+        <p style="margin:0 0 8px;line-height:1.6"><strong>Source:</strong> ${escapeHtml(source)}</p>
+        <p style="margin:16px 0 0;font-size:13px;color:#5a4e6a">Subscriber saved to D1 <code>newsletter_subscribers</code>. Welcome email ${welcome?.ok ? "sent" : "pending/failed"}.</p>
+      </div>`,
     }).catch(() => null);
     return json({ success: true, welcome_sent: Boolean(welcome?.ok) }, 201);
   }

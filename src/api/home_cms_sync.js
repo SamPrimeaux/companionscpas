@@ -202,7 +202,7 @@ export async function syncHomeSectionToR2(env, section, blocks) {
   const r2Key = fragmentKeyForSection(section.section_key);
   if (!r2Key) return { skipped: true, section_key: section.section_key };
 
-  const html = renderHomeFragment(section, blocks);
+  const html = await renderHomeFragment(env, section, blocks);
   if (!html) return { skipped: true, section_key: section.section_key };
 
   await env.WEBSITE_ASSETS.put(r2Key, html, {
