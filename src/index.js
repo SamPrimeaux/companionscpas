@@ -144,6 +144,14 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // admin.companionsofcaddo.org → redirect to /admin/login
+    if (url.hostname === "admin.companionsofcaddo.org") {
+      const dest = new URL(request.url);
+      dest.hostname = "companionsofcaddo.org";
+      dest.pathname = "/admin/login";
+      return Response.redirect(dest.toString(), 302);
+    }
+
 
   if (url.pathname === "/_internal/publish" && request.method === "POST") {
     const key = request.headers.get("x-bridge-key") || "";
