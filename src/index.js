@@ -166,6 +166,11 @@ export default {
       return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { "content-type": "application/json" } });
     }
   }
+    // MCP 2024-11-05 JSON-RPC — bridge-key auth, no session required
+    if (url.pathname === "/api/agentsam/mcp" && request.method === "POST") {
+      return mcpHandler(request, env);
+    }
+
     if (url.pathname.startsWith("/api/agentsam/tools/")) {
       const session = await getSession(request, env);
       if (!session) return new Response(JSON.stringify({ error: "Not authenticated" }), {
