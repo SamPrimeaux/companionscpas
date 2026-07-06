@@ -88,7 +88,7 @@ function handleInitialize(id, params) {
     instructions: [
       "You are connected to the Companions of CPAS agentsam Worker.",
       "Use tools/list to discover available tools.",
-      "All write tools (write_database, update_cms_section) return approval_required:true — present proposed changes to the user before calling /api/agentsam/tool/approve.",
+      "Write tools (write_database, d1_write, update_cms_section, r2_put, r2_delete, kv_delete) return approval_required:true — present proposed changes to the user before calling /api/agentsam/tool/approve.",
     ].join(" "),
   });
 }
@@ -140,6 +140,9 @@ async function handleToolsCall(id, params, env) {
             section_id:        result.section_id   || undefined,
             field:             result.field        || undefined,
             proposed_value:    result.proposed_value || undefined,
+            key:               result.key          || undefined,
+            body:              result.body         || undefined,
+            content_type:      result.content_type || undefined,
           }),
         }],
         isError: false,

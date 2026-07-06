@@ -18,12 +18,45 @@ async function readJson(request) {
 }
 
 async function getRecentContext(env) {
-  const [animals, apps, fosters] = await Promise.all([
+  const kvProbeKeys = [
+    "page:/",
+    "page:/about",
+    "page:/adopt",
+    "page:/community",
+    "cms:brand:tenant_companionscpas",
+  ];
+
+  const [animals, apps, fosters, r2Index, kvProbe] = await Promise.all([
     env.DB.prepare(`SELECT name, status, species, breed FROM animal_profiles WHERE tenant_id='tenant_companionscpas' ORDER BY updated_at DESC LIMIT 6`).all().catch(() => ({ results: [] })),
     env.DB.prepare(`SELECT first_name, last_name, review_status, submitted_at FROM cpas_foster_applications ORDER BY submitted_at DESC LIMIT 4`).all().catch(() => ({ results: [] })),
     env.DB.prepare(`SELECT f.foster_name, f.status, a.name AS animal_name FROM foster_records f LEFT JOIN animal_profiles a ON a.id=f.animal_id ORDER BY f.created_at DESC LIMIT 4`).all().catch(() => ({ results: [] })),
+    env.WEBSITE_ASSETS?.list({ limit: 50 }).catch(() => ({ objects: [] })),
+    env.CMS_CACHE
+      ? Promise.all(kvProbeKeys.map(async (key) => {
+          try {
+            const value = await env.CMS_CACHE.get(key);
+            return { key, hit: value !== null, size: value ? value.length : 0 };
+          } catch {
+            return { key, hit: false, size: 0 };
+          }
+        }))
+      : Promise.resolve([]),
   ]);
-  return { animals: animals.results||[], applications: apps.results||[], fosters: fosters.results||[] };
+
+  return {
+    animals: animals.results || [],
+    applications: apps.results || [],
+    fosters: fosters.results || [],
+    r2_assets: {
+      count: r2Index?.objects?.length || 0,
+      objects: (r2Index?.objects || []).slice(0, 50).map((o) => ({
+        key: o.key,
+        size: o.size,
+        uploaded: o.uploaded,
+      })),
+    },
+    kv_cache: kvProbe,
+  };
 }
 
 // Derive canonical provider from model_key — single source of truth
@@ -79,12 +112,24 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
   // POST /api/agentsam/tool/approve — execute an approved write action
   if (path === "/api/agentsam/tool/approve" && request.method === "POST") {
     const body = await readJson(request);
-    const { action_type, sql, section_id, field, proposed_value } = body;
+    const {
+      action_type,
+      sql,
+      section_id,
+      field,
+      proposed_value,
+      key,
+      body: r2Body,
+      content_type,
+      allow_sensitive,
+      description,
+    } = body;
 
-    if (action_type === "db_write" && sql) {
-      // Final hard check before executing
-      const blocked = [/DROP/i, /TRUNCATE/i, /ALTER/i, /DELETE.*users/i];
-      if (blocked.some(r => r.test(sql))) {
+    const blockedSql = [/DROP/i, /TRUNCATE/i, /ALTER/i, /DELETE.*users/i];
+    const blockedR2 = [/^admin\/login\.html$/, /^dashboard\//];
+
+    if ((action_type === "db_write" || action_type === "d1_write") && sql) {
+      if (blockedSql.some((r) => r.test(sql))) {
         return json({ error: "Blocked for safety." }, 403);
       }
       await env.DB.prepare(sql).run();
@@ -118,6 +163,28 @@ export async function agentsamRoutes(request, env, url, sessionUser = null) {
       ).run().catch(() => {});
 
       return json({ success: true, message: `Updated ${field} — saved as draft.` });
+    }
+
+    if (action_type === "r2_put" && key && r2Body !== undefined) {
+      if (!env.WEBSITE_ASSETS) return json({ error: "WEBSITE_ASSETS binding not available." }, 503);
+      if (!allow_sensitive && blockedR2.some((r) => r.test(String(key)))) {
+        return json({ error: "Blocked path — set allow_sensitive:true to override." }, 403);
+      }
+      const httpMetadata = { contentType: content_type || "text/html; charset=utf-8" };
+      await env.WEBSITE_ASSETS.put(String(key), String(r2Body), { httpMetadata });
+      return json({ success: true, message: `R2 object updated: ${key}`, description: description || null });
+    }
+
+    if (action_type === "r2_delete" && key) {
+      if (!env.WEBSITE_ASSETS) return json({ error: "WEBSITE_ASSETS binding not available." }, 503);
+      await env.WEBSITE_ASSETS.delete(String(key));
+      return json({ success: true, message: `R2 object deleted: ${key}` });
+    }
+
+    if (action_type === "kv_delete" && key) {
+      if (!env.CMS_CACHE) return json({ error: "CMS_CACHE binding not available." }, 503);
+      await env.CMS_CACHE.delete(String(key));
+      return json({ success: true, message: `KV key deleted: ${key}` });
     }
 
     return json({ error: "Unknown action type." }, 400);

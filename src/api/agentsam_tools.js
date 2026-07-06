@@ -89,6 +89,26 @@ function isApprovedWrite(sql) {
   return true;
 }
 
+const R2_BINARY_EXT = /\.(webp|png|jpe?g|gif|ico|avif|woff2?|ttf|otf|eot|pdf|zip|gz|mp4|webm|mp3|wav|bin)$/i;
+
+const R2_PROTECTED_PATHS = [
+  /^admin\/login\.html$/,
+  /^dashboard\//,
+];
+
+function isTextR2Key(key) {
+  const k = String(key || "").trim();
+  if (!k) return false;
+  if (R2_BINARY_EXT.test(k)) return false;
+  return /\.(html?|js|jsx?|css|json|txt|md|xml|svg|map)$/i.test(k) || !/\./.test(k.split("/").pop() || "");
+}
+
+function isProtectedR2Path(key, allowSensitive = false) {
+  if (allowSensitive) return false;
+  const k = String(key || "").trim();
+  return R2_PROTECTED_PATHS.some((re) => re.test(k));
+}
+
 export const AGENT_TOOLS = [
   {
     type: "function",
@@ -156,6 +176,173 @@ export const AGENT_TOOLS = [
           reason: { type: "string" },
         },
         required: ["section_id", "field", "proposed_value", "reason"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "d1_query",
+      description: "Run a safe read-only D1 SELECT (auto-LIMIT 50).",
+      parameters: {
+        type: "object",
+        properties: {
+          sql: { type: "string" },
+          description: { type: "string" },
+        },
+        required: ["sql", "description"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "d1_write",
+      description: "Propose an INSERT/UPDATE/DELETE requiring approval.",
+      parameters: {
+        type: "object",
+        properties: {
+          sql: { type: "string" },
+          description: { type: "string" },
+          impact: { type: "string" },
+        },
+        required: ["sql", "description", "impact"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "d1_schema",
+      description: "List tables or PRAGMA table_info for one table (read-only).",
+      parameters: {
+        type: "object",
+        properties: {
+          table: { type: "string", description: "Omit to list all tables." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "r2_list",
+      description: "List R2 WEBSITE_ASSETS keys under an optional prefix.",
+      parameters: {
+        type: "object",
+        properties: {
+          prefix: { type: "string" },
+          limit: { type: "number" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "r2_get",
+      description: "Read text content from R2 (html/js/css/json only).",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string" },
+        },
+        required: ["key"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "r2_head",
+      description: "Read R2 object metadata without body.",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string" },
+        },
+        required: ["key"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "r2_put",
+      description: "Propose writing/updating an R2 object (requires approval).",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string" },
+          body: { type: "string" },
+          content_type: { type: "string" },
+          description: { type: "string" },
+          allow_sensitive: { type: "boolean" },
+        },
+        required: ["key", "body", "description"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "r2_delete",
+      description: "Propose deleting an R2 object (requires approval).",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string" },
+          description: { type: "string" },
+          impact: { type: "string" },
+        },
+        required: ["key", "description", "impact"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "kv_get",
+      description: "Read a CMS_CACHE KV value by key.",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string" },
+        },
+        required: ["key"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "kv_list",
+      description: "List CMS_CACHE KV keys under an optional prefix.",
+      parameters: {
+        type: "object",
+        properties: {
+          prefix: { type: "string" },
+          limit: { type: "number" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "kv_delete",
+      description: "Propose deleting a CMS_CACHE KV key (requires approval).",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string" },
+          description: { type: "string" },
+          impact: { type: "string" },
+        },
+        required: ["key", "description", "impact"],
       },
     },
   },
@@ -845,6 +1032,166 @@ export async function executeTool(env, toolName, args = {}) {
           current_value: args?.current_value || "",
           proposed_value: args?.proposed_value,
           reason: args?.reason || "",
+        };
+      }
+      case "d1_query": {
+        const sql = String(args?.sql || "");
+        if (!isSafeRead(sql)) {
+          return { success: false, error: "Query blocked — only safe SELECT statements are allowed." };
+        }
+        const safeSql = /\bLIMIT\s+\d+\b/i.test(sql) ? sql : `${sql.trim().replace(/;$/, "")} LIMIT 50`;
+        const result = await env.DB.prepare(safeSql).all().catch((e) => ({ error: e.message }));
+        if (result.error) return { success: false, error: result.error };
+        return {
+          success: true,
+          description: args?.description || "",
+          row_count: result.results?.length || 0,
+          rows: result.results || [],
+        };
+      }
+      case "d1_write": {
+        const sql = String(args?.sql || "");
+        if (!isApprovedWrite(sql)) {
+          return { success: false, error: "This operation is blocked for safety." };
+        }
+        return {
+          success: true,
+          approval_required: true,
+          action_type: "d1_write",
+          sql,
+          description: String(args?.description || ""),
+          impact: String(args?.impact || ""),
+        };
+      }
+      case "d1_schema": {
+        const table = String(args?.table || "").trim();
+        if (!table) {
+          const rows = await env.DB.prepare(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_cf_%' ORDER BY name"
+          ).all().catch(() => ({ results: [] }));
+          return { success: true, tables: (rows.results || []).map((t) => t.name) };
+        }
+        if (!/^[a-zA-Z0-9_]+$/.test(table)) {
+          return { success: false, error: "Invalid table name." };
+        }
+        const cols = await env.DB.prepare(`PRAGMA table_info(${table})`).all().catch((e) => ({ error: e.message }));
+        if (cols.error) return { success: false, error: cols.error };
+        return { success: true, table, columns: cols.results || [] };
+      }
+      case "r2_list": {
+        if (!env.WEBSITE_ASSETS) return { success: false, error: "WEBSITE_ASSETS binding not available." };
+        const prefix = String(args?.prefix || "");
+        const limit = Math.min(Math.max(Number(args?.limit) || 50, 1), 200);
+        const listed = await env.WEBSITE_ASSETS.list({ prefix, limit }).catch((e) => ({ error: e.message }));
+        if (listed.error) return { success: false, error: listed.error };
+        const objects = (listed.objects || []).map((o) => ({
+          key: o.key,
+          size: o.size,
+          etag: o.etag,
+          uploaded: o.uploaded,
+        }));
+        return { success: true, prefix, count: objects.length, objects };
+      }
+      case "r2_get": {
+        if (!env.WEBSITE_ASSETS) return { success: false, error: "WEBSITE_ASSETS binding not available." };
+        const key = String(args?.key || "").trim();
+        if (!key) return { success: false, error: "key is required." };
+        if (!isTextR2Key(key)) {
+          return { success: false, error: "Binary or unsupported file type — use r2_head for metadata only." };
+        }
+        const obj = await env.WEBSITE_ASSETS.get(key).catch((e) => ({ error: e.message }));
+        if (obj?.error) return { success: false, error: obj.error };
+        if (!obj) return { success: false, error: `Object not found: ${key}` };
+        const contentType = obj.httpMetadata?.contentType || "text/plain";
+        if (/^(image|font|video|audio|application\/octet-stream)/i.test(contentType)) {
+          return { success: false, error: "Binary content-type — use r2_head instead." };
+        }
+        const text = await obj.text();
+        return {
+          success: true,
+          key,
+          size: obj.size,
+          content_type: contentType,
+          content: text.slice(0, 50000),
+          truncated: text.length > 50000,
+        };
+      }
+      case "r2_head": {
+        if (!env.WEBSITE_ASSETS) return { success: false, error: "WEBSITE_ASSETS binding not available." };
+        const key = String(args?.key || "").trim();
+        if (!key) return { success: false, error: "key is required." };
+        const meta = await env.WEBSITE_ASSETS.head(key).catch((e) => ({ error: e.message }));
+        if (meta?.error) return { success: false, error: meta.error };
+        if (!meta) return { success: false, error: `Object not found: ${key}` };
+        return {
+          success: true,
+          key,
+          size: meta.size,
+          etag: meta.etag,
+          uploaded: meta.uploaded,
+          http_metadata: meta.httpMetadata || {},
+          custom_metadata: meta.customMetadata || {},
+        };
+      }
+      case "r2_put": {
+        if (!env.WEBSITE_ASSETS) return { success: false, error: "WEBSITE_ASSETS binding not available." };
+        const key = String(args?.key || "").trim();
+        const body = String(args?.body ?? "");
+        if (!key) return { success: false, error: "key is required." };
+        if (isProtectedR2Path(key, args?.allow_sensitive)) {
+          return { success: false, error: "Protected path — set allow_sensitive:true to propose changes." };
+        }
+        return {
+          success: true,
+          approval_required: true,
+          action_type: "r2_put",
+          key,
+          body,
+          content_type: String(args?.content_type || "text/html; charset=utf-8"),
+          description: String(args?.description || ""),
+        };
+      }
+      case "r2_delete": {
+        if (!env.WEBSITE_ASSETS) return { success: false, error: "WEBSITE_ASSETS binding not available." };
+        const key = String(args?.key || "").trim();
+        if (!key) return { success: false, error: "key is required." };
+        return {
+          success: true,
+          approval_required: true,
+          action_type: "r2_delete",
+          key,
+          description: String(args?.description || ""),
+          impact: String(args?.impact || ""),
+        };
+      }
+      case "kv_get": {
+        if (!env.CMS_CACHE) return { success: false, error: "CMS_CACHE binding not available." };
+        const key = String(args?.key || "").trim();
+        if (!key) return { success: false, error: "key is required." };
+        const value = await env.CMS_CACHE.get(key).catch((e) => ({ error: e.message }));
+        if (value?.error) return { success: false, error: value.error };
+        return { success: true, key, value: value ?? null, hit: value !== null };
+      }
+      case "kv_list": {
+        if (!env.CMS_CACHE) return { success: false, error: "CMS_CACHE binding not available." };
+        const prefix = String(args?.prefix || "");
+        const limit = Math.min(Math.max(Number(args?.limit) || 50, 1), 200);
+        const listed = await env.CMS_CACHE.list({ prefix, limit }).catch((e) => ({ error: e.message }));
+        if (listed.error) return { success: false, error: listed.error };
+        const keys = (listed.keys || []).map((k) => k.name);
+        return { success: true, prefix, count: keys.length, keys };
+      }
+      case "kv_delete": {
+        if (!env.CMS_CACHE) return { success: false, error: "CMS_CACHE binding not available." };
+        const key = String(args?.key || "").trim();
+        if (!key) return { success: false, error: "key is required." };
+        return {
+          success: true,
+          approval_required: true,
+          action_type: "kv_delete",
+          key,
+          description: String(args?.description || ""),
+          impact: String(args?.impact || ""),
         };
       }
       default: {
