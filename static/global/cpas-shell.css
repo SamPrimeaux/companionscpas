@@ -650,9 +650,9 @@ p  { text-wrap: pretty; }
 .theme-light .hero-img-col:hover .hero-img { transform: rotate(0.2deg) scale(1.01); }
 .theme-light .site-header.scrolled .site-nav a { color: var(--text-1); }
 .theme-light .site-header.scrolled .site-nav a:hover { color: var(--text-1); background: rgba(23,32,51,0.07); }
-.theme-light .site-header:not(.scrolled) { background: rgba(245,241,232,0.72); border-bottom-color: rgba(23,32,51,0.06); }
-.theme-light .site-header:not(.scrolled) .site-nav a { color: rgba(23,32,51,0.75); }
-.theme-light .site-header:not(.scrolled) .site-nav a:hover { color: var(--text-1); background: rgba(23,32,51,0.06); }
+.theme-light .site-header:not(.scrolled) { background: rgba(250,248,244,0.88); border-bottom-color: rgba(107,33,168,0.08); }
+.theme-light .site-header:not(.scrolled) .site-nav a { color: rgba(28,20,32,0.72); }
+.theme-light .site-header:not(.scrolled) .site-nav a:hover { color: var(--text-1); background: rgba(107,33,168,0.07); }
 .theme-light .site-header .btn-primary { color: #fff !important; }
 .theme-light .section h2 { font-family: var(--font-body); font-weight: 700; font-size: clamp(1.9rem, 3.5vw, 2.75rem); letter-spacing: -0.025em; line-height: 1.15; color: var(--text-1); }
 .theme-light .section-cta h2 { font-size: clamp(1.75rem, 3vw, 2.4rem); }
