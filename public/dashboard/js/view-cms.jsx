@@ -500,6 +500,22 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const bumpPreview = React.useCallback(() => setPreviewVersion(v => v + 1), []);
   const previewIframeRef = React.useRef(null);
 
+  // Listen for clicks from the inspector injected into the preview iframe
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (!e.data || e.data.type !== 'cms:section-clicked') return;
+      const key = e.data.key;
+      if (!key) return;
+      setSelectedKey(key);
+      setMobileTab('edit');
+      // Scroll the section rail row into view
+      const row = document.getElementById('cms-section-row-' + key);
+      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   const loadPage = React.useCallback(async () => {
     try {
       const [pageRes, bootRes] = await Promise.all([
