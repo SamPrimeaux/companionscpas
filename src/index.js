@@ -95,6 +95,21 @@ async function servePublicPage(route, env) {
     }
   }
 
+  if (normalizedRoute === "/contact") {
+    try {
+      const { assembleContactPage } = await import("./api/render_contact_page.js");
+      const contactHtml = await assembleContactPage(env);
+      if (contactHtml) {
+        if (env.CMS_CACHE) {
+          await env.CMS_CACHE.put(cacheKey, contactHtml, { expirationTtl: 3600 }).catch(() => {});
+        }
+        return new Response(contactHtml, { headers });
+      }
+    } catch (err) {
+      console.warn("[public-page] contact assembly failed:", err?.message || err);
+    }
+  }
+
   try {
     const artifact = await env.WEBSITE_ASSETS.get(artifactKey);
     if (artifact) {

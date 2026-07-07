@@ -85,7 +85,6 @@ async function verifyStripeWebhook(request, env) {
   try { return { ok: true, event: JSON.parse(rawBody) }; } catch { return { ok: false, status: 400, error: "Invalid Stripe event JSON" }; }
 }
 
-// ── Email logging ─────────────────────────────────────────────────────────────
 async function logEmail(env, row) {
   try {
     await env.DB.prepare(
@@ -105,7 +104,7 @@ async function logEmail(env, row) {
   }
 }
 
-async function sendResend(env, { to, name, subject, html, text, type, related_type, related_id }) {
+export async function sendResend(env, { to, name, subject, html, text, type, related_type, related_id }) {
   if (!to) return { skipped: true, error: "No recipient" };
   if (!env.RESEND_API_KEY && !env.RESEND_API_TOKEN) {
     await logEmail(env, { to, name, subject, type, related_type, related_id, status: "skipped", error_message: "Missing RESEND_API_KEY" });
@@ -129,7 +128,7 @@ async function sendResend(env, { to, name, subject, html, text, type, related_ty
   return { ok: true, id: parsed.id || null };
 }
 
-async function sendTemplateEmail(env, { templateKey, to, vars = {}, type, related_type, related_id }) {
+export async function sendTemplateEmail(env, { templateKey, to, vars = {}, type, related_type, related_id }) {
   const tpl = await env.DB.prepare(
     "SELECT subject, body_html, body_text FROM email_templates WHERE template_key = ? AND status = 'active' LIMIT 1"
   ).bind(templateKey).first().catch(() => null);
@@ -982,32 +981,6 @@ export async function paymentsEmailRoutes(request, env, url) {
     // ── All other events — acknowledge and log ────────────────────────────
     await logStripeWebhookEvent(env, { eventType, status: "acknowledged", relatedId: null, rawEvent });
     return json({ received: true });
-  }
-
-  if (path === "/api/contact" && method === "POST") {
-    const data = await body(request);
-    if (!data.name || !data.message) return json({ error: "Name and message required" }, 400);
-    const contactId = id("contact");
-    await env.DB.prepare(
-      `INSERT INTO contact_requests (id, name, email, message, status, created_at) VALUES (?, ?, ?, ?, 'new', datetime('now'))`
-    ).bind(contactId, data.name, data.email || null, data.message).run();
-    if (data.email) {
-      await sendResend(env, {
-        to: data.email, name: data.name,
-        subject: "We received your message",
-        type: "contact_confirmation", related_type: "contact_request", related_id: contactId,
-        html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px"><h2>Thank you, ${data.name}</h2><p>Companions of CPAS received your message. We will follow up as soon as possible.</p></div>`
-      });
-    }
-    if (env.ADMIN_EMAIL) {
-      await sendResend(env, {
-        to: env.ADMIN_EMAIL,
-        subject: "New Companions CPAS contact request",
-        type: "admin_contact_alert", related_type: "contact_request", related_id: contactId,
-        html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px"><h2>New contact request</h2><p><strong>Name:</strong> ${data.name}</p><p><strong>Email:</strong> ${data.email || ""}</p><p><strong>Message:</strong></p><p>${data.message}</p></div>`
-      });
-    }
-    return json({ success: true, id: contactId }, 201);
   }
 
   if (path === "/api/newsletter/subscribe" && method === "POST") {
