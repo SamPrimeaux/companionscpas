@@ -125,7 +125,7 @@ export async function renderSiteFooter(env) {
   const igUrl    = socials.instagram   || "https://www.instagram.com/companionscpas";
 
   // Use the dedicated footer logo column — correct size, correct asset
-  const logoSrc  = brand?.footer_logo_light_url || brand?.logo_light_url || brand?.logo_url || "/static/global/companionsofcpa-newlogo.webp";
+  const logoSrc  = "/static/global/companionsofcpa-newlogo.webp";
   const logoW    = brand?.footer_logo_width      || 120;
 
   const footerLis = navItems
@@ -141,7 +141,7 @@ export async function renderSiteFooter(env) {
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <img src="${esc(logoSrc)}" alt="${esc(orgName)}" class="footer-brand-logo" style="width:${logoW}px;" />
+        <img src="${esc(logoSrc)}" alt="${esc(orgName)}" class="footer-brand-logo" />
         <p class="footer-tagline">${esc(tagline)}</p>
       </div>
       <div>

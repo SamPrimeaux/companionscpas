@@ -5,13 +5,12 @@ import { SHELL_CSS, resolveRouteTheme, themeClassName } from "./render_page.js";
 const PAGE_CACHE_TTL = 3600;
 
 export const HOME_FRAGMENT_KEYS = [
-  "static/pages/home/hero.html",
-  "static/pages/home/mission.html",
-  "static/pages/home/how-it-helps.html",
-  "static/pages/home/transport-win.html",
-  "static/pages/home/impact-stats.html",
-  "static/pages/home/campaigns.html",
-  "static/pages/home/newsletter.html",
+  'static/pages/home/hero.html',
+  'static/pages/home/mission.html',
+  'static/pages/home/how-it-helps.html',
+  'static/pages/home/newsletter.html',
+  'static/pages/home/transport-win.html',
+  'static/pages/home/campaigns.html',
 ];
 
 async function r2Text(env, key) {
