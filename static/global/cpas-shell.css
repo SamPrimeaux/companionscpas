@@ -551,7 +551,7 @@ p  { text-wrap: pretty; }
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   margin-bottom: 24px;
 }
-.footer-logo { width: 80px; height: 80px; object-fit: contain; filter: drop-shadow(0 14px 28px rgba(124,58,237,0.3)); margin-bottom: 14px; }
+.footer-logo { width: 80px; height: 80px; object-fit: contain; filter: drop-shadow(0 14px 28px rgba(124,58,237,0.3)); margin-bottom: 14px; } /* legacy — unused */
 .footer-brand p { font-size: 13px; line-height: 1.7; color: rgba(255,255,255,0.56); max-width: 280px; }
 .footer-col h4 { font-family: var(--font-body); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.38); margin-bottom: 14px; }
 .footer-col a, .footer-col p, .footer-col span { display: block; font-size: 13px; color: rgba(255,255,255,0.62); margin-bottom: 8px; line-height: 1.55; transition: color 180ms; }
@@ -916,20 +916,21 @@ body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;h
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   color: #fff;
   text-decoration: none;
   transition: transform 160ms, opacity 160ms;
   opacity: 0.82;
   flex-shrink: 0;
-  overflow: hidden;
+  padding: 9px;
+  box-sizing: border-box;
 }
 .footer-social-icon svg {
   display: block;
-  width: 16px;
-  height: 16px;
+  width: 100%;
+  height: 100%;
   flex-shrink: 0;
 }
 .footer-social-icon:hover { transform: translateY(-2px); opacity: 1; }
@@ -1398,7 +1399,7 @@ body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;h
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   margin-bottom: 1.5rem;
 }
-.footer-brand-logo { height: 80px; width: 80px; margin-bottom: 1rem; object-fit: contain; object-position: left center; }
+.footer-brand-logo { height: auto; max-height: 90px; margin-bottom: 1rem; object-fit: contain; object-position: left center; display: block; }
 .footer-tagline { font-size: 13px; color: rgba(255, 255, 255, 0.62); line-height: 1.65; max-width: 240px; }
 .footer-col-label {
   font-size: 10px;
@@ -1408,6 +1409,7 @@ body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;h
   color: rgba(255, 255, 255, 0.42);
   margin-bottom: 0.875rem;
 }
+.footer-staff-label { margin-top: 1.5rem; }
 .footer-links { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
 .footer-links a { font-size: 13px; color: rgba(255, 255, 255, 0.62); transition: color 0.2s; }
 .footer-links a:hover { color: #fff; }
@@ -1421,9 +1423,9 @@ body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;h
 .footer-iam-mark img { height: 56px; width: 56px; object-fit: contain; opacity: 0.65; border-radius: 10px; transition: opacity 0.2s, transform 0.2s; }
 .footer-iam-mark img:hover { opacity: 1; transform: scale(1.06); }
 /* Admin login link */
-.footer-admin-link { display: inline-flex; align-items: center; gap: 5px; opacity: 0.38; font-size: 11px; transition: opacity 0.18s; }
-.footer-admin-link:hover { opacity: 0.72; }
-.footer-admin-link svg { flex-shrink: 0; }
+.footer-admin-link { display: inline-flex; align-items: center; gap: 6px; opacity: 0.55; font-size: 12px; font-weight: 500; letter-spacing: 0.02em; color: rgba(255,255,255,0.75); transition: opacity 0.18s, color 0.18s; margin-top: 2px; }
+.footer-admin-link:hover { opacity: 1; color: #fff; }
+.footer-admin-link svg { flex-shrink: 0; opacity: 0.9; }
 .footer-bottom {
   display: flex;
   align-items: center;
