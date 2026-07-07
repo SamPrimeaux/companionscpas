@@ -235,6 +235,100 @@ async function updatePublishJob(env, jobId, status, extras = {}) {
   });
 }
 
+function injectCmsInspector(html) {
+  const script = `
+<script>
+(function() {
+  var overlay = null;
+  var activeKey = null;
+
+  function getOverlay() {
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'cms-inspector-overlay';
+      overlay.style.cssText = 'position:fixed;pointer-events:none;z-index:99999;border:2px solid #7c3aed;border-radius:4px;background:rgba(124,58,237,0.08);transition:all 0.1s;display:none;';
+      var label = document.createElement('div');
+      label.id = 'cms-inspector-label';
+      label.style.cssText = 'position:absolute;top:-24px;left:0;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap;font-family:system-ui,sans-serif;pointer-events:none;';
+      overlay.appendChild(label);
+      document.body.appendChild(overlay);
+    }
+    return overlay;
+  }
+
+  function findSection(el) {
+    var cur = el;
+    while (cur && cur !== document.body) {
+      if (cur.dataset && cur.dataset.cpasSection) return cur;
+      cur = cur.parentElement;
+    }
+    return null;
+  }
+
+  function positionOverlay(el) {
+    var r = el.getBoundingClientRect();
+    var o = getOverlay();
+    o.style.display = 'block';
+    o.style.top = (r.top + window.scrollY) + 'px';
+    o.style.left = r.left + 'px';
+    o.style.width = r.width + 'px';
+    o.style.height = r.height + 'px';
+    var lbl = document.getElementById('cms-inspector-label');
+    if (lbl) lbl.textContent = el.dataset.cpasSection;
+  }
+
+  document.addEventListener('mouseover', function(e) {
+    var sec = findSection(e.target);
+    if (sec) {
+      positionOverlay(sec);
+    } else {
+      var o = getOverlay();
+      if (o) o.style.display = 'none';
+    }
+  }, true);
+
+  document.addEventListener('click', function(e) {
+    var sec = findSection(e.target);
+    if (!sec) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var key = sec.dataset.cpasSection;
+    activeKey = key;
+    positionOverlay(sec);
+    // Computed styles for the clicked element
+    var cs = window.getComputedStyle(sec);
+    var styles = {
+      backgroundColor: cs.backgroundColor,
+      color: cs.color,
+      fontFamily: cs.fontFamily,
+      fontSize: cs.fontSize,
+      padding: cs.padding,
+    };
+    window.parent.postMessage({
+      type: 'cms:section-clicked',
+      key: key,
+      styles: styles,
+      rect: { top: sec.getBoundingClientRect().top, height: sec.getBoundingClientRect().height }
+    }, '*');
+  }, true);
+
+  // Scroll-to-section listener
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.type !== 'cms:scroll-to-section') return;
+    var key = e.data.key;
+    if (!key) return;
+    var el = document.querySelector('[data-cpas-section="' + key + '"]');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      positionOverlay(el);
+    }
+  });
+})();
+</script>`;
+  if (html.includes('</body>')) return html.replace('</body>', script + '</body>');
+  return html + script;
+}
+
 export async function cmsRoutes(request, env, url, sessionUser = null) {
   const path = url.pathname;
   const method = request.method;
