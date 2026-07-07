@@ -1,229 +1,166 @@
 # AGENTSAM.md — Companions of Caddo (companionsofcaddo.org)
-
-> **Project README for any fresh agent** — structure, bindings, deploy, tables, and non-negotiables in one place.
-> Runtime rules and context for Agent Sam on **CompanionsCPAS**.
-> Human-readable source of truth. If this file conflicts with any database row — **this file wins** for agent behavior.
-> IAM copy: `docs/clients/companionscpas/AGENTSAM.md` · Client repo: `companionscpas/AGENTSAM.md`
+> SSOT for any agent picking up this project. Read completely before touching any file, table, or binding.
+> Last updated: 2026-07-07
 
 ---
 
 ## Identity
-
-```
-Agent name:     Agent Sam (client worker)
-Platform:       CompanionsCPAS — Cloudflare Workers nonprofit site
-Operator:       Inner Animal Media (Sam Primeaux) for client Companions of CPAS
-Location:       Caddo Parish, Louisiana — companionsofcaddo.org
-Client ID:      client_companions_cpas
-Tenant:         tenant_companionscpas
-Workspace:      ws_companionscpas
-Project ID:     proj_companions_cpas_web
-```
+- Agent name: Agent Sam (client worker)
+- Operator: Inner Animal Media (Sam Primeaux) for Companions of CPAS, Caddo Parish LA
+- Client ID: client_companions_cpas | Tenant: tenant_companionscpas | Workspace: ws_companionscpas
+- Local repo: /Users/samprimeaux/companionscpas | GitHub: SamPrimeaux/companionscpas | Branch: main
 
 ---
 
-## What This System Is
-
-Production website and admin dashboard for **Companions of CPAS**, a nonprofit dog rescue. Public CMS-driven pages (adopt, donate, foster, community), animal profiles, foster applications, donations (Stripe Elements), email workspace, and Agent Sam chat baseline. Runtime lives entirely on the **companionscpas** Worker — not the IAM platform worker.
-
----
-
-## The Stack
-
-```
-Primary worker:         companionscpas
-Custom domains:         https://companionsofcaddo.org (public site + /dashboard)
-                        admin.companionsofcaddo.org/* (admin route — wrangler [[routes]])
-Workers.dev:            Not used — production traffic is custom domains only
-Worker deploy command:  npm run deploy:full (R2 sync + wrangler deploy) — from companionscpas repo only
-Frontend:               React dashboard (Babel CDN, no Vite) + sectional CMS HTML in R2
-Frontend deploy:        Included in deploy:full (R2 sync)
-MCP server:             mcp.inneranimalmedia.com (IAM platform — D1 via workspace_slug companionscpas / ws_companionscpas)
-MCP server URL:         https://mcp.inneranimalmedia.com/mcp
-Worker binding names:   DB · CMS_CACHE · WEBSITE_ASSETS · AGENTSAM_WAI
-Assets CDN:             https://assets.companionsofcaddo.org (R2 custom domain — not a Worker binding)
-Account ID:             IAM Cloudflare account (companionsofcaddo.org zone)
-GitHub:                 github.com/SamPrimeaux/companionscpas
-Local path:             /Users/samprimeaux/companionscpas
-```
+## Stack
+- Worker: companionscpas — entry src/index.js (NOT worker.js)
+- Public: https://companionsofcaddo.org | Dashboard: /dashboard | Assets CDN: https://assets.companionsofcaddo.org
+- Frontend: React (Babel CDN, no build step) — public/dashboard/js/*.jsx deployed to R2
+- Deploy: cd /Users/samprimeaux/companionscpas && npx wrangler deploy
 
 ---
 
-## Worker bindings (Cloudflare dashboard)
-
-SSOT: Cloudflare → Workers & Pages → **companionscpas** → Settings → **Bindings**. Copy **Type**, **Name**, and **Value** verbatim — do not paraphrase. **Name** is the `env.*` key in Worker code.
-
-| Type | Name | Value |
-|------|------|-------|
+## Worker Bindings (verbatim from CF dashboard)
+| Type | Name (env.*) | Value |
+|------|-------------|-------|
 | Workers AI | AGENTSAM_WAI | Workers AI Catalog |
-| KV namespace | CMS_CACHE | companionscpas-cache |
-| D1 database | DB | companionscpas |
+| KV namespace | CMS_CACHE | companionscpas-cache (ID: 0b410337a8494fc982ea04c5bde1eab4) |
+| D1 database | DB | companionscpas (ID: fd6dd6fb-156b-4b6a-8ff0-505422652391) |
 | R2 bucket | WEBSITE_ASSETS | companionscpas |
 
-_D1 database ID: `fd6dd6fb-156b-4b6a-8ff0-505422652391` · KV namespace ID: `0b410337a8494fc982ea04c5bde1eab4`_
-
-**Not bindings** (wrangler secrets — see IAM `docs/clients/companionscpas/runbook.md`): `AGENTSAM_BRIDGE_KEY`, `STRIPE_*`, `RESEND_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_CLIENT_*`, `IAM_TELEMETRY_URL`, `INTERNAL_PUBLISH_KEY`
-
----
-
-## AI Routing
-
-```
-Routing method:         DB-driven (agentsam_ai on client D1 + IAM model catalog when bridged)
-Routing table:          agentsam_ai (client D1), agentsam_model_catalog (IAM when on platform chat)
-Routing key column:     model_key / api_platform
-Routing value column:   provider
-Classification method:  IAM Agent Sam prompt builder + client project context
-Classification cost:    Per-turn in agentsam_usage / project_costs when wired
-Valid platform values:  openai, anthropic, workers_ai (BYOK via IAM when applicable)
-```
+Secrets (NOT bindings): AGENTSAM_BRIDGE_KEY, STRIPE_*, RESEND_API_KEY, OPENAI_API_KEY, GOOGLE_CLIENT_*, INTERNAL_PUBLISH_KEY
 
 ---
 
 ## Non-Negotiables
-
-```
-1. Client code and D1 changes happen in companionscpas repo ONLY — never patch production from inneranimalmedia Worker.
-2. CMS publish contract: D1 (SSOT) → R2 section fragments → KV page:{route} bust → verify on companionsofcaddo.org.
-3. No ad-hoc production HTML edits — dashboard CMS publish or scripted fragment sync only.
-4. Every public route uses site-main + data-route + shared.css/shared.js shell (page_shell.js).
-5. Policy memory: companionscpas_non_negotiable_change_sync_contract — read before any publish or deploy.
-6. IAM RAG lane client_project_semantic_search reads IAM docs — not CPAS D1 project_context for platform Agent Sam retrieval.
-7. Never commit secrets, Stripe keys, or session cookies into memory/docs.
-```
+1. ALL code changes in companionscpas repo ONLY. Never patch from IAM worker.
+2. CMS publish contract: D1 edit -> POST /api/cms/publish -> publishPageRoute() -> publishFragmentPageFromCms() -> R2 baked -> KV bust -> live.
+3. No manual R2 HTML edits. Dashboard Publish Live or scripted sync only.
+4. Deploy: bare 'npx wrangler deploy' from repo root. No --env production. No wrangler.production.toml (doesn't exist).
+5. After wrangler deploy, push changed R2 static files separately with --remote flag.
+6. INTERNAL_PUBLISH_KEY in production != AGENTSAM_BRIDGE_KEY in .dev.vars. Use /api/cms/publish (session auth) from dashboard.
 
 ---
 
-## Key Tables
+## CMS Pipeline
+D1 cms_page_sections <- dashboard Save Draft
+  -> Publish Live -> POST /api/cms/publish {route_path}
+  -> publishPageRoute() in cms_api.js (line 145)
+  -> for "/" and fragment pages: publishFragmentPageFromCms()
+  -> HOME_FRAGMENT_KEYS in render_home_fragments.js (order matters, regex-replace to edit — string replace fails due to [REDACTED] bracket):
+       1. static/pages/home/hero.html
+       2. static/pages/home/mission.html
+       3. static/pages/home/how-it-helps.html
+       4. static/pages/home/newsletter.html
+       5. static/pages/home/transport-win.html
+       6. static/pages/home/campaigns.html
+  -> D1 section data -> renderer -> R2 put -> KV page:/ bust -> live (no deploy needed)
 
-| Table | Purpose | Key Columns | Notes |
-|-------|---------|-------------|-------|
-| cms_pages | Published route registry | route, status, title | SSOT for public URLs |
-| cms_page_sections | Section order + fragment keys | page_id, section_key | Drives R2 fragment paths |
-| animal_profiles | Adoptable animals | id, name, status | Public /adopt |
-| cpas_foster_applications | Foster intake | id, status, animal_id | Admin workflow |
-| donations | Stripe donation records | amount, stripe_payment_intent_id | Test mode until client live keys |
-| stripe_webhooks | Webhook audit | event_type, payload | Enable observability before debug |
-| users | Dashboard auth | email, role | Google OAuth primary |
-| agentsam_project_context | Worker-local Layer 0 | id, project_key | ctx_companionscpas_cms_publish_v1 active |
+Non-home pages: render_section.js -> full page HTML -> R2 index.html + KV bust
+
+---
+
+## Home Page Sections (is_visible=1, 1:1 with R2 fragments)
+| sort | section_key | type | Editable fields |
+|------|-------------|------|-----------------|
+| 10 | hero | hero | eyebrow, heading, subheading, image_url, cta_href, cta_secondary_href |
+| 20 | mission | text_image | heading, body |
+| 30 | how_it_helps | home_pillars | heading |
+| 40 | campaigns | campaign_grid | heading |
+| 50 | transport_win | home_story | heading, body, image_url |
+| 60 | newsletter | home_newsletter | heading, subheading |
+
+Hidden (is_visible=0) - do not re-enable without R2 fragment + HOME_FRAGMENT_KEYS entry:
+hero_main, impact_stats, foster_grid, testimonial, crisis_care, org_info
+
+---
+
+## Other Pages
+| Route | Status | Notes |
+|-------|--------|-------|
+| /about | Published | 6 sections. Needs: image resize, mission statement, CTA reroute from /community |
+| /adopt | Published | 4 sections. Needs image/content pass |
+| /contact | Published | 4 sections. Needs content pass |
+| /donate | Published | 6 sections. Dashboard section list OUT OF SYNC with live R2 - needs audit |
+| /community | Published | HIDE - reroute all CTAs pointing here to /foster or /adopt first |
+| /services | Published | Has 2 empty placeholder sections (28 and 42 bytes) - hide or fill |
+
+---
+
+## Dashboard (view-cms.jsx, 2114 lines)
+Routes: CmsWebsiteView, CmsPagesView, CmsPageEditorView, CmsImagesView, CmsTemplatesView
+
+APIs:
+- GET  /api/cms/page?route=      -> sections + blocks
+- POST /api/cms/section/save     -> save draft to D1
+- POST /api/cms/publish          -> full publish pipeline
+- GET  /api/cms/bootstrap        -> brand settings
+
+What works:
+- Section list: drag reorder, click to select, eye toggle, drag-to-reorder (reorderSections())
+- Inspector: eyebrow/heading/subheading/body/image/CTA fields, Save Draft, Publish Live
+- Live iframe preview bumped on save, desktop/tablet/mobile toggle
+- Image picker modal (Pick button)
+
+What is broken/missing (priority order):
+1. Active section not scrolled/highlighted in preview iframe when clicked in section list
+2. Section row active state too subtle (border-left color only) - needs stronger highlight
+3. Inspector is generic - all types show same fields (hero needs CTA label fields, campaign_grid needs block editor)
+4. /community CTAs need global replace -> /foster or /adopt, then hide page
+5. Brand colors wrong: showing #7c3aed (purple) / #ee2336 (red) - need #6f2270 / #c23689
+6. /donate dashboard sections out of sync with live
+7. Image drag-and-drop to inspector field not implemented (Pick button works)
+8. "Ask Agent Sam" button broken - known IAM platform issue, skip
 
 ---
 
 ## Key Files
-
-| File | Purpose | Notes |
-|------|---------|-------|
-| src/index.js | Worker router | All API + page assembly |
-| src/api/page_shell.js | HTML shell | shared.css, modals, donate |
-| src/api/render_section.js | Generic section renderer | /services, /adopt, /donate, /community |
-| src/api/cms_api.js | CMS admin API | Publish pipeline entry |
-| src/api/payments_email.js | Stripe + Resend | Donation checkout + webhook |
-| public/static/js/donate-modal.js | Stripe Elements modal | /donate |
-| scripts/sync-page-fragments.mjs | R2 fragment sync | Post-CMS publish |
-| ARCHITECTURE.md | Bindings + R2 layout | Read before any code change |
-| docs/current-file-map.md | Route → file → API map | v2 handoff |
-| docs/clients/companionscpas/project-brief.md | IAM compass brief | Ingested to Vectorize |
-| docs/clients/companionscpas/AGENTSAM.md | This file | Agent Sam SSOT |
+| File | Purpose |
+|------|---------|
+| src/index.js | Worker router |
+| src/api/cms_api.js | CMS API - publishPageRoute() at line 145 |
+| src/api/render_home_fragments.js | HOME_FRAGMENT_KEYS - home assembly |
+| src/api/render_site_nav.js | Header + footer HTML |
+| src/api/render_section.js | Generic section renderer |
+| src/api/render_page.js | getBrand(), resolveRouteTheme() |
+| src/api/brand_tokens.js | CSS vars from D1 brand settings |
+| static/global/cpas-shell.css | Main stylesheet (in R2) |
+| static/global/cpas-modals.js | Contact/foster/volunteer modals |
+| public/dashboard/js/view-cms.jsx | Full dashboard CMS UI |
 
 ---
 
-## Working Directories
-
-```
-Active codebase:    /Users/samprimeaux/companionscpas
-Repo(s):            SamPrimeaux/companionscpas (client) · SamPrimeaux/inneranimalmedia (IAM docs/RAG only)
-Branch(es):         main (production)
-IAM CMS hub:        ws_inneranimalmedia → /dashboard/cms → Companions tile → switches ws_companionscpas
-```
-
----
-
-## Deploy Rules
-
-```
-Who can deploy to production:   Sam (IAM superadmin) · client approval for account transfer later
-Who can deploy to staging:      Sam · local wrangler dev or branch preview (no workers.dev production URL)
-Who can touch env vars/secrets: wrangler secret put on companionscpas worker only
-Deploy process:                 cd companionscpas && npm run deploy:full
-Rollback process:               git revert + redeploy; KV bust via CMS republish
-IAM operator CMS:               PrimeTech CMS via client_worker bridge (AGENTSAM_BRIDGE_KEY)
-```
+## Ship Blockers
+- /about: image resize + mission statement + reroute /community CTAs
+- /adopt: content + image pass
+- /contact: content pass
+- /donate: reconcile dashboard vs live sections
+- /community: hide after rerouting all inbound CTAs
+- Brand colors: update primary/accent in Brand & Settings
+- Stripe: client approval -> live keys -> smoke test
+- Verify Publish Live works end-to-end for each page from dashboard
 
 ---
 
-## The Project Loop
-
-```
-Step 1: Task/ticket in IAM collaborate (client_companions_cpas) or client repo issue
-Step 2: Edit in companionscpas repo — local wrangler dev or IAM CMS bridge for content
-Step 3: CMS publish or code deploy → D1/R2/KV pipeline
-Step 4: Verify companionsofcaddo.org + dashboard smoke
-Step 5: Log time manually in IAM Collaborate if auto-tracking missed; update agentsam_memory pack if policy changed
-```
+## Deploy Checklist
+1. npx wrangler deploy (from /Users/samprimeaux/companionscpas)
+2. npx wrangler r2 object put companionscpas/static/global/cpas-shell.css --file=... --content-type=text/css --remote (if CSS changed)
+3. KV bust: for p in "/" "/about" "/adopt" "/contact" "/donate"; do npx wrangler kv key delete "page:$p" --binding=CMS_CACHE --remote; done
+4. Publish Live from dashboard for each page
+5. Smoke: companionsofcaddo.org, /about, /adopt, /donate, /contact
 
 ---
 
-## Metrics & Cost Tracking
-
-```
-Per-turn cost:          agentsam_usage (IAM) · project_costs (client burn lane)
-Per-session cost:       agentsam_chat_sessions when wired
-Model used:             agentsam_ai.model_key
-Token count:            agentsam_usage tokens columns
-Latency:                IAM telemetry ingest when IAM_TELEMETRY_URL set on client
-Billing lane:           time_projects project_key=companionscpas · client_companions_cpas
-Dead/unwired code:      Lane B social publish stubs (501 until client approval)
-```
+## Gotchas
+- HOME_FRAGMENT_KEYS has literal [REDACTED] string in source file. Use regex replace in Node to edit it.
+- companionscpas D1 != inneranimalmedia-business D1. Never confuse.
+- wrangler r2 object list syntax varies by wrangler version - use agentsam_r2_list MCP tool instead.
+- assets.companionsofcaddo.org is separate R2 custom domain - upload via dashboard Images, not wrangler.
+- Babel CDN dashboard: no TS, no imports, React.createElement() throughout, all in same file or window globals.
+- /community: hide nav_visible=0 in cms_pages AND reroute all href=/community in R2 fragments BEFORE hiding.
+- impact_stats section removed from home. Do not re-enable without real metrics from client.
 
 ---
 
-## What's Broken / In Progress
-
-```
-[ ] 2026-07-06 — Donation pipeline: verify live Stripe keys after client sign-off (test mode smoke passed 2026-06-12)
-[ ] 2026-07-06 — Worker observability was disabled — enable logs before webhook debug
-[ ] 2026-07-06 — cms_publish_artifacts tracking gap vs publish jobs
-[ ] 2026-07-06 — Ship /_internal/cms-embed-session on client worker for IAM iframe CMS
-[ ] 2026-07-06 — assets.companionsofcaddo.org migration off legacy CDN paths
-```
-
----
-
-## How Any AI Agent Should Use This File
-
-```
-1. Read this file completely before touching companionscpas repo or CPAS D1
-2. If a proposed change violates a non-negotiable — stop and say so explicitly
-3. If blank or placeholder — ask Sam; do not assume bindings or table names
-4. Worker bindings must match the Cloudflare dashboard table in this file — Type / Name / Value verbatim; **Name** = `env.*` in code; secrets are not bindings
-5. If this file and CPAS D1 agentsam_project_context conflict — trust this file, flag conflict
-6. Platform patterns (CMS pipeline, email): docs/patterns/* via docs_knowledge_search on IAM
-7. Client scope questions: client_project_semantic_search with project_key companionscpas
-```
-
----
-
-## Clients / Projects Under This Platform
-
-| Client / Project | DB | Repo | Notes |
-|------------------|----|------|-------|
-| Companions of CPAS | companionscpas D1 | companionscpas | This project — nonprofit rescue site |
-| Inner Animal Media | inneranimalmedia-business | inneranimalmedia | Platform operator — docs/RAG/MCP only for this client |
-
----
-
-## Known Gotchas
-
-```
-- companionscpas D1 is NOT inneranimalmedia-business — MCP D1 tools need workspace_slug or terminal sandbox
-- ctx_companionscpas lives on ws_companionscpas in IAM D1 registry (not ws_inneranimalmedia)
-- Starred vs client-work task views on IAM Collaborate filter by client_id=client_companions_cpas
-- Dual webhook events can duplicate donation rows — add PaymentIntent idempotency guard
-- GOOGLE_REDIRECT_URI in wrangler.toml is dead — redirects built from url.origin
-```
-
----
-
-*Created: 2026-07-06*
-*Last updated: 2026-07-06 (bindings table — CF dashboard Type/Name/Value)*
-*Edit directly. Commit every change. If it's not in this file, it doesn't exist.*
+Edit this file every session that changes architecture, pipeline, or known issues.
+Commit: git add AGENTSAM.md && git commit -m "docs: AGENTSAM.md [date]"
