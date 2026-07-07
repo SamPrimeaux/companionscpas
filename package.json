@@ -12,7 +12,6 @@
     "css:merge": "node scripts/merge-cpas-css.mjs",
     "css:publish": "npm run css:merge && node scripts/publish-global-css.mjs",
     "check:brand": "grep -RInEi \"pawlove|pawloverescue|meauxbility|g7wf09f|22963db|Grant Parish|Sissyj\" src public || true",
-    "predeploy": "bash -c 'HASH=$(git rev-parse --short HEAD); if sed --version 2>/dev/null | grep -q GNU; then sed -i \"s|\\.jsx?v=[^\\\"]*|\\.jsx|g; s|\\.jsx\\\"|\\.jsx?v=${HASH}\\\"|g\" public/dashboard/index.html; else sed -i \"\" \"s|\\.jsx?v=[^\\\"]*|\\.jsx|g; s|\\.jsx\\\"|\\.jsx?v=${HASH}\\\"|g\" public/dashboard/index.html; fi'",
     "cache:bust": "bash scripts/cache-bust.sh"
   },
   "devDependencies": {
