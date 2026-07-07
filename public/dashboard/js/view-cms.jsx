@@ -721,7 +721,16 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       key: previewSrc,
       src: previewSrc,
       title: `Preview ${route}`,
-      onLoad: handlePreviewNavigation,
+      onLoad: (e) => {
+        handlePreviewNavigation();
+        try {
+          if (selectedKey && e.target?.contentWindow) {
+            setTimeout(() => {
+              e.target.contentWindow.postMessage({ type:'cms:scroll-to-section', key:selectedKey }, '*');
+            }, 400);
+          }
+        } catch(_) {}
+      },
       style: { width:'100%', height:iframeHeight, minHeight:isMobile ? iframeHeight : 720, border:0, display:'block', background:'#0b0f1a' }
     });
     if (isMobile && mobileTab === 'preview') {
