@@ -68,6 +68,21 @@
     }
   });
 
+  /* ── CMS dashboard: scroll-to-section postMessage listener ── */
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.type !== 'cms:scroll-to-section') return;
+    const key = e.data.key;
+    if (!key) return;
+    const el = document.querySelector('[data-cpas-section="' + key + '"]');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Brief highlight pulse so the section is visually obvious
+      el.style.transition = 'outline 0.1s';
+      el.style.outline = '2px solid rgba(139,92,246,0.5)';
+      setTimeout(function() { el.style.outline = ''; }, 1200);
+    }
+  });
+
 })();
 
 // CPAS reusable newsletter form
