@@ -299,6 +299,7 @@ function renderCta(section) {
 }
 
 export const ABOUT_FRAGMENT_RENDERERS = {
+  mission_statement: renderMissionStatement,
   hero: renderHero,
   why_we_exist: renderWhyWeExist,
   paths: renderPaths,
