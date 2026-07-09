@@ -41,6 +41,67 @@ function heroLinkBtn(label, sub, href, variant = "primary") {
           </a>`;
 }
 
+function renderMissionStatement(section) {
+  const c = safeJson(section.config_json, {});
+  const heading = pick(section, ["heading"]) || "To promote, educate, and advocate for <em>every animal</em> at Caddo Parish Animal Services.";
+  const body = pick(section, ["body"]) || "Companions of CPAS works to achieve a positive outcome for all animals at the CPAS open-intake shelter. We do this by <strong>heavily networking the animals</strong>, providing <strong>medical care for emergency cases</strong>, raising donations, educating the public, assisting in transports conducted by shelter staff, enrichment, and other needs where the shelter needs assistance.";
+  const pillars = [
+    pick(c, ["pillar_1"]) || "Network animals",
+    pick(c, ["pillar_2"]) || "Emergency medical care",
+    pick(c, ["pillar_3"]) || "Fundraising",
+    pick(c, ["pillar_4"]) || "Public education",
+    pick(c, ["pillar_5"]) || "Transport support",
+    pick(c, ["pillar_6"]) || "Enrichment",
+  ];
+  const pillarHtml = pillars.map(p => `<div class="ms-pillar"><div class="ms-pillar-dot"></div><span class="ms-pillar-text">${escapeHtml(p)}</span></div>`).join("\n    ");
+
+  return `<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+.ms-wrap{background:#f9f4f0;border-radius:16px;padding:56px 64px;position:relative;overflow:hidden;font-family:'DM Sans',sans-serif}
+.ms-wrap::before{content:'';position:absolute;top:-40px;right:-40px;width:220px;height:220px;background:radial-gradient(circle,#6b2d8b18 0%,transparent 70%);border-radius:50%}
+.ms-wrap::after{content:'';position:absolute;bottom:-20px;left:40px;width:140px;height:140px;background:radial-gradient(circle,#c0608018 0%,transparent 70%);border-radius:50%}
+.ms-eyebrow{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+.ms-eyebrow-line{width:32px;height:2px;background:#6b2d8b;border-radius:2px}
+.ms-eyebrow-text{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#6b2d8b}
+.ms-heading{font-family:'Playfair Display',Georgia,serif;font-size:36px;font-weight:700;color:#1a0a24;line-height:1.2;margin:0 0 28px;max-width:560px}
+.ms-heading em{font-style:italic;color:#6b2d8b}
+.ms-divider{width:48px;height:3px;background:linear-gradient(90deg,#6b2d8b,#c06080);border-radius:2px;margin-bottom:28px}
+.ms-body{font-size:16px;line-height:1.8;color:#3d2a4a;max-width:680px;margin:0 0 32px;font-weight:300}
+.ms-body strong{font-weight:500;color:#1a0a24}
+.ms-pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:36px}
+.ms-pillar{background:white;border:1px solid #e8dff0;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:10px}
+.ms-pillar-dot{width:8px;height:8px;border-radius:50%;background:#6b2d8b;flex-shrink:0}
+.ms-pillar-text{font-size:13px;font-weight:500;color:#3d2a4a;line-height:1.3}
+.ms-footer{display:flex;align-items:center;gap:24px;padding-top:28px;border-top:1px solid #e8dff0;flex-wrap:wrap}
+.ms-badge{background:#6b2d8b;color:white;font-size:11px;font-weight:500;letter-spacing:.08em;padding:6px 14px;border-radius:20px}
+.ms-meta{font-size:13px;color:#7a6a85;font-weight:300}
+.ms-meta span{color:#3d2a4a;font-weight:500}
+@media(max-width:768px){.ms-wrap{padding:36px 24px}}
+</style>
+<section class="section s-light" data-section-key="mission_statement" style="padding-top:3rem;padding-bottom:3rem;">
+  <div class="container">
+    <div class="ms-wrap">
+      <div class="ms-eyebrow">
+        <div class="ms-eyebrow-line"></div>
+        <span class="ms-eyebrow-text">Our Mission</span>
+      </div>
+      <h2 class="ms-heading">${heading}</h2>
+      <div class="ms-divider"></div>
+      <p class="ms-body">${body}</p>
+      <div class="ms-pillars">
+    ${pillarHtml}
+      </div>
+      <div class="ms-footer">
+        <span class="ms-badge">501(c)(3) Nonprofit</span>
+        <span class="ms-meta">EIN <span>88-4156327</span></span>
+        <span class="ms-meta">Shreveport, LA <span>71106</span></span>
+        <span class="ms-meta">Contact <span>companionsCPAS@gmail.com</span></span>
+      </div>
+    </div>
+  </div>
+</section>`;
+}
+
 function renderHero(section) {
   const c = safeJson(section.config_json, {});
   const eyebrow = pick(section, ["eyebrow"]) || "Caddo Parish · 100% Volunteer-Based";
