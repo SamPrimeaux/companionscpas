@@ -5,7 +5,7 @@ const TENANT_ID = "tenant_companionscpas";
 export const ABOUT_ROUTE = "/about";
 const CDN = "https://assets.companionsofcaddo.org";
 
-export const ABOUT_SECTION_KEYS = ["hero", "why_we_exist", "paths", "campaigns", "cta"];
+export const ABOUT_SECTION_KEYS = ["mission_statement", "hero", "why_we_exist", "paths", "campaigns", "cta"];
 
 export const DEFAULT_ABOUT_SECTIONS = [
   {
