@@ -317,6 +317,7 @@ export function renderAboutFragment(section, blocks = []) {
 
 export function fragmentKeyForAboutSection(sectionKey) {
   const map = {
+    mission_statement: "mission_statement.html",
     hero: "hero.html",
     why_we_exist: "why_we_exist.html",
     paths: "paths.html",
