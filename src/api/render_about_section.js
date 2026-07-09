@@ -117,6 +117,7 @@ function renderHero(section) {
 
   return `<style>
 [data-cpas-section="hero"]{isolation:isolate}
+[data-cpas-section="hero"] .hero-media-bg img{object-position:center 20%}
 @media(max-width:768px){[data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(320px,62vw,520px)}[data-cpas-section="hero"] .hero-body{background:linear-gradient(180deg,#faf8f4 0%,#f2ede4 100%)}}
 </style>
 <section class="hero-split" data-cpas-section="hero" data-section-key="hero">
@@ -133,7 +134,7 @@ function renderHero(section) {
         </div>
         <h1 class="hero-heading">${escapeHtml(heading)}</h1>
         <p class="hero-sub">${escapeHtml(body)}</p>
-        <div class="hero-actions">${heroLinkBtn(ctaLabel, "Browse adoptable dogs", ctaHref, "primary")}${heroLinkBtn(cta2Label, cta2Sub, cta2Href, "ghost")}</div>
+        <div class="hero-actions">${heroModalBtn("Contact Us", "Let's work together", "contact", "primary")}${heroModalBtn(cta2Label, cta2Sub, "donate", "ghost")}</div>
       </div>
     </div>
   </div>
