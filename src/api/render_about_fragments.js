@@ -5,6 +5,7 @@ import { SHELL_CSS, resolveRouteTheme, themeClassName } from "./render_page.js";
 const PAGE_CACHE_TTL = 3600;
 
 export const ABOUT_FRAGMENT_KEYS = [
+  "static/pages/about/mission_statement.html",
   "static/pages/about/hero.html",
   "static/pages/about/why_we_exist.html",
   "static/pages/about/paths.html",
