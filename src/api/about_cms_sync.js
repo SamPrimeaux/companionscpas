@@ -9,6 +9,15 @@ export const ABOUT_SECTION_KEYS = ["mission_statement", "hero", "why_we_exist", 
 
 export const DEFAULT_ABOUT_SECTIONS = [
   {
+    id: "section_about_mission",
+    section_key: "mission_statement",
+    section_type: "mission_statement",
+    sort_order: 5,
+    heading: "To promote, educate, and advocate for every animal at Caddo Parish Animal Services.",
+    body: "Companions of CPAS works to achieve a positive outcome for all animals at the CPAS open-intake shelter. We do this by heavily networking the animals, providing medical care for emergency cases, raising donations, educating the public, assisting in transports conducted by shelter staff, enrichment, and other needs where the shelter needs assistance.",
+    config_json: {},
+  },
+  {
     id: "section_about_hero",
     section_key: "hero",
     section_type: "hero",
