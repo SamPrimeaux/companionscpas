@@ -1,4 +1,5 @@
 import { escapeHtml, safeJson } from "./render_section.js";
+import { COMPONENT_ICONS } from "./cms_components.js";
 
 const TENANT_ID = "tenant_companionscpas";
 const CDN = "https://assets.companionsofcaddo.org";
