@@ -249,7 +249,7 @@ function renderHowItHelpsFragment(section, blocks) {
         <div class="pillar-icon-wrap">${icon}</div>
         <h3 data-cms-field="block_title" data-cms-block="${bk}">${escapeHtml(pick(block, ["title"]) || "")}</h3>
         <p data-cms-field="block_body" data-cms-block="${bk}">${escapeHtml(pick(block, ["body"]) || "")}</p>
-        <a href="${escAttr(href)}">Learn more →</a>
+        <a href="${escAttr(href)}" data-cms-field="block_title" data-cms-block="${bk}">Learn more →</a>
       </div>`;
   }).join("\n      ");
 
@@ -284,7 +284,7 @@ function renderTransportWinFragment(section) {
     : `<a class="story-cta" href="#" data-action="${escAttr(ctaAction)}" data-cms-field="cta_label">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>`;
   const socialSecondary = cfg.social_secondary;
   const socialHtml = socialSecondary?.href
-    ? `<a class="story-cta story-cta--ghost" href="${escAttr(socialSecondary.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(socialSecondary.label || "See more")}</a>`
+    ? `<a class="story-cta story-cta--ghost" href="${escAttr(socialSecondary.href)}" target="_blank" rel="noopener noreferrer" data-cms-field="cta_secondary_label">${escapeHtml(socialSecondary.label || "See more")}</a>`
     : "";
 
   return `<section class="section s-light" ${sectionAttrs("transport_win", "transport-win")}>
@@ -316,11 +316,12 @@ function renderImpactStatsFragment(section, blocks) {
   const cells = stats.map((block, i) => {
     const cfg = blockCfg(block);
     const icon = pick(cfg, ["icon_svg"]) || STAT_ICONS[i % STAT_ICONS.length];
-    return `<div class="stat-cell">
+    const bk = escAttr(block.block_key || `stat_${i + 1}`);
+    return `<div class="stat-cell" data-cms-field="block_title" data-cms-block="${bk}">
         ${icon}
-        <div class="stat-num">${escapeHtml(pick(block, ["title"]) || pick(cfg, ["value"]) || "")}</div>
-        <div class="stat-lbl">${escapeHtml(pick(block, ["subtitle"]) || pick(cfg, ["label"]) || "")}</div>
-        <div class="stat-sub-lbl">${escapeHtml(pick(block, ["body"]) || pick(cfg, ["sub"]) || "")}</div>
+        <div class="stat-num" data-cms-field="block_title" data-cms-block="${bk}">${escapeHtml(pick(block, ["title"]) || pick(cfg, ["value"]) || "")}</div>
+        <div class="stat-lbl" data-cms-field="block_subtitle" data-cms-block="${bk}">${escapeHtml(pick(block, ["subtitle"]) || pick(cfg, ["label"]) || "")}</div>
+        <div class="stat-sub-lbl" data-cms-field="block_body" data-cms-block="${bk}">${escapeHtml(pick(block, ["body"]) || pick(cfg, ["sub"]) || "")}</div>
       </div>`;
   }).join("\n      ");
 
@@ -365,11 +366,12 @@ function renderCampaignItem(block) {
   const goal = Number(cfg.goal || 1);
   const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
   const image = safeUrl(pick(block, ["image_url"]), `${CDN}/media/animals/goinhomejustadopted.webp`);
-  return `<div class="camp-item">
-            <img src="${escAttr(image)}" alt="${escAttr(pick(block, ["alt_text"]) || pick(block, ["title"]) || "Campaign")}" />
+  const bk = escAttr(block.block_key || "campaign");
+  return `<div class="camp-item" data-cms-field="block_title" data-cms-block="${bk}">
+            <img src="${escAttr(image)}" alt="${escAttr(pick(block, ["alt_text"]) || pick(block, ["title"]) || "Campaign")}" data-cms-field="block_image" data-cms-block="${bk}" />
             <div class="camp-item-body">
-              <p class="camp-item-title">${escapeHtml(pick(block, ["title"]) || "")}</p>
-              <p class="camp-item-desc">${escapeHtml(pick(block, ["body"]) || "")}</p>
+              <p class="camp-item-title" data-cms-field="block_title" data-cms-block="${bk}">${escapeHtml(pick(block, ["title"]) || "")}</p>
+              <p class="camp-item-desc" data-cms-field="block_body" data-cms-block="${bk}">${escapeHtml(pick(block, ["body"]) || "")}</p>
               <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
               <p class="progress-label">$${raised.toLocaleString()} of $${goal.toLocaleString()} · ${pct}%</p>
             </div>
@@ -379,10 +381,11 @@ function renderCampaignItem(block) {
 function renderCommunityItem(block) {
   const cfg = blockCfg(block);
   const image = safeUrl(pick(block, ["image_url"]), `${CDN}/media/team/thefounders.webp`);
-  return `<div class="comm-item">
-            <img src="${escAttr(image)}" alt="${escAttr(pick(block, ["alt_text"]) || "Community update")}" />
+  const bk = escAttr(block.block_key || "community");
+  return `<div class="comm-item" data-cms-field="block_body" data-cms-block="${bk}">
+            <img src="${escAttr(image)}" alt="${escAttr(pick(block, ["alt_text"]) || "Community update")}" data-cms-field="block_image" data-cms-block="${bk}" />
             <div>
-              <p class="comm-item-text">${escapeHtml(pick(block, ["body"]) || pick(block, ["title"]) || "")}</p>
+              <p class="comm-item-text" data-cms-field="block_body" data-cms-block="${bk}">${escapeHtml(pick(block, ["body"]) || pick(block, ["title"]) || "")}</p>
               <p class="comm-item-date">${escapeHtml(pick(cfg, ["date"]) || "")}</p>
             </div>
           </div>`;
@@ -423,9 +426,9 @@ async function renderCampaignsFragment(section, blocks, env) {
         <div class="camp-list">${campaignHtml}</div>
       </div>
       <div class="cc-col cc-col-community">
-        <div class="ey-purple cc-community-label">${escapeHtml(commEyebrow)}</div>
+        <div class="ey-purple cc-community-label" data-cms-field="subheading">${escapeHtml(commEyebrow)}</div>
         <div class="comm-list">${community.map(renderCommunityItem).join("\n          ")}</div>
-        <a class="comm-see-all" href="${escAttr(commLink)}">See all updates →</a>
+        <a class="comm-see-all" href="${escAttr(commLink)}" data-cms-field="cta_secondary_label">See all updates →</a>
       </div>
     </div>
   </div>
@@ -436,8 +439,8 @@ function renderNewsletterFragment(section) {
   const cfg = safeJson(section.config_json, {});
   const heading = pick(section, ["heading"]) || "Stay in the loop. Be part of the second chances.";
   const sub = pick(section, ["subheading"]) || pick(section, ["body"]) || "";
-  const fosterLabel = pick(cfg, ["foster_label"]) || "Foster a Dog";
-  const donateLabel = pick(cfg, ["donate_label"]) || "Donate Now";
+  const fosterLabel = pick(section, ["cta_label"]) || pick(cfg, ["foster_label"]) || "Foster a Dog";
+  const donateLabel = pick(section, ["cta_secondary_label"]) || pick(cfg, ["donate_label"]) || "Donate Now";
 
   return `<style>[data-cpas-section="newsletter"]{display:block}.cta-email-status{width:100%;margin:.35rem 0 0;color:rgba(255,255,255,.78);font-size:.8rem}</style>
 <section class="cta-band s-purple" ${sectionAttrs("newsletter")}>
@@ -456,11 +459,11 @@ function renderNewsletterFragment(section) {
         <p class="cta-email-status" data-newsletter-status aria-live="polite"></p>
       </form>
       <div class="cta-action-row">
-        <a class="cta-action-btn" href="#" data-action="foster">
+        <a class="cta-action-btn" href="#" data-action="foster" data-cms-field="cta_label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
           ${escapeHtml(fosterLabel)}
         </a>
-        <a class="cta-action-btn" href="#" data-action="donate">
+        <a class="cta-action-btn" href="#" data-action="donate" data-cms-field="cta_secondary_label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
           ${escapeHtml(donateLabel)}
         </a>

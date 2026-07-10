@@ -428,6 +428,8 @@ const CMS_FIELD_LABELS = {
   cta_secondary_href: "Secondary CTA link",
   block_title: "Block title",
   block_body: "Block body",
+  block_subtitle: "Block subtitle",
+  block_image: "Block image",
 };
 const CMS_TEXT_FIELDS = new Set(["eyebrow", "heading", "subheading", "body", "cta_label", "cta_secondary_label", "block_title", "block_body"]);
 const CMS_IMAGE_FIELDS = new Set(["image_url"]);
@@ -440,24 +442,29 @@ function cmsParseConfig(section) {
   try { return JSON.parse(section?.config_json || "{}"); } catch { return {}; }
 }
 
-/** Inject Shopify-style section outlines into the preview iframe (same-origin). Dashboard-only. */
+/**
+ * Preview already gets field-level inspector from /api/cms/preview (injectCmsInspector).
+ * Only inject a dashboard fallback when that script is missing — never double-bind,
+ * or section-only clicks steal element selection.
+ */
 function injectPreviewSectionInspector(iframe) {
   try {
     const doc = iframe?.contentDocument;
-    const win = iframe?.contentWindow;
-    if (!doc || !win || doc.getElementById("cms-dash-inspector-style")) return;
+    if (!doc) return;
+    if (doc.body) doc.body.classList.add("cms-preview");
+    // API inspector already present — do not overlay a section-only handler.
+    if (doc.getElementById("cms-inspector-style") || doc.getElementById("cms-dash-inspector-style")) return;
+    if (doc.defaultView && doc.defaultView.__cmsDashInspector) return;
 
     const style = doc.createElement("style");
     style.id = "cms-dash-inspector-style";
     style.textContent = `
-      [data-section-key], [data-cpas-section] { position: relative; cursor: pointer; }
-      [data-section-key].cms-sec-hover, [data-cpas-section].cms-sec-hover {
-        outline: 2px solid rgba(124,58,237,0.55) !important; outline-offset: -2px;
-      }
-      [data-section-key].cms-sec-active, [data-cpas-section].cms-sec-active {
-        outline: 2px solid #7c3aed !important; outline-offset: -2px;
-        box-shadow: inset 0 0 0 1px rgba(124,58,237,0.2);
-      }
+      body.cms-preview [data-section-key], body.cms-preview [data-cpas-section] { position: relative; cursor: pointer; }
+      body.cms-preview .cms-sec-hover:not(.cms-sec-active) { outline: 1.5px dashed rgba(124,58,237,0.55); outline-offset: -2px; }
+      body.cms-preview .cms-sec-active { outline: 2px solid #7c3aed; outline-offset: -2px; box-shadow: inset 0 0 0 1px rgba(124,58,237,0.25); }
+      body.cms-preview [data-cms-field] { cursor: pointer; }
+      body.cms-preview [data-cms-field].cms-field-hover { outline: 1.5px solid rgba(124,58,237,0.7); outline-offset: 2px; border-radius: 4px; }
+      body.cms-preview [data-cms-field].cms-field-active { outline: 2px solid #7c3aed; outline-offset: 2px; border-radius: 4px; box-shadow: 0 0 0 3px rgba(124,58,237,0.18); }
       #cms-dash-inspector-chip {
         position: fixed; z-index: 2147483646; pointer-events: none; display: none;
         background: #7c3aed; color: #fff; font: 700 11px/1.2 system-ui,sans-serif;
@@ -473,7 +480,7 @@ function injectPreviewSectionInspector(iframe) {
 (function(){
   if (window.__cmsDashInspector) return;
   window.__cmsDashInspector = true;
-  var activeKey = null, hoverEl = null, chip = null;
+  var activeKey = null, activeField = null, hoverSec = null, chip = null;
 
   function sectionKey(el){
     if (!el) return '';
@@ -483,6 +490,15 @@ function injectPreviewSectionInspector(iframe) {
     var cur = el;
     while (cur && cur !== document.body) {
       if (cur.getAttribute && (cur.getAttribute('data-section-key') || cur.getAttribute('data-cpas-section'))) return cur;
+      cur = cur.parentElement;
+    }
+    return null;
+  }
+  function findField(el){
+    var cur = el;
+    while (cur && cur !== document.body) {
+      if (cur.getAttribute && cur.getAttribute('data-cms-field')) return cur;
+      if (cur.getAttribute && (cur.getAttribute('data-section-key') || cur.getAttribute('data-cpas-section'))) break;
       cur = cur.parentElement;
     }
     return null;
@@ -518,25 +534,33 @@ function injectPreviewSectionInspector(iframe) {
     c.style.top = Math.max(8, r.top - 26) + 'px';
     c.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 160)) + 'px';
   }
+  function clearFieldChrome(){
+    document.querySelectorAll('[data-cms-field].cms-field-hover, [data-cms-field].cms-field-active').forEach(function(n){
+      n.classList.remove('cms-field-hover', 'cms-field-active');
+    });
+  }
   function paint(){
     allSections().forEach(function(sec){
       var key = sectionKey(sec);
       var isActive = activeKey && (key === activeKey || key.replace(/-/g,'_') === String(activeKey).replace(/-/g,'_') || key.replace(/_/g,'-') === String(activeKey).replace(/_/g,'-'));
       sec.classList.toggle('cms-sec-active', !!isActive);
-      sec.classList.toggle('cms-sec-hover', hoverEl === sec && !isActive);
+      sec.classList.toggle('cms-sec-hover', hoverSec === sec && !isActive);
     });
     var activeEl = activeKey ? resolve(activeKey) : null;
-    if (activeEl) placeChip(activeEl, sectionKey(activeEl));
-    else if (hoverEl) placeChip(hoverEl, sectionKey(hoverEl));
+    if (activeEl) placeChip(activeEl, activeField ? (sectionKey(activeEl) + ' / ' + activeField) : sectionKey(activeEl));
+    else if (hoverSec) placeChip(hoverSec, sectionKey(hoverSec));
     else { var c = ensureChip(); c.style.display = 'none'; }
   }
 
   document.addEventListener('mouseover', function(e){
-    hoverEl = findSection(e.target);
+    var field = findField(e.target);
+    hoverSec = findSection(e.target);
+    clearFieldChrome();
+    if (field) field.classList.add('cms-field-hover');
     paint();
   }, true);
   document.addEventListener('mouseout', function(e){
-    if (!e.relatedTarget) { hoverEl = null; paint(); }
+    if (!e.relatedTarget) { hoverSec = null; clearFieldChrome(); paint(); }
   }, true);
   document.addEventListener('click', function(e){
     var sec = findSection(e.target);
@@ -544,22 +568,36 @@ function injectPreviewSectionInspector(iframe) {
     e.preventDefault();
     e.stopPropagation();
     var key = sectionKey(sec);
+    var fieldEl = findField(e.target);
     activeKey = key;
+    activeField = fieldEl ? fieldEl.getAttribute('data-cms-field') : null;
+    var blockKey = fieldEl ? (fieldEl.getAttribute('data-cms-block') || null) : null;
+    clearFieldChrome();
+    if (fieldEl) fieldEl.classList.add('cms-field-active');
     paint();
-    window.parent.postMessage({ type: 'cms:section-clicked', key: key }, '*');
+    if (fieldEl && activeField) {
+      window.parent.postMessage({ type: 'cms:element-selected', sectionKey: key, field: activeField, blockKey: blockKey, tag: (fieldEl.tagName || '').toLowerCase() }, '*');
+    } else {
+      window.parent.postMessage({ type: 'cms:section-clicked', key: key }, '*');
+    }
   }, true);
   window.addEventListener('scroll', function(){ paint(); }, true);
   window.addEventListener('message', function(e){
     if (!e.data) return;
     if (e.data.type === 'cms:scroll-to-section' || e.data.type === 'cms:highlight-section') {
       activeKey = e.data.key || null;
+      activeField = e.data.field || null;
+      clearFieldChrome();
       var el = resolve(activeKey);
       if (el && e.data.type === 'cms:scroll-to-section') el.scrollIntoView({ behavior:'smooth', block:'start' });
+      if (el && activeField) {
+        var f = el.querySelector('[data-cms-field=\"' + activeField + '\"]');
+        if (f) f.classList.add('cms-field-active');
+      }
       paint();
     }
     if (e.data.type === 'cms:clear-selection') {
-      activeKey = null;
-      paint();
+      activeKey = null; activeField = null; clearFieldChrome(); paint();
     }
   });
 })();`;
@@ -798,6 +836,52 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const next = { ...selected, [key]:val };
     setPageData(prev => ({ ...prev, sections:(prev.sections || []).map(s => s.section_key === selected.section_key ? next : s) }));
     try { await saveSectionObject(next, true); bumpPreview(); } catch (e) { notify(e.message, 'error'); }
+  };
+
+  const selectedBlock = React.useMemo(() => {
+    if (!selectedKey || !selectedBlockKey) return null;
+    const wantSec = cmsNormalizeSectionKey(selectedKey);
+    return (pageData.blocks || []).find(b =>
+      cmsNormalizeSectionKey(b.section_key) === wantSec && String(b.block_key) === String(selectedBlockKey)
+    ) || null;
+  }, [pageData.blocks, selectedKey, selectedBlockKey]);
+
+  const setBlockField = (key, val) => {
+    if (!selectedBlock) return;
+    setPageData(prev => ({
+      ...prev,
+      blocks: (prev.blocks || []).map(b =>
+        b.block_key === selectedBlock.block_key && cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(selectedBlock.section_key)
+          ? { ...b, [key]: val }
+          : b
+      ),
+    }));
+  };
+
+  const saveSelectedBlock = async (silent = false) => {
+    if (!selectedBlock || !selected) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/cms/block/save', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          block: {
+            ...selectedBlock,
+            page_route: route,
+            section_key: selected.section_key,
+          },
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.success) throw new Error(d.error || 'Block save failed');
+      if (!silent) notify('Block saved as draft');
+      bumpPreview();
+    } catch (e) {
+      notify(e.message, 'error');
+    }
+    setBusy(false);
   };
 
   const publishPage = async () => {
@@ -1083,10 +1167,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const cfg = cmsParseConfig(selected);
     const field = (label, key, type='text', opts={}) => React.createElement('div', { key, id: 'cms-field-' + key }, cmsFieldLabel(label), type === 'textarea' ? cmsTextArea(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.rows || 5) : cmsTextInput(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.placeholder, opts.mono));
 
-    const showElementFocus = !!selectedField && selectedField !== 'block_title' && selectedField !== 'block_body';
+    const isBlockField = selectedField === 'block_title' || selectedField === 'block_body' || selectedField === 'block_subtitle' || selectedField === 'block_image';
+    const showElementFocus = !!selectedField;
     const elementLabel = CMS_FIELD_LABELS[selectedField] || selectedField;
-    const isTextEl = CMS_TEXT_FIELDS.has(selectedField);
-    const isImageEl = CMS_IMAGE_FIELDS.has(selectedField);
+    const isTextEl = CMS_TEXT_FIELDS.has(selectedField) && !isBlockField;
+    const isImageEl = CMS_IMAGE_FIELDS.has(selectedField) && !isBlockField;
 
     const styleTweaks = (isTextEl || isImageEl) && React.createElement('div', { style:{ display:'grid', gap:12 } },
       React.createElement('h4', { style:groupTitleStyle() }, 'Style tweaks'),
@@ -1104,6 +1189,31 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       ], v => setConfigPatch({ image_object_position: v }))
     );
 
+    const blockPanel = isBlockField && React.createElement('div', { style:{ display:'grid', gap:12 } },
+      selectedBlock
+        ? React.createElement(React.Fragment, null,
+            React.createElement('div', { style:{ fontSize:11, color:C.textMut, fontFamily:'var(--font-mono)' } }, selectedBlock.block_key),
+            React.createElement('div', null,
+              cmsFieldLabel('Title'),
+              cmsTextInput(selectedBlock.title, v => { setBlockField('title', v); setHasUnsaved(true); }, () => { saveSelectedBlock(true).then(() => setHasUnsaved(false)); })
+            ),
+            React.createElement('div', null,
+              cmsFieldLabel('Subtitle'),
+              cmsTextInput(selectedBlock.subtitle, v => { setBlockField('subtitle', v); setHasUnsaved(true); }, () => { saveSelectedBlock(true).then(() => setHasUnsaved(false)); })
+            ),
+            React.createElement('div', null,
+              cmsFieldLabel('Body'),
+              cmsTextArea(selectedBlock.body, v => { setBlockField('body', v); setHasUnsaved(true); }, () => { saveSelectedBlock(true).then(() => setHasUnsaved(false)); }, 5)
+            ),
+            React.createElement('div', null,
+              cmsFieldLabel('Image URL'),
+              cmsTextInput(selectedBlock.image_url, v => setBlockField('image_url', v), () => saveSelectedBlock(true), 'https://assets.companionsofcaddo.org/...', true)
+            ),
+            selectedBlock.image_url && React.createElement('img', { src: selectedBlock.image_url, alt: '', style:{ width:'100%', height:86, objectFit:'cover', borderRadius:12, border:`1px solid ${C.border}` } })
+          )
+        : React.createElement('div', { style:{ color:C.textMut, fontSize:13 } }, 'Block not found in page data. Try reloading the editor.')
+    );
+
     const elementPanel = showElementFocus && React.createElement('div', { style:{ display:'grid', gap:14 } },
       React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 } },
         React.createElement('div', { style:{ fontSize:12, color:C.textSec } },
@@ -1117,17 +1227,19 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           style:{ background:'none', border:`1px solid ${C.border}`, borderRadius:8, padding:'4px 8px', fontSize:11, cursor:'pointer', color:C.textSec }
         }, 'Full section')
       ),
-      selectedField === 'heading' && field('Heading', 'heading'),
-      selectedField === 'eyebrow' && field('Eyebrow', 'eyebrow'),
-      selectedField === 'subheading' && field('Subheading', 'subheading'),
-      selectedField === 'body' && field('Body', 'body', 'textarea', { rows: 6 }),
-      selectedField === 'image_url' && React.createElement('div', { style:{ display:'grid', gap:12 } },
-        React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } }, React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)), React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick'))),
-        selected.image_url && React.createElement('img', { src:selected.image_url, style:{ width:'100%', height:86, objectFit:'cover', borderRadius:12, border:`1px solid ${C.border}` } })
-      ),
-      selectedField === 'cta_label' && React.createElement(React.Fragment, null, field('Primary CTA label', 'cta_label'), field('Primary CTA href', 'cta_href', 'text', { placeholder:'/foster' })),
-      selectedField === 'cta_secondary_label' && React.createElement(React.Fragment, null, field('Secondary CTA label', 'cta_secondary_label'), field('Secondary CTA href', 'cta_secondary_href', 'text', { placeholder:'/donate' })),
-      styleTweaks
+      isBlockField ? blockPanel : React.createElement(React.Fragment, null,
+        selectedField === 'heading' && field('Heading', 'heading'),
+        selectedField === 'eyebrow' && field('Eyebrow', 'eyebrow'),
+        selectedField === 'subheading' && field('Subheading', 'subheading'),
+        selectedField === 'body' && field('Body', 'body', 'textarea', { rows: 6 }),
+        selectedField === 'image_url' && React.createElement('div', { style:{ display:'grid', gap:12 } },
+          React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } }, React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)), React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick'))),
+          selected.image_url && React.createElement('img', { src:selected.image_url, style:{ width:'100%', height:86, objectFit:'cover', borderRadius:12, border:`1px solid ${C.border}` } })
+        ),
+        selectedField === 'cta_label' && React.createElement(React.Fragment, null, field('Primary CTA label', 'cta_label'), field('Primary CTA href', 'cta_href', 'text', { placeholder:'/foster' })),
+        selectedField === 'cta_secondary_label' && React.createElement(React.Fragment, null, field('Secondary CTA label', 'cta_secondary_label'), field('Secondary CTA href', 'cta_secondary_href', 'text', { placeholder:'/donate' })),
+        styleTweaks
+      )
     );
 
     const fullPanel = !showElementFocus && React.createElement(React.Fragment, null,
