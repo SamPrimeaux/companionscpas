@@ -717,6 +717,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                 onDrop:e=>{ e.preventDefault(); reorderSections(dragKey, s.section_key); },
                 onClick:()=>{
                   setSelectedKey(s.section_key);
+                  setHasUnsaved(false);
                   if (isMobile) setMobileTab('edit');
                   try {
                     const iframe = previewIframeRef.current;
