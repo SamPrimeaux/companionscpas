@@ -247,6 +247,28 @@
   line-height: 1.6;
 }
 
+/* ── CONTACT HERO FRAME — team photo variant ─── */
+.contact-hero-frame--team {
+  border-radius: 16px;
+  padding: 0;
+  background: transparent;
+  box-shadow: 0 8px 32px rgba(78, 26, 82, 0.10);
+  border: 1px solid rgba(142, 58, 125, 0.1);
+  overflow: hidden;
+}
+
+.contact-hero-frame--team img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: unset;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 0;
+  max-height: 480px;
+}
+
+/* ── TEAM SECTION ─────────────────────────────── */
 .team-section {
   padding: clamp(4rem, 8vw, 6.25rem) 0;
   background: var(--bg-2);
@@ -255,7 +277,7 @@
 
 .team-header {
   text-align: center;
-  margin-bottom: clamp(2.5rem, 5vw, 4rem);
+  margin-bottom: clamp(2.5rem, 5vw, 3.5rem);
 }
 
 .team-header h2 {
@@ -275,69 +297,67 @@
   line-height: 1.65;
 }
 
-.team-grid {
+/* Two-column layout: photo left, member list right */
+.team-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1.25rem;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: start;
 }
 
-.team-card {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 1.75rem 1.25rem 1.5rem;
-  text-align: center;
-  transition: transform 250ms, box-shadow 250ms, border-color 250ms;
+.team-photo-col img.team-group-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  object-fit: contain;
+  box-shadow: 0 8px 32px rgba(78, 26, 82, 0.10);
+  border: 1px solid rgba(142, 58, 125, 0.08);
 }
 
-.team-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 40px rgba(107, 33, 232, 0.1);
-  border-color: rgba(107, 33, 232, 0.22);
-}
-
-.team-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(107, 33, 232, 0.15), rgba(214, 43, 43, 0.1));
-  border: 2px solid rgba(107, 33, 232, 0.18);
+.team-member-list {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 0.85rem;
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--tg-coc-purple-deep, var(--purple));
-  font-family: var(--font-display, "Playfair Display", Georgia, serif);
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bg);
 }
 
-.team-name {
+.team-member {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 1rem 1.35rem;
+  border-bottom: 1px solid var(--border);
+  gap: 1rem;
+}
+
+.team-member:last-child { border-bottom: none; }
+
+.team-member-name {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-1);
-  margin-bottom: 0.35rem;
-  line-height: 1.3;
+  flex-shrink: 0;
 }
 
-.team-role {
+.team-member-role {
   font-size: 12px;
-  color: var(--tg-coc-magenta, var(--purple));
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  color: var(--tg-coc-magenta, #9b2c8e);
+  text-align: right;
 }
 
-.team-badge {
-  display: inline-block;
-  margin-top: 0.65rem;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 500;
-  background: rgba(107, 33, 232, 0.1);
-  color: var(--tg-coc-purple-deep, var(--purple));
-  border: 1px solid rgba(107, 33, 232, 0.15);
+.team-note {
+  margin-top: 1.25rem;
+  font-size: 13px;
+  color: var(--text-3, var(--text-2));
+  line-height: 1.6;
+  font-style: italic;
 }
 
 @media (max-width: 900px) {
