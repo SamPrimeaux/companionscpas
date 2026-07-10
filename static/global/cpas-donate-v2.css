@@ -609,6 +609,9 @@ body[data-route="/donate"] main {
   .dv2-btn-row .dv2-btn { width: 100%; }
   .dv2-contact-card { flex-direction: column; align-items: stretch; }
   .dv2-contact .btn { width: 100%; }
+  .dv2-alt-pay-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .dv2-alt-pay-btn { width: 100%; justify-content: center; }
+  .dv2-share-row { gap: 6px; }
 }
 
 /* Glassmorphic purple CTA — used for primary donate actions */
