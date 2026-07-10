@@ -405,12 +405,20 @@ async function renderCampaignsFragment(section, blocks, env) {
   // Two-card layout — always takes priority over live campaign data
   if (cfg.layout === "two_cards" && Array.isArray(cfg.cards) && cfg.cards.length) {
     const heading = pick(section, ["heading"]) || "";
+    const WISHLIST_LOGO = `<img src="https://assets.companionsofcaddo.org/static/assets/amz-wishlist-bttn.webp" alt="Amazon Wishlist" style="height:22px;width:auto;display:block">`;
     const cardHtml = cfg.cards.map((card) => {
       const href = escAttr(card.cta_href || "#");
       const external = card.cta_external ? ' target="_blank" rel="noopener noreferrer"' : "";
-      return `<a class="home-img-card" href="${href}"${external} aria-label="${escAttr(card.title)}">
-        <img src="${escAttr(card.image)}" alt="${escAttr(card.title)}" loading="lazy" decoding="async" />
-      </a>`;
+      const isWishlist = card.cta_href && card.cta_href.includes("amazon.com");
+      const btn = isWishlist
+        ? `<a class="home-img-btn home-img-btn--wishlist" href="${href}"${external} aria-label="Shop Amazon Wishlist">${WISHLIST_LOGO}</a>`
+        : `<a class="home-img-btn home-img-btn--donate" href="${href}"${external}>${escapeHtml(card.cta_label || "Donate Now")}</a>`;
+      return `<div class="home-img-card">
+        <a href="${href}"${external} class="home-img-card-img" aria-label="${escAttr(card.title)}">
+          <img src="${escAttr(card.image)}" alt="${escAttr(card.title)}" loading="lazy" decoding="async" />
+        </a>
+        <div class="home-img-card-foot">${btn}</div>
+      </div>`;
     }).join("\n");
     return `<section class="section s-light home-campaigns" ${sectionAttrs("campaigns")}>
   <div class="container">
@@ -419,11 +427,17 @@ async function renderCampaignsFragment(section, blocks, env) {
   </div>
 </section>
 <style>
-.home-img-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;align-items:start}
-.home-img-card{display:block;border-radius:12px;overflow:hidden;transition:opacity .2s,transform .2s;border:1px solid var(--border)}
-.home-img-card:hover{opacity:.92;transform:translateY(-2px)}
-.home-img-card img{width:100%;height:auto;display:block}
-@media(max-width:640px){.home-img-cards{grid-template-columns:1fr}}
+.home-img-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:2rem;align-items:start;max-width:840px;margin:0 auto}
+.home-img-card{display:flex;flex-direction:column;gap:.875rem}
+.home-img-card-img{display:block;border-radius:12px;overflow:hidden;border:1px solid var(--border);transition:opacity .2s,transform .2s}
+.home-img-card-img:hover{opacity:.93;transform:translateY(-2px)}
+.home-img-card-img img{width:100%;height:auto;display:block}
+.home-img-card-foot{display:flex;justify-content:center}
+.home-img-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;border-radius:999px;border:1.5px solid rgba(0,0,0,.12);background:#fff;text-decoration:none;transition:box-shadow .2s,transform .2s;min-width:160px}
+.home-img-btn:hover{box-shadow:0 4px 14px rgba(0,0,0,.1);transform:translateY(-1px)}
+.home-img-btn--donate{font-size:.875rem;font-weight:600;color:#5b2d8e;border-color:#5b2d8e}
+.home-img-btn--donate:hover{background:#5b2d8e;color:#fff}
+@media(max-width:640px){.home-img-cards{grid-template-columns:1fr;max-width:100%}}
 </style>`;
   }
 
