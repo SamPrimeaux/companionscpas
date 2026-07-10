@@ -280,13 +280,12 @@ function renderTransportWinFragment(section) {
   const headingStyle = fieldStyleAttrs(cfg, "heading");
   const textStyle = fieldStyleAttrs(cfg, "text");
   const imageStyle = fieldStyleAttrs(cfg, "image");
-  const ctaEl = isExternalLink
-    ? `<a class="story-cta" href="${escAttr(ctaHref)}" target="_blank" rel="noopener noreferrer" data-cms-field="cta_label">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>`
-    : `<a class="story-cta" href="#" data-action="${escAttr(ctaAction)}" data-cms-field="cta_label">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>`;
+  const fbHref = isExternalLink ? ctaHref : (safeUrl(pick(cfg, ["facebook_url"]), "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/"));
+  const ctaEl = `<a class="dv2-social-pill dv2-social-pill--fb" href="${escAttr(fbHref)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(ctaLabel)}" data-cms-field="cta_label">${COMPONENT_ICONS.facebook}<span>${escapeHtml(ctaLabel)}</span></a>`;
   const socialSecondary = cfg.social_secondary;
-  const socialHtml = socialSecondary?.href
-    ? `<a class="story-cta story-cta--ghost" href="${escAttr(socialSecondary.href)}" target="_blank" rel="noopener noreferrer" data-cms-field="cta_secondary_label">${escapeHtml(socialSecondary.label || "See more")}</a>`
-    : "";
+  const igHref = socialSecondary?.href || safeUrl(pick(cfg, ["instagram_url"]), "https://www.instagram.com/companionscpas");
+  const igLabel = socialSecondary?.label || "See updates on Instagram";
+  const socialHtml = `<a class="dv2-social-pill dv2-social-pill--ig" href="${escAttr(igHref)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(igLabel)}" data-cms-field="cta_secondary_label">${COMPONENT_ICONS.instagram}<span>${escapeHtml(igLabel)}</span></a>`;
 
   return `<section class="section s-light" ${sectionAttrs("transport_win", "transport-win")}>
   <div class="container">
