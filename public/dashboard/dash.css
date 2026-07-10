@@ -589,6 +589,13 @@ body.cpas-nav-open { overflow: hidden !important; }
 .cms-inspector-col {
   background: var(--dash-surface, #faf7f3);
 }
+.cms-panel-reopen {
+  backdrop-filter: blur(8px);
+}
+.cms-panel-reopen:hover {
+  border-color: var(--brand-primary, #8664B7) !important;
+  color: var(--brand-primary, #8664B7) !important;
+}
 
 .cpas-asset-label { color: rgba(255,255,255,0.92) !important; }
 .cpas-asset-meta  { color: rgba(255,255,255,0.50) !important; }

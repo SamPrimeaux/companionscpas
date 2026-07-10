@@ -646,6 +646,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [showFontPicker, setShowFontPicker] = React.useState(false);
   const [uploadingAsset, setUploadingAsset] = React.useState(false);
   const [sidenavOpen, setSidenavOpen] = React.useState(true);
+  const [inspectorCollapsed, setInspectorCollapsed] = React.useState(true);
   const [hasUnsaved, setHasUnsaved] = React.useState(false);
   const notify = (t, type='ok') => cmsNotify(setNotice, t, type);
 
@@ -655,7 +656,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const want = cmsNormalizeSectionKey(selectedKey);
     return sortedSections.find(s => cmsNormalizeSectionKey(s.section_key) === want) || null;
   }, [sortedSections, selectedKey]);
-  const inspectorOpen = !!selected;
+  const inspectorOpen = !!selected && !inspectorCollapsed;
 
   const [previewVersion, setPreviewVersion] = React.useState(0);
   const bumpPreview = React.useCallback(() => setPreviewVersion(v => v + 1), []);
@@ -665,9 +666,23 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setSelectedKey(null);
     setSelectedField(null);
     setSelectedBlockKey(null);
+    setInspectorCollapsed(true);
     try {
       previewIframeRef.current?.contentWindow?.postMessage({ type: 'cms:clear-selection' }, '*');
     } catch (_) {}
+  }, []);
+
+  const collapseInspector = React.useCallback(() => {
+    setInspectorCollapsed(true);
+  }, []);
+
+  const expandInspector = React.useCallback(() => {
+    if (selectedKey) setInspectorCollapsed(false);
+  }, [selectedKey]);
+
+  const enterFullPreview = React.useCallback(() => {
+    setSidenavOpen(false);
+    setInspectorCollapsed(true);
   }, []);
 
   const selectSection = React.useCallback((key, opts = {}) => {
@@ -678,6 +693,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setSelectedKey(resolved);
     setSelectedField(opts.field || null);
     setSelectedBlockKey(opts.blockKey || null);
+    setInspectorCollapsed(false);
     if (opts.clearUnsaved) setHasUnsaved(false);
     if (isMobile) setMobileTab('edit');
     const row = document.getElementById('cms-section-row-' + resolved);
@@ -715,11 +731,16 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
       if (showImagePicker || showAddSection || showFontPicker) return;
+      // Esc: collapse inspector first (keep selection), then clear selection
+      if (!inspectorCollapsed && selectedKey) {
+        setInspectorCollapsed(true);
+        return;
+      }
       clearSelection();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clearSelection, showImagePicker, showAddSection, showFontPicker]);
+  }, [clearSelection, showImagePicker, showAddSection, showFontPicker, inspectorCollapsed, selectedKey]);
 
   React.useEffect(() => {
     if (selectedKey) postHighlight(selectedKey, selectedField);
@@ -894,14 +915,32 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const deviceWidth = CMS_DEVICE_FRAMES[mode]; // null = fill canvas (desktop)
 
   function renderTopbar() {
-    return React.createElement('div', { style:{ height:52, background:C.surface, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 14px', gap:10, flexShrink:0, zIndex:10 } },
+    const bothCollapsed = !sidenavOpen && !inspectorOpen;
+    return React.createElement('div', { style:{ height:52, background:C.surface, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 14px', gap:8, flexShrink:0, zIndex:10 } },
       React.createElement('button', { onClick:()=>onNavigate('cms-pages'), style:{ background:'none', border:'none', color:C.textSec, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--font-ui)', flexShrink:0 } }, React.createElement(Icon, { name:'chevL', size:14 }), 'Pages'),
       React.createElement('div', { style:{ width:1, height:20, background:C.border } }),
       isDesktop && React.createElement('button', {
-        title: sidenavOpen ? 'Collapse sections panel' : 'Expand sections panel',
+        type: 'button',
+        title: sidenavOpen ? 'Hide sections' : 'Show sections',
         onClick: () => setSidenavOpen(v => !v),
-        style:{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`, background:sidenavOpen ? C.purpleDim : C.bg2, color:sidenavOpen ? C.purpleL : C.textMut, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }
-      }, React.createElement(Icon, { name: sidenavOpen ? 'chevL' : 'chevR', size:13 })),
+        style:{ height:30, padding:'0 10px', borderRadius:8, border:`1px solid ${C.border}`, background:sidenavOpen ? C.purpleDim : C.bg2, color:sidenavOpen ? C.purpleL : C.textMut, display:'flex', alignItems:'center', gap:6, cursor:'pointer', flexShrink:0, fontSize:11, fontWeight:700, fontFamily:'var(--font-ui)' }
+      }, React.createElement(Icon, { name: sidenavOpen ? 'chevL' : 'chevR', size:13 }), sidenavOpen ? 'Sections' : 'Sections'),
+      isDesktop && React.createElement('button', {
+        type: 'button',
+        title: inspectorOpen ? 'Hide editor panel' : (selectedKey ? 'Show editor panel' : 'Select a section to edit'),
+        disabled: !selectedKey && !inspectorOpen,
+        onClick: () => {
+          if (inspectorOpen) collapseInspector();
+          else expandInspector();
+        },
+        style:{ height:30, padding:'0 10px', borderRadius:8, border:`1px solid ${C.border}`, background:inspectorOpen ? C.purpleDim : C.bg2, color:inspectorOpen ? C.purpleL : C.textMut, display:'flex', alignItems:'center', gap:6, cursor: selectedKey || inspectorOpen ? 'pointer' : 'not-allowed', opacity: selectedKey || inspectorOpen ? 1 : 0.45, flexShrink:0, fontSize:11, fontWeight:700, fontFamily:'var(--font-ui)' }
+      }, React.createElement(Icon, { name: inspectorOpen ? 'chevR' : 'chevL', size:13 }), 'Editor'),
+      isDesktop && React.createElement('button', {
+        type: 'button',
+        title: bothCollapsed ? 'Panels already hidden' : 'Hide both panels for full-width preview',
+        onClick: enterFullPreview,
+        style:{ height:30, padding:'0 10px', borderRadius:8, border:`1px solid ${bothCollapsed ? C.purple : C.border}`, background:bothCollapsed ? C.purpleDim : C.bg2, color:bothCollapsed ? C.purpleL : C.textSec, display:'flex', alignItems:'center', gap:6, cursor:'pointer', flexShrink:0, fontSize:11, fontWeight:700, fontFamily:'var(--font-ui)' }
+      }, React.createElement(Icon, { name:'eye', size:13 }), 'Full preview'),
       React.createElement('div', { style:{ flex:1, minWidth:0 } },
         React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, pageTitle),
         React.createElement('div', { style:{ fontSize:10, color:C.textMut, fontFamily:'var(--font-mono)' } }, route)
@@ -918,11 +957,19 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   }
 
   function renderSectionList() {
-    return React.createElement('div', { style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface } },
+    return React.createElement('div', { className:'cms-sections-panel', style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface, position:'relative' } },
       React.createElement('div', { style:{ padding:'14px 14px 10px', borderBottom:`1px solid ${C.border}` } },
         React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 } },
           React.createElement('div', { style:{ fontSize:11, fontWeight:800, color:C.textMut, letterSpacing:'.1em', textTransform:'uppercase' } }, 'Sections'),
-          React.createElement(Btn, { size:'sm', variant:'secondary', icon:'plus', onClick:()=>setShowAddSection(true) }, 'Add')
+          React.createElement('div', { style:{ display:'flex', gap:6, alignItems:'center' } },
+            React.createElement(Btn, { size:'sm', variant:'secondary', icon:'plus', onClick:()=>setShowAddSection(true) }, 'Add'),
+            isDesktop && React.createElement('button', {
+              type: 'button',
+              title: 'Hide sections',
+              onClick: () => setSidenavOpen(false),
+              style: { width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.bg, color:C.textSec, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }
+            }, React.createElement(Icon, { name:'chevL', size:13 }))
+          )
         )
       ),
       React.createElement('div', { style:{ overflowY:'auto', padding:10, flex:1 } },
@@ -1110,8 +1157,8 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             React.createElement('label', { style:{ display:'flex', alignItems:'center', gap:6, color:C.textSec, fontSize:12, cursor:'pointer' } }, React.createElement('input', { type:'checkbox', checked:selected.is_visible !== 0, onChange:e=>setFieldAndSave('is_visible', e.target.checked ? 1 : 0) }), 'Visible'),
             React.createElement('button', {
               type: 'button',
-              title: 'Close panel (Esc)',
-              onClick: clearSelection,
+              title: 'Hide editor (Esc)',
+              onClick: collapseInspector,
               style: { width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.bg, color:C.textSec, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }
             }, React.createElement(Icon, { name:'close', size:14 }))
           )
@@ -1175,7 +1222,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           mobileTab === 'preview' && renderPreview()
         )
       : React.createElement('div', {
-          className: 'cms-editor-grid' + (inspectorOpen ? ' has-inspector' : ''),
+          className: 'cms-editor-grid' + (inspectorOpen ? ' has-inspector' : '') + (sidenavOpen ? ' has-sections' : ' sections-collapsed'),
           style: {
             flex: 1,
             minHeight: 0,
@@ -1183,13 +1230,30 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             gridTemplateColumns: isDesktop
               ? (sidenavOpen
                   ? (inspectorOpen ? '240px minmax(0,1fr) 320px' : '240px minmax(0,1fr)')
-                  : (inspectorOpen ? '0px minmax(0,1fr) 320px' : '0px minmax(0,1fr)'))
+                  : (inspectorOpen ? 'minmax(0,1fr) 320px' : 'minmax(0,1fr)'))
               : '220px minmax(0,1fr)',
             transition: 'grid-template-columns 0.2s ease'
           }
         },
-          React.createElement('div', { style:{ borderRight: sidenavOpen ? `1px solid ${C.border}` : 'none', minHeight:0, overflow:'hidden', transition:'border 0.2s' } }, sidenavOpen && renderSectionList()),
-          isDesktop ? React.createElement('div', { style:{ minHeight:0, overflow:'hidden' } }, renderPreview()) : React.createElement('div', { style:{ minHeight:0, overflow:'hidden' } }, renderInspector(true)),
+          sidenavOpen && React.createElement('div', { className:'cms-sections-col', style:{ borderRight:`1px solid ${C.border}`, minHeight:0, overflow:'hidden' } }, renderSectionList()),
+          isDesktop ? React.createElement('div', { className:'cms-canvas-col', style:{ minHeight:0, overflow:'hidden', position:'relative' } },
+            renderPreview(),
+            // Floating reopen chips when panels are collapsed
+            !sidenavOpen && React.createElement('button', {
+              type: 'button',
+              className: 'cms-panel-reopen cms-panel-reopen-left',
+              title: 'Show sections',
+              onClick: () => setSidenavOpen(true),
+              style: { position:'absolute', left:8, top:8, zIndex:5, height:32, padding:'0 10px', borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, color:C.textSec, display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:11, fontWeight:700, boxShadow:'0 4px 14px rgba(0,0,0,.08)', fontFamily:'var(--font-ui)' }
+            }, React.createElement(Icon, { name:'chevR', size:12 }), 'Sections'),
+            selectedKey && inspectorCollapsed && React.createElement('button', {
+              type: 'button',
+              className: 'cms-panel-reopen cms-panel-reopen-right',
+              title: 'Show editor',
+              onClick: expandInspector,
+              style: { position:'absolute', right:8, top:8, zIndex:5, height:32, padding:'0 10px', borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, color:C.textSec, display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:11, fontWeight:700, boxShadow:'0 4px 14px rgba(0,0,0,.08)', fontFamily:'var(--font-ui)' }
+            }, 'Editor', React.createElement(Icon, { name:'chevL', size:12 }))
+          ) : React.createElement('div', { style:{ minHeight:0, overflow:'hidden' } }, renderInspector(true)),
           isDesktop && inspectorOpen && React.createElement('div', { className:'cms-inspector-col', style:{ borderLeft:`1px solid ${C.border}`, minHeight:0, overflow:'hidden' } }, renderInspector(false))
         ),
     showFontPicker && React.createElement('div', { style:{ position:'fixed', top:60, right:16, zIndex:240, width:260, background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:10, boxShadow:'0 20px 50px rgba(0,0,0,.2)' } }, FONT_PRESETS_CMS.map(p => React.createElement('button', { key:p.key, onClick:()=>saveFont(p.key), style:{ width:'100%', padding:10, marginBottom:6, borderRadius:10, border:`1px solid ${activeFont === p.key ? C.purple : C.border}`, background:activeFont === p.key ? C.purpleDim : C.bg, color:C.text, textAlign:'left', cursor:'pointer' } }, React.createElement('div', { style:{ fontWeight:900 } }, p.label), React.createElement('div', { style:{ color:C.textMut, fontSize:11 } }, p.sub)))) ,
