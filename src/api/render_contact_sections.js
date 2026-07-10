@@ -39,7 +39,7 @@ export function renderContactHero(section) {
     pick(section, ["subheading"]) ||
     pick(section, ["body"]) ||
     pick(c, ["subheading"]) ||
-    "Whether you want to foster, adopt, volunteer, or just cheer us on — our inbox is always open. We're a small but mighty volunteer crew, so give us a day or two to get back to you.";
+    "Whether you want to foster, adopt, volunteer, or cheer us on — reach out. We're a small volunteer crew and we'll get back to you.";
   const image = pick(section, ["image_url"]) || pick(c, ["image_url"]) || DEFAULT_TEAM_PHOTO;
   const alt = pick(c, ["image_alt"]) || "The Companions of CPAS volunteer team";
   const fb = pick(c, ["facebook_url"]) || "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
@@ -72,38 +72,23 @@ export function renderContactSocials(section) {
   const c = cfg(section);
   const key = esc(pick(section, ["section_key"]) || "contact_socials");
   const email = pick(c, ["email"]) || "companionsCPAS@gmail.com";
-  const emailNote = pick(c, ["email_note"]) || "We're volunteers — we'll get back to you within 1–2 days.";
-  const locationTitle = pick(c, ["location_title"]) || "Where We Operate";
   const locationBody = pick(c, ["location_body"]) || "Caddo Parish Animal Services<br>Shreveport, Louisiana";
-  const locationNote = pick(c, ["location_note"]) || "We are not a physical shelter. Dogs are pulled from CPAS and placed in foster homes throughout the region.";
-  const orgTitle = pick(c, ["org_title"]) || "Organization";
   const orgBody = pick(c, ["org_body"]) || "Companions of CPAS<br>501(c)(3) Tax-Exempt Nonprofit<br>EIN: 88-4156327";
-  const helpTitle = pick(c, ["help_title"]) || "Want to Help Right Now?";
-  const helpBody = pick(c, ["help_body"]) || "The fastest way to make an impact is to share our animals on social media, donate, or open your home as a foster.";
-  const helpCta = pick(c, ["help_cta_label"]) || "Donate Now";
-  const helpHref = pick(c, ["help_cta_href"]) || "/donate";
 
   return `<section class="contact-info-section section" data-section-key="${key}" data-cpas-section="contact-socials">
   <div class="container">
     <div class="contact-info" style="display:grid;gap:1.5rem;max-width:36rem">
       <div class="contact-info-card">
-        <h3>Email Us</h3>
+        <h3>Email</h3>
         <a href="mailto:${esc(email)}">${esc(email)}</a>
-        <p style="margin-top:8px;font-size:13px;">${esc(emailNote)}</p>
       </div>
       <div class="contact-info-card">
-        <h3>${esc(locationTitle)}</h3>
+        <h3>Where we operate</h3>
         <p>${locationBody}</p>
-        <p style="margin-top:8px;font-size:13px;color:var(--text-3);">${esc(locationNote)}</p>
       </div>
       <div class="contact-info-card">
-        <h3>${esc(orgTitle)}</h3>
+        <h3>Organization</h3>
         <p>${orgBody}</p>
-      </div>
-      <div class="contact-info-card">
-        <h3>${esc(helpTitle)}</h3>
-        <p style="margin-bottom:14px;font-size:14px;">${esc(helpBody)}</p>
-        <a href="${esc(helpHref)}" class="btn btn-primary contact-help-cta">${esc(helpCta)}</a>
       </div>
     </div>
   </div>
@@ -113,8 +98,8 @@ export function renderContactSocials(section) {
 export function renderContactForm(section) {
   const c = cfg(section);
   const key = esc(pick(section, ["section_key"]) || "contact_form");
-  const heading = pick(section, ["heading"]) || pick(c, ["heading"]) || "Send us a message";
-  const sub = pick(section, ["subheading"]) || pick(c, ["subheading"]) || "Interested in fostering, adopting, volunteering, or partnering with us? Tell us a bit about yourself.";
+  const heading = pick(section, ["heading"]) || pick(c, ["heading"]) || "Send a message";
+  const sub = pick(section, ["subheading"]) || pick(c, ["subheading"]) || "Tell us what brings you here and we'll follow up by email.";
 
   return `<section class="contact-body" data-section-key="${key}" data-cpas-section="contact-form">
   <div class="container">
@@ -124,16 +109,16 @@ export function renderContactForm(section) {
       <form class="cf-form" id="contactForm">
         <div class="cf-row">
           <div class="cf-field">
-            <label for="cf_name">Your Name</label>
+            <label for="cf_name">Name</label>
             <input type="text" id="cf_name" name="name" placeholder="Jane Smith" required>
           </div>
           <div class="cf-field">
-            <label for="cf_email">Email Address</label>
+            <label for="cf_email">Email</label>
             <input type="email" id="cf_email" name="email" placeholder="jane@example.com" required>
           </div>
         </div>
         <div class="cf-field">
-          <label for="cf_subject">I'm interested in…</label>
+          <label for="cf_subject">I'm interested in</label>
           <select id="cf_subject" name="subject" required>
             <option value="" disabled selected>Choose a topic</option>
             <option value="fostering">Fostering a dog</option>
@@ -146,14 +131,14 @@ export function renderContactForm(section) {
         </div>
         <div class="cf-field">
           <label for="cf_message">Message</label>
-          <textarea id="cf_message" name="message" placeholder="Tell us a little about yourself and what brings you here…" required></textarea>
+          <textarea id="cf_message" name="message" placeholder="Tell us a bit about yourself and what brings you here…" required></textarea>
         </div>
-        <button type="submit" class="btn btn-primary cf-submit" id="cfSubmit">Send Message</button>
+        <button type="submit" class="btn btn-primary cf-submit" id="cfSubmit">Send message</button>
       </form>
       <div class="cf-success" id="cfSuccess">
         <div class="cf-success-icon">🐾</div>
-        <div class="cf-success-title">Message sent!</div>
-        <div class="cf-success-msg">Thank you for reaching out. One of our volunteers will get back to you within 1–2 days. In the meantime, follow us on social media for daily dog updates!</div>
+        <div class="cf-success-title">Message sent.</div>
+        <div class="cf-success-msg">A volunteer will follow up by email. Follow us on Facebook and Instagram for daily updates from the shelter.</div>
       </div>
     </div>
   </div>
@@ -168,7 +153,7 @@ export function renderContactTeam(section, blocks = []) {
   const sub = pick(section, ["subheading"]) || pick(section, ["body"]) || pick(c, ["subheading"]) || "100% volunteer-powered. Every dollar goes directly to the dogs — not overhead.";
   const image = pick(section, ["image_url"]) || pick(c, ["image_url"]) || DEFAULT_TEAM_PHOTO;
   const alt = pick(c, ["image_alt"]) || "Companions of CPAS volunteers";
-  const note = pick(c, ["note"]) || "Companions of CPAS is an all-volunteer organization. No paid staff — every gift funds animals, not administration.";
+  const note = pick(c, ["note"]) || "All-volunteer. Every gift funds animals, not administration.";
 
   let members = Array.isArray(c.members) ? c.members : null;
   if (!members?.length && blocks?.length) {
@@ -216,7 +201,7 @@ export const CONTACT_FORM_SCRIPT = `<script>
   form.addEventListener('submit', function(e) {
     e.preventDefault();
     btn.disabled = true;
-    btn.textContent = 'Sending\\u2026';
+    btn.textContent = 'Sending\u2026';
     var data = {
       name: form.querySelector('[name=name]').value,
       email: form.querySelector('[name=email]').value,
@@ -237,8 +222,8 @@ export const CONTACT_FORM_SCRIPT = `<script>
     })
     .catch(function() {
       btn.disabled = false;
-      btn.textContent = 'Send Message';
-      alert('Something went wrong. Please email us directly at companionsCPAS@gmail.com');
+      btn.textContent = 'Send message';
+      alert('Something went wrong. Email us directly at companionsCPAS@gmail.com');
     });
   });
 })();
