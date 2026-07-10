@@ -100,44 +100,42 @@ export function renderContactMainContent() {
     <div class="team-header">
       <p class="eyebrow">The People Behind the Paws</p>
       <h2>Meet Our Team</h2>
-      <p>We're 100% volunteer-powered. Every dollar donated goes directly to the dogs — not overhead.</p>
+      <p>100% volunteer-powered. Every dollar goes directly to the dogs — not overhead.</p>
     </div>
-    <div class="team-grid">
-      <div class="team-card">
-        <div class="team-avatar">L</div>
-        <div class="team-name">Lori Musland Sipper</div>
-        <div class="team-role">Founder &amp; Director</div>
-        <span class="team-badge">Owner</span>
+    <div class="team-layout">
+      <div class="team-photo-col">
+        <img
+          src="https://assets.companionsofcaddo.org/static/pages/about/theteam.webp"
+          alt="Companions of CPAS volunteers"
+          class="team-group-photo"
+          loading="lazy"
+          decoding="async"
+        />
       </div>
-      <div class="team-card">
-        <div class="team-avatar">M</div>
-        <div class="team-name">Michelle Miller</div>
-        <div class="team-role">Board Member</div>
-        <span class="team-badge">Admin</span>
-      </div>
-      <div class="team-card">
-        <div class="team-avatar">K</div>
-        <div class="team-name">Krystal Leboeuf</div>
-        <div class="team-role">Board Member</div>
-        <span class="team-badge">Admin</span>
-      </div>
-      <div class="team-card">
-        <div class="team-avatar">S</div>
-        <div class="team-name">SuzAnne Zort</div>
-        <div class="team-role">Board Member</div>
-        <span class="team-badge">Admin</span>
-      </div>
-      <div class="team-card">
-        <div class="team-avatar">A</div>
-        <div class="team-name">Amanda Norris</div>
-        <div class="team-role">Rescue &amp; Foster Coordinator</div>
-        <span class="team-badge">Volunteer</span>
-      </div>
-      <div class="team-card">
-        <div class="team-avatar">K</div>
-        <div class="team-name">Kim Freeman</div>
-        <div class="team-role">Adoption Coordinator</div>
-        <span class="team-badge">Volunteer</span>
+      <div class="team-members-col">
+        <div class="team-member-list">
+          <div class="team-member">
+            <span class="team-member-name">Michelle Miller</span>
+            <span class="team-member-role">President</span>
+          </div>
+          <div class="team-member">
+            <span class="team-member-name">Suzanne Zortman</span>
+            <span class="team-member-role">Treasurer</span>
+          </div>
+          <div class="team-member">
+            <span class="team-member-name">Brittany Ramsey</span>
+            <span class="team-member-role">Secretary</span>
+          </div>
+          <div class="team-member">
+            <span class="team-member-name">Lori Sipper</span>
+            <span class="team-member-role">Officer</span>
+          </div>
+          <div class="team-member">
+            <span class="team-member-name">Krystal Leboeuf</span>
+            <span class="team-member-role">Officer</span>
+          </div>
+        </div>
+        <p class="team-note">Companions of CPAS is an all-volunteer organization. No paid staff — every gift funds animals, not administration.</p>
       </div>
     </div>
   </div>
