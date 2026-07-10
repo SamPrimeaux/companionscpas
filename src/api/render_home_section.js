@@ -231,6 +231,15 @@ function renderTransportWinFragment(section) {
   const alt = pick(cfg, ["image_alt"]) || "2026 Freedom Fest: Red, White & Rescued";
   const ctaLabel = pick(section, ["cta_label"]) || "Sponsor a Transport Seat";
   const ctaAction = pick(cfg, ["cta_action"]) || "donate";
+  const ctaHref = safeUrl(pick(cfg, ["cta_href"]), "");
+  const isExternalLink = ctaHref && ctaHref.startsWith("http");
+  const ctaEl = isExternalLink
+    ? `<a class="story-cta" href="${escAttr(ctaHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>`
+    : `<a class="story-cta" href="#" data-action="${escAttr(ctaAction)}">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>`;
+  const socialSecondary = cfg.social_secondary;
+  const socialHtml = socialSecondary?.href
+    ? `<a class="story-cta story-cta--ghost" href="${escAttr(socialSecondary.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(socialSecondary.label || "See more")}</a>`
+    : "";
 
   return `<section class="section s-light" data-cpas-section="transport-win">
   <div class="container">
@@ -242,10 +251,7 @@ function renderTransportWinFragment(section) {
         <div class="ey-purple">${escapeHtml(eyebrow)}</div>
         <h2 class="story-heading">${escapeHtml(heading)}</h2>
         <p class="story-body">${escapeHtml(body)}</p>
-        <a class="story-cta" href="#" data-action="${escAttr(ctaAction)}">
-          ${escapeHtml(ctaLabel)}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </a>
+        <div class="story-cta-row">${ctaEl}${socialHtml}</div>
       </div>
     </div>
   </div>
