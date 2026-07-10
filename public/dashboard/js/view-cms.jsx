@@ -665,18 +665,31 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     } catch (_) {}
   }, [route, onNavigate]);
 
+  const [sidenavOpen, setSidenavOpen] = React.useState(true);
+  const [hasUnsaved, setHasUnsaved] = React.useState(false);
+
+  // Track unsaved state when fields change
+  const setFieldTracked = (key, val) => { setField(key, val); setHasUnsaved(true); };
+
   function renderTopbar() {
-    return React.createElement('div', { style:{ height:52, background:C.surface, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 14px', gap:10, flexShrink:0 } },
-      React.createElement('button', { onClick:()=>onNavigate('cms-pages'), style:{ background:'none', border:'none', color:C.textSec, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--font-ui)' } }, React.createElement(Icon, { name:'chevL', size:14 }), 'Pages'),
+    return React.createElement('div', { style:{ height:52, background:C.surface, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 14px', gap:10, flexShrink:0, zIndex:10 } },
+      React.createElement('button', { onClick:()=>onNavigate('cms-pages'), style:{ background:'none', border:'none', color:C.textSec, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--font-ui)', flexShrink:0 } }, React.createElement(Icon, { name:'chevL', size:14 }), 'Pages'),
       React.createElement('div', { style:{ width:1, height:20, background:C.border } }),
+      isDesktop && React.createElement('button', {
+        title: sidenavOpen ? 'Collapse sections panel' : 'Expand sections panel',
+        onClick: () => setSidenavOpen(v => !v),
+        style:{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`, background:sidenavOpen ? C.purpleDim : C.bg2, color:sidenavOpen ? C.purpleL : C.textMut, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }
+      }, React.createElement(Icon, { name: sidenavOpen ? 'chevL' : 'chevR', size:13 })),
       React.createElement('div', { style:{ flex:1, minWidth:0 } },
         React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, pageTitle),
         React.createElement('div', { style:{ fontSize:10, color:C.textMut, fontFamily:'var(--font-mono)' } }, route)
       ),
-      notice.text && !isMobile && React.createElement('div', { style:{ fontSize:11, color:notice.type === 'error' ? C.red : C.green, fontWeight:700 } }, notice.text),
-      isDesktop && ['desktop','tablet','mobile'].map(m => React.createElement('button', { key:m, onClick:()=>setPreviewMode(m), style:{ padding:'5px 10px', borderRadius:7, border:`1px solid ${previewMode === m ? C.purple : C.border}`, background:previewMode === m ? C.purpleDim : 'transparent', color:previewMode === m ? C.purpleL : C.textSec, fontSize:11, cursor:'pointer', textTransform:'capitalize' } }, m)),
+      hasUnsaved && React.createElement('div', { style:{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:99, background:'#fef3c7', color:'#92400e', border:'1px solid #fcd34d', whiteSpace:'nowrap', flexShrink:0 } }, 'Unsaved draft'),
+      notice.text && !isMobile && React.createElement('div', { style:{ fontSize:11, color:notice.type === 'error' ? C.red : C.green, fontWeight:700, flexShrink:0 } }, notice.text),
+      isDesktop && ['desktop','tablet','mobile'].map(m => React.createElement('button', { key:m, onClick:()=>setPreviewMode(m), style:{ padding:'5px 10px', borderRadius:7, border:`1px solid ${previewMode === m ? C.purple : C.border}`, background:previewMode === m ? C.purpleDim : 'transparent', color:previewMode === m ? C.purpleL : C.textSec, fontSize:11, cursor:'pointer', textTransform:'capitalize', flexShrink:0 } }, m)),
       !isDesktop && React.createElement(Btn, { size:'sm', variant:'secondary', icon:'eye', onClick:()=>window.open(liveUrl, '_blank') }, 'Preview'),
-      React.createElement(Btn, { size:'sm', icon:'publish', disabled:busy, onClick:publishPage }, isMobile ? 'Publish' : 'Publish Live')
+      hasUnsaved && React.createElement(Btn, { size:'sm', variant:'secondary', disabled:busy, onClick:()=>{ saveSelected(false).then(()=>setHasUnsaved(false)); } }, busy ? 'Saving…' : 'Save Draft'),
+      React.createElement(Btn, { size:'sm', icon:'publish', disabled:busy, onClick:()=>{ publishPage().then(()=>setHasUnsaved(false)); } }, isMobile ? 'Publish' : 'Publish Live')
     );
   }
 
