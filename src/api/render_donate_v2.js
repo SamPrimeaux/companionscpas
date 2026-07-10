@@ -290,18 +290,19 @@ function shareInlineRow(opts = {}) {
   </div>`;
 }
 
+const PAYPAL_LOGO = "https://assets.companionsofcaddo.org/static/assets/PayPal.svg.webp";
+const VENMO_LOGO  = "https://assets.companionsofcaddo.org/static/assets/venmo-official-logo.svg";
+
 function alternatePaymentRow(opts = {}) {
   const paypalUrl = escAttr(opts.paypalUrl || PAYPAL_DONATE_URL);
-  const venmoUrl = escAttr(opts.venmoUrl || VENMO_DONATE_URL);
+  const venmoUrl  = escAttr(opts.venmoUrl  || VENMO_DONATE_URL);
   return `<div class="dv2-alt-pay-row">
-    <span class="dv2-alt-pay-label">Also accept donations via:</span>
+    <span class="dv2-alt-pay-label">You can also donate through:</span>
     <a class="dv2-alt-pay-btn dv2-alt-pay-btn--paypal" href="${paypalUrl}" target="_blank" rel="noopener noreferrer" aria-label="Donate via PayPal">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.5 7.5c0 3.86-3.14 7-7 7H9.75l-1.5 6H5.5L8 4.5h7c2.485 0 4.5 1.343 4.5 3z"/><path d="M22 5c0 2.485-2.015 4.5-4.5 4.5H14l-1.5 6H9.75L12.25 4h5.25C19.985 4 22 4.343 22 5z" opacity=".5"/></svg>
-      PayPal
+      <img src="${escAttr(PAYPAL_LOGO)}" alt="PayPal" class="dv2-alt-pay-logo" loading="lazy" />
     </a>
     <a class="dv2-alt-pay-btn dv2-alt-pay-btn--venmo" href="${venmoUrl}" target="_blank" rel="noopener noreferrer" aria-label="Donate via Venmo">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.526 2.635c.399.8.575 1.63.575 2.7 0 3.375-2.875 7.75-5.2 10.825H9.8L7.65 3.26l4.65-.45 1.075 8.65c1-1.675 2.225-4.325 2.225-6.125 0-1-.175-1.675-.45-2.25l4.376-.45z"/></svg>
-      Venmo
+      <img src="${escAttr(VENMO_LOGO)}" alt="Venmo" class="dv2-alt-pay-logo" loading="lazy" />
     </a>
   </div>`;
 }
