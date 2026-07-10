@@ -405,7 +405,7 @@ async function renderCampaignsFragment(section, blocks, env) {
   // Two-card layout — always takes priority over live campaign data
   if (cfg.layout === "two_cards" && Array.isArray(cfg.cards) && cfg.cards.length) {
     const heading = pick(section, ["heading"]) || "";
-    const WISHLIST_LOGO = `<img src="https://assets.companionsofcaddo.org/static/assets/amz-wishlist-bttn.webp" alt="Amazon Wishlist" style="height:22px;width:auto;display:block">`;
+    const WISHLIST_LOGO = `<img src="https://assets.companionsofcaddo.org/static/assets/amz-wishlist-bttn.webp" alt="Amazon Wishlist" style="height:32px;width:auto;display:block">`;
     const cardHtml = cfg.cards.map((card) => {
       const href = escAttr(card.cta_href || "#");
       const external = card.cta_external ? ' target="_blank" rel="noopener noreferrer"' : "";
@@ -413,7 +413,10 @@ async function renderCampaignsFragment(section, blocks, env) {
       const btn = isWishlist
         ? `<a class="home-img-btn home-img-btn--wishlist" href="${href}"${external} aria-label="Shop Amazon Wishlist">${WISHLIST_LOGO}</a>`
         : `<a class="home-img-btn home-img-btn--donate" href="${href}"${external}>${escapeHtml(card.cta_label || "Donate Now")}</a>`;
+      const eyebrow = card.eyebrow ? `<p class="ey-purple" style="margin:0 0 .5rem;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">${escapeHtml(card.eyebrow)}</p>` : "";
+      const title = card.title ? `<p style="margin:0 0 .75rem;font-size:1rem;font-weight:600;color:var(--text-1)">${escapeHtml(card.title)}</p>` : "";
       return `<div class="home-img-card">
+        ${eyebrow}${title}
         <a href="${href}"${external} class="home-img-card-img" aria-label="${escAttr(card.title)}">
           <img src="${escAttr(card.image)}" alt="${escAttr(card.title)}" loading="lazy" decoding="async" />
         </a>
