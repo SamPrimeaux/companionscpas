@@ -280,12 +280,10 @@ function renderTransportWinFragment(section) {
   const headingStyle = fieldStyleAttrs(cfg, "heading");
   const textStyle = fieldStyleAttrs(cfg, "text");
   const imageStyle = fieldStyleAttrs(cfg, "image");
-  const fbHref = isExternalLink ? ctaHref : (safeUrl(pick(cfg, ["facebook_url"]), "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/"));
-  const ctaEl = `<a class="dv2-social-pill dv2-social-pill--fb" href="${escAttr(fbHref)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(ctaLabel)}" data-cms-field="cta_label">${COMPONENT_ICONS.facebook}<span>${escapeHtml(ctaLabel)}</span></a>`;
-  const socialSecondary = cfg.social_secondary;
-  const igHref = socialSecondary?.href || safeUrl(pick(cfg, ["instagram_url"]), "https://www.instagram.com/companionscpas");
-  const igLabel = socialSecondary?.label || "See updates on Instagram";
-  const socialHtml = `<a class="dv2-social-pill dv2-social-pill--ig" href="${escAttr(igHref)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(igLabel)}" data-cms-field="cta_secondary_label">${COMPONENT_ICONS.instagram}<span>${escapeHtml(igLabel)}</span></a>`;
+  const fbHref = "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
+  const igHref = "https://www.instagram.com/companionscpas";
+  const ctaEl = `<a class="dv2-social-pill dv2-social-pill--fb" href="${escAttr(fbHref)}" target="_blank" rel="noopener noreferrer" aria-label="Follow the journey on Facebook">${COMPONENT_ICONS.facebook}<span>Follow the journey</span></a>`;
+  const socialHtml = `<a class="dv2-social-pill dv2-social-pill--ig" href="${escAttr(igHref)}" target="_blank" rel="noopener noreferrer" aria-label="See updates on Instagram">${COMPONENT_ICONS.instagram}<span>See updates on Instagram</span></a>`;
 
   return `<section class="section s-light" ${sectionAttrs("transport_win", "transport-win")}>
   <div class="container">
