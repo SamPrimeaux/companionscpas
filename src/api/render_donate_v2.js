@@ -375,7 +375,7 @@ async function renderMedicalStory(section, blocks, brand, env) {
       ${progressBar(raised, goal)}
       <p class="dv2-card-label">What donations support:</p>
       <ul class="dv2-list">${supportList}</ul>
-      ${donateBtn(sidebarCta, { red: true, campaignId })}
+      ${donateBtn(sidebarCta, { glass: true, campaignId })}
     </aside>
   </div>
 </section>`;
