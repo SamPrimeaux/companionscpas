@@ -22,6 +22,7 @@
         <li><a href="/about">About</a></li>
         <li><a href="/adopt">Adopt</a></li>
         <li><a href="/contact">Contact</a></li>
+        <li><a href="/admin/dashboard">Admin Dashboard</a></li>
       </ul>
     </nav>
     <div class="header-actions">
@@ -38,6 +39,7 @@
   <a href="/about">About</a>
   <a href="/adopt">Adopt</a>
   <a href="/contact">Contact</a>
+  <a href="/admin/dashboard">Admin Dashboard</a>
   <a href="/donate" class="mobile-donate">Donate</a>
 </div>
 <main>
@@ -63,23 +65,16 @@
   <div class="container">
     <div class="contact-info" style="display:grid;gap:1.5rem;max-width:36rem">
       <div class="contact-info-card">
-        <h3>Email Us</h3>
+        <h3>Email</h3>
         <a href="mailto:companionsCPAS@gmail.com">companionsCPAS@gmail.com</a>
-        <p style="margin-top:8px;font-size:13px;">We're volunteers — we'll get back to you within 1–2 days.</p>
       </div>
       <div class="contact-info-card">
-        <h3>Where We Operate</h3>
+        <h3>Where we operate</h3>
         <p>Caddo Parish Animal Services<br>Shreveport, Louisiana</p>
-        <p style="margin-top:8px;font-size:13px;color:var(--text-3);">We are not a physical shelter. Dogs are pulled from CPAS and placed in foster homes throughout the region.</p>
       </div>
       <div class="contact-info-card">
         <h3>Organization</h3>
         <p>Companions of CPAS<br>501(c)(3) Tax-Exempt Nonprofit<br>EIN: 88-4156327</p>
-      </div>
-      <div class="contact-info-card">
-        <h3>Want to Help Right Now?</h3>
-        <p style="margin-bottom:14px;font-size:14px;">The fastest way to make an impact is to share our animals on social media, donate, or open your home as a foster.</p>
-        <a href="/donate" class="btn btn-primary contact-help-cta">Donate Now</a>
       </div>
     </div>
   </div>
@@ -92,16 +87,16 @@
       <form class="cf-form" id="contactForm">
         <div class="cf-row">
           <div class="cf-field">
-            <label for="cf_name">Your Name</label>
+            <label for="cf_name">Name</label>
             <input type="text" id="cf_name" name="name" placeholder="Jane Smith" required>
           </div>
           <div class="cf-field">
-            <label for="cf_email">Email Address</label>
+            <label for="cf_email">Email</label>
             <input type="email" id="cf_email" name="email" placeholder="jane@example.com" required>
           </div>
         </div>
         <div class="cf-field">
-          <label for="cf_subject">I'm interested in…</label>
+          <label for="cf_subject">I'm interested in</label>
           <select id="cf_subject" name="subject" required>
             <option value="" disabled selected>Choose a topic</option>
             <option value="fostering">Fostering a dog</option>
@@ -114,14 +109,14 @@
         </div>
         <div class="cf-field">
           <label for="cf_message">Message</label>
-          <textarea id="cf_message" name="message" placeholder="Tell us a little about yourself and what brings you here…" required></textarea>
+          <textarea id="cf_message" name="message" placeholder="Tell us a bit about yourself and what brings you here…" required></textarea>
         </div>
-        <button type="submit" class="btn btn-primary cf-submit" id="cfSubmit">Send Message</button>
+        <button type="submit" class="btn btn-primary cf-submit" id="cfSubmit">Send message</button>
       </form>
       <div class="cf-success" id="cfSuccess">
         <div class="cf-success-icon">🐾</div>
-        <div class="cf-success-title">Message sent!</div>
-        <div class="cf-success-msg">Thank you for reaching out. One of our volunteers will get back to you within 1–2 days. In the meantime, follow us on social media for daily dog updates!</div>
+        <div class="cf-success-title">Message sent.</div>
+        <div class="cf-success-msg">A volunteer will follow up by email. Follow us on Facebook and Instagram for daily updates from the shelter.</div>
       </div>
     </div>
   </div>
@@ -180,6 +175,7 @@
           <li><a href="/about">About</a></li>
           <li><a href="/adopt">Adopt</a></li>
           <li><a href="/contact">Contact</a></li>
+          <li><a href="/admin/dashboard">Admin Dashboard</a></li>
           <li><a href="/donate">Donate</a></li>
         </ul>
       </div>
@@ -226,7 +222,7 @@
   form.addEventListener('submit', function(e) {
     e.preventDefault();
     btn.disabled = true;
-    btn.textContent = 'Sending\u2026';
+    btn.textContent = 'Sending…';
     var data = {
       name: form.querySelector('[name=name]').value,
       email: form.querySelector('[name=email]').value,
@@ -247,8 +243,8 @@
     })
     .catch(function() {
       btn.disabled = false;
-      btn.textContent = 'Send Message';
-      alert('Something went wrong. Please email us directly at companionsCPAS@gmail.com');
+      btn.textContent = 'Send message';
+      alert('Something went wrong. Email us directly at companionsCPAS@gmail.com');
     });
   });
 })();
