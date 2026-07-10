@@ -428,8 +428,11 @@ async function renderMedicalStory(section, blocks, brand, env) {
       <div class="dv2-media-slot dv2-media-video">
         ${renderFacebookVideoEmbed(fbReelUrl)}
       </div>
-      <div class="dv2-btn-row">
-        ${donateBtn(primaryCta, { campaignId })}
+      <div class="dv2-cta-stack">
+        <div class="dv2-btn-row">
+          ${donateBtn(primaryCta, { campaignId })}
+        </div>
+        ${alternatePaymentRow({})}
         ${shareInlineRow({ url: shareUrl, title: cardTitle + " — Companions of Caddo", text: campaign?.short_description || "" })}
       </div>
     </div>
