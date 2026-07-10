@@ -163,31 +163,18 @@ async function publishPageRoute(env, route, triggeredBy) {
   `).bind(triggeredBy, TENANT_ID, normalizedRoute).run();
 
   try {
-    if (normalizedRoute === "/" || isFragmentPageRoute(normalizedRoute)) {
-      const published = await publishFragmentPageFromCms(env, normalizedRoute, jobId || `pub_${Date.now()}`);
-      await updatePublishJob(env, jobId, "done", {
-        artifactPath: published.artifact_key,
-        resultJson: { success: true, route_path: normalizedRoute, artifact_key: published.artifact_key, source: "fragment_cms_sync" },
-      });
-      return {
-        success: true,
-        route_path: normalizedRoute,
-        job_id: jobId,
-        artifact_key: published.artifact_key,
-        source: "fragment_cms_sync",
-      };
-    }
-
-    await renderPage(normalizedRoute, jobId || `pub_${Date.now()}`, env);
+    // One pipeline for every cms_pages route (home, donate, contact, …)
+    const published = await publishFragmentPageFromCms(env, normalizedRoute, jobId || `pub_${Date.now()}`);
     await updatePublishJob(env, jobId, "done", {
-      artifactPath: artifactKey,
-      resultJson: { success: true, route_path: normalizedRoute, artifact_key: artifactKey },
+      artifactPath: published.artifact_key,
+      resultJson: { success: true, route_path: normalizedRoute, artifact_key: published.artifact_key, source: "cms_pipeline" },
     });
     return {
       success: true,
       route_path: normalizedRoute,
       job_id: jobId,
-      artifact_key: artifactKey,
+      artifact_key: published.artifact_key,
+      source: "cms_pipeline",
     };
   } catch (err) {
     const message = err?.message || String(err);
@@ -529,10 +516,6 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     const route = normalizeFragmentRoute(data.route_path || "/");
     const force = data.force === true;
 
-    if (!isFragmentPageRoute(route)) {
-      return json({ success: false, error: "Route is not a fragment-managed page", route_path: route }, 400);
-    }
-
     await upsertFragmentPageDefaults(env, route, force);
     const fragmentSync = await syncFragmentCmsToR2(env, route);
     return json({ success: true, route_path: route, force, fragment_sync: fragmentSync });
@@ -556,10 +539,15 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     if (!route) return json({ success: false, error: "route required" }, 400);
 
     try {
-      if (isFragmentPageRoute(route)) {
-        const raw = await previewFragmentPageFromCms(env, route);
-        if (!raw) return json({ success: false, error: "Preview assembly failed", route }, 500);
-        const html = injectCmsInspector(raw);
+      const raw = await previewFragmentPageFromCms(env, route);
+      if (!raw) {
+        // Fallback for pages without sections yet
+        const fallback = await renderPage(route, `preview_${Date.now()}`, env, {
+          persist: false,
+          includeHidden: true,
+        }).catch(() => null);
+        if (!fallback) return json({ success: false, error: "Preview assembly failed", route }, 500);
+        const html = injectCmsInspector(fallback);
         return new Response(html, {
           status: 200,
           headers: {
@@ -568,11 +556,6 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
           },
         });
       }
-
-      const raw = await renderPage(route, `preview_${Date.now()}`, env, {
-        persist: false,
-        includeHidden: true,
-      });
       const html = injectCmsInspector(raw);
       return new Response(html, {
         status: 200,

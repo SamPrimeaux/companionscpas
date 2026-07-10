@@ -16,10 +16,7 @@ import { paymentsEmailRoutes } from './api/payments_email.js';
 import { socialRoutes } from './api/social.js';
 import { driveRoutes } from './api/drive_api.js';
 import { renderPage, getBrand } from "./api/render_page.js";
-import { assembleHomeFromFragments } from "./api/render_home_fragments.js";
-import { assembleAboutFromFragments } from "./api/render_about_fragments.js";
-import { assembleGenericPageFromFragments } from "./api/render_generic_fragments.js";
-import { isFragmentPageRoute } from "./api/page_cms_registry.js";
+import { assemblePage, isCmsPageRoute, publishRoute } from "./api/cms_pipeline.js";
 import { emailApiRoutes } from './api/email_api.js';
 import { gmailRoutes } from './api/gmail_api.js';
 
@@ -74,40 +71,18 @@ async function servePublicPage(route, env) {
     console.warn("[public-page] KV get failed:", normalizedRoute, err?.message || err);
   }
 
-  if (isFragmentPageRoute(normalizedRoute)) {
-    try {
-      let fragmentHtml = null;
-      if (normalizedRoute === "/") {
-        fragmentHtml = await assembleHomeFromFragments(env);
-      } else if (normalizedRoute === "/about") {
-        fragmentHtml = await assembleAboutFromFragments(env);
-      } else {
-        fragmentHtml = await assembleGenericPageFromFragments(env, normalizedRoute);
-      }
-      if (fragmentHtml) {
+  try {
+    if (await isCmsPageRoute(env, normalizedRoute)) {
+      const pageHtml = await assemblePage(env, normalizedRoute);
+      if (pageHtml) {
         if (env.CMS_CACHE) {
-          await env.CMS_CACHE.put(cacheKey, fragmentHtml, { expirationTtl: 3600 }).catch(() => {});
+          await env.CMS_CACHE.put(cacheKey, pageHtml, { expirationTtl: 3600 }).catch(() => {});
         }
-        return new Response(fragmentHtml, { headers });
+        return new Response(pageHtml, { headers });
       }
-    } catch (err) {
-      console.warn("[public-page] fragment assembly failed:", normalizedRoute, err?.message || err);
     }
-  }
-
-  if (normalizedRoute === "/contact") {
-    try {
-      const { assembleContactPage } = await import("./api/render_contact_page.js");
-      const contactHtml = await assembleContactPage(env);
-      if (contactHtml) {
-        if (env.CMS_CACHE) {
-          await env.CMS_CACHE.put(cacheKey, contactHtml, { expirationTtl: 3600 }).catch(() => {});
-        }
-        return new Response(contactHtml, { headers });
-      }
-    } catch (err) {
-      console.warn("[public-page] contact assembly failed:", err?.message || err);
-    }
+  } catch (err) {
+    console.warn("[public-page] cms assemble failed:", normalizedRoute, err?.message || err);
   }
 
   try {
@@ -177,14 +152,8 @@ export default {
       const { route_path } = await request.json().catch(() => ({}));
       const route = route_path || "/services";
       const normalized = route === "" ? "/" : route;
-      const { isFragmentPageRoute, publishFragmentPageFromCms } = await import("./api/page_cms_registry.js");
-      if (isFragmentPageRoute(normalized)) {
-        const published = await publishFragmentPageFromCms(env, normalized, "internal_cli_" + Date.now());
-        return new Response(JSON.stringify({ success: true, route: normalized, artifact_key: published.artifact_key }), { headers: { "content-type": "application/json" } });
-      }
-      const { renderPage } = await import('./api/render_page.js');
-      await renderPage(route, "internal_cli_" + Date.now(), env);
-      return new Response(JSON.stringify({ success: true, route }), { headers: { "content-type": "application/json" } });
+      const published = await publishRoute(env, normalized, "internal_cli_" + Date.now());
+      return new Response(JSON.stringify({ success: true, route: normalized, artifact_key: published.artifact_key }), { headers: { "content-type": "application/json" } });
     } catch (e) {
       return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { "content-type": "application/json" } });
     }
