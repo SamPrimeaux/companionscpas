@@ -402,7 +402,7 @@ function renderCommunityItem(block) {
 async function renderCampaignsFragment(section, blocks, env) {
   const cfg = safeJson(section.config_json, {});
 
-  // Two-card layout — image cards with CTA, no live campaign data needed
+  // Two-card layout — always takes priority over live campaign data
   if (cfg.layout === "two_cards" && Array.isArray(cfg.cards) && cfg.cards.length) {
     const heading = pick(section, ["heading"]) || "";
     const cardHtml = cfg.cards.map((card) => {
