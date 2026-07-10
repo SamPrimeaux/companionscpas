@@ -569,24 +569,25 @@ body.cpas-nav-open { overflow: hidden !important; }
   color: var(--dash-text-sec);
 }
 
-/* ── CMS live canvas (device frames + scale) ─────────────────── */
+/* ── CMS live canvas (preview-first, no zoom) ───────────────── */
 .cms-canvas-stage {
-  background:
-    radial-gradient(circle at 20% 0%, rgba(134,100,183,0.08), transparent 42%),
-    #ebe8f0;
-}
-.cms-device-scale-wrap {
-  transition: width 160ms ease, height 160ms ease;
+  background: #ebe8f0;
 }
 .cms-device-frame {
-  transition: transform 160ms ease;
+  min-width: 0;
 }
-.cms-device-toggle button,
-.cms-zoom-toggle button {
+.cms-device-frame.is-fluid {
+  width: 100%;
+  max-width: none;
+}
+.cms-device-toggle button {
   font-family: var(--font-ui);
 }
-.cms-canvas-meta {
-  user-select: none;
+.cms-editor-grid {
+  transition: grid-template-columns 0.2s ease;
+}
+.cms-inspector-col {
+  background: var(--dash-surface, #faf7f3);
 }
 
 .cpas-asset-label { color: rgba(255,255,255,0.92) !important; }

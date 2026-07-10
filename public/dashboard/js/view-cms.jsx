@@ -415,13 +415,7 @@ const CMS_TYPE_COLOR = {
   animal_grid: '#4ade80', content: '#94a3b8', service_cards: '#34d399', donate_tiers: '#fbbf24'
 };
 
-const CMS_DEVICE_FRAMES = { desktop: 1280, tablet: 834, mobile: 390 };
-const CMS_ZOOM_OPTIONS = [
-  { key: "fit", label: "Fit" },
-  { key: "50", label: "50%" },
-  { key: "75", label: "75%" },
-  { key: "100", label: "100%" },
-];
+const CMS_DEVICE_FRAMES = { desktop: null, tablet: 834, mobile: 390 };
 const CMS_FIELD_LABELS = {
   eyebrow: "Eyebrow",
   heading: "Heading",
@@ -444,6 +438,133 @@ function cmsNormalizeSectionKey(key) {
 
 function cmsParseConfig(section) {
   try { return JSON.parse(section?.config_json || "{}"); } catch { return {}; }
+}
+
+/** Inject Shopify-style section outlines into the preview iframe (same-origin). Dashboard-only. */
+function injectPreviewSectionInspector(iframe) {
+  try {
+    const doc = iframe?.contentDocument;
+    const win = iframe?.contentWindow;
+    if (!doc || !win || doc.getElementById("cms-dash-inspector-style")) return;
+
+    const style = doc.createElement("style");
+    style.id = "cms-dash-inspector-style";
+    style.textContent = `
+      [data-section-key], [data-cpas-section] { position: relative; cursor: pointer; }
+      [data-section-key].cms-sec-hover, [data-cpas-section].cms-sec-hover {
+        outline: 2px solid rgba(124,58,237,0.55) !important; outline-offset: -2px;
+      }
+      [data-section-key].cms-sec-active, [data-cpas-section].cms-sec-active {
+        outline: 2px solid #7c3aed !important; outline-offset: -2px;
+        box-shadow: inset 0 0 0 1px rgba(124,58,237,0.2);
+      }
+      #cms-dash-inspector-chip {
+        position: fixed; z-index: 2147483646; pointer-events: none; display: none;
+        background: #7c3aed; color: #fff; font: 700 11px/1.2 system-ui,sans-serif;
+        padding: 4px 9px; border-radius: 4px 4px 4px 0; white-space: nowrap;
+        box-shadow: 0 4px 14px rgba(76,29,149,0.35); letter-spacing: 0.02em;
+      }
+    `;
+    (doc.head || doc.documentElement).appendChild(style);
+
+    const script = doc.createElement("script");
+    script.id = "cms-dash-inspector-script";
+    script.textContent = `
+(function(){
+  if (window.__cmsDashInspector) return;
+  window.__cmsDashInspector = true;
+  var activeKey = null, hoverEl = null, chip = null;
+
+  function sectionKey(el){
+    if (!el) return '';
+    return el.getAttribute('data-section-key') || el.getAttribute('data-cpas-section') || '';
+  }
+  function findSection(el){
+    var cur = el;
+    while (cur && cur !== document.body) {
+      if (cur.getAttribute && (cur.getAttribute('data-section-key') || cur.getAttribute('data-cpas-section'))) return cur;
+      cur = cur.parentElement;
+    }
+    return null;
+  }
+  function allSections(){
+    return Array.prototype.slice.call(document.querySelectorAll('[data-section-key], [data-cpas-section]'));
+  }
+  function resolve(key){
+    if (!key) return null;
+    var el = document.querySelector('[data-section-key=\"' + key + '\"]');
+    if (el) return el;
+    el = document.querySelector('[data-cpas-section=\"' + key + '\"]');
+    if (el) return el;
+    var kebab = String(key).replace(/_/g,'-');
+    el = document.querySelector('[data-cpas-section=\"' + kebab + '\"]');
+    if (el) return el;
+    var snake = String(key).replace(/-/g,'_');
+    return document.querySelector('[data-section-key=\"' + snake + '\"]');
+  }
+  function ensureChip(){
+    if (chip) return chip;
+    chip = document.createElement('div');
+    chip.id = 'cms-dash-inspector-chip';
+    document.body.appendChild(chip);
+    return chip;
+  }
+  function placeChip(el, text){
+    var c = ensureChip();
+    if (!el) { c.style.display = 'none'; return; }
+    var r = el.getBoundingClientRect();
+    c.textContent = text || sectionKey(el);
+    c.style.display = 'block';
+    c.style.top = Math.max(8, r.top - 26) + 'px';
+    c.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 160)) + 'px';
+  }
+  function paint(){
+    allSections().forEach(function(sec){
+      var key = sectionKey(sec);
+      var isActive = activeKey && (key === activeKey || key.replace(/-/g,'_') === String(activeKey).replace(/-/g,'_') || key.replace(/_/g,'-') === String(activeKey).replace(/_/g,'-'));
+      sec.classList.toggle('cms-sec-active', !!isActive);
+      sec.classList.toggle('cms-sec-hover', hoverEl === sec && !isActive);
+    });
+    var activeEl = activeKey ? resolve(activeKey) : null;
+    if (activeEl) placeChip(activeEl, sectionKey(activeEl));
+    else if (hoverEl) placeChip(hoverEl, sectionKey(hoverEl));
+    else { var c = ensureChip(); c.style.display = 'none'; }
+  }
+
+  document.addEventListener('mouseover', function(e){
+    hoverEl = findSection(e.target);
+    paint();
+  }, true);
+  document.addEventListener('mouseout', function(e){
+    if (!e.relatedTarget) { hoverEl = null; paint(); }
+  }, true);
+  document.addEventListener('click', function(e){
+    var sec = findSection(e.target);
+    if (!sec) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var key = sectionKey(sec);
+    activeKey = key;
+    paint();
+    window.parent.postMessage({ type: 'cms:section-clicked', key: key }, '*');
+  }, true);
+  window.addEventListener('scroll', function(){ paint(); }, true);
+  window.addEventListener('message', function(e){
+    if (!e.data) return;
+    if (e.data.type === 'cms:scroll-to-section' || e.data.type === 'cms:highlight-section') {
+      activeKey = e.data.key || null;
+      var el = resolve(activeKey);
+      if (el && e.data.type === 'cms:scroll-to-section') el.scrollIntoView({ behavior:'smooth', block:'start' });
+      paint();
+    }
+    if (e.data.type === 'cms:clear-selection') {
+      activeKey = null;
+      paint();
+    }
+  });
+})();`;
+    (doc.body || doc.documentElement).appendChild(script);
+  } catch (_) {}
 }
 
 const CMS_SECTION_TYPES = [
@@ -512,9 +633,6 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [selectedField, setSelectedField] = React.useState(null);
   const [selectedBlockKey, setSelectedBlockKey] = React.useState(null);
   const [previewMode, setPreviewMode] = React.useState('desktop');
-  const [canvasZoom, setCanvasZoom] = React.useState('fit');
-  const [stageWidth, setStageWidth] = React.useState(0);
-  const canvasStageRef = React.useRef(null);
   const [mobileTab, setMobileTab] = React.useState('sections');
   const [notice, setNotice] = React.useState({});
   const [busy, setBusy] = React.useState(false);
@@ -533,14 +651,41 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   const sortedSections = React.useMemo(() => [...(pageData.sections || [])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)), [pageData.sections]);
   const selected = React.useMemo(() => {
-    if (!sortedSections.length) return null;
+    if (!selectedKey || !sortedSections.length) return null;
     const want = cmsNormalizeSectionKey(selectedKey);
-    return sortedSections.find(s => cmsNormalizeSectionKey(s.section_key) === want) || sortedSections[0] || null;
+    return sortedSections.find(s => cmsNormalizeSectionKey(s.section_key) === want) || null;
   }, [sortedSections, selectedKey]);
+  const inspectorOpen = !!selected;
 
   const [previewVersion, setPreviewVersion] = React.useState(0);
   const bumpPreview = React.useCallback(() => setPreviewVersion(v => v + 1), []);
   const previewIframeRef = React.useRef(null);
+
+  const clearSelection = React.useCallback(() => {
+    setSelectedKey(null);
+    setSelectedField(null);
+    setSelectedBlockKey(null);
+    try {
+      previewIframeRef.current?.contentWindow?.postMessage({ type: 'cms:clear-selection' }, '*');
+    } catch (_) {}
+  }, []);
+
+  const selectSection = React.useCallback((key, opts = {}) => {
+    if (!key) return;
+    const normalized = cmsNormalizeSectionKey(key);
+    const match = (pageData.sections || []).find(s => cmsNormalizeSectionKey(s.section_key) === normalized);
+    const resolved = match?.section_key || key;
+    setSelectedKey(resolved);
+    setSelectedField(opts.field || null);
+    setSelectedBlockKey(opts.blockKey || null);
+    if (opts.clearUnsaved) setHasUnsaved(false);
+    if (isMobile) setMobileTab('edit');
+    const row = document.getElementById('cms-section-row-' + resolved);
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    try {
+      previewIframeRef.current?.contentWindow?.postMessage({ type: 'cms:scroll-to-section', key: resolved }, '*');
+    } catch (_) {}
+  }, [pageData.sections, isMobile]);
 
   const postHighlight = React.useCallback((key, field) => {
     try {
@@ -556,45 +701,25 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const handler = (e) => {
       if (!e.data) return;
       if (e.data.type === 'cms:element-selected') {
-        const key = e.data.sectionKey;
-        if (!key) return;
-        const normalized = cmsNormalizeSectionKey(key);
-        const match = (pageData.sections || []).find(s => cmsNormalizeSectionKey(s.section_key) === normalized);
-        setSelectedKey(match?.section_key || key);
-        setSelectedField(e.data.field || null);
-        setSelectedBlockKey(e.data.blockKey || null);
-        setMobileTab('edit');
-        const row = document.getElementById('cms-section-row-' + (match?.section_key || key));
-        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        selectSection(e.data.sectionKey, { field: e.data.field || null, blockKey: e.data.blockKey || null });
         return;
       }
       if (e.data.type !== 'cms:section-clicked') return;
-      const key = e.data.key;
-      if (!key) return;
-      const normalized = cmsNormalizeSectionKey(key);
-      const match = (pageData.sections || []).find(s => cmsNormalizeSectionKey(s.section_key) === normalized);
-      setSelectedKey(match?.section_key || key);
-      setSelectedField(null);
-      setSelectedBlockKey(null);
-      setMobileTab('edit');
-      const row = document.getElementById('cms-section-row-' + (match?.section_key || key));
-      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      selectSection(e.data.key);
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [pageData.sections]);
+  }, [selectSection]);
 
   React.useEffect(() => {
-    const el = canvasStageRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect?.width || 0;
-      setStageWidth(w);
-    });
-    ro.observe(el);
-    setStageWidth(el.clientWidth || 0);
-    return () => ro.disconnect();
-  }, [isDesktop]);
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (showImagePicker || showAddSection || showFontPicker) return;
+      clearSelection();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [clearSelection, showImagePicker, showAddSection, showFontPicker]);
 
   React.useEffect(() => {
     if (selectedKey) postHighlight(selectedKey, selectedField);
@@ -611,7 +736,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       if (pd.success || pd.page || pd.sections) {
         const secs = [...(pd.sections || [])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
         setPageData({ page:pd.page || { title:route, route_path:route }, sections:secs, blocks:pd.blocks || [] });
-        setSelectedKey(current => current && secs.some(s => s.section_key === current) ? current : secs[0]?.section_key || null);
+        setSelectedKey(current => current && secs.some(s => s.section_key === current) ? current : null);
       } else {
         setPageData({ page:{ title:route, route_path:route, status:'draft' }, sections:[], blocks:[] });
         setSelectedKey(null);
@@ -766,10 +891,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const setFieldTracked = (key, val) => { setField(key, val); setHasUnsaved(true); };
 
   const mode = isMobile ? 'mobile' : previewMode;
-  const frameWidth = CMS_DEVICE_FRAMES[mode] || CMS_DEVICE_FRAMES.desktop;
-  const fitScale = stageWidth > 0 ? Math.min(1, (stageWidth - 32) / frameWidth) : 1;
-  const zoomScale = canvasZoom === 'fit' ? fitScale : (Number(canvasZoom) / 100);
-  const scalePct = Math.round(zoomScale * 100);
+  const deviceWidth = CMS_DEVICE_FRAMES[mode]; // null = fill canvas (desktop)
 
   function renderTopbar() {
     return React.createElement('div', { style:{ height:52, background:C.surface, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 14px', gap:10, flexShrink:0, zIndex:10 } },
@@ -788,14 +910,6 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       notice.text && !isMobile && React.createElement('div', { style:{ fontSize:11, color:notice.type === 'error' ? C.red : C.green, fontWeight:700, flexShrink:0 } }, notice.text),
       isDesktop && React.createElement('div', { className:'cms-device-toggle', style:{ display:'flex', gap:4, flexShrink:0 } },
         ['desktop','tablet','mobile'].map(m => React.createElement('button', { key:m, onClick:()=>setPreviewMode(m), style:{ padding:'5px 10px', borderRadius:7, border:`1px solid ${previewMode === m ? C.purple : C.border}`, background:previewMode === m ? C.purpleDim : 'transparent', color:previewMode === m ? C.purpleL : C.textSec, fontSize:11, cursor:'pointer', textTransform:'capitalize' } }, m))
-      ),
-      isDesktop && React.createElement('div', { className:'cms-zoom-toggle', style:{ display:'flex', gap:3, flexShrink:0, marginLeft:2 } },
-        CMS_ZOOM_OPTIONS.map(z => React.createElement('button', {
-          key: z.key,
-          title: `Zoom ${z.label}`,
-          onClick: () => setCanvasZoom(z.key),
-          style:{ padding:'5px 8px', borderRadius:7, border:`1px solid ${canvasZoom === z.key ? C.purple : C.border}`, background:canvasZoom === z.key ? C.purpleDim : 'transparent', color:canvasZoom === z.key ? C.purpleL : C.textSec, fontSize:10, fontWeight:700, cursor:'pointer' }
-        }, z.label))
       ),
       !isDesktop && React.createElement(Btn, { size:'sm', variant:'secondary', icon:'eye', onClick:()=>window.open(liveUrl, '_blank') }, 'Preview'),
       hasUnsaved && React.createElement(Btn, { size:'sm', variant:'secondary', disabled:busy, onClick:()=>{ saveSelected(false).then(()=>setHasUnsaved(false)); } }, busy ? 'Saving…' : 'Save Draft'),
@@ -826,17 +940,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                 onDragOver:e=>{ e.preventDefault(); setDragOverKey(s.section_key); },
                 onDrop:e=>{ e.preventDefault(); reorderSections(dragKey, s.section_key); },
                 onClick:()=>{
-                  setSelectedKey(s.section_key);
-                  setSelectedField(null);
-                  setSelectedBlockKey(null);
-                  setHasUnsaved(false);
-                  if (isMobile) setMobileTab('edit');
-                  try {
-                    const iframe = previewIframeRef.current;
-                    if (iframe?.contentWindow) {
-                      iframe.contentWindow.postMessage({ type:'cms:scroll-to-section', key:s.section_key }, '*');
-                    }
-                  } catch(_) {}
+                  selectSection(s.section_key, { clearUnsaved: true });
                 },
                 style:{ display:'grid', gridTemplateColumns:'18px minmax(0,1fr) auto 28px', alignItems:'center', gap:8, padding:'10px 8px', marginBottom:6, borderRadius:12, cursor:'pointer', border:`2px solid ${active ? C.purple : dragOverKey === s.section_key ? C.purple + '55' : C.border}`, borderLeft:`5px solid ${active ? C.purple : color}`, background:active ? C.purpleDim : C.bg, opacity:hidden ? .55 : 1, boxShadow: active ? `0 0 0 2px ${C.purple}44` : 'none', transition:'all 0.12s' }
               },
@@ -856,7 +960,6 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   function renderPreview() {
     if (!isDesktop && mobileTab !== 'preview') return null;
-    const iframeHeight = isMobile ? 'calc(100vh - 110px)' : '100%';
     const iframe = React.createElement('iframe', {
       ref: previewIframeRef,
       key: previewSrc,
@@ -864,6 +967,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       title: `Preview ${route}`,
       onLoad: (e) => {
         handlePreviewNavigation();
+        injectPreviewSectionInspector(e.target);
         try {
           if (selectedKey && e.target?.contentWindow) {
             setTimeout(() => {
@@ -871,51 +975,38 @@ function CmsPageEditorView({ pageId, onNavigate }) {
               if (selectedField) {
                 e.target.contentWindow.postMessage({ type:'cms:highlight-section', key:selectedKey, field:selectedField }, '*');
               }
-            }, 400);
+            }, 200);
           }
         } catch(_) {}
       },
-      style: { width:'100%', height:'100%', border:0, display:'block', background:'#0b0f1a' }
+      style: { width:'100%', height:'100%', border:0, display:'block', background:'#fff' }
     });
     if (isMobile && mobileTab === 'preview') {
-      return React.createElement('div', { style:{ height:iframeHeight, minHeight:iframeHeight } }, iframe);
+      return React.createElement('div', { className:'cms-canvas-stage', style:{ height:'calc(100vh - 110px)', minHeight:0 } }, iframe);
     }
-    const frameH = 'calc(100vh - 120px)';
+    // Desktop/tablet: fill canvas column at 100% scale. Tablet/mobile modes only cap width (no zoom).
     return React.createElement('div', {
-      ref: canvasStageRef,
       className: 'cms-canvas-stage',
-      style: { height:'100%', overflow:'auto', background:'#ebe8f0', padding:'16px 12px 24px', position:'relative' }
+      style: {
+        height: '100%',
+        minHeight: 0,
+        overflow: 'hidden',
+        background: '#ebe8f0',
+        display: 'flex',
+        justifyContent: 'center'
+      }
     },
       React.createElement('div', {
-        className: 'cms-device-scale-wrap',
+        className: 'cms-device-frame' + (deviceWidth ? ' is-capped' : ' is-fluid'),
         style: {
-          width: frameWidth * zoomScale,
-          height: `calc((100vh - 140px) * ${zoomScale})`,
-          minHeight: 480 * zoomScale,
-          margin: '0 auto',
-          position: 'relative'
+          width: '100%',
+          maxWidth: deviceWidth || 'none',
+          height: '100%',
+          background: '#fff',
+          overflow: 'hidden',
+          boxShadow: deviceWidth ? '0 0 0 1px rgba(26,22,34,0.08)' : 'none'
         }
-      },
-        React.createElement('div', {
-          className: 'cms-device-frame',
-          style: {
-            width: frameWidth,
-            height: frameH,
-            minHeight: 720,
-            transform: `scale(${zoomScale})`,
-            transformOrigin: 'top left',
-            background: '#0b0f1a',
-            borderRadius: 14,
-            overflow: 'hidden',
-            boxShadow: '0 22px 60px rgba(20,16,32,.16)',
-            border: '1px solid rgba(26,22,34,0.12)'
-          }
-        }, iframe)
-      ),
-      React.createElement('div', {
-        className: 'cms-canvas-meta',
-        style: { textAlign:'center', marginTop:10, fontSize:11, fontWeight:700, color:C.textMut, letterSpacing:'.04em' }
-      }, `${frameWidth}px · ${scalePct}% · ${mode}`)
+      }, iframe)
     );
   }
 
@@ -1011,11 +1102,19 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       )
     );
 
-    return React.createElement('div', { style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface } },
+    return React.createElement('div', { className:'cms-inspector-panel', style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface } },
       React.createElement('div', { style:{ padding:16, borderBottom:`1px solid ${C.border}` } },
         React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 } },
           React.createElement('div', { style:{ minWidth:0 } }, cmsTypeBadge(selected.section_type), React.createElement('div', { style:{ marginTop:8, color:C.text, fontSize:15, fontWeight:900, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, selected.heading || selected.section_key)),
-          React.createElement('label', { style:{ display:'flex', alignItems:'center', gap:6, color:C.textSec, fontSize:12, cursor:'pointer' } }, React.createElement('input', { type:'checkbox', checked:selected.is_visible !== 0, onChange:e=>setFieldAndSave('is_visible', e.target.checked ? 1 : 0) }), 'Visible')
+          React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, flexShrink:0 } },
+            React.createElement('label', { style:{ display:'flex', alignItems:'center', gap:6, color:C.textSec, fontSize:12, cursor:'pointer' } }, React.createElement('input', { type:'checkbox', checked:selected.is_visible !== 0, onChange:e=>setFieldAndSave('is_visible', e.target.checked ? 1 : 0) }), 'Visible'),
+            React.createElement('button', {
+              type: 'button',
+              title: 'Close panel (Esc)',
+              onClick: clearSelection,
+              style: { width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.bg, color:C.textSec, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }
+            }, React.createElement(Icon, { name:'close', size:14 }))
+          )
         )
       ),
       React.createElement('div', { style:{ padding:16, overflowY:'auto', flex:1, display:'grid', gap:16 } },
@@ -1075,10 +1174,23 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           mobileTab === 'edit' && React.createElement('div', { style:{ height:'100%', overflow:'auto' } }, renderInspector(true)),
           mobileTab === 'preview' && renderPreview()
         )
-      : React.createElement('div', { style:{ flex:1, minHeight:0, display:'grid', gridTemplateColumns: isDesktop ? (sidenavOpen ? '240px minmax(400px,1fr) 320px' : '0px minmax(400px,1fr) 320px') : '220px minmax(0,1fr)', transition:'grid-template-columns 0.2s ease' } },
+      : React.createElement('div', {
+          className: 'cms-editor-grid' + (inspectorOpen ? ' has-inspector' : ''),
+          style: {
+            flex: 1,
+            minHeight: 0,
+            display: 'grid',
+            gridTemplateColumns: isDesktop
+              ? (sidenavOpen
+                  ? (inspectorOpen ? '240px minmax(0,1fr) 320px' : '240px minmax(0,1fr)')
+                  : (inspectorOpen ? '0px minmax(0,1fr) 320px' : '0px minmax(0,1fr)'))
+              : '220px minmax(0,1fr)',
+            transition: 'grid-template-columns 0.2s ease'
+          }
+        },
           React.createElement('div', { style:{ borderRight: sidenavOpen ? `1px solid ${C.border}` : 'none', minHeight:0, overflow:'hidden', transition:'border 0.2s' } }, sidenavOpen && renderSectionList()),
           isDesktop ? React.createElement('div', { style:{ minHeight:0, overflow:'hidden' } }, renderPreview()) : React.createElement('div', { style:{ minHeight:0, overflow:'hidden' } }, renderInspector(true)),
-          isDesktop && React.createElement('div', { style:{ borderLeft:`1px solid ${C.border}`, minHeight:0, overflow:'hidden' } }, renderInspector(false))
+          isDesktop && inspectorOpen && React.createElement('div', { className:'cms-inspector-col', style:{ borderLeft:`1px solid ${C.border}`, minHeight:0, overflow:'hidden' } }, renderInspector(false))
         ),
     showFontPicker && React.createElement('div', { style:{ position:'fixed', top:60, right:16, zIndex:240, width:260, background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:10, boxShadow:'0 20px 50px rgba(0,0,0,.2)' } }, FONT_PRESETS_CMS.map(p => React.createElement('button', { key:p.key, onClick:()=>saveFont(p.key), style:{ width:'100%', padding:10, marginBottom:6, borderRadius:10, border:`1px solid ${activeFont === p.key ? C.purple : C.border}`, background:activeFont === p.key ? C.purpleDim : C.bg, color:C.text, textAlign:'left', cursor:'pointer' } }, React.createElement('div', { style:{ fontWeight:900 } }, p.label), React.createElement('div', { style:{ color:C.textMut, fontSize:11 } }, p.sub)))) ,
     renderImagePicker(),
