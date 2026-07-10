@@ -73,12 +73,6 @@ async function handleContactSubmit(request, env, data) {
     type: "contact_confirmation",
     related_type: "contact_request",
     related_id: contactId,
-    html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px">
-      <h2>Thank you, ${escHtml(name)}</h2>
-      <p>Companions of CPAS received your message about <strong>${escHtml(subjectReadable)}</strong>.</p>
-      <p>A volunteer will follow up within 1–2 business days. In the meantime, follow us on social media for daily dog updates!</p>
-      <p style="margin-top:24px;color:#666;font-size:13px">Companions of CPAS · 501(c)(3) · EIN 88-4156327</p>
-    </div>`,
   });
 
   const admin = env.ADMIN_EMAIL || "companionsCPAS@gmail.com";
