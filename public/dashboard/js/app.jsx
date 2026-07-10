@@ -111,6 +111,17 @@ function App() {
   const [liveUser, setLiveUser] = React.useState(null);
   const [isMobile, setIsMobile] = React.useState(() => mobileQ.matches);
   const [navOpen,  setNavOpen]  = React.useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
+    try { return localStorage.getItem("cpas.sidebarCollapsed") === "1"; } catch { return false; }
+  });
+
+  const toggleSidebarCollapsed = React.useCallback(() => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem("cpas.sidebarCollapsed", next ? "1" : "0"); } catch {}
+      return next;
+    });
+  }, []);
 
   const initRoute = () => resolveRoute(window.location.pathname, new URLSearchParams(window.location.search));
   const [view,   setView]   = React.useState(() => initRoute().view);
@@ -256,9 +267,15 @@ function App() {
     ? { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }
     : { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0 };
 
-  return React.createElement("div", { className: "cpas-shell" },
+  return React.createElement("div", { className: "cpas-shell" + (sidebarCollapsed && !isMobile ? " sidebar-collapsed" : "") },
     React.createElement("div", { className: "cpas-desktop-only" },
-      React.createElement(Sidebar, { view, navigate, onLogout: handleLogout })
+      React.createElement(Sidebar, {
+        view,
+        navigate,
+        onLogout: handleLogout,
+        collapsed: sidebarCollapsed,
+        onToggleCollapse: toggleSidebarCollapsed
+      })
     ),
     React.createElement("div", { className: "cpas-main-col" },
       React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => setNavOpen(true), navigate }),

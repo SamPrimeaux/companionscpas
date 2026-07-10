@@ -115,6 +115,8 @@ const ICONS = {
   image:    `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="M17 13l-3.5-3.5L6 16"/></svg>`,
   menu:     `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg>`,
   panelRightClose:`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M13 3v14"/><path d="M9 7l-3 3 3 3"/></svg>`,
+  panelLeftClose:`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 3v14"/><path d="M11 7l3 3-3 3"/></svg>`,
+  panelLeftOpen:`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 3v14"/><path d="M14 7l-3 3 3 3"/></svg>`,
   globe:    `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M2 10h16M10 2a12 12 0 0 1 0 16A12 12 0 0 1 10 2z"/></svg>`,
   publish:  `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13V4m-4 5l4-5 4 5"/><path d="M4 17h12"/></svg>`,
   tag:      `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h6l8 8a2 2 0 0 1 0 2.83l-4.17 4.17a2 2 0 0 1-2.83 0L2 9V3z"/><circle cx="7" cy="7" r="1"/></svg>`,
@@ -130,7 +132,7 @@ const ICONS = {
 };
 
 function Icon({ name, size = 16, style: extra = {}, className = "" }) {
-  const aliases = { "arrow-up":"arrowUp", "panel-right-close":"panelRightClose", "check-circle":"check", "x":"close" };
+  const aliases = { "arrow-up":"arrowUp", "panel-right-close":"panelRightClose", "panel-left-close":"panelLeftClose", "panel-left-open":"panelLeftOpen", "check-circle":"check", "x":"close" };
   const svg = ICONS[aliases[name] || name] || ICONS.docs;
   return React.createElement("span", {
     className: ("cpas-icon" + (className ? " " + className : "")),
@@ -327,46 +329,91 @@ function Select({ value, onChange, options, style:extra={} }) {
   );
 }
 
-function Sidebar({ view, navigate, onLogout }) {
+function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse }) {
   const [hovItem, setHovItem] = useState(null);
   const user = window.CPAS?.user || { name:"Admin", role:"Staff" };
   const logoUrl = window.CPAS_CONFIG?.logoUrl || LOGO_LIGHT;
 
-  return React.createElement("aside", { className:"cpas-sidebar" },
-    React.createElement("div", { style:{ padding:"16px 16px 14px", borderBottom:"1px solid var(--nav-border)", flexShrink:0 } },
-      React.createElement("a", { href:"/dashboard/overview", onClick:e=>{ e.preventDefault(); navigate("overview"); }, style:{ display:"flex", alignItems:"center", textDecoration:"none" } },
-        React.createElement("img", { src:logoUrl, alt:"Companions of CPAS", style:{ width:100, height:"auto", display:"block", objectFit:"contain" } })
+  return React.createElement("aside", {
+    className: "cpas-sidebar" + (collapsed ? " is-collapsed" : ""),
+    "data-collapsed": collapsed ? "true" : "false"
+  },
+    React.createElement("div", { className: "cpas-sidebar-brand" },
+      React.createElement("a", {
+        href: "/dashboard/overview",
+        onClick: e => { e.preventDefault(); navigate("overview"); },
+        className: "cpas-sidebar-brand-link",
+        title: "Overview"
+      },
+        React.createElement("img", {
+          src: logoUrl,
+          alt: "Companions of CPAS",
+          className: "cpas-sidebar-logo"
+        })
       )
     ),
-    React.createElement("nav", { style:{ flex:1, overflowY:"auto", padding:"8px 10px 12px" }, "aria-label":"Main navigation" },
-      NAV_STRUCTURE.map(group => React.createElement("div", { key:group.group },
-        React.createElement("div", { className:"cpas-nav-group-label" }, group.group),
+    React.createElement("nav", { className: "cpas-sidebar-nav", "aria-label": "Main navigation" },
+      NAV_STRUCTURE.map(group => React.createElement("div", { key: group.group, className: "cpas-nav-group" },
+        React.createElement("div", { className: "cpas-nav-group-label" }, group.group),
         group.items.map(item => {
-          const active = view===item.key||(item.children&&item.children.some(c=>c.key===view));
-          const hasKids = item.children&&item.children.length;
-          const childOpen = hasKids&&isActiveCMS(view);
-          return React.createElement("div", { key:item.key },
-            React.createElement("button", { onClick:()=>navigate(item.key), onMouseEnter:()=>setHovItem(item.key), onMouseLeave:()=>setHovItem(null),
-              className:`cpas-nav-item ${active&&!hasKids?"active":""} ${active&&hasKids?"active-parent":""}`, "aria-current":active?"page":undefined },
-              React.createElement(Icon, { name:item.icon, size:16 }), item.label,
-              hasKids && React.createElement("span", { style:{ marginLeft:"auto", transition:"transform 200ms", transform:childOpen?"rotate(90deg)":"none", display:"flex" } },
-                React.createElement(Icon, { name:"chevR", size:13, style:{ color:"var(--nav-text-muted)" } }))
+          const active = view === item.key || (item.children && item.children.some(c => c.key === view));
+          const hasKids = item.children && item.children.length;
+          const childOpen = hasKids && isActiveCMS(view) && !collapsed;
+          return React.createElement("div", { key: item.key },
+            React.createElement("button", {
+              onClick: () => navigate(item.key),
+              onMouseEnter: () => setHovItem(item.key),
+              onMouseLeave: () => setHovItem(null),
+              className: `cpas-nav-item ${active && !hasKids ? "active" : ""} ${active && hasKids ? "active-parent" : ""}`,
+              "aria-current": active ? "page" : undefined,
+              title: collapsed ? item.label : undefined
+            },
+              React.createElement(Icon, { name: item.icon, size: 16 }),
+              React.createElement("span", { className: "cpas-nav-label" }, item.label),
+              hasKids && React.createElement("span", { className: "cpas-nav-chev", style: { marginLeft: "auto", transition: "transform 200ms", transform: childOpen ? "rotate(90deg)" : "none", display: "flex" } },
+                React.createElement(Icon, { name: "chevR", size: 13, style: { color: "var(--nav-text-muted)" } }))
             ),
-            hasKids && React.createElement("div", { className:`cpas-nav-children ${childOpen?"open":""}` },
-              item.children.map(child => React.createElement("button", { key:child.key, onClick:()=>navigate(child.key),
-                className:`cpas-nav-item cpas-nav-child ${view===child.key?"active":""}`, "aria-current":view===child.key?"page":undefined }, child.label))
+            hasKids && React.createElement("div", { className: `cpas-nav-children ${childOpen ? "open" : ""}` },
+              item.children.map(child => React.createElement("button", {
+                key: child.key,
+                onClick: () => navigate(child.key),
+                className: `cpas-nav-item cpas-nav-child ${view === child.key ? "active" : ""}`,
+                "aria-current": view === child.key ? "page" : undefined
+              },
+                React.createElement("span", { className: "cpas-nav-label" }, child.label)
+              ))
             )
           );
         })
       ))
     ),
-    React.createElement("div", { className:"cpas-sidebar-footer", onClick:()=>navigate("settings"), title:"Settings" },
-      React.createElement(Avatar, { name:user.name, size:30 }),
-      React.createElement("div", { style:{ flex:1, minWidth:0 } },
-        React.createElement("div", { style:{ fontSize:13, fontWeight:600, color:"var(--nav-text)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" } }, user.name),
-        React.createElement("div", { style:{ fontSize:11, color:"var(--nav-text-sec)" } }, user.role)
+    React.createElement("div", { className: "cpas-sidebar-footer" },
+      React.createElement("button", {
+        type: "button",
+        className: "cpas-sidebar-user",
+        onClick: () => navigate("settings"),
+        title: "Settings"
+      },
+        React.createElement(Avatar, { name: user.name, size: collapsed ? 28 : 30 }),
+        React.createElement("div", { className: "cpas-sidebar-footer-meta" },
+          React.createElement("div", { className: "cpas-sidebar-user-name" }, user.name),
+          React.createElement("div", { className: "cpas-sidebar-user-role" }, user.role)
+        )
       ),
-      React.createElement(Icon, { name:"gear", size:14, style:{ color:"var(--nav-text-muted)", flexShrink:0 } })
+      React.createElement("button", {
+        type: "button",
+        className: "cpas-sidebar-collapse-btn",
+        onClick: e => { e.stopPropagation(); if (typeof onToggleCollapse === "function") onToggleCollapse(); },
+        "aria-label": collapsed ? "Expand sidebar" : "Collapse sidebar",
+        "aria-pressed": collapsed ? "true" : "false",
+        title: collapsed ? "Expand sidebar" : "Collapse sidebar"
+      },
+        React.createElement(Icon, {
+          name: collapsed ? "panelLeftOpen" : "panelLeftClose",
+          size: 16,
+          style: { color: "var(--nav-text-muted)" }
+        })
+      )
     )
   );
 }
