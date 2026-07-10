@@ -485,7 +485,7 @@ export const HOME_FRAGMENT_RENDERERS = {
   hero: renderHeroFragment,
   mission: renderMissionFragment,
   how_it_helps: renderHowItHelpsFragment,
-  transport_win: renderTransportWinFragment,
+  transport_win: (section, blocks, env) => renderTransportWinFragment(section, blocks, env),
   impact_stats: renderImpactStatsFragment,
   campaigns: renderCampaignsFragment,
   newsletter: renderNewsletterFragment,
