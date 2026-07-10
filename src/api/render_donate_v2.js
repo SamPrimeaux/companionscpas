@@ -290,6 +290,36 @@ async function renderFreedomHero(section, blocks, brand, env) {
   const footerR = pickText(cc, ["footer_note"]) || pickText(config, ["footer_note"]) || "Thank you for helping us celebrate freedom and second chances.";
   const sectionKey = pickText(section, ["section_key"]);
 
+  const isCompleted = campaign?.status === "completed";
+  const winConfig = cc.win_headline ? cc : safeJson(campaign?.config_json, {});
+
+  if (isCompleted) {
+    const winHeadline = winConfig.win_headline || "24 dogs. One Freedom Ride. Every single one made it out.";
+    const winBody = winConfig.win_body || "Because of your generosity, all 24 dogs left Caddo Parish Animal Services and are on their way to no-kill rescues and forever homes. This is what happens when a community shows up.";
+    const winImage = "https://assets.companionsofcaddo.org/static/cms/uploads/2026/07/1783651041004-24-dogs-fundraised-v2.webp";
+    return `
+<section class="dv2 dv2-hero dv2-hero--complete" data-section-key="${escAttr(sectionKey)}" id="donate-freedom-hero">
+  <div class="dv2-wrap dv2-win-wrap">
+    <div class="dv2-win-img">
+      <img src="${escAttr(winImage)}" alt="24 dogs fundraised for the Freedom Ride — all made it out" loading="lazy" decoding="async" />
+    </div>
+    <div class="dv2-win-copy">
+      <p class="dv2-kicker dv2-kicker--win">We did it. Thank you.</p>
+      <h1 class="dv2-ribbon dv2-ribbon--win">${esc(winHeadline)}</h1>
+      <p class="dv2-lead">${esc(winBody)}</p>
+      <div class="dv2-win-actions">
+        <a class="btn btn-glass-purple" href="https://www.facebook.com/people/Companions-of-CPAS/100069291576354" target="_blank" rel="noopener noreferrer">Follow the journey on Facebook</a>
+        <a class="btn btn-ghost" href="https://www.instagram.com/companionscpas" target="_blank" rel="noopener noreferrer">See updates on Instagram</a>
+      </div>
+    </div>
+  </div>
+  <footer class="dv2-bar">
+    <p class="dv2-bar-strong">Every dog made it out.</p>
+    <p class="dv2-bar-note">Thank you for making the Freedom Ride possible.</p>
+  </footer>
+</section>`;
+  }
+
   const animals = await loadCampaignAnimals(env, campaignId, 3);
   const cards = animals.map((a) => {
     const sponsored = Number(a.campaign_tickets_sponsored) > 0;
