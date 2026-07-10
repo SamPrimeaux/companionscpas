@@ -66,10 +66,10 @@ async function handleContactSubmit(request, env, data) {
     request.headers.get("user-agent") || "",
   ).run();
 
-  const confirmResult = await sendResend(env, {
+  const confirmResult = await sendTemplateEmail(env, {
+    templateKey: "contact_confirmation",
     to: email,
-    name,
-    subject: "We received your message — Companions of CPAS",
+    vars: { name: escHtml(name), subject: escHtml(subjectReadable) },
     type: "contact_confirmation",
     related_type: "contact_request",
     related_id: contactId,
