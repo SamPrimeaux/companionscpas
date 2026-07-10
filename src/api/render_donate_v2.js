@@ -345,8 +345,8 @@ async function renderFreedomHero(section, blocks, brand, env) {
       <h1 class="dv2-ribbon dv2-ribbon--win">${esc(winHeadline)}</h1>
       <p class="dv2-lead">${esc(winBody)}</p>
       <div class="dv2-win-actions">
-        <a class="btn btn-glass-purple" href="https://www.facebook.com/people/Companions-of-CPAS/100069291576354" target="_blank" rel="noopener noreferrer">Follow the journey on Facebook</a>
-        <a class="btn btn-ghost" href="https://www.instagram.com/companionscpas" target="_blank" rel="noopener noreferrer">See updates on Instagram</a>
+        <a class="dv2-social-pill dv2-social-pill--fb" href="https://www.facebook.com/people/Companions-of-CPAS/100069291576354" target="_blank" rel="noopener noreferrer" aria-label="Follow the journey on Facebook">${COMPONENT_ICONS.facebook}<span>Follow on Facebook</span></a>
+        <a class="dv2-social-pill dv2-social-pill--ig" href="https://www.instagram.com/companionscpas" target="_blank" rel="noopener noreferrer" aria-label="See updates on Instagram">${COMPONENT_ICONS.instagram}<span>Updates on Instagram</span></a>
       </div>
     </div>
   </div>
