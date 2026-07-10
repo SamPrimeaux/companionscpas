@@ -393,16 +393,13 @@
     grid-template-columns: 1fr;
   }
 
-  .team-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .team-layout {
+    grid-template-columns: 1fr;
   }
 
-  .contact-social-actions {
-    flex-direction: column;
-  }
-
-  .contact-social-btn {
-    width: 100%;
-    justify-content: center;
+  .team-photo-col img.team-group-photo {
+    max-height: 320px;
+    object-fit: cover;
+    object-position: center top;
   }
 }
