@@ -442,8 +442,8 @@ async function renderStoriesHelp(section, blocks, brand, env) {
     || (await loadCampaign(env, kitaCampaign));
   const kitaCc = cfg(kitaCamp);
   const kitaId = kitaCamp?.id || kitaCampaign;
-  const kitaRaised = await loadCampaignRaisedCents(env, kitaId, kitaCamp?.raised_amount_cents ?? 22500);
-  const kitaGoal = kitaCamp?.goal_amount_cents ?? 60000;
+  const kitaRaised = await loadCampaignRaisedCents(env, kitaId, Number(kitaCamp?.raised_amount_cents) || 32500);
+  const kitaGoal = Number(kitaCamp?.goal_amount_cents) || 60000;
   const sponsoredId = pickText(config, ["sponsored_campaign_id"]);
   const sponsoredCamp = (await loadCampaignByPlacement(env, "story_sponsored"))
     || (sponsoredId ? await loadCampaign(env, sponsoredId) : null);
