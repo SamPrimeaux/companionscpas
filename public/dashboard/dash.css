@@ -569,6 +569,26 @@ body.cpas-nav-open { overflow: hidden !important; }
   color: var(--dash-text-sec);
 }
 
+/* ── CMS live canvas (device frames + scale) ─────────────────── */
+.cms-canvas-stage {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(134,100,183,0.08), transparent 42%),
+    #ebe8f0;
+}
+.cms-device-scale-wrap {
+  transition: width 160ms ease, height 160ms ease;
+}
+.cms-device-frame {
+  transition: transform 160ms ease;
+}
+.cms-device-toggle button,
+.cms-zoom-toggle button {
+  font-family: var(--font-ui);
+}
+.cms-canvas-meta {
+  user-select: none;
+}
+
 .cpas-asset-label { color: rgba(255,255,255,0.92) !important; }
 .cpas-asset-meta  { color: rgba(255,255,255,0.50) !important; }
 

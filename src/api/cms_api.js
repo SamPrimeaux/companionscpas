@@ -236,54 +236,128 @@ async function updatePublishJob(env, jobId, status, extras = {}) {
 }
 
 function injectCmsInspector(html) {
+  const style = `
+<style id="cms-inspector-style">
+  body.cms-preview [data-cpas-section],
+  body.cms-preview [data-section-key] { position: relative; }
+  body.cms-preview .cms-sec-dim { opacity: 0.42; transition: opacity 120ms ease; }
+  body.cms-preview .cms-sec-active { opacity: 1 !important; outline: 2px solid #7c3aed; outline-offset: -2px; box-shadow: inset 0 0 0 1px rgba(124,58,237,0.25); }
+  body.cms-preview .cms-sec-hover:not(.cms-sec-active) { outline: 1.5px dashed rgba(124,58,237,0.55); outline-offset: -2px; }
+  body.cms-preview [data-cms-field] { cursor: pointer; }
+  body.cms-preview [data-cms-field].cms-field-hover { outline: 1.5px solid rgba(124,58,237,0.7); outline-offset: 2px; border-radius: 4px; }
+  body.cms-preview [data-cms-field].cms-field-active { outline: 2px solid #7c3aed; outline-offset: 2px; border-radius: 4px; box-shadow: 0 0 0 3px rgba(124,58,237,0.18); }
+  #cms-inspector-chip {
+    position: fixed; z-index: 100000; pointer-events: none; display: none;
+    background: #7c3aed; color: #fff; font-size: 11px; font-weight: 700;
+    padding: 3px 9px; border-radius: 4px 4px 4px 0; white-space: nowrap;
+    font-family: system-ui, sans-serif; letter-spacing: 0.02em;
+    box-shadow: 0 4px 14px rgba(76,29,149,0.35);
+  }
+</style>`;
   const script = `
 <script>
 (function() {
-  var overlay = null;
   var activeKey = null;
+  var activeField = null;
+  var hoverSec = null;
+  var chip = null;
 
-  function getOverlay() {
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'cms-inspector-overlay';
-      overlay.style.cssText = 'position:fixed;pointer-events:none;z-index:99999;border:2px solid #7c3aed;border-radius:4px;background:rgba(124,58,237,0.08);transition:all 0.1s;display:none;';
-      var label = document.createElement('div');
-      label.id = 'cms-inspector-label';
-      label.style.cssText = 'position:absolute;top:-24px;left:0;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap;font-family:system-ui,sans-serif;pointer-events:none;';
-      overlay.appendChild(label);
-      document.body.appendChild(overlay);
-    }
-    return overlay;
+  function ensureChip() {
+    if (chip) return chip;
+    chip = document.createElement('div');
+    chip.id = 'cms-inspector-chip';
+    document.body.appendChild(chip);
+    return chip;
+  }
+
+  function sectionKey(el) {
+    if (!el) return '';
+    return el.getAttribute('data-section-key') || el.getAttribute('data-cpas-section') || '';
   }
 
   function findSection(el) {
     var cur = el;
     while (cur && cur !== document.body) {
-      if (cur.dataset && cur.dataset.cpasSection) return cur;
+      if (cur.hasAttribute && (cur.hasAttribute('data-section-key') || cur.hasAttribute('data-cpas-section'))) return cur;
       cur = cur.parentElement;
     }
     return null;
   }
 
-  function positionOverlay(el) {
+  function findField(el) {
+    var cur = el;
+    while (cur && cur !== document.body) {
+      if (cur.hasAttribute && cur.hasAttribute('data-cms-field')) return cur;
+      if (cur.hasAttribute && (cur.hasAttribute('data-section-key') || cur.hasAttribute('data-cpas-section'))) break;
+      cur = cur.parentElement;
+    }
+    return null;
+  }
+
+  function allSections() {
+    return Array.prototype.slice.call(document.querySelectorAll('[data-section-key], [data-cpas-section]'));
+  }
+
+  function resolveSection(key) {
+    if (!key) return null;
+    var el = document.querySelector('[data-section-key="' + key + '"]');
+    if (el) return el;
+    el = document.querySelector('[data-cpas-section="' + key + '"]');
+    if (el) return el;
+    var kebab = String(key).replace(/_/g, '-');
+    el = document.querySelector('[data-cpas-section="' + kebab + '"]');
+    if (el) return el;
+    var snake = String(key).replace(/-/g, '_');
+    return document.querySelector('[data-section-key="' + snake + '"]');
+  }
+
+  function placeChip(el, text) {
+    var c = ensureChip();
+    if (!el) { c.style.display = 'none'; return; }
     var r = el.getBoundingClientRect();
-    var o = getOverlay();
-    o.style.display = 'block';
-    o.style.top = (r.top + window.scrollY) + 'px';
-    o.style.left = r.left + 'px';
-    o.style.width = r.width + 'px';
-    o.style.height = r.height + 'px';
-    var lbl = document.getElementById('cms-inspector-label');
-    if (lbl) lbl.textContent = el.dataset.cpasSection;
+    c.textContent = text || sectionKey(el);
+    c.style.display = 'block';
+    var top = Math.max(8, r.top - 26);
+    var left = Math.max(8, Math.min(r.left, window.innerWidth - c.offsetWidth - 8));
+    c.style.top = top + 'px';
+    c.style.left = left + 'px';
+  }
+
+  function applySectionChrome() {
+    allSections().forEach(function(sec) {
+      var key = sectionKey(sec);
+      var isActive = activeKey && key === activeKey;
+      var isHover = hoverSec === sec && !isActive;
+      sec.classList.toggle('cms-sec-active', !!isActive);
+      sec.classList.toggle('cms-sec-hover', !!isHover);
+      sec.classList.toggle('cms-sec-dim', !!(activeKey && !isActive));
+    });
+    var activeEl = activeKey ? resolveSection(activeKey) : null;
+    if (activeEl) placeChip(activeEl, activeField ? (activeKey + ' / ' + activeField) : activeKey);
+    else if (hoverSec) placeChip(hoverSec, sectionKey(hoverSec));
+    else { var c = ensureChip(); c.style.display = 'none'; }
+  }
+
+  function clearFieldChrome() {
+    document.querySelectorAll('[data-cms-field].cms-field-hover, [data-cms-field].cms-field-active').forEach(function(n) {
+      n.classList.remove('cms-field-hover', 'cms-field-active');
+    });
   }
 
   document.addEventListener('mouseover', function(e) {
+    var field = findField(e.target);
     var sec = findSection(e.target);
-    if (sec) {
-      positionOverlay(sec);
-    } else {
-      var o = getOverlay();
-      if (o) o.style.display = 'none';
+    hoverSec = sec;
+    clearFieldChrome();
+    if (field) field.classList.add('cms-field-hover');
+    applySectionChrome();
+  }, true);
+
+  document.addEventListener('mouseout', function(e) {
+    if (!e.relatedTarget || e.relatedTarget === document.documentElement) {
+      hoverSec = null;
+      clearFieldChrome();
+      applySectionChrome();
     }
   }, true);
 
@@ -292,41 +366,71 @@ function injectCmsInspector(html) {
     if (!sec) return;
     e.preventDefault();
     e.stopPropagation();
-    var key = sec.dataset.cpasSection;
+    var key = sectionKey(sec);
+    var fieldEl = findField(e.target);
     activeKey = key;
-    positionOverlay(sec);
-    // Computed styles for the clicked element
-    var cs = window.getComputedStyle(sec);
-    var styles = {
-      backgroundColor: cs.backgroundColor,
-      color: cs.color,
-      fontFamily: cs.fontFamily,
-      fontSize: cs.fontSize,
-      padding: cs.padding,
-    };
-    window.parent.postMessage({
-      type: 'cms:section-clicked',
-      key: key,
-      styles: styles,
-      rect: { top: sec.getBoundingClientRect().top, height: sec.getBoundingClientRect().height }
-    }, '*');
+    activeField = fieldEl ? fieldEl.getAttribute('data-cms-field') : null;
+    var blockKey = fieldEl ? (fieldEl.getAttribute('data-cms-block') || null) : null;
+    clearFieldChrome();
+    if (fieldEl) fieldEl.classList.add('cms-field-active');
+    applySectionChrome();
+    if (fieldEl && activeField) {
+      window.parent.postMessage({
+        type: 'cms:element-selected',
+        sectionKey: key,
+        field: activeField,
+        blockKey: blockKey,
+        tag: (fieldEl.tagName || '').toLowerCase()
+      }, '*');
+    } else {
+      window.parent.postMessage({
+        type: 'cms:section-clicked',
+        key: key,
+        rect: { top: sec.getBoundingClientRect().top, height: sec.getBoundingClientRect().height }
+      }, '*');
+    }
   }, true);
 
-  // Scroll-to-section listener
+  window.addEventListener('scroll', function() { applySectionChrome(); }, true);
+  window.addEventListener('resize', function() { applySectionChrome(); });
+
   window.addEventListener('message', function(e) {
-    if (!e.data || e.data.type !== 'cms:scroll-to-section') return;
-    var key = e.data.key;
-    if (!key) return;
-    var el = document.querySelector('[data-cpas-section="' + key + '"]');
-    if (el) {
+    if (!e.data) return;
+    if (e.data.type === 'cms:scroll-to-section') {
+      var key = e.data.key;
+      var el = resolveSection(key);
+      if (!el) return;
+      activeKey = sectionKey(el);
+      activeField = null;
+      clearFieldChrome();
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      positionOverlay(el);
+      applySectionChrome();
+      return;
+    }
+    if (e.data.type === 'cms:highlight-section') {
+      activeKey = e.data.key || null;
+      activeField = e.data.field || null;
+      clearFieldChrome();
+      if (activeKey && activeField) {
+        var sec = resolveSection(activeKey);
+        if (sec) {
+          var f = sec.querySelector('[data-cms-field="' + activeField + '"]');
+          if (f) f.classList.add('cms-field-active');
+        }
+      }
+      applySectionChrome();
     }
   });
+
+  document.documentElement.classList.add('cms-preview-ready');
+  if (document.body) document.body.classList.add('cms-preview');
 })();
 </script>`;
-  if (html.includes('</body>')) return html.replace('</body>', script + '</body>');
-  return html + script;
+  let out = html;
+  if (out.includes("</head>")) out = out.replace("</head>", style + "</head>");
+  else out = style + out;
+  if (out.includes("</body>")) return out.replace("</body>", script + "</body>");
+  return out + script;
 }
 
 export async function cmsRoutes(request, env, url, sessionUser = null) {
@@ -453,8 +557,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
     try {
       if (isFragmentPageRoute(route)) {
-        const html = await previewFragmentPageFromCms(env, route);
-        if (!html) return json({ success: false, error: "Preview assembly failed", route }, 500);
+        const raw = await previewFragmentPageFromCms(env, route);
+        if (!raw) return json({ success: false, error: "Preview assembly failed", route }, 500);
+        const html = injectCmsInspector(raw);
         return new Response(html, {
           status: 200,
           headers: {
@@ -464,10 +569,11 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
         });
       }
 
-      const html = await renderPage(route, `preview_${Date.now()}`, env, {
+      const raw = await renderPage(route, `preview_${Date.now()}`, env, {
         persist: false,
         includeHidden: true,
       });
+      const html = injectCmsInspector(raw);
       return new Response(html, {
         status: 200,
         headers: {

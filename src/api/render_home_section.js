@@ -45,7 +45,7 @@ function blockCfg(block) {
   return safeJson(block?.config_json, {});
 }
 
-function heroActionBtn(label, sub, action, variant = "primary") {
+function heroActionBtn(label, sub, action, variant = "primary", fieldAttrs = "") {
   if (!label) return "";
   const cls = variant === "ghost" ? "hero-cta hero-cta-ghost" : "hero-cta hero-cta-primary";
   const normalized = String(action || "").trim().toLowerCase();
@@ -61,13 +61,45 @@ function heroActionBtn(label, sub, action, variant = "primary") {
   };
   const icon = icons[normalized] || icons.foster;
 
-  return `<button class="${cls}" type="button" ${triggerAttr}>
+  return `<button class="${cls}" type="button" ${triggerAttr}${fieldAttrs ? " " + fieldAttrs : ""}>
             <span class="hero-cta-icon">${icon}</span>
             <span class="hero-cta-text">
               <span class="hero-cta-label">${escapeHtml(label)}</span>
               ${sub ? `<span class="hero-cta-sub">${escapeHtml(sub)}</span>` : ""}
             </span>
           </button>`;
+}
+
+function fieldStyleCss(cfg, kind = "text") {
+  const parts = [];
+  if (kind === "text" || kind === "heading") {
+    const size = pick(cfg, ["text_size"]);
+    const align = pick(cfg, ["text_align"]);
+    const weight = pick(cfg, ["text_weight"]);
+    if (size === "s") parts.push(kind === "heading" ? "font-size:clamp(1.4rem,3vw,2rem)" : "font-size:0.9rem");
+    if (size === "l") parts.push(kind === "heading" ? "font-size:clamp(2.2rem,5vw,3.4rem)" : "font-size:1.15rem");
+    if (align === "center" || align === "left" || align === "right") parts.push(`text-align:${align}`);
+    if (weight === "bold") parts.push("font-weight:800");
+    if (weight === "normal") parts.push("font-weight:400");
+  }
+  if (kind === "image") {
+    const pos = pick(cfg, ["image_object_position"]) || pick(cfg, ["object_position"]);
+    if (pos === "top") parts.push("object-position:center top");
+    else if (pos === "left") parts.push("object-position:left center");
+    else if (pos === "right") parts.push("object-position:right center");
+    else if (pos === "center") parts.push("object-position:center center");
+  }
+  return parts.join(";");
+}
+
+function fieldStyleAttrs(cfg, kind = "text") {
+  const css = fieldStyleCss(cfg, kind);
+  return css ? ` style="${css}"` : "";
+}
+
+function sectionAttrs(sectionKey, cpasSlug) {
+  const slug = cpasSlug || String(sectionKey || "").replace(/_/g, "-");
+  return `data-cpas-section="${escAttr(slug)}" data-section-key="${escAttr(sectionKey)}"`;
 }
 
 function renderHeroTitle(heading, cfg = {}) {
@@ -110,20 +142,25 @@ function renderHeroFragment(section) {
     || "We move dogs from crisis to care—providing safe transport, veterinary support, foster connections, and loving homes. Together, we can give every dog the second chance they deserve.";
   const image = safeUrl(pick(section, ["image_url"]) || pick(cfg, ["image_url"]), `${CDN}/media/animals/upclose.webp`);
   const alt = pick(cfg, ["image_alt"]) || "A happy grey dog looking up at the camera on green grass";
+  const headingStyle = fieldStyleAttrs(cfg, "heading");
+  const textStyle = fieldStyleAttrs(cfg, "text");
+  const imageStyle = fieldStyleAttrs(cfg, "image");
   const cta1 = heroActionBtn(
     pick(section, ["cta_label"]) || "Contact Us",
     pick(cfg, ["cta_sub"]) || "Let's work together",
     pick(cfg, ["cta_action"]) || "contact",
-    "primary"
+    "primary",
+    'data-cms-field="cta_label"'
   );
   const cta2 = heroActionBtn(
     pick(section, ["cta_secondary_label"]) || "Support Our Mission",
     pick(cfg, ["cta_secondary_sub"]) || "Donate or give supplies",
     pick(cfg, ["cta_secondary_action"]) || "donate",
-    "ghost"
+    "ghost",
+    'data-cms-field="cta_secondary_label"'
   );
 
-  return `<section class="hero-mockup hero-watercolor" data-cpas-section="hero">
+  return `<section class="hero-mockup hero-watercolor" ${sectionAttrs("hero")}>
   <div class="hero-header-bridge" aria-hidden="true"></div>
   ${HERO_WAVES}
   ${HERO_MARK_PAW}
@@ -132,19 +169,19 @@ function renderHeroFragment(section) {
   <div class="container hero-mockup-inner">
     <div class="hero-grid">
       <div class="hero-copy">
-        <span class="hero-eyebrow">
+        <span class="hero-eyebrow" data-cms-field="eyebrow"${textStyle}>
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21 C5.4 16.2 2 12 2 8.2 C2 5 4.5 3 7.2 3 C9.2 3 11 4.2 12 6 C13 4.2 14.8 3 16.8 3 C19.5 3 22 5 22 8.2 C22 12 18.6 16.2 12 21 Z"/></svg>
           ${escapeHtml(eyebrow)}
         </span>
-        <h1 class="hero-title">${renderHeroTitle(heading, cfg)}</h1>
-        <p class="hero-lede">${escapeHtml(sub)}</p>
+        <h1 class="hero-title" data-cms-field="heading"${headingStyle}>${renderHeroTitle(heading, cfg)}</h1>
+        <p class="hero-lede" data-cms-field="subheading"${textStyle}>${escapeHtml(sub)}</p>
         <div class="hero-cta-slot">
           <div class="hero-actions">${cta1}${cta2}</div>
         </div>
       </div>
       <div class="hero-media">
-        <div class="hero-photo">
-          <img src="${escAttr(image)}" alt="${escAttr(alt)}" loading="eager" decoding="async" />
+        <div class="hero-photo" data-cms-field="image_url">
+          <img src="${escAttr(image)}" alt="${escAttr(alt)}" loading="eager" decoding="async"${imageStyle} />
         </div>
       </div>
     </div>
@@ -163,24 +200,27 @@ function renderMissionFragment(section, blocks) {
   const eyebrow = pick(section, ["eyebrow"]) || "Our Mission";
   const heading = pick(section, ["heading"]) || "We are the bridge from urgent to safe.";
   const body = pick(section, ["body"]) || pick(section, ["subheading"]);
+  const headingStyle = fieldStyleAttrs(cfg, "heading");
+  const textStyle = fieldStyleAttrs(cfg, "text");
   const steps = sortBlocks(blocks).filter((b) => Number(b.is_visible) !== 0);
   const stepHtml = steps.map((block, i) => {
     const label = pick(block, ["title"]) || pick(blockCfg(block), ["label"]) || "";
     const lines = label.split("\n").map((l) => escapeHtml(l)).join("<br>");
     const icon = pick(blockCfg(block), ["icon_svg"]) || MISSION_ICONS[i % MISSION_ICONS.length];
-    return `<div class="mission-step">
+    const bk = escAttr(block.block_key || `step_${i + 1}`);
+    return `<div class="mission-step" data-cms-field="block_title" data-cms-block="${bk}">
             <div class="mission-step-icon">${icon}</div>
             <span>${lines}</span>
           </div>${i < steps.length - 1 ? '<div class="mission-arrow">→</div>' : ""}`;
   }).join("\n          ");
 
-  return `<section class="mission-wrap" data-cpas-section="mission">
+  return `<section class="mission-wrap" ${sectionAttrs("mission")}>
   <div class="container">
     <div class="mission-card">
       <div class="mission-card-left">
-        <div class="ey-purple">${escapeHtml(eyebrow)}</div>
-        <h2 class="mission-heading">${escapeHtml(heading)}</h2>
-        <p class="mission-body">${escapeHtml(body)}</p>
+        <div class="ey-purple" data-cms-field="eyebrow"${textStyle}>${escapeHtml(eyebrow)}</div>
+        <h2 class="mission-heading" data-cms-field="heading"${headingStyle}>${escapeHtml(heading)}</h2>
+        <p class="mission-body" data-cms-field="body"${textStyle}>${escapeHtml(body)}</p>
       </div>
       <div class="mission-card-right">
         <div class="mission-flow">${stepHtml}</div>
@@ -197,23 +237,26 @@ const PILLAR_ICONS = [
 ];
 
 function renderHowItHelpsFragment(section, blocks) {
+  const cfg = safeJson(section.config_json, {});
   const eyebrow = pick(section, ["eyebrow"]) || pick(section, ["heading"]) || "How Your Support Helps";
   const pillars = sortBlocks(blocks).filter((b) => Number(b.is_visible) !== 0);
   const pillarHtml = pillars.map((block, i) => {
-    const cfg = blockCfg(block);
-    const icon = pick(cfg, ["icon_svg"]) || PILLAR_ICONS[i % PILLAR_ICONS.length];
-    const href = safeUrl(pick(block, ["href"]) || pick(cfg, ["href"]), "#");
-    return `<div class="pillar">
+    const bcfg = blockCfg(block);
+    const icon = pick(bcfg, ["icon_svg"]) || PILLAR_ICONS[i % PILLAR_ICONS.length];
+    const href = safeUrl(pick(block, ["href"]) || pick(bcfg, ["href"]), "#");
+    const bk = escAttr(block.block_key || `pillar_${i + 1}`);
+    return `<div class="pillar" data-cms-field="block_title" data-cms-block="${bk}">
         <div class="pillar-icon-wrap">${icon}</div>
-        <h3>${escapeHtml(pick(block, ["title"]) || "")}</h3>
-        <p>${escapeHtml(pick(block, ["body"]) || "")}</p>
+        <h3 data-cms-field="block_title" data-cms-block="${bk}">${escapeHtml(pick(block, ["title"]) || "")}</h3>
+        <p data-cms-field="block_body" data-cms-block="${bk}">${escapeHtml(pick(block, ["body"]) || "")}</p>
         <a href="${escAttr(href)}">Learn more →</a>
       </div>`;
   }).join("\n      ");
 
-  return `<section class="section s-light" data-cpas-section="how-it-helps">
+  const extra = fieldStyleCss(cfg, "text");
+  return `<section class="section s-light" ${sectionAttrs("how_it_helps", "how-it-helps")}>
   <div class="container">
-    <div class="ey-purple" style="text-align:center">${escapeHtml(eyebrow)}</div>
+    <div class="ey-purple" data-cms-field="eyebrow" style="text-align:center${extra ? ";" + extra : ""}">${escapeHtml(eyebrow)}</div>
     <div class="pillars-row">${pillarHtml}</div>
   </div>
 </section>`;
@@ -233,24 +276,27 @@ function renderTransportWinFragment(section) {
   const ctaAction = pick(cfg, ["cta_action"]) || "donate";
   const ctaHref = safeUrl(pick(cfg, ["cta_href"]), "");
   const isExternalLink = ctaHref && ctaHref.startsWith("http");
+  const headingStyle = fieldStyleAttrs(cfg, "heading");
+  const textStyle = fieldStyleAttrs(cfg, "text");
+  const imageStyle = fieldStyleAttrs(cfg, "image");
   const ctaEl = isExternalLink
-    ? `<a class="story-cta" href="${escAttr(ctaHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>`
-    : `<a class="story-cta" href="#" data-action="${escAttr(ctaAction)}">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>`;
+    ? `<a class="story-cta" href="${escAttr(ctaHref)}" target="_blank" rel="noopener noreferrer" data-cms-field="cta_label">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>`
+    : `<a class="story-cta" href="#" data-action="${escAttr(ctaAction)}" data-cms-field="cta_label">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>`;
   const socialSecondary = cfg.social_secondary;
   const socialHtml = socialSecondary?.href
     ? `<a class="story-cta story-cta--ghost" href="${escAttr(socialSecondary.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(socialSecondary.label || "See more")}</a>`
     : "";
 
-  return `<section class="section s-light" data-cpas-section="transport-win">
+  return `<section class="section s-light" ${sectionAttrs("transport_win", "transport-win")}>
   <div class="container">
     <div class="story-block">
-      <div class="story-block-img story-block-img--contain">
-        <img src="${escAttr(image)}" alt="${escAttr(alt)}" loading="lazy" decoding="async" />
+      <div class="story-block-img story-block-img--contain" data-cms-field="image_url">
+        <img src="${escAttr(image)}" alt="${escAttr(alt)}" loading="lazy" decoding="async"${imageStyle} />
       </div>
       <div class="story-block-body">
-        <div class="ey-purple">${escapeHtml(eyebrow)}</div>
-        <h2 class="story-heading">${escapeHtml(heading)}</h2>
-        <p class="story-body">${escapeHtml(body)}</p>
+        <div class="ey-purple" data-cms-field="eyebrow"${textStyle}>${escapeHtml(eyebrow)}</div>
+        <h2 class="story-heading" data-cms-field="heading"${headingStyle}>${escapeHtml(heading)}</h2>
+        <p class="story-body" data-cms-field="body"${textStyle}>${escapeHtml(body)}</p>
         <div class="story-cta-row">${ctaEl}${socialHtml}</div>
       </div>
     </div>
@@ -279,7 +325,7 @@ function renderImpactStatsFragment(section, blocks) {
   }).join("\n      ");
 
   return `<style>[data-cpas-section="impact-stats"]{display:block}</style>
-<section class="stats-band s-purple" data-cpas-section="impact-stats">
+<section class="stats-band s-purple" ${sectionAttrs("impact_stats", "impact-stats")}>
   <div class="container">
     <div class="stats-row">${cells}</div>
   </div>
@@ -366,12 +412,12 @@ async function renderCampaignsFragment(section, blocks, env) {
       : `<p class="camp-empty">Active campaigns appear here as you publish them in <a href="/dashboard/fundraising">Fundraising</a>. <a href="${escAttr(campLink)}">Give now →</a></p>`;
   }
 
-  return `<section class="section s-light home-campaigns" data-cpas-section="campaigns">
+  return `<section class="section s-light home-campaigns" ${sectionAttrs("campaigns")}>
   <div class="container">
     <div class="cc-grid">
       <div class="cc-col cc-col-campaigns">
         <div class="cc-header">
-          <div class="ey-purple">${escapeHtml(campEyebrow)}</div>
+          <div class="ey-purple" data-cms-field="eyebrow">${escapeHtml(campEyebrow)}</div>
           <a class="cc-view-all" href="${escAttr(campLink)}">View all →</a>
         </div>
         <div class="camp-list">${campaignHtml}</div>
@@ -394,13 +440,13 @@ function renderNewsletterFragment(section) {
   const donateLabel = pick(cfg, ["donate_label"]) || "Donate Now";
 
   return `<style>[data-cpas-section="newsletter"]{display:block}.cta-email-status{width:100%;margin:.35rem 0 0;color:rgba(255,255,255,.78);font-size:.8rem}</style>
-<section class="cta-band s-purple" data-cpas-section="newsletter">
+<section class="cta-band s-purple" ${sectionAttrs("newsletter")}>
   <div class="container cta-band-inner">
     <div class="cta-band-left">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
       <div>
-        <p class="cta-band-heading">${escapeHtml(heading)}</p>
-        <p class="cta-band-sub">${escapeHtml(sub)}</p>
+        <p class="cta-band-heading" data-cms-field="heading">${escapeHtml(heading)}</p>
+        <p class="cta-band-sub" data-cms-field="subheading">${escapeHtml(sub)}</p>
       </div>
     </div>
     <div class="cta-band-right">

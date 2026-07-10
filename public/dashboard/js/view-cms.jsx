@@ -415,6 +415,37 @@ const CMS_TYPE_COLOR = {
   animal_grid: '#4ade80', content: '#94a3b8', service_cards: '#34d399', donate_tiers: '#fbbf24'
 };
 
+const CMS_DEVICE_FRAMES = { desktop: 1280, tablet: 834, mobile: 390 };
+const CMS_ZOOM_OPTIONS = [
+  { key: "fit", label: "Fit" },
+  { key: "50", label: "50%" },
+  { key: "75", label: "75%" },
+  { key: "100", label: "100%" },
+];
+const CMS_FIELD_LABELS = {
+  eyebrow: "Eyebrow",
+  heading: "Heading",
+  subheading: "Subheading",
+  body: "Body",
+  image_url: "Image",
+  cta_label: "Primary CTA",
+  cta_href: "Primary CTA link",
+  cta_secondary_label: "Secondary CTA",
+  cta_secondary_href: "Secondary CTA link",
+  block_title: "Block title",
+  block_body: "Block body",
+};
+const CMS_TEXT_FIELDS = new Set(["eyebrow", "heading", "subheading", "body", "cta_label", "cta_secondary_label", "block_title", "block_body"]);
+const CMS_IMAGE_FIELDS = new Set(["image_url"]);
+
+function cmsNormalizeSectionKey(key) {
+  return String(key || "").replace(/-/g, "_");
+}
+
+function cmsParseConfig(section) {
+  try { return JSON.parse(section?.config_json || "{}"); } catch { return {}; }
+}
+
 const CMS_SECTION_TYPES = [
   { type:'hero', label:'Hero', desc:'Large page opener with headline, image, and CTAs' },
   { type:'text_image', label:'Text + Image', desc:'Balanced story block with optional media' },
@@ -478,7 +509,12 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   const [pageData, setPageData] = React.useState({ page:null, sections:[], blocks:[] });
   const [selectedKey, setSelectedKey] = React.useState(null);
+  const [selectedField, setSelectedField] = React.useState(null);
+  const [selectedBlockKey, setSelectedBlockKey] = React.useState(null);
   const [previewMode, setPreviewMode] = React.useState('desktop');
+  const [canvasZoom, setCanvasZoom] = React.useState('fit');
+  const [stageWidth, setStageWidth] = React.useState(0);
+  const canvasStageRef = React.useRef(null);
   const [mobileTab, setMobileTab] = React.useState('sections');
   const [notice, setNotice] = React.useState({});
   const [busy, setBusy] = React.useState(false);
@@ -491,30 +527,78 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [activeFont, setActiveFont] = React.useState('fraunces_dm');
   const [showFontPicker, setShowFontPicker] = React.useState(false);
   const [uploadingAsset, setUploadingAsset] = React.useState(false);
+  const [sidenavOpen, setSidenavOpen] = React.useState(true);
+  const [hasUnsaved, setHasUnsaved] = React.useState(false);
   const notify = (t, type='ok') => cmsNotify(setNotice, t, type);
 
   const sortedSections = React.useMemo(() => [...(pageData.sections || [])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)), [pageData.sections]);
-  const selected = React.useMemo(() => sortedSections.find(s => s.section_key === selectedKey) || sortedSections[0] || null, [sortedSections, selectedKey]);
+  const selected = React.useMemo(() => {
+    if (!sortedSections.length) return null;
+    const want = cmsNormalizeSectionKey(selectedKey);
+    return sortedSections.find(s => cmsNormalizeSectionKey(s.section_key) === want) || sortedSections[0] || null;
+  }, [sortedSections, selectedKey]);
 
   const [previewVersion, setPreviewVersion] = React.useState(0);
   const bumpPreview = React.useCallback(() => setPreviewVersion(v => v + 1), []);
   const previewIframeRef = React.useRef(null);
 
+  const postHighlight = React.useCallback((key, field) => {
+    try {
+      const iframe = previewIframeRef.current;
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'cms:highlight-section', key, field: field || null }, '*');
+      }
+    } catch (_) {}
+  }, []);
+
   // Listen for clicks from the inspector injected into the preview iframe
   React.useEffect(() => {
     const handler = (e) => {
-      if (!e.data || e.data.type !== 'cms:section-clicked') return;
+      if (!e.data) return;
+      if (e.data.type === 'cms:element-selected') {
+        const key = e.data.sectionKey;
+        if (!key) return;
+        const normalized = cmsNormalizeSectionKey(key);
+        const match = (pageData.sections || []).find(s => cmsNormalizeSectionKey(s.section_key) === normalized);
+        setSelectedKey(match?.section_key || key);
+        setSelectedField(e.data.field || null);
+        setSelectedBlockKey(e.data.blockKey || null);
+        setMobileTab('edit');
+        const row = document.getElementById('cms-section-row-' + (match?.section_key || key));
+        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+      }
+      if (e.data.type !== 'cms:section-clicked') return;
       const key = e.data.key;
       if (!key) return;
-      setSelectedKey(key);
+      const normalized = cmsNormalizeSectionKey(key);
+      const match = (pageData.sections || []).find(s => cmsNormalizeSectionKey(s.section_key) === normalized);
+      setSelectedKey(match?.section_key || key);
+      setSelectedField(null);
+      setSelectedBlockKey(null);
       setMobileTab('edit');
-      // Scroll the section rail row into view
-      const row = document.getElementById('cms-section-row-' + key);
+      const row = document.getElementById('cms-section-row-' + (match?.section_key || key));
       if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, []);
+  }, [pageData.sections]);
+
+  React.useEffect(() => {
+    const el = canvasStageRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width || 0;
+      setStageWidth(w);
+    });
+    ro.observe(el);
+    setStageWidth(el.clientWidth || 0);
+    return () => ro.disconnect();
+  }, [isDesktop]);
+
+  React.useEffect(() => {
+    if (selectedKey) postHighlight(selectedKey, selectedField);
+  }, [selectedKey, selectedField, previewVersion, postHighlight]);
 
   const loadPage = React.useCallback(async () => {
     try {
@@ -643,6 +727,19 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     try { await fetch('/api/cms/brand/config', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ active_font_preset:key }) }); notify('Font changed — publish to apply'); } catch {}
   };
 
+  const setConfigPatch = async (patch, silent = true) => {
+    if (!selected) return;
+    const cfg = { ...cmsParseConfig(selected), ...patch };
+    const next = { ...selected, config_json: JSON.stringify(cfg) };
+    setPageData(prev => ({ ...prev, sections: (prev.sections || []).map(s => s.section_key === selected.section_key ? next : s) }));
+    setHasUnsaved(true);
+    try {
+      await saveSectionObject(next, true);
+      bumpPreview();
+      if (!silent) setHasUnsaved(false);
+    } catch (e) { notify(e.message, 'error'); }
+  };
+
   const askAgent = () => {
     window.dispatchEvent(new CustomEvent('agentsam:open', { detail:{ prompt:`Improve the ${selected?.section_type || 'section'} copy for ${route}: ${selected?.heading || ''}` } }));
   };
@@ -665,11 +762,14 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     } catch (_) {}
   }, [route, onNavigate]);
 
-  const [sidenavOpen, setSidenavOpen] = React.useState(true);
-  const [hasUnsaved, setHasUnsaved] = React.useState(false);
-
   // Track unsaved state when fields change
   const setFieldTracked = (key, val) => { setField(key, val); setHasUnsaved(true); };
+
+  const mode = isMobile ? 'mobile' : previewMode;
+  const frameWidth = CMS_DEVICE_FRAMES[mode] || CMS_DEVICE_FRAMES.desktop;
+  const fitScale = stageWidth > 0 ? Math.min(1, (stageWidth - 32) / frameWidth) : 1;
+  const zoomScale = canvasZoom === 'fit' ? fitScale : (Number(canvasZoom) / 100);
+  const scalePct = Math.round(zoomScale * 100);
 
   function renderTopbar() {
     return React.createElement('div', { style:{ height:52, background:C.surface, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 14px', gap:10, flexShrink:0, zIndex:10 } },
@@ -686,7 +786,17 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       ),
       hasUnsaved && React.createElement('div', { style:{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:99, background:'#fef3c7', color:'#92400e', border:'1px solid #fcd34d', whiteSpace:'nowrap', flexShrink:0 } }, 'Unsaved draft'),
       notice.text && !isMobile && React.createElement('div', { style:{ fontSize:11, color:notice.type === 'error' ? C.red : C.green, fontWeight:700, flexShrink:0 } }, notice.text),
-      isDesktop && ['desktop','tablet','mobile'].map(m => React.createElement('button', { key:m, onClick:()=>setPreviewMode(m), style:{ padding:'5px 10px', borderRadius:7, border:`1px solid ${previewMode === m ? C.purple : C.border}`, background:previewMode === m ? C.purpleDim : 'transparent', color:previewMode === m ? C.purpleL : C.textSec, fontSize:11, cursor:'pointer', textTransform:'capitalize', flexShrink:0 } }, m)),
+      isDesktop && React.createElement('div', { className:'cms-device-toggle', style:{ display:'flex', gap:4, flexShrink:0 } },
+        ['desktop','tablet','mobile'].map(m => React.createElement('button', { key:m, onClick:()=>setPreviewMode(m), style:{ padding:'5px 10px', borderRadius:7, border:`1px solid ${previewMode === m ? C.purple : C.border}`, background:previewMode === m ? C.purpleDim : 'transparent', color:previewMode === m ? C.purpleL : C.textSec, fontSize:11, cursor:'pointer', textTransform:'capitalize' } }, m))
+      ),
+      isDesktop && React.createElement('div', { className:'cms-zoom-toggle', style:{ display:'flex', gap:3, flexShrink:0, marginLeft:2 } },
+        CMS_ZOOM_OPTIONS.map(z => React.createElement('button', {
+          key: z.key,
+          title: `Zoom ${z.label}`,
+          onClick: () => setCanvasZoom(z.key),
+          style:{ padding:'5px 8px', borderRadius:7, border:`1px solid ${canvasZoom === z.key ? C.purple : C.border}`, background:canvasZoom === z.key ? C.purpleDim : 'transparent', color:canvasZoom === z.key ? C.purpleL : C.textSec, fontSize:10, fontWeight:700, cursor:'pointer' }
+        }, z.label))
+      ),
       !isDesktop && React.createElement(Btn, { size:'sm', variant:'secondary', icon:'eye', onClick:()=>window.open(liveUrl, '_blank') }, 'Preview'),
       hasUnsaved && React.createElement(Btn, { size:'sm', variant:'secondary', disabled:busy, onClick:()=>{ saveSelected(false).then(()=>setHasUnsaved(false)); } }, busy ? 'Saving…' : 'Save Draft'),
       React.createElement(Btn, { size:'sm', icon:'publish', disabled:busy, onClick:()=>{ publishPage().then(()=>setHasUnsaved(false)); } }, isMobile ? 'Publish' : 'Publish Live')
@@ -717,6 +827,8 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                 onDrop:e=>{ e.preventDefault(); reorderSections(dragKey, s.section_key); },
                 onClick:()=>{
                   setSelectedKey(s.section_key);
+                  setSelectedField(null);
+                  setSelectedBlockKey(null);
                   setHasUnsaved(false);
                   if (isMobile) setMobileTab('edit');
                   try {
@@ -744,8 +856,6 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   function renderPreview() {
     if (!isDesktop && mobileTab !== 'preview') return null;
-    const mode = isMobile ? 'mobile' : previewMode;
-    const previewWidth = mode === 'mobile' ? 390 : mode === 'tablet' ? 768 : '100%';
     const iframeHeight = isMobile ? 'calc(100vh - 110px)' : '100%';
     const iframe = React.createElement('iframe', {
       ref: previewIframeRef,
@@ -758,18 +868,73 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           if (selectedKey && e.target?.contentWindow) {
             setTimeout(() => {
               e.target.contentWindow.postMessage({ type:'cms:scroll-to-section', key:selectedKey }, '*');
+              if (selectedField) {
+                e.target.contentWindow.postMessage({ type:'cms:highlight-section', key:selectedKey, field:selectedField }, '*');
+              }
             }, 400);
           }
         } catch(_) {}
       },
-      style: { width:'100%', height:iframeHeight, minHeight:isMobile ? iframeHeight : 720, border:0, display:'block', background:'#0b0f1a' }
+      style: { width:'100%', height:'100%', border:0, display:'block', background:'#0b0f1a' }
     });
     if (isMobile && mobileTab === 'preview') {
-      return iframe;
+      return React.createElement('div', { style:{ height:iframeHeight, minHeight:iframeHeight } }, iframe);
     }
-    return React.createElement('div', { style:{ height:'100%', overflow:'auto', background:'#ebe8f0', padding:mode === 'desktop' ? 18 : '18px 0' } },
-      React.createElement('div', { style:{ width:previewWidth, maxWidth:'100%', margin:'0 auto', background:'#0b0f1a', borderRadius:16, overflow:'hidden', boxShadow:'0 22px 60px rgba(20,16,32,.14)', height:'calc(100vh - 120px)', minHeight:720 } },
-        iframe
+    const frameH = 'calc(100vh - 120px)';
+    return React.createElement('div', {
+      ref: canvasStageRef,
+      className: 'cms-canvas-stage',
+      style: { height:'100%', overflow:'auto', background:'#ebe8f0', padding:'16px 12px 24px', position:'relative' }
+    },
+      React.createElement('div', {
+        className: 'cms-device-scale-wrap',
+        style: {
+          width: frameWidth * zoomScale,
+          height: `calc((100vh - 140px) * ${zoomScale})`,
+          minHeight: 480 * zoomScale,
+          margin: '0 auto',
+          position: 'relative'
+        }
+      },
+        React.createElement('div', {
+          className: 'cms-device-frame',
+          style: {
+            width: frameWidth,
+            height: frameH,
+            minHeight: 720,
+            transform: `scale(${zoomScale})`,
+            transformOrigin: 'top left',
+            background: '#0b0f1a',
+            borderRadius: 14,
+            overflow: 'hidden',
+            boxShadow: '0 22px 60px rgba(20,16,32,.16)',
+            border: '1px solid rgba(26,22,34,0.12)'
+          }
+        }, iframe)
+      ),
+      React.createElement('div', {
+        className: 'cms-canvas-meta',
+        style: { textAlign:'center', marginTop:10, fontSize:11, fontWeight:700, color:C.textMut, letterSpacing:'.04em' }
+      }, `${frameWidth}px · ${scalePct}% · ${mode}`)
+    );
+  }
+
+  function renderPresetRow(label, value, options, onPick) {
+    return React.createElement('div', { key: label },
+      cmsFieldLabel(label),
+      React.createElement('div', { style:{ display:'flex', flexWrap:'wrap', gap:6 } },
+        options.map(opt => React.createElement('button', {
+          key: opt.value,
+          type: 'button',
+          onClick: () => onPick(opt.value),
+          style: {
+            padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+            border: `1px solid ${value === opt.value ? C.purple : C.border}`,
+            background: value === opt.value ? C.purpleDim : C.bg,
+            color: value === opt.value ? C.purpleL : C.textSec,
+            fontFamily: 'var(--font-ui)'
+          }
+        }, opt.label))
       )
     );
   }
@@ -777,7 +942,75 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   function renderInspector(compact=false) {
     if (!selected) return React.createElement('div', { style:{ padding:18, color:C.textMut, fontSize:13 } }, 'Select a section to edit.');
     const needsImage = ['hero','text_image','text_image_split'].includes(selected.section_type);
-    const field = (label, key, type='text', opts={}) => React.createElement('div', { key }, cmsFieldLabel(label), type === 'textarea' ? cmsTextArea(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.rows || 5) : cmsTextInput(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.placeholder, opts.mono));
+    const cfg = cmsParseConfig(selected);
+    const field = (label, key, type='text', opts={}) => React.createElement('div', { key, id: 'cms-field-' + key }, cmsFieldLabel(label), type === 'textarea' ? cmsTextArea(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.rows || 5) : cmsTextInput(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.placeholder, opts.mono));
+
+    const showElementFocus = !!selectedField && selectedField !== 'block_title' && selectedField !== 'block_body';
+    const elementLabel = CMS_FIELD_LABELS[selectedField] || selectedField;
+    const isTextEl = CMS_TEXT_FIELDS.has(selectedField);
+    const isImageEl = CMS_IMAGE_FIELDS.has(selectedField);
+
+    const styleTweaks = (isTextEl || isImageEl) && React.createElement('div', { style:{ display:'grid', gap:12 } },
+      React.createElement('h4', { style:groupTitleStyle() }, 'Style tweaks'),
+      isTextEl && renderPresetRow('Size', cfg.text_size || 'm', [
+        { value:'s', label:'S' }, { value:'m', label:'M' }, { value:'l', label:'L' }
+      ], v => setConfigPatch({ text_size: v })),
+      isTextEl && renderPresetRow('Align', cfg.text_align || 'left', [
+        { value:'left', label:'Left' }, { value:'center', label:'Center' }, { value:'right', label:'Right' }
+      ], v => setConfigPatch({ text_align: v })),
+      isTextEl && renderPresetRow('Weight', cfg.text_weight || 'bold', [
+        { value:'normal', label:'Regular' }, { value:'bold', label:'Bold' }
+      ], v => setConfigPatch({ text_weight: v })),
+      isImageEl && renderPresetRow('Focal point', cfg.image_object_position || 'center', [
+        { value:'center', label:'Center' }, { value:'top', label:'Top' }, { value:'left', label:'Left' }, { value:'right', label:'Right' }
+      ], v => setConfigPatch({ image_object_position: v }))
+    );
+
+    const elementPanel = showElementFocus && React.createElement('div', { style:{ display:'grid', gap:14 } },
+      React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 } },
+        React.createElement('div', { style:{ fontSize:12, color:C.textSec } },
+          React.createElement('span', { style:{ fontWeight:800, color:C.purpleL } }, selected.section_type || 'section'),
+          React.createElement('span', { style:{ margin:'0 6px', color:C.textMut } }, '/'),
+          React.createElement('span', { style:{ fontWeight:800, color:C.text } }, elementLabel)
+        ),
+        React.createElement('button', {
+          type:'button',
+          onClick:()=>{ setSelectedField(null); setSelectedBlockKey(null); postHighlight(selected.section_key, null); },
+          style:{ background:'none', border:`1px solid ${C.border}`, borderRadius:8, padding:'4px 8px', fontSize:11, cursor:'pointer', color:C.textSec }
+        }, 'Full section')
+      ),
+      selectedField === 'heading' && field('Heading', 'heading'),
+      selectedField === 'eyebrow' && field('Eyebrow', 'eyebrow'),
+      selectedField === 'subheading' && field('Subheading', 'subheading'),
+      selectedField === 'body' && field('Body', 'body', 'textarea', { rows: 6 }),
+      selectedField === 'image_url' && React.createElement('div', { style:{ display:'grid', gap:12 } },
+        React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } }, React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)), React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick'))),
+        selected.image_url && React.createElement('img', { src:selected.image_url, style:{ width:'100%', height:86, objectFit:'cover', borderRadius:12, border:`1px solid ${C.border}` } })
+      ),
+      selectedField === 'cta_label' && React.createElement(React.Fragment, null, field('Primary CTA label', 'cta_label'), field('Primary CTA href', 'cta_href', 'text', { placeholder:'/foster' })),
+      selectedField === 'cta_secondary_label' && React.createElement(React.Fragment, null, field('Secondary CTA label', 'cta_secondary_label'), field('Secondary CTA href', 'cta_secondary_href', 'text', { placeholder:'/donate' })),
+      styleTweaks
+    );
+
+    const fullPanel = !showElementFocus && React.createElement(React.Fragment, null,
+      React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Content'), field('Eyebrow','eyebrow'), field('Heading','heading'), field('Subheading','subheading'), field('Body','body','textarea',{ rows:5 })),
+      needsImage && React.createElement('div', { style:{ display:'grid', gap:12 } },
+        React.createElement('h4', { style:groupTitleStyle() }, 'Media'),
+        React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } }, React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)), React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick'))),
+        selected.image_url && React.createElement('img', { src:selected.image_url, style:{ width:'100%', height:86, objectFit:'cover', borderRadius:12, border:`1px solid ${C.border}` } })
+      ),
+      React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Links'), field('Primary CTA label','cta_label'), field('Primary CTA href','cta_href','text',{ placeholder:'/foster' }), field('Secondary CTA label','cta_secondary_label'), field('Secondary CTA href','cta_secondary_href','text',{ placeholder:'/donate' })),
+      React.createElement('div', { style:{ display:'grid', gap:12 } },
+        React.createElement('h4', { style:groupTitleStyle() }, 'Section style'),
+        renderPresetRow('Text size', cfg.text_size || 'm', [
+          { value:'s', label:'S' }, { value:'m', label:'M' }, { value:'l', label:'L' }
+        ], v => setConfigPatch({ text_size: v })),
+        renderPresetRow('Text align', cfg.text_align || 'left', [
+          { value:'left', label:'Left' }, { value:'center', label:'Center' }, { value:'right', label:'Right' }
+        ], v => setConfigPatch({ text_align: v }))
+      )
+    );
+
     return React.createElement('div', { style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface } },
       React.createElement('div', { style:{ padding:16, borderBottom:`1px solid ${C.border}` } },
         React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 } },
@@ -786,13 +1019,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         )
       ),
       React.createElement('div', { style:{ padding:16, overflowY:'auto', flex:1, display:'grid', gap:16 } },
-        React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Content'), field('Eyebrow','eyebrow'), field('Heading','heading'), field('Subheading','subheading'), field('Body','body','textarea',{ rows:5 })),
-        needsImage && React.createElement('div', { style:{ display:'grid', gap:12 } },
-          React.createElement('h4', { style:groupTitleStyle() }, 'Media'),
-          React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } }, React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)), React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick'))),
-          selected.image_url && React.createElement('img', { src:selected.image_url, style:{ width:'100%', height:86, objectFit:'cover', borderRadius:12, border:`1px solid ${C.border}` } })
-        ),
-        React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Links'), field('Primary CTA label','cta_label'), field('Primary CTA href','cta_href','text',{ placeholder:'/foster' }), field('Secondary CTA label','cta_secondary_label'), field('Secondary CTA href','cta_secondary_href','text',{ placeholder:'/donate' }))
+        elementPanel || fullPanel
       ),
       React.createElement('div', { style:{ position:'sticky', bottom:0, padding:12, background:C.surface, borderTop:`1px solid ${C.border}`, display:'grid', gap:8 } },
         React.createElement('div', { style:{ display:'grid', gridTemplateColumns:compact ? '1fr 1fr' : '1fr', gap:8 } },
