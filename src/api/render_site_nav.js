@@ -57,6 +57,8 @@ async function loadDynamicNavItems(env, visibilityMap) {
         inFooter: true,
       }))
       .filter((item) => item.route && item.label && !known.has(item.route))
+      .filter((item) => !String(item.route).startsWith("/admin"))
+      .filter((item) => !String(item.route).startsWith("/dashboard"))
       .filter((item) => isRouteNavVisible(visibilityMap, item.route));
   } catch {
     return [];
