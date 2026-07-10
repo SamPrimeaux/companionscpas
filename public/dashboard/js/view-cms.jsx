@@ -725,7 +725,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                     }
                   } catch(_) {}
                 },
-                style:{ display:'grid', gridTemplateColumns:'18px minmax(0,1fr) auto 28px', alignItems:'center', gap:8, padding:'10px 8px', marginBottom:6, borderRadius:12, cursor:'pointer', border:`1px solid ${active ? C.purple : dragOverKey === s.section_key ? C.purple + '55' : C.border}`, borderLeft:`3px solid ${active ? C.purple : color}`, background:active ? C.purple : C.bg, opacity:hidden ? .55 : 1 }
+                style:{ display:'grid', gridTemplateColumns:'18px minmax(0,1fr) auto 28px', alignItems:'center', gap:8, padding:'10px 8px', marginBottom:6, borderRadius:12, cursor:'pointer', border:`2px solid ${active ? C.purple : dragOverKey === s.section_key ? C.purple + '55' : C.border}`, borderLeft:`5px solid ${active ? C.purple : color}`, background:active ? C.purpleDim : C.bg, opacity:hidden ? .55 : 1, boxShadow: active ? `0 0 0 2px ${C.purple}44` : 'none', transition:'all 0.12s' }
               },
                 React.createElement('span', { style:{ color:C.textMut, fontSize:14, cursor:'grab' } }, '≡'),
                 React.createElement('div', { style:{ minWidth:0 } },
