@@ -610,3 +610,77 @@ body[data-route="/donate"] main {
   .dv2-contact-card { flex-direction: column; align-items: stretch; }
   .dv2-contact .btn { width: 100%; }
 }
+
+/* Glassmorphic purple CTA — used for primary donate actions */
+.btn-glass-purple {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0.75rem 1.75rem;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(123, 47, 190, 0.92), rgba(107, 45, 139, 0.84));
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 8px 24px rgba(107, 45, 139, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.btn-glass-purple:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 36px rgba(107, 45, 139, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+.btn-glass-purple:active { transform: translateY(0); }
+
+/* Freedom Ride win state layout */
+.dv2-hero--complete { padding: clamp(3rem, 7vw, 5rem) 0 0; }
+.dv2-win-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(2rem, 5vw, 3.5rem);
+  align-items: center;
+}
+.dv2-win-img {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(15, 31, 61, 0.14);
+}
+.dv2-win-img img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+.dv2-kicker--win {
+  color: #2d6a4f;
+  margin-bottom: 0.75rem;
+}
+.dv2-ribbon--win {
+  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+  color: var(--dv2-navy);
+  margin-bottom: 1rem;
+}
+.dv2-win-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+}
+@media (max-width: 720px) {
+  .dv2-win-wrap { grid-template-columns: 1fr; }
+  .dv2-win-actions { flex-direction: column; }
+  .dv2-win-actions .btn-glass-purple,
+  .dv2-win-actions .btn-ghost { width: 100%; text-align: center; justify-content: center; }
+}
