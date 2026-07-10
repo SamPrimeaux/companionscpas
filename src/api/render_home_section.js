@@ -485,7 +485,7 @@ function renderNewsletterFragment(section) {
   const cfg = safeJson(section.config_json, {});
   const heading = pick(section, ["heading"]) || "Stay in the loop. Be part of the second chances.";
   const sub = pick(section, ["subheading"]) || pick(section, ["body"]) || "";
-  const fosterLabel = pick(section, ["cta_label"]) || pick(cfg, ["foster_label"]) || "Foster a Dog";
+  const fosterLabel = section.cta_label != null && String(section.cta_label).trim() ? String(section.cta_label).trim() : (cfg.foster_label || null);
   const donateLabel = pick(section, ["cta_secondary_label"]) || pick(cfg, ["donate_label"]) || "Donate Now";
 
   return `<style>[data-cpas-section="newsletter"]{display:block}.cta-email-status{width:100%;margin:.35rem 0 0;color:rgba(255,255,255,.78);font-size:.8rem}</style>
