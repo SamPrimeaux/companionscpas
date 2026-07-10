@@ -645,17 +645,17 @@ body[data-route="/donate"] main {
 .btn-glass-purple:active { transform: translateY(0); }
 
 /* Freedom Ride win state layout */
-.dv2-hero--complete { padding: clamp(3rem, 7vw, 5rem) 0 0; }
+.dv2-hero--complete { padding: clamp(2.5rem, 5vw, 4rem) 0 0; }
 .dv2-win-wrap {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: clamp(2rem, 5vw, 3.5rem);
+  grid-template-columns: 480px 1fr;
+  gap: clamp(2.5rem, 5vw, 4rem);
   align-items: center;
 }
 .dv2-win-img {
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 16px 48px rgba(15, 31, 61, 0.14);
+  box-shadow: 0 20px 56px rgba(15, 31, 61, 0.16);
 }
 .dv2-win-img img {
   width: 100%;
@@ -664,13 +664,26 @@ body[data-route="/donate"] main {
   object-fit: contain;
 }
 .dv2-kicker--win {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
   color: #2d6a4f;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
 }
 .dv2-ribbon--win {
-  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.15;
   color: var(--dv2-navy);
   margin-bottom: 1rem;
+}
+.dv2-win-body {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--dv2-muted);
+  margin-bottom: 0;
 }
 .dv2-win-actions {
   display: flex;
@@ -678,8 +691,135 @@ body[data-route="/donate"] main {
   gap: 0.75rem;
   margin-top: 1.75rem;
 }
-@media (max-width: 720px) {
+
+/* Shared button shape reset — pill for ghost, rect for primary */
+.btn-glass-purple,
+.btn.btn-glass-purple {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0.75rem 1.75rem;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(123, 47, 190, 0.95), rgba(78, 26, 94, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 6px 20px rgba(107, 45, 139, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-glass-purple:hover,
+.btn.btn-glass-purple:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 12px 32px rgba(107, 45, 139, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+.btn-glass-purple:active { transform: translateY(0); }
+
+/* Ghost button — rounded pill, brand purple border */
+.btn.btn-ghost,
+button.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0.7rem 1.6rem;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--dv2-navy);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1.5px solid rgba(107, 45, 139, 0.3);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.btn.btn-ghost:hover,
+button.btn-ghost:hover {
+  border-color: rgba(107, 45, 139, 0.6);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* Primary donate button — glass purple, rect */
+.btn.btn-primary,
+button.btn-primary {
+  min-height: 46px;
+  padding: 0.75rem 1.75rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(123, 47, 190, 0.95), rgba(78, 26, 94, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 6px 20px rgba(107, 45, 139, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.btn.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(107, 45, 139, 0.42); }
+
+/* Inline share row — replaces modal */
+.dv2-share-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+.dv2-share-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dv2-muted);
+  white-space: nowrap;
+}
+.dv2-share-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(107, 45, 139, 0.2);
+  background: rgba(255,255,255,0.7);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  color: var(--dv2-navy);
+  text-decoration: none;
+}
+.dv2-share-icon-btn:hover {
+  background: rgba(107, 45, 139, 0.08);
+  border-color: rgba(107, 45, 139, 0.5);
+  transform: translateY(-1px);
+}
+.dv2-share-copy-confirm {
+  font-size: 0.78rem;
+  color: #2d6a4f;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.dv2-share-copy-confirm.visible { opacity: 1; }
+
+@media (max-width: 860px) {
   .dv2-win-wrap { grid-template-columns: 1fr; }
+  .dv2-win-img { max-width: 480px; margin: 0 auto; }
+}
+@media (max-width: 520px) {
   .dv2-win-actions { flex-direction: column; }
   .dv2-win-actions .btn-glass-purple,
   .dv2-win-actions .btn-ghost { width: 100%; text-align: center; justify-content: center; }
