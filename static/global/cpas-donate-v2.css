@@ -865,20 +865,32 @@ button.btn-primary {
   transition: transform 0.15s, box-shadow 0.15s;
 }
 .dv2-alt-pay-btn:hover { transform: translateY(-1px); }
+.dv2-alt-pay-logo {
+  display: block;
+  height: 22px;
+  width: auto;
+  object-fit: contain;
+}
 .dv2-alt-pay-btn--paypal {
-  background: #003087;
-  color: #fff;
-  border-color: #003087;
-  box-shadow: 0 4px 12px rgba(0, 48, 135, 0.2);
+  background: #fff;
+  border-color: rgba(0, 48, 135, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 48, 135, 0.1);
+  padding: 0 16px;
 }
-.dv2-alt-pay-btn--paypal:hover { box-shadow: 0 6px 18px rgba(0, 48, 135, 0.32); }
+.dv2-alt-pay-btn--paypal:hover {
+  border-color: rgba(0, 48, 135, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 48, 135, 0.18);
+}
 .dv2-alt-pay-btn--venmo {
-  background: #3D95CE;
-  color: #fff;
-  border-color: #3D95CE;
-  box-shadow: 0 4px 12px rgba(61, 149, 206, 0.22);
+  background: #fff;
+  border-color: rgba(61, 149, 206, 0.25);
+  box-shadow: 0 2px 8px rgba(61, 149, 206, 0.1);
+  padding: 0 16px;
 }
-.dv2-alt-pay-btn--venmo:hover { box-shadow: 0 6px 18px rgba(61, 149, 206, 0.36); }
+.dv2-alt-pay-btn--venmo:hover {
+  border-color: rgba(61, 149, 206, 0.5);
+  box-shadow: 0 4px 14px rgba(61, 149, 206, 0.2);
+}
 
 @media (max-width: 860px) {
   .dv2-win-wrap { grid-template-columns: 1fr; }
