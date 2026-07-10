@@ -263,26 +263,46 @@ function renderFacebookVideoEmbed(reelUrl) {
   </div>`;
 }
 
+const PAYPAL_DONATE_URL = "https://www.paypal.com/donate/?hosted_button_id=5ZT6KX23KPP6U";
+const VENMO_DONATE_URL = "https://account.venmo.com/u/companionscpas";
+
 function shareInlineRow(opts = {}) {
   const url = escAttr(opts.url || KITA_SHARE_URL);
   const rawUrl = opts.url || KITA_SHARE_URL;
-  const title = escAttr(opts.title || "Help Kita Heal — Companions of Caddo");
-  const shareText = escAttr(opts.text || "Kita needs amputation surgery and recovery care. Please help if you can.");
   const fbHref = escAttr(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(rawUrl)}`);
   const mailHref = escAttr(`mailto:?subject=${encodeURIComponent(opts.title || "Help Kita Heal")}&body=${encodeURIComponent((opts.text || "") + "\n\n" + rawUrl)}`);
   return `<div class="dv2-share-row">
-    <span class="dv2-share-label">Share Kita&rsquo;s story:</span>
-    <a class="dv2-share-icon-btn" href="${fbHref}" target="_blank" rel="noopener noreferrer" title="Share on Facebook" aria-label="Share on Facebook">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
+    <span class="dv2-share-label">Share this story:</span>
+    <a class="dv2-share-icon-btn dv2-share-icon-btn--fb" href="${fbHref}" target="_blank" rel="noopener noreferrer" aria-label="Share on Facebook">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
+      <span>Facebook</span>
     </a>
-    <a class="dv2-share-icon-btn" href="${mailHref}" title="Share via email" aria-label="Share via email">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    <a class="dv2-share-icon-btn dv2-share-icon-btn--mail" href="${mailHref}" aria-label="Share via email">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      <span>Email</span>
     </a>
-    <button class="dv2-share-icon-btn" type="button" title="Copy link" aria-label="Copy link" id="dv2-copy-btn"
-      onclick="(function(btn){navigator.clipboard.writeText('${url}').then(function(){var c=document.getElementById('dv2-copy-tip');if(c){c.style.opacity='1';setTimeout(function(){c.style.opacity='0'},2000)}}).catch(function(){})})(this)">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+    <button class="dv2-share-icon-btn dv2-share-icon-btn--copy" type="button" aria-label="Copy link" id="dv2-copy-btn"
+      onclick="(function(){navigator.clipboard.writeText('${url}').then(function(){var c=document.getElementById('dv2-copy-tip');if(c){c.textContent='Copied!';c.style.opacity='1';setTimeout(function(){c.style.opacity='0'},2200)}}).catch(function(){})})()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      <span>Copy link</span>
     </button>
-    <span id="dv2-copy-tip" style="font-size:0.75rem;font-weight:600;color:#2d6a4f;opacity:0;transition:opacity 0.3s;pointer-events:none" aria-live="polite">Copied!</span>
+    <span id="dv2-copy-tip" style="font-size:0.75rem;font-weight:700;color:#2d6a4f;opacity:0;transition:opacity 0.3s;pointer-events:none;align-self:center" aria-live="polite"></span>
+  </div>`;
+}
+
+function alternatePaymentRow(opts = {}) {
+  const paypalUrl = escAttr(opts.paypalUrl || PAYPAL_DONATE_URL);
+  const venmoUrl = escAttr(opts.venmoUrl || VENMO_DONATE_URL);
+  return `<div class="dv2-alt-pay-row">
+    <span class="dv2-alt-pay-label">Also accept donations via:</span>
+    <a class="dv2-alt-pay-btn dv2-alt-pay-btn--paypal" href="${paypalUrl}" target="_blank" rel="noopener noreferrer" aria-label="Donate via PayPal">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.5 7.5c0 3.86-3.14 7-7 7H9.75l-1.5 6H5.5L8 4.5h7c2.485 0 4.5 1.343 4.5 3z"/><path d="M22 5c0 2.485-2.015 4.5-4.5 4.5H14l-1.5 6H9.75L12.25 4h5.25C19.985 4 22 4.343 22 5z" opacity=".5"/></svg>
+      PayPal
+    </a>
+    <a class="dv2-alt-pay-btn dv2-alt-pay-btn--venmo" href="${venmoUrl}" target="_blank" rel="noopener noreferrer" aria-label="Donate via Venmo">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.526 2.635c.399.8.575 1.63.575 2.7 0 3.375-2.875 7.75-5.2 10.825H9.8L7.65 3.26l4.65-.45 1.075 8.65c1-1.675 2.225-4.325 2.225-6.125 0-1-.175-1.675-.45-2.25l4.376-.45z"/></svg>
+      Venmo
+    </a>
   </div>`;
 }
 
