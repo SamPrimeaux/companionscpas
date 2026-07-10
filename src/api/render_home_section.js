@@ -430,12 +430,15 @@ async function renderCampaignsFragment(section, blocks, env) {
 .home-action-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem}
 .home-action-card{display:flex;flex-direction:column;border-radius:16px;overflow:hidden;border:1px solid var(--border);background:var(--bg);text-decoration:none;color:inherit;transition:transform .2s,box-shadow .2s}
 .home-action-card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(91,45,142,.12)}
-.home-action-card-img img{width:100%;height:220px;object-fit:cover;display:block}
-.home-action-card-body{padding:1.25rem 1.5rem 1.5rem;display:flex;flex-direction:column;gap:.5rem;flex:1}
-.home-action-card-body h3{font-size:1.1rem;font-weight:700;color:var(--text-1);margin:0}
-.home-action-card-body p{font-size:.9rem;color:var(--text-2);line-height:1.6;margin:0;flex:1}
-.home-action-card-cta{font-size:.85rem;font-weight:600;color:#5b2d8e;margin-top:.5rem}
-@media(max-width:640px){.home-action-cards{grid-template-columns:1fr}}
+.home-action-card-img{overflow:hidden;flex-shrink:0}
+.home-action-card-img img{width:100%;height:320px;object-fit:cover;object-position:center top;display:block;transition:transform .3s}
+.home-action-card:hover .home-action-card-img img{transform:scale(1.03)}
+.home-action-card-body{padding:1.25rem 1.5rem 1.5rem;display:flex;flex-direction:column;gap:.4rem;flex:1}
+.home-action-card-body .ey-purple{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9b2c8e;margin:0}
+.home-action-card-body h3{font-size:1.15rem;font-weight:700;color:var(--text-1);margin:0}
+.home-action-card-body p{font-size:.88rem;color:var(--text-2);line-height:1.6;margin:0;flex:1}
+.home-action-card-cta{font-size:.85rem;font-weight:600;color:#5b2d8e;margin-top:.75rem}
+@media(max-width:640px){.home-action-cards{grid-template-columns:1fr}.home-action-card-img img{height:240px}}
 </style>`;
   }
 
