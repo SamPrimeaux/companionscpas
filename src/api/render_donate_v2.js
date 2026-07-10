@@ -267,7 +267,8 @@ function shareCampaignBtn(opts = {}) {
   const url = escAttr(opts.url || KITA_SHARE_URL);
   const title = escAttr(opts.title || "Help Kita Heal — Companions of Caddo");
   const text = escAttr(opts.text || "Kita needs amputation surgery and recovery care. Please help if you can.");
-  return `<button class="btn btn-ghost" type="button" data-action="share-campaign" data-share-url="${url}" data-share-title="${title}" data-share-text="${text}">Share This Campaign</button>`;
+  const label = escAttr(opts.label || "Share Kita's Story");
+  return `<button class="btn btn-ghost" type="button" data-action="share-campaign" data-share-url="${url}" data-share-title="${title}" data-share-text="${text}">${label}</button>`;
 }
 
 async function renderFreedomHero(section, blocks, brand, env) {
