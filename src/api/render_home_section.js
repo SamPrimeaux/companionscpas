@@ -1,4 +1,5 @@
 import { escapeHtml, safeJson } from "./render_section.js";
+import { COMPONENT_ICONS } from "./cms_components.js";
 import {
   campaignCoverUrl,
   campaignSummary,
