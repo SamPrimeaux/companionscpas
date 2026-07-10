@@ -337,9 +337,17 @@ export default {
       return asset(env, request, "/dashboard/index.html");
     }
 
-    // Public CMS pages
-    if (request.method === "GET" && PUBLIC_ROUTES.includes(url.pathname)) {
-      return servePublicPage(url.pathname, env);
+    // Public CMS pages — hardcoded list OR any cms_pages route (client-created)
+    if (request.method === "GET") {
+      const path = url.pathname;
+      const looksLikeAsset = /\.[a-z0-9]{1,8}$/i.test(path);
+      const reserved = path.startsWith("/dashboard") || path.startsWith("/api") || path.startsWith("/admin")
+        || path.startsWith("/static") || path.startsWith("/media") || path === "/logo.png";
+      if (!looksLikeAsset && !reserved) {
+        if (PUBLIC_ROUTES.includes(path) || await isCmsPageRoute(env, path).catch(() => false)) {
+          return servePublicPage(path, env);
+        }
+      }
     }
 
     return new Response('Not found', { status: 404 });

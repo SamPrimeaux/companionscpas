@@ -248,10 +248,36 @@ function CmsPagesView({ onNavigate }) {
     setSaving(true);
     const slug = newPage.slug || newPage.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     try {
-      const res = await fetch("/api/cms/page/save", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ page: { title: newPage.title, route_path: `/${slug}`, slug, template_key: newPage.template_key, status: "draft" } }) });
+      const res = await fetch("/api/cms/page/save", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          page: {
+            title: newPage.title,
+            route_path: `/${slug}`,
+            slug,
+            template_key: newPage.template_key,
+            status: "draft",
+          },
+          seed_sections: true,
+          add_to_nav: true,
+        }),
+      });
       const d = await res.json();
-      if (d.success) { notify(`Page "${newPage.title}" created`); setShowAdd(false); setNewPage({ title: "", slug: "", template_key: "default" }); await load(); }
-      else notify(d.error || "Failed to create page", "error");
+      if (d.success) {
+        const seeded = d.bootstrap?.sections?.seeded;
+        notify(
+          seeded
+            ? `Page "${newPage.title}" created with starter sections + nav. Publish Live to go public.`
+            : `Page "${newPage.title}" created.`
+        );
+        setShowAdd(false);
+        setNewPage({ title: "", slug: "", template_key: "default" });
+        await load();
+        const pageId = d.editor_page_id || slug;
+        if (typeof onNavigate === "function") onNavigate("cms-page-editor", { pageId });
+      } else notify(d.error || "Failed to create page", "error");
     } catch (e) { notify("Error: " + e.message, "error"); }
     setSaving(false);
   };

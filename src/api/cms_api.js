@@ -9,6 +9,7 @@ import {
   getFragmentSectionKeys,
   normalizeFragmentRoute,
 } from "./page_cms_registry.js";
+import { bootstrapNewCmsPage } from "./cms_pipeline.js";
 import { getAuthUser } from "./session_api.js";
 const TENANT_ID = "tenant_companionscpas";
 
@@ -135,7 +136,15 @@ async function createPublishJob(env, routePath, triggeredBy) {
   }
 }
 
-const PUBLIC_PAGE_ROUTES = ["/", "/about", "/services", "/adopt", "/community", "/donate"];
+const PUBLIC_PAGE_ROUTES = ["/", "/about", "/services", "/adopt", "/community", "/donate", "/contact"];
+
+async function listAllCmsPageRoutes(env) {
+  const pages = await env.DB.prepare(
+    "SELECT route_path FROM cms_pages WHERE tenant_id = ? ORDER BY sort_order, route_path"
+  ).bind(TENANT_ID).all().catch(() => ({ results: [] }));
+  const fromDb = (pages.results || []).map((row) => normalizeRouteInput(row.route_path)).filter(Boolean);
+  return fromDb.length ? fromDb : PUBLIC_PAGE_ROUTES;
+}
 
 function pageArtifactKey(route) {
   const normalized = normalizeRouteInput(route);
@@ -707,14 +716,23 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
     const data = await body(request);
     const page = data.page || data;
-    const route_path = page.route_path || "/";
-    const slug = page.slug || (route_path === "/" ? "home" : route_path.replace(/^\//, ""));
+    const route_path = normalizeRouteInput(page.route_path || "/");
+    if (!route_path) return json({ success: false, error: "route_path required" }, 400);
+    const slug = page.slug || (route_path === "/" ? "home" : route_path.replace(/^\//, "").replace(/\//g, "-"));
+    const title = page.title || "Untitled Page";
+    const addToNav = data.add_to_nav !== false && page.add_to_nav !== false;
+    const seedSections = data.seed_sections !== false && page.seed_sections !== false;
+
+    const existing = await env.DB.prepare(
+      "SELECT id FROM cms_pages WHERE tenant_id = ? AND route_path = ? LIMIT 1"
+    ).bind(TENANT_ID, route_path).first().catch(() => null);
+    const isNew = !existing;
 
     await env.DB.prepare(`
       INSERT INTO cms_pages
       (id, tenant_id, route_path, slug, title, status, seo_title, meta_description, og_image_url,
-       page_type, template_key, sort_order, is_homepage, show_header, show_footer, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       page_type, template_key, sort_order, is_homepage, show_header, show_footer, nav_visible, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(tenant_id, route_path) DO UPDATE SET
         slug = excluded.slug,
         title = excluded.title,
@@ -730,13 +748,13 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
         show_footer = excluded.show_footer,
         updated_at = datetime('now')
     `).bind(
-      page.id || id("page"),
+      page.id || existing?.id || id("page"),
       TENANT_ID,
       route_path,
       slug,
-      page.title || "Untitled Page",
-      page.status || "draft",
-      page.seo_title || page.title || "",
+      title,
+      page.status || (isNew ? "draft" : "draft"),
+      page.seo_title || title || "",
       page.meta_description || "",
       page.og_image_url || "",
       page.page_type || "standard",
@@ -744,10 +762,31 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       Number(page.sort_order || 50),
       page.is_homepage ? 1 : 0,
       page.show_header === 0 ? 0 : 1,
-      page.show_footer === 0 ? 0 : 1
+      page.show_footer === 0 ? 0 : 1,
+      addToNav ? 1 : 0
     ).run();
 
-    return json({ success: true, route_path });
+    let bootstrap = null;
+    if (isNew) {
+      bootstrap = await bootstrapNewCmsPage(env, {
+        route: route_path,
+        title,
+        add_to_nav: addToNav,
+      });
+    }
+
+    await bustCache(env, `bootstrap:${TENANT_ID}`, `brand:${TENANT_ID}`);
+
+    return json({
+      success: true,
+      route_path,
+      created: isNew,
+      bootstrap,
+      editor_page_id: route_path === "/" ? "home" : route_path.replace(/^\//, "").replace(/\//g, "_"),
+      message: isNew
+        ? "Page created with starter sections. Publish Live to make the URL public."
+        : "Page saved.",
+    });
   }
 
   if (path === "/api/cms/publish" && method === "POST") {
@@ -797,11 +836,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     } else if (!env.DB) {
       return json({ success: false, error: "DB binding missing" }, 500);
     } else {
-      const pages = await env.DB.prepare(
-        "SELECT route_path FROM cms_pages WHERE tenant_id = ? ORDER BY sort_order, route_path"
-      ).bind(TENANT_ID).all().catch(() => ({ results: [] }));
-      const fromDb = (pages.results || []).map((row) => normalizeRouteInput(row.route_path)).filter(Boolean);
-      if (fromDb.length) routes = fromDb;
+      routes = await listAllCmsPageRoutes(env);
     }
 
     const results = [];
@@ -1245,7 +1280,8 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     await bustCache(env, `brand:${TENANT_ID}`, `bootstrap:${TENANT_ID}`);
 
     const republishResults = [];
-    for (const pageRoute of PUBLIC_PAGE_ROUTES) {
+    const routesToRepublish = await listAllCmsPageRoutes(env);
+    for (const pageRoute of routesToRepublish) {
       republishResults.push(await publishPageRoute(env, pageRoute, triggeredBy));
     }
 

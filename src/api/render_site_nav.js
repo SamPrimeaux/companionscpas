@@ -38,23 +38,49 @@ export async function loadNavVisibility(env) {
   return map;
 }
 
+/** Extra nav links from cms_navigation_items (client-created pages). */
+async function loadDynamicNavItems(env, visibilityMap) {
+  if (!env?.DB) return [];
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT label, href, sort_order FROM cms_navigation_items
+       WHERE tenant_id = ? AND is_visible = 1
+       ORDER BY sort_order, label`
+    ).bind(TENANT_ID).all();
+    const known = new Set(SITE_NAV_ITEMS.map((i) => i.route));
+    return (results || [])
+      .map((row) => ({
+        route: String(row.href || "").trim(),
+        label: String(row.label || "").trim(),
+        sort: Number(row.sort_order) || 999,
+        inHeader: true,
+        inFooter: true,
+      }))
+      .filter((item) => item.route && item.label && !known.has(item.route))
+      .filter((item) => isRouteNavVisible(visibilityMap, item.route));
+  } catch {
+    return [];
+  }
+}
+
 function isRouteNavVisible(visibilityMap, route) {
   if (visibilityMap.has(route)) return visibilityMap.get(route);
   return true;
 }
 
-function headerNavItems(visibilityMap) {
-  return SITE_NAV_ITEMS
+function headerNavItems(visibilityMap, extras = []) {
+  const base = SITE_NAV_ITEMS
     .filter((item) => item.inHeader && !item.headerButton)
-    .filter((item) => isRouteNavVisible(visibilityMap, item.route))
-    .sort((a, b) => a.sort - b.sort);
+    .filter((item) => isRouteNavVisible(visibilityMap, item.route));
+  return [...base, ...extras].sort((a, b) => a.sort - b.sort);
 }
 
-function footerNavItems(visibilityMap) {
-  return SITE_NAV_ITEMS
+function footerNavItems(visibilityMap, extras = []) {
+  const base = SITE_NAV_ITEMS
     .filter((item) => item.inFooter)
-    .filter((item) => isRouteNavVisible(visibilityMap, item.route))
-    .sort((a, b) => a.sort - b.sort);
+    .filter((item) => isRouteNavVisible(visibilityMap, item.route));
+  const extraFooter = extras.filter((item) => item.inFooter !== false);
+  return [...base, ...extraFooter].sort((a, b) => a.sort - b.sort);
 }
 
 function headerLogoSrc(brand) {
@@ -68,7 +94,8 @@ export async function renderSiteHeader(env) {
     loadNavVisibility(env),
     getBrand(env).catch(() => ({})),
   ]);
-  const navItems = headerNavItems(visibilityMap);
+  const extras = await loadDynamicNavItems(env, visibilityMap);
+  const navItems = headerNavItems(visibilityMap, extras);
   const showDonate = isRouteNavVisible(visibilityMap, "/donate");
   const logoSrc = esc(headerLogoSrc(brand));
   const logoAlt = esc(brand?.brand_name || "Companions of CPAS");
@@ -111,7 +138,8 @@ export async function renderSiteFooter(env) {
     loadNavVisibility(env),
     getBrand(env).catch(() => ({})),
   ]);
-  const navItems = footerNavItems(visibilityMap);
+  const extras = await loadDynamicNavItems(env, visibilityMap);
+  const navItems = footerNavItems(visibilityMap, extras);
 
   // Pull from the correct DB columns, all already parsed by buildBrandPayload
   const org      = brand?.organization || {};

@@ -209,3 +209,149 @@ export async function previewRoute(env, route) {
 export async function syncAndPublishPage(env, route, jobId) { return publishRoute(env, route, jobId); }
 export async function previewPageFromCms(env, route) { return previewRoute(env, route); }
 export async function syncAllSectionsToR2(env, route, opts) { return syncRouteSectionsToR2(env, route, opts); }
+
+function newId(prefix) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Starter sections for brand-new pages (catalog types only). */
+export const STARTER_SECTION_DEFS = [
+  {
+    section_key: "hero",
+    section_type: "hero",
+    sort_order: 10,
+    eyebrow: "New Page",
+    heading: "",
+    subheading: "Edit this hero in the page editor — change the headline, image, and buttons.",
+    body: "",
+    cta_label: "Learn More",
+    cta_href: "#",
+    cta_secondary_label: "Contact Us",
+    cta_secondary_href: "/contact",
+  },
+  {
+    section_key: "intro",
+    section_type: "text_image",
+    sort_order: 20,
+    eyebrow: "About",
+    heading: "Tell your story",
+    subheading: "",
+    body: "Replace this copy with your own content. Add an image from the media library when you are ready.",
+    cta_label: "",
+    cta_href: "",
+    cta_secondary_label: "",
+    cta_secondary_href: "",
+  },
+  {
+    section_key: "cta",
+    section_type: "cta_banner",
+    sort_order: 30,
+    eyebrow: "Get Involved",
+    heading: "Ready to take the next step?",
+    subheading: "",
+    body: "Give visitors a clear action — donate, foster, or get in touch.",
+    cta_label: "Contact Us",
+    cta_href: "/contact",
+    cta_secondary_label: "Donate",
+    cta_secondary_href: "/donate",
+  },
+];
+
+export async function seedStarterSectionsForRoute(env, route, title = "Welcome") {
+  const r = normalizeCmsRoute(route);
+  const countRow = await env.DB.prepare(
+    "SELECT COUNT(*) AS c FROM cms_page_sections WHERE tenant_id = ? AND page_route = ?"
+  ).bind(TENANT_ID, r).first().catch(() => ({ c: 0 }));
+  if (Number(countRow?.c || 0) > 0) {
+    return { seeded: false, reason: "already_has_sections", sections: [] };
+  }
+
+  const seeded = [];
+  for (const def of STARTER_SECTION_DEFS) {
+    const heading = def.section_key === "hero"
+      ? (title || "Welcome")
+      : def.heading;
+    await env.DB.prepare(`
+      INSERT INTO cms_page_sections
+      (id, tenant_id, page_route, section_key, section_type, eyebrow, heading, subheading, body,
+       image_url, cta_label, cta_href, cta_secondary_label, cta_secondary_href, sort_order,
+       is_visible, config_json, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '{}', datetime('now'))
+      ON CONFLICT(tenant_id, page_route, section_key) DO NOTHING
+    `).bind(
+      newId("section"),
+      TENANT_ID,
+      r,
+      def.section_key,
+      def.section_type,
+      def.eyebrow || "",
+      heading || "",
+      def.subheading || "",
+      def.body || "",
+      "",
+      def.cta_label || "",
+      def.cta_href || "",
+      def.cta_secondary_label || "",
+      def.cta_secondary_href || "",
+      def.sort_order
+    ).run();
+    seeded.push(def.section_key);
+  }
+  return { seeded: true, sections: seeded };
+}
+
+export async function ensurePageNavItem(env, route, label, { visible = true } = {}) {
+  const r = normalizeCmsRoute(route);
+  const navVisible = visible ? 1 : 0;
+  await env.DB.prepare(
+    `UPDATE cms_pages SET nav_visible = ?, updated_at = datetime('now')
+     WHERE tenant_id = ? AND route_path = ?`
+  ).bind(navVisible, TENANT_ID, r).run().catch(() => {});
+
+  const existing = await env.DB.prepare(
+    "SELECT id FROM cms_navigation_items WHERE tenant_id = ? AND href = ? LIMIT 1"
+  ).bind(TENANT_ID, r).first().catch(() => null);
+
+  if (existing?.id) {
+    await env.DB.prepare(
+      `UPDATE cms_navigation_items
+       SET label = ?, is_visible = ?, updated_at = datetime('now')
+       WHERE id = ?`
+    ).bind(label || r, navVisible, existing.id).run();
+    return { nav: "updated", href: r, label: label || r };
+  }
+
+  const maxRow = await env.DB.prepare(
+    "SELECT MAX(sort_order) AS m FROM cms_navigation_items WHERE tenant_id = ?"
+  ).bind(TENANT_ID).first().catch(() => ({ m: 100 }));
+  const sortOrder = (Number(maxRow?.m) || 100) + 10;
+
+  await env.DB.prepare(`
+    INSERT INTO cms_navigation_items
+    (id, tenant_id, label, href, sort_order, is_visible, created_at, updated_at, nav_group)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 'header')
+  `).bind(newId("nav"), TENANT_ID, label || r, r, sortOrder, navVisible).run();
+
+  return { nav: "created", href: r, label: label || r, sort_order: sortOrder };
+}
+
+/**
+ * Full new-page bootstrap: starter sections + nav row.
+ * Safe to call on existing pages — skips section seed if sections already exist.
+ */
+export async function bootstrapNewCmsPage(env, { route, title, add_to_nav = true } = {}) {
+  const r = normalizeCmsRoute(route);
+  const sectionResult = await seedStarterSectionsForRoute(env, r, title);
+  let navResult = null;
+  if (add_to_nav !== false) {
+    navResult = await ensurePageNavItem(env, r, title || r, { visible: true });
+  }
+  if (env.CMS_CACHE) {
+    await Promise.all([
+      env.CMS_CACHE.delete(`brand:${TENANT_ID}`).catch(() => {}),
+      env.CMS_CACHE.delete(`bootstrap:${TENANT_ID}`).catch(() => {}),
+      env.CMS_CACHE.delete(`page:${r}`).catch(() => {}),
+    ]);
+  }
+  return { route: r, sections: sectionResult, nav: navResult };
+}
