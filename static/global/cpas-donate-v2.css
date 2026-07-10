@@ -871,6 +871,14 @@ button.btn-primary {
   width: auto;
   object-fit: contain;
 }
+.dv2-alt-pay-logo {
+  display: block;
+  height: 18px;
+  width: auto;
+  max-width: 72px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
 .dv2-alt-pay-btn--paypal {
   background: #fff;
   border-color: rgba(0, 48, 135, 0.2);
