@@ -11,8 +11,8 @@ export function renderContactMainContent() {
       <h1>We'd love to hear from you.</h1>
       <p>Whether you want to foster, adopt, volunteer, or just cheer us on — our inbox is always open. We're a small but mighty volunteer crew, so give us a day or two to get back to you.</p>
       <div class="contact-social-actions">
-        <a class="btn btn-primary contact-social-btn" href="https://www.facebook.com/people/Companions-of-CPAS/100069291576354/" target="_blank" rel="noopener">${FB_SVG} Facebook</a>
-        <a class="btn btn-ghost contact-social-btn" href="https://www.instagram.com/companionscpas" target="_blank" rel="noopener">${IG_SVG} Instagram</a>
+        <a class="dv2-social-pill dv2-social-pill--fb" href="https://www.facebook.com/people/Companions-of-CPAS/100069291576354/" target="_blank" rel="noopener noreferrer" aria-label="Follow us on Facebook">${COMPONENT_ICONS.facebook}<span>Facebook</span></a>
+        <a class="dv2-social-pill dv2-social-pill--ig" href="https://www.instagram.com/companionscpas" target="_blank" rel="noopener noreferrer" aria-label="Follow us on Instagram">${COMPONENT_ICONS.instagram}<span>Instagram</span></a>
       </div>
     </div>
     <div class="contact-hero-photo">
