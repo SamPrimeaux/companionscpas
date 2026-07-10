@@ -401,6 +401,44 @@ function renderCommunityItem(block) {
 
 async function renderCampaignsFragment(section, blocks, env) {
   const cfg = safeJson(section.config_json, {});
+
+  // Two-card layout — image cards with CTA, no live campaign data needed
+  if (cfg.layout === "two_cards" && Array.isArray(cfg.cards) && cfg.cards.length) {
+    const heading = pick(section, ["heading"]) || "";
+    const cardHtml = cfg.cards.map((card) => {
+      const href = escAttr(card.cta_href || "#");
+      const external = card.cta_external ? ' target="_blank" rel="noopener noreferrer"' : "";
+      return `<a class="home-action-card" href="${href}"${external}>
+        <div class="home-action-card-img">
+          <img src="${escAttr(card.image)}" alt="${escAttr(card.title)}" loading="lazy" decoding="async" />
+        </div>
+        <div class="home-action-card-body">
+          ${card.eyebrow ? `<p class="ey-purple">${escapeHtml(card.eyebrow)}</p>` : ""}
+          <h3>${escapeHtml(card.title)}</h3>
+          <p>${escapeHtml(card.body)}</p>
+          <span class="home-action-card-cta">${escapeHtml(card.cta_label)} →</span>
+        </div>
+      </a>`;
+    }).join("\n");
+    return `<section class="section s-light home-campaigns" ${sectionAttrs("campaigns")}>
+  <div class="container">
+    ${heading ? `<h2 class="section-heading" style="text-align:center;margin-bottom:2rem">${escapeHtml(heading)}</h2>` : ""}
+    <div class="home-action-cards">${cardHtml}</div>
+  </div>
+</section>
+<style>
+.home-action-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem}
+.home-action-card{display:flex;flex-direction:column;border-radius:16px;overflow:hidden;border:1px solid var(--border);background:var(--bg);text-decoration:none;color:inherit;transition:transform .2s,box-shadow .2s}
+.home-action-card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(91,45,142,.12)}
+.home-action-card-img img{width:100%;height:220px;object-fit:cover;display:block}
+.home-action-card-body{padding:1.25rem 1.5rem 1.5rem;display:flex;flex-direction:column;gap:.5rem;flex:1}
+.home-action-card-body h3{font-size:1.1rem;font-weight:700;color:var(--text-1);margin:0}
+.home-action-card-body p{font-size:.9rem;color:var(--text-2);line-height:1.6;margin:0;flex:1}
+.home-action-card-cta{font-size:.85rem;font-weight:600;color:#5b2d8e;margin-top:.5rem}
+@media(max-width:640px){.home-action-cards{grid-template-columns:1fr}}
+</style>`;
+  }
+
   const all = sortBlocks(blocks).filter((b) => Number(b.is_visible) !== 0);
   const community = all.filter((b) => (b.block_type || "").includes("community") || pick(blockCfg(b), ["column"]) === "community");
   const campEyebrow = pick(cfg, ["campaigns_eyebrow"]) || pick(section, ["eyebrow"]) || "Featured Campaigns";
