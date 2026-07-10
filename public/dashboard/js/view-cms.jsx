@@ -776,7 +776,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   function renderInspector(compact=false) {
     if (!selected) return React.createElement('div', { style:{ padding:18, color:C.textMut, fontSize:13 } }, 'Select a section to edit.');
     const needsImage = ['hero','text_image','text_image_split'].includes(selected.section_type);
-    const field = (label, key, type='text', opts={}) => React.createElement('div', { key }, cmsFieldLabel(label), type === 'textarea' ? cmsTextArea(selected[key], v=>setField(key,v), ()=>saveSelected(true), opts.rows || 5) : cmsTextInput(selected[key], v=>setField(key,v), ()=>saveSelected(true), opts.placeholder, opts.mono));
+    const field = (label, key, type='text', opts={}) => React.createElement('div', { key }, cmsFieldLabel(label), type === 'textarea' ? cmsTextArea(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.rows || 5) : cmsTextInput(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.placeholder, opts.mono));
     return React.createElement('div', { style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface } },
       React.createElement('div', { style:{ padding:16, borderBottom:`1px solid ${C.border}` } },
         React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 } },
