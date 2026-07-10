@@ -846,8 +846,8 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           mobileTab === 'edit' && React.createElement('div', { style:{ height:'100%', overflow:'auto' } }, renderInspector(true)),
           mobileTab === 'preview' && renderPreview()
         )
-      : React.createElement('div', { style:{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:isDesktop ? '240px minmax(400px,1fr) 320px' : '220px minmax(0,1fr)' } },
-          React.createElement('div', { style:{ borderRight:`1px solid ${C.border}`, minHeight:0, overflow:'hidden' } }, renderSectionList()),
+      : React.createElement('div', { style:{ flex:1, minHeight:0, display:'grid', gridTemplateColumns: isDesktop ? (sidenavOpen ? '240px minmax(400px,1fr) 320px' : '0px minmax(400px,1fr) 320px') : '220px minmax(0,1fr)', transition:'grid-template-columns 0.2s ease' } },
+          React.createElement('div', { style:{ borderRight: sidenavOpen ? `1px solid ${C.border}` : 'none', minHeight:0, overflow:'hidden', transition:'border 0.2s' } }, sidenavOpen && renderSectionList()),
           isDesktop ? React.createElement('div', { style:{ minHeight:0, overflow:'hidden' } }, renderPreview()) : React.createElement('div', { style:{ minHeight:0, overflow:'hidden' } }, renderInspector(true)),
           isDesktop && React.createElement('div', { style:{ borderLeft:`1px solid ${C.border}`, minHeight:0, overflow:'hidden' } }, renderInspector(false))
         ),
