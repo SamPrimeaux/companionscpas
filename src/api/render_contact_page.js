@@ -16,12 +16,10 @@ export function renderContactMainContent() {
       </div>
     </div>
     <div class="contact-hero-photo">
-      <div class="contact-hero-frame">
+      <div class="contact-hero-frame contact-hero-frame--team">
         <img
           src="https://assets.companionsofcaddo.org/static/pages/about/theteam.webp"
           alt="The Companions of CPAS volunteer team"
-          width="1200"
-          height="900"
           loading="eager"
           fetchpriority="high"
           decoding="async"
