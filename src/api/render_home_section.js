@@ -263,7 +263,7 @@ function renderHowItHelpsFragment(section, blocks) {
 </section>`;
 }
 
-function renderTransportWinFragment(section) {
+async function renderTransportWinFragment(section, _blocks, env) {
   const cfg = safeJson(section.config_json, {});
   const eyebrow = pick(section, ["eyebrow"]) || "Recent Transport Win";
   const heading = pick(section, ["heading"]) || "";
