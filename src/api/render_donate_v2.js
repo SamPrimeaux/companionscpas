@@ -382,8 +382,8 @@ async function renderMedicalStory(section, blocks, brand, env) {
   ].join("\n\n");
   const cardTitle = pickText(cc, ["card_title"]) || campaign?.title || pickText(config, ["card_title"]) || "Kita's Amputation Care";
   const cardEyebrow = pickText(cc, ["card_eyebrow"]) || pickText(config, ["card_eyebrow"]) || "CURRENT MEDICAL NEED";
-  const raised = await loadCampaignRaisedCents(env, campaignId, campaign?.raised_amount_cents ?? Number(config.raised_amount_cents) ?? 22500);
-  const goal = campaign?.goal_amount_cents ?? Number(config.goal_amount_cents) ?? 60000;
+  const raised = await loadCampaignRaisedCents(env, campaignId, Number(campaign?.raised_amount_cents) || Number(config.raised_amount_cents) || 32500);
+  const goal = Number(campaign?.goal_amount_cents) || Number(config.goal_amount_cents) || 60000;
   const supports = Array.isArray(cc.supports) ? cc.supports
     : Array.isArray(config.supports) ? config.supports : [
     "Surgery", "Medication", "Follow-up care", "Recovery expenses",
