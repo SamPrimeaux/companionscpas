@@ -280,8 +280,18 @@ async function renderTransportWinFragment(section, _blocks, env) {
   const headingStyle = fieldStyleAttrs(cfg, "heading");
   const textStyle = fieldStyleAttrs(cfg, "text");
   const imageStyle = fieldStyleAttrs(cfg, "image");
-  const fbHref = "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
-  const igHref = "https://www.instagram.com/companionscpas";
+  let fbHref = "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
+  let igHref = "https://www.instagram.com/companionscpas";
+  if (env?.DB) {
+    try {
+      const [fb, ig] = await Promise.all([
+        env.DB.prepare("SELECT config_json FROM cms_components WHERE id = 'social_facebook' AND active = 1 LIMIT 1").first(),
+        env.DB.prepare("SELECT config_json FROM cms_components WHERE id = 'social_instagram' AND active = 1 LIMIT 1").first(),
+      ]);
+      if (fb?.config_json) { const c = JSON.parse(fb.config_json); if (c.url) fbHref = c.url; }
+      if (ig?.config_json) { const c = JSON.parse(ig.config_json); if (c.url) igHref = c.url; }
+    } catch {}
+  }
   const ctaEl = `<a class="dv2-social-pill dv2-social-pill--fb" href="${escAttr(fbHref)}" target="_blank" rel="noopener noreferrer" aria-label="Follow the journey on Facebook">${COMPONENT_ICONS.facebook}<span>Follow the journey</span></a>`;
   const socialHtml = `<a class="dv2-social-pill dv2-social-pill--ig" href="${escAttr(igHref)}" target="_blank" rel="noopener noreferrer" aria-label="See updates on Instagram">${COMPONENT_ICONS.instagram}<span>See updates on Instagram</span></a>`;
 
