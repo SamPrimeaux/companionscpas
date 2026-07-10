@@ -415,7 +415,7 @@ async function renderMedicalStory(section, blocks, brand, env) {
       </div>
       <div class="dv2-btn-row">
         ${donateBtn(primaryCta, { campaignId })}
-        ${shareCampaignBtn({ url: shareUrl, title: cardTitle + " — Companions of Caddo", text: campaign?.short_description || "", label: "Share Kita\u2019s Story" })}
+        ${shareInlineRow({ url: shareUrl, title: cardTitle + " — Companions of Caddo", text: campaign?.short_description || "" })}
       </div>
     </div>
     <aside class="dv2-campaign-card" data-campaign-id="${escAttr(campaignId)}" data-campaign-raised="${raised}" data-campaign-goal="${goal}">
