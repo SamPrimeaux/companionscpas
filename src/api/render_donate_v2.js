@@ -61,6 +61,7 @@ function donateBtn(label, opts = {}) {
   const camp = opts.campaignId ? ` data-campaign-id="${escAttr(opts.campaignId)}"` : "";
   const cls = opts.overlay ? "btn btn-overlay"
     : opts.ghost ? "btn btn-ghost"
+    : opts.glass ? "btn btn-glass-purple"
     : opts.red ? "btn btn-red"
     : "btn btn-primary";
   return `<button class="${cls}" type="button" data-action="donate"${amount}${camp}>${esc(label)}</button>`;
