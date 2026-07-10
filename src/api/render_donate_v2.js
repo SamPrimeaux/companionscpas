@@ -271,23 +271,18 @@ function shareInlineRow(opts = {}) {
   const fbHref = escAttr(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(rawUrl)}`);
   const mailHref = escAttr(`mailto:?subject=${encodeURIComponent(opts.title || "Help Kita Heal")}&body=${encodeURIComponent((opts.text || "") + "\n\n" + rawUrl)}`);
   return `<div class="dv2-share-row">
-    <span class="dv2-share-label">Share:</span>
-    <button class="dv2-share-icon-btn" type="button" title="Share via your device"
-      onclick="if(navigator.share){navigator.share({title:'${title}',text:'${shareText}',url:'${url}'}).catch(()=>{})}else{window.open('${fbHref}','_blank')}"
-      aria-label="Share Kita's story">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-    </button>
+    <span class="dv2-share-label">Share Kita&rsquo;s story:</span>
     <a class="dv2-share-icon-btn" href="${fbHref}" target="_blank" rel="noopener noreferrer" title="Share on Facebook" aria-label="Share on Facebook">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
     </a>
     <a class="dv2-share-icon-btn" href="${mailHref}" title="Share via email" aria-label="Share via email">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
     </a>
-    <button class="dv2-share-icon-btn" type="button" title="Copy link" aria-label="Copy link"
-      onclick="navigator.clipboard.writeText('${url}').then(()=>{const c=this.nextElementSibling;c.classList.add('visible');setTimeout(()=>c.classList.remove('visible'),2000)}).catch(()=>{})">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+    <button class="dv2-share-icon-btn" type="button" title="Copy link" aria-label="Copy link" id="dv2-copy-btn"
+      onclick="(function(btn){navigator.clipboard.writeText('${url}').then(function(){var c=document.getElementById('dv2-copy-tip');if(c){c.style.opacity='1';setTimeout(function(){c.style.opacity='0'},2000)}}).catch(function(){})})(this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
     </button>
-    <span class="dv2-share-copy-confirm" aria-live="polite">Link copied!</span>
+    <span id="dv2-copy-tip" style="font-size:0.75rem;font-weight:600;color:#2d6a4f;opacity:0;transition:opacity 0.3s;pointer-events:none" aria-live="polite">Copied!</span>
   </div>`;
 }
 
