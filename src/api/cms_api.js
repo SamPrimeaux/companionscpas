@@ -65,6 +65,20 @@ async function bustCache(env, ...keys) {
 
 async function requireCmsUser(request, env, sessionUser = null) {
   if (sessionUser) return sessionUser;
+
+  const authHeader = request.headers.get("Authorization") || "";
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  const bridgeKey = env.AGENTSAM_BRIDGE_KEY || env.INTERNAL_PUBLISH_KEY || "";
+  if (bridgeKey && bearer && bearer === bridgeKey) {
+    const userId = request.headers.get("X-User-Id") || request.headers.get("x-user-id") || "iam_bridge";
+    return {
+      id: userId,
+      email: request.headers.get("X-User-Email") || null,
+      role: "operator",
+      bridge: true,
+    };
+  }
+
   try {
     return await getAuthUser(request, env);
   } catch (err) {
