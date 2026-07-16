@@ -1,6 +1,7 @@
 /**
  * Public competition entry API.
  * POST /api/public/competition-entries — multipart form + photo → pending D1 row + R2 asset.
+ * POST /api/public/competition-entries/:id/mock-settle — test-only paid path (ALLOW_ENTRY_MOCK_SETTLE=1).
  */
 
 const TENANT_ID = "tenant_companionscpas";
@@ -23,8 +24,7 @@ function text(value) {
 }
 
 function entryId() {
-  const bytes = crypto.getRandomValues(new Uint8Array(8));
-  return `entry_${[...bytes].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+  return `entry_${crypto.randomUUID().replace(/-/g, "")}`;
 }
 
 function assetId() {
@@ -37,6 +37,10 @@ function safeFilename(name) {
     .normalize("NFC")
     .replace(/[^a-zA-Z0-9._-]/g, "_")
     .slice(0, 100);
+}
+
+function mockSettleAllowed(env) {
+  return String(env.ALLOW_ENTRY_MOCK_SETTLE || "") === "1";
 }
 
 async function handleCreateEntry(request, env) {
@@ -55,7 +59,6 @@ async function handleCreateEntry(request, env) {
   const caption = text(form.get("caption")).slice(0, 240);
   const consent = form.get("photo_consent");
   const file = form.get("photo") || form.get("pet_photo");
-  const entryFeeCents = Math.max(100, Number(form.get("entry_fee_cents")) || 1000);
   const category = text(form.get("category")) || "general";
 
   if (!campaignId) return json({ ok: false, error: "campaign_id is required" }, 400);
@@ -74,16 +77,22 @@ async function handleCreateEntry(request, env) {
   }
 
   const campaign = await env.DB.prepare(`
-    SELECT id, title, status, is_public
+    SELECT id, title, status, is_public, config_json
     FROM fundraising_campaigns
     WHERE id = ? AND (tenant_id = ? OR organization_id = ?)
     LIMIT 1
   `).bind(campaignId, TENANT_ID, TENANT_ID).first().catch(() => null);
 
   if (!campaign) return json({ ok: false, error: "Campaign not found" }, 404);
-  if (Number(campaign.is_public) !== 1 && campaign.status !== "active") {
+  if (Number(campaign.is_public) !== 1 || campaign.status !== "active") {
     return json({ ok: false, error: "This competition is not accepting entries right now" }, 403);
   }
+  let campaignConfig = {};
+  try { campaignConfig = JSON.parse(campaign.config_json || "{}"); } catch {}
+  if (campaignConfig.entry_status && campaignConfig.entry_status !== "open") {
+    return json({ ok: false, error: "This competition is not accepting entries right now" }, 403);
+  }
+  const entryFeeCents = Math.max(100, Number(campaignConfig.entry_fee_cents) || 1000);
 
   const bytes = await file.arrayBuffer();
   if (bytes.byteLength > MAX_BYTES) {
@@ -93,16 +102,25 @@ async function handleCreateEntry(request, env) {
   const id = entryId();
   const asset = assetId();
   const filename = safeFilename(file.name || `${dogName}.jpg`);
-  const r2Key = `static/cms/uploads/competition/${campaignId}/${id}-${filename}`;
+  const r2Key = `media/campaign/${campaignId}/entries/${id}/${filename}`;
   const photoUrl = `${CDN}/${r2Key}`;
   const ip = request.headers.get("CF-Connecting-IP") || null;
-  const metadata = {
-    owner_phone: ownerPhone,
-    caption: caption || null,
-    entry_fee_cents: entryFeeCents,
-    photo_consent: true,
-    source: "campaign_entry_hero",
-  };
+  const metadata = { photo_consent: true, source: "campaign_entry_hero" };
+
+  await env.DB.prepare(`
+    INSERT INTO competition_entries
+      (id, tenant_id, campaign_id, owner_name, owner_email, owner_phone,
+       dog_name, category, caption, expected_amount_cents,
+       payment_status, submission_status, moderation_status, is_approved,
+       ip_address, metadata_json, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            'pending', 'pending_upload', 'pending', 0,
+            ?, ?, datetime('now'), datetime('now'))
+  `).bind(
+    id, TENANT_ID, campaignId, ownerName, ownerEmail, ownerPhone,
+    dogName, category, caption || null, entryFeeCents,
+    ip, JSON.stringify(metadata)
+  ).run();
 
   try {
     await env.WEBSITE_ASSETS.put(r2Key, bytes, {
@@ -118,20 +136,32 @@ async function handleCreateEntry(request, env) {
     });
   } catch (err) {
     console.error("[competition-entries] R2 put failed:", err?.message || err);
+    await env.DB.prepare(`
+      UPDATE competition_entries
+      SET submission_status = 'upload_failed',
+          payment_status = 'failed',
+          failure_stage = 'photo_upload',
+          failure_code = 'r2_put_failed',
+          failure_message = ?,
+          updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).bind(err?.message || "R2 upload failed", id, TENANT_ID).run().catch(() => null);
+    const { notifyCompetitionEntry } = await import("./competition_notifications.js");
+    await notifyCompetitionEntry(env, id, "failed", { reason: "The submitted photo could not be stored." });
     return json({ ok: false, error: "Photo upload failed" }, 500);
   }
 
   try {
-    await env.DB.prepare(`
+    const assetInsert = env.DB.prepare(`
       INSERT INTO cms_assets
         (id, tenant_id, project_id, asset_key, label, filename, original_filename,
          mime_type, size, category, asset_type, r2_key, r2_bucket,
          pub_url, cdn_url, public_url, alt_text,
          usage_context, status, is_live, created_by, created_at, updated_at)
       VALUES (?, ?, 'proj_companionscpas', ?, ?, ?, ?,
-              ?, ?, 'competition', 'image', ?, 'companionscpas',
+              ?, ?, 'campaign', 'image', ?, 'companionscpas',
               ?, ?, ?, ?,
-              'competition_entry', 'active', 1, 'public_entry', datetime('now'), datetime('now'))
+              'competition_entry', 'active', 0, 'public_entry', datetime('now'), datetime('now'))
     `).bind(
       asset,
       TENANT_ID,
@@ -146,36 +176,32 @@ async function handleCreateEntry(request, env) {
       photoUrl,
       photoUrl,
       `${dogName} competition entry`
-    ).run();
+    );
+    const entryUpdate = env.DB.prepare(`
+      UPDATE competition_entries
+      SET asset_id = ?,
+          r2_key = ?,
+          photo_url = ?,
+          submission_status = 'pending_payment',
+          updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).bind(asset, r2Key, photoUrl, id, TENANT_ID);
+    await env.DB.batch([assetInsert, entryUpdate]);
   } catch (err) {
-    console.warn("[competition-entries] cms_assets insert skipped:", err?.message || err);
-  }
-
-  try {
+    console.error("[competition-entries] D1 finalize failed:", err?.message || err);
+    await env.WEBSITE_ASSETS.delete(r2Key).catch(() => null);
     await env.DB.prepare(`
-      INSERT INTO competition_entries
-        (id, tenant_id, campaign_id, owner_name, owner_email, dog_name, category,
-         asset_id, r2_key, photo_url, payment_status, is_approved,
-         ip_address, metadata_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?,
-              ?, ?, ?, 'pending', 0,
-              ?, ?, datetime('now'), datetime('now'))
-    `).bind(
-      id,
-      TENANT_ID,
-      campaignId,
-      ownerName,
-      ownerEmail,
-      dogName,
-      category,
-      asset,
-      r2Key,
-      photoUrl,
-      ip,
-      JSON.stringify(metadata)
-    ).run();
-  } catch (err) {
-    console.error("[competition-entries] D1 insert failed:", err?.message || err);
+      UPDATE competition_entries
+      SET submission_status = 'storage_failed',
+          payment_status = 'failed',
+          failure_stage = 'entry_storage',
+          failure_code = 'd1_finalize_failed',
+          failure_message = ?,
+          updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).bind(err?.message || "D1 finalize failed", id, TENANT_ID).run().catch(() => null);
+    const { notifyCompetitionEntry } = await import("./competition_notifications.js");
+    await notifyCompetitionEntry(env, id, "failed", { reason: "The uploaded entry could not be finalized." });
     return json({ ok: false, error: "Could not save entry" }, 500);
   }
 
@@ -186,12 +212,108 @@ async function handleCreateEntry(request, env) {
     photo_url: photoUrl,
     entry_fee_cents: entryFeeCents,
     payment_status: "pending",
+    mock_settle_available: mockSettleAllowed(env),
   });
+}
+
+/**
+ * Test-only: mark entry paid, bump campaign raised, write campaign_updates, email admin.
+ * Enabled only when wrangler var ALLOW_ENTRY_MOCK_SETTLE=1.
+ */
+export async function mockSettleCompetitionEntry(env, entryId) {
+  const entry = await env.DB.prepare(`
+    SELECT id, campaign_id, payment_status, expected_amount_cents, owner_name, owner_email,
+           dog_name, asset_id, photo_url, r2_key
+    FROM competition_entries
+    WHERE id = ? AND tenant_id = ?
+    LIMIT 1
+  `).bind(entryId, TENANT_ID).first();
+
+  if (!entry?.id) return { ok: false, status: 404, error: "Entry not found" };
+  if (!entry.photo_url && !entry.r2_key) {
+    return { ok: false, status: 400, error: "Entry has no uploaded photo yet" };
+  }
+  if (entry.payment_status === "paid") {
+    const { upsertCampaignUpdateForPaidEntry } = await import("./competition_campaign_updates.js");
+    const update = await upsertCampaignUpdateForPaidEntry(env, entryId);
+    const { notifyCompetitionEntry } = await import("./competition_notifications.js");
+    const mail = await notifyCompetitionEntry(env, entryId, "paid");
+    return { ok: true, duplicate: true, entry_id: entryId, campaign_update: update, email: mail };
+  }
+
+  const fee = Math.max(100, Number(entry.expected_amount_cents) || 1000);
+  const mockPi = `mock_pi_${entryId}`;
+
+  await env.DB.prepare(`
+    UPDATE competition_entries
+    SET payment_status = 'paid',
+        submission_status = 'paid',
+        moderation_status = COALESCE(NULLIF(moderation_status, ''), 'pending'),
+        stripe_payment_intent_id = COALESCE(stripe_payment_intent_id, ?),
+        failure_stage = NULL,
+        failure_code = NULL,
+        failure_message = NULL,
+        updated_at = datetime('now')
+    WHERE id = ? AND tenant_id = ?
+  `).bind(mockPi, entryId, TENANT_ID).run();
+
+  await env.DB.prepare(`
+    UPDATE fundraising_campaigns
+    SET raised_amount_cents = COALESCE(raised_amount_cents, 0) + ?,
+        donor_count = COALESCE(donor_count, 0) + 1,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(fee, entry.campaign_id).run().catch(() => null);
+
+  const donationId = `donation_mock_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+  await env.DB.prepare(`
+    INSERT INTO donations
+      (id, organization_id, donor_id, campaign_id, amount_cents, currency, status,
+       payment_provider, donor_message, is_anonymous, donated_at)
+    VALUES (?, ?, NULL, ?, ?, 'usd', 'succeeded', 'mock_settle', ?, 0, datetime('now'))
+  `).bind(
+    donationId,
+    TENANT_ID,
+    entry.campaign_id,
+    fee,
+    `Mock settle for ${entry.dog_name} (${entryId})`
+  ).run().catch(() => null);
+
+  const { upsertCampaignUpdateForPaidEntry } = await import("./competition_campaign_updates.js");
+  const update = await upsertCampaignUpdateForPaidEntry(env, entryId);
+
+  const { notifyCompetitionEntry } = await import("./competition_notifications.js");
+  const mail = await notifyCompetitionEntry(env, entryId, "paid");
+
+  return {
+    ok: true,
+    entry_id: entryId,
+    campaign_id: entry.campaign_id,
+    amount_cents: fee,
+    photo_url: entry.photo_url,
+    campaign_update: update,
+    email: mail,
+    donation_id: donationId,
+  };
+}
+
+async function handleMockSettle(request, env, entryId) {
+  if (!mockSettleAllowed(env)) {
+    return json({ ok: false, error: "Mock settle disabled" }, 403);
+  }
+  const result = await mockSettleCompetitionEntry(env, entryId);
+  return json(result, result.status || (result.ok ? 200 : 400));
 }
 
 export async function competitionEntriesRoutes(request, env, url) {
   if (url.pathname === "/api/public/competition-entries" && request.method === "POST") {
     return handleCreateEntry(request, env);
   }
+
+  const mockMatch = url.pathname.match(/^\/api\/public\/competition-entries\/([^/]+)\/mock-settle$/);
+  if (mockMatch && request.method === "POST") {
+    return handleMockSettle(request, env, decodeURIComponent(mockMatch[1]));
+  }
+
   return null;
 }

@@ -42,6 +42,115 @@ function safeJson(value, fallback = {}) {
   try { return JSON.parse(String(value)) || fallback; } catch { return fallback; }
 }
 
+async function settleCompetitionEntryPaid(env, {
+  entryId, paymentIntentId, donationIntentId, amountCents, currency, campaignId,
+}) {
+  const entry = await env.DB.prepare(`
+    SELECT id, campaign_id, payment_status, expected_amount_cents, stripe_payment_intent_id
+    FROM competition_entries
+    WHERE id = ? AND tenant_id = ?
+    LIMIT 1
+  `).bind(entryId, TENANT_ID).first();
+  if (!entry?.id) return { ok: false, error: "entry_not_found" };
+  if (entry.payment_status === "paid") return { ok: true, duplicate: true };
+
+  if (campaignId && String(campaignId) !== String(entry.campaign_id)) {
+    await env.DB.prepare(`
+      UPDATE competition_entries
+      SET failure_stage = 'payment_settlement',
+          failure_code = 'campaign_mismatch',
+          failure_message = ?,
+          updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).bind(`Campaign mismatch: ${campaignId}`, entryId, TENANT_ID).run().catch(() => null);
+    return { ok: false, error: "campaign_mismatch" };
+  }
+
+  const expected = Number(entry.expected_amount_cents) || 1000;
+  const paid = Number(amountCents) || 0;
+  const cur = String(currency || "usd").toLowerCase();
+  if (cur !== "usd" || paid < expected) {
+    await env.DB.prepare(`
+      UPDATE competition_entries
+      SET payment_status = 'failed',
+          submission_status = 'payment_failed',
+          failure_stage = 'payment_settlement',
+          failure_code = 'amount_mismatch',
+          failure_message = ?,
+          stripe_payment_intent_id = COALESCE(?, stripe_payment_intent_id),
+          updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).bind(
+      `Expected ${expected} cents USD; received ${paid} ${cur}`,
+      paymentIntentId || null,
+      entryId,
+      TENANT_ID
+    ).run();
+    const { notifyCompetitionEntry } = await import("./competition_notifications.js");
+    await notifyCompetitionEntry(env, entryId, "failed", {
+      reason: `Payment amount did not match the entry fee (expected $${(expected / 100).toFixed(2)}).`,
+    });
+    return { ok: false, error: "amount_mismatch" };
+  }
+
+  if (
+    entry.stripe_payment_intent_id
+    && paymentIntentId
+    && entry.stripe_payment_intent_id !== paymentIntentId
+  ) {
+    // Allow if prior PI was abandoned; log but still settle when amount verifies.
+    console.warn("[competition] PI id changed on settle", entryId, entry.stripe_payment_intent_id, paymentIntentId);
+  }
+
+  await env.DB.prepare(`
+    UPDATE competition_entries
+    SET payment_status = 'paid',
+        submission_status = 'paid',
+        moderation_status = COALESCE(NULLIF(moderation_status, ''), 'pending'),
+        stripe_payment_intent_id = ?,
+        donation_intent_id = COALESCE(donation_intent_id, ?),
+        failure_stage = NULL,
+        failure_code = NULL,
+        failure_message = NULL,
+        updated_at = datetime('now')
+    WHERE id = ? AND tenant_id = ? AND payment_status != 'paid'
+  `).bind(paymentIntentId, donationIntentId || null, entryId, TENANT_ID).run();
+
+  const { upsertCampaignUpdateForPaidEntry } = await import("./competition_campaign_updates.js");
+  await upsertCampaignUpdateForPaidEntry(env, entryId).catch((err) => {
+    console.warn("[competition] campaign_updates upsert skipped:", err?.message || err);
+  });
+
+  const { notifyCompetitionEntry } = await import("./competition_notifications.js");
+  await notifyCompetitionEntry(env, entryId, "paid");
+  return { ok: true };
+}
+
+async function markCompetitionEntryFailed(env, { entryId, paymentIntentId, reason, code }) {
+  const entry = await env.DB.prepare(`
+    SELECT id, payment_status FROM competition_entries
+    WHERE id = ? AND tenant_id = ? LIMIT 1
+  `).bind(entryId, TENANT_ID).first();
+  if (!entry?.id) return { ok: false, error: "entry_not_found" };
+  if (entry.payment_status === "paid") return { ok: true, skipped: true };
+
+  await env.DB.prepare(`
+    UPDATE competition_entries
+    SET payment_status = 'failed',
+        submission_status = 'payment_failed',
+        failure_stage = 'payment',
+        failure_code = ?,
+        failure_message = ?,
+        stripe_payment_intent_id = COALESCE(?, stripe_payment_intent_id),
+        updated_at = datetime('now')
+    WHERE id = ? AND tenant_id = ? AND payment_status != 'paid'
+  `).bind(code || "payment_failed", reason || "Payment failed", paymentIntentId || null, entryId, TENANT_ID).run();
+
+  const { notifyCompetitionEntry } = await import("./competition_notifications.js");
+  await notifyCompetitionEntry(env, entryId, "failed", { reason: reason || "Payment failed" });
+  return { ok: true };
+}
+
 function stripeMode(secretKey) {
   const sk = String(secretKey || "");
   if (sk.startsWith("sk_test_")) return "test";
@@ -104,7 +213,7 @@ async function logEmail(env, row) {
   }
 }
 
-export async function sendResend(env, { to, name, subject, html, text, type, related_type, related_id }) {
+export async function sendResend(env, { to, name, subject, html, text, attachments = [], type, related_type, related_id }) {
   if (!to) return { skipped: true, error: "No recipient" };
   if (!env.RESEND_API_KEY && !env.RESEND_API_TOKEN) {
     await logEmail(env, { to, name, subject, type, related_type, related_id, status: "skipped", error_message: "Missing RESEND_API_KEY" });
@@ -115,7 +224,14 @@ export async function sendResend(env, { to, name, subject, html, text, type, rel
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [to], subject, html, text: text || html.replace(/<[^>]*>/g, " ") })
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject,
+      html,
+      text: text || html.replace(/<[^>]*>/g, " "),
+      ...(attachments.length ? { attachments } : {}),
+    })
   });
   const raw = await res.text();
   let parsed = {};
@@ -555,7 +671,33 @@ export async function paymentsEmailRoutes(request, env, url) {
     const stripeHeaders = { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`, "Content-Type": "application/x-www-form-urlencoded" };
 
     if (mode === "payment") {
-      const { intendedCents, chargeCents, coverFees } = resolveDonationAmounts(data);
+      let { intendedCents, chargeCents, coverFees } = resolveDonationAmounts(data);
+      const entryId = data.entry_id ? String(data.entry_id) : null;
+      let entryRow = null;
+
+      // Competition entries: server-authoritative fee from D1 — never trust browser amount.
+      if (entryId) {
+        entryRow = await env.DB.prepare(`
+          SELECT id, campaign_id, payment_status, submission_status, expected_amount_cents, owner_email
+          FROM competition_entries
+          WHERE id = ? AND tenant_id = ?
+          LIMIT 1
+        `).bind(entryId, TENANT_ID).first().catch(() => null);
+        if (!entryRow?.id) return json({ error: "Competition entry not found" }, 404);
+        if (entryRow.payment_status === "paid") {
+          return json({ error: "This entry is already paid" }, 409);
+        }
+        const expected = Number(entryRow.expected_amount_cents) || 1000;
+        if (expected < 100) return json({ error: "Invalid entry fee configured" }, 500);
+        intendedCents = expected;
+        chargeCents = expected;
+        coverFees = false;
+        if (data.campaign_id && String(data.campaign_id) !== String(entryRow.campaign_id)) {
+          return json({ error: "Campaign mismatch for this entry" }, 400);
+        }
+        data.campaign_id = entryRow.campaign_id;
+      }
+
       if (!intendedCents || intendedCents < 100) return json({ error: "Minimum donation is $1.00" }, 400);
       const donorNote = String(data.note || data.message || "").trim().slice(0, 500) || null;
       const localIntentId = id("intent");
@@ -565,11 +707,11 @@ export async function paymentsEmailRoutes(request, env, url) {
       form.set("automatic_payment_methods[enabled]", "true");
       form.set("metadata[tenant_id]", TENANT_ID);
       form.set("metadata[local_intent_id]", localIntentId);
-      form.set("metadata[source]", "donate_modal");
+      form.set("metadata[source]", entryId ? "campaign_entry" : "donate_modal");
       form.set("metadata[intended_cents]", String(intendedCents));
       form.set("metadata[cover_fees]", coverFees ? "true" : "false");
       if (data.campaign_id) form.set("metadata[campaign_id]", String(data.campaign_id));
-      if (data.entry_id) form.set("metadata[entry_id]", String(data.entry_id));
+      if (entryId) form.set("metadata[entry_id]", entryId);
       if (donorNote) form.set("metadata[message]", donorNote);
       const res = await fetch("https://api.stripe.com/v1/payment_intents", { method: "POST", headers: stripeHeaders, body: form });
       const d = await res.json().catch(() => ({}));
@@ -584,24 +726,26 @@ export async function paymentsEmailRoutes(request, env, url) {
           localIntentId, TENANT_ID, chargeCents, data.campaign_id || null, donorNote, d.id,
           JSON.stringify({
             stripe_payment_intent_id: d.id,
-            source: data.entry_id ? "campaign_entry" : "donate_modal",
+            source: entryId ? "campaign_entry" : "donate_modal",
             intended_cents: intendedCents,
             cover_fees: coverFees,
             charge_cents: chargeCents,
             note: donorNote,
-            entry_id: data.entry_id || null,
+            entry_id: entryId,
           })
         ).run();
       } catch (err) { console.warn("donation_intents insert skipped:", err?.message); }
-      if (data.entry_id) {
+      if (entryId) {
         try {
           await env.DB.prepare(`
             UPDATE competition_entries
             SET donation_intent_id = ?,
                 stripe_payment_intent_id = ?,
+                submission_status = 'pending_payment',
                 updated_at = datetime('now')
             WHERE id = ? AND tenant_id = ?
-          `).bind(localIntentId, d.id, String(data.entry_id), TENANT_ID).run();
+              AND payment_status != 'paid'
+          `).bind(localIntentId, d.id, entryId, TENANT_ID).run();
         } catch (err) {
           console.warn("competition_entries intent link skipped:", err?.message);
         }
@@ -682,15 +826,7 @@ export async function paymentsEmailRoutes(request, env, url) {
         ).bind(donorEmail, nlOptIn ? 1 : 0, saveInfo ? 1 : 0, piId, TENANT_ID).run();
       }
 
-      if (entryId) {
-        await env.DB.prepare(`
-          UPDATE competition_entries
-          SET payment_status = 'paid',
-              stripe_payment_intent_id = COALESCE(?, stripe_payment_intent_id),
-              updated_at = datetime('now')
-          WHERE id = ? AND tenant_id = ?
-        `).bind(piId, entryId, TENANT_ID).run().catch(() => null);
-      }
+      // Competition entries settle only via signed Stripe webhook — never from this browser callback.
 
       // 2. Upsert donor record with consent flags
       if (donorEmail) {
@@ -843,23 +979,40 @@ export async function paymentsEmailRoutes(request, env, url) {
         });
         const entryId = meta.entry_id || intentMeta.entry_id || null;
         if (entryId) {
-          try {
-            await env.DB.prepare(`
-              UPDATE competition_entries
-              SET payment_status = 'paid',
-                  stripe_payment_intent_id = ?,
-                  donation_intent_id = COALESCE(donation_intent_id, ?),
-                  updated_at = datetime('now')
-              WHERE id = ? AND tenant_id = ?
-            `).bind(paymentIntentId, intentRecord?.id || null, String(entryId), TENANT_ID).run();
-          } catch (err) {
-            console.warn("competition_entries paid update skipped:", err?.message || err);
-          }
+          await settleCompetitionEntryPaid(env, {
+            entryId: String(entryId),
+            paymentIntentId,
+            donationIntentId: intentRecord?.id || null,
+            amountCents,
+            currency: pi.currency || "usd",
+            campaignId: campaignId || meta.campaign_id || null,
+          }).catch((err) => console.warn("competition_entries settle skipped:", err?.message || err));
         }
         return json({ received: true, processed: !result.duplicate, duplicate: result.duplicate || false });
       }
       await logStripeWebhookEvent(env, { eventType, status: "acknowledged", relatedId: paymentIntentId, rawEvent });
       return json({ received: true, acknowledged: true });
+    }
+
+    // ── payment_intent.payment_failed ─────────────────────────────────────
+    if (eventType === "payment_intent.payment_failed") {
+      const pi = event.data?.object || {};
+      const meta = pi.metadata || {};
+      const entryId = meta.entry_id || null;
+      const paymentIntentId = pi.id || null;
+      if (entryId) {
+        const reason = pi.last_payment_error?.message
+          || pi.last_payment_error?.code
+          || "Stripe reported payment_intent.payment_failed";
+        await markCompetitionEntryFailed(env, {
+          entryId: String(entryId),
+          paymentIntentId,
+          reason,
+          code: pi.last_payment_error?.code || "payment_failed",
+        }).catch((err) => console.warn("competition_entries failed mark skipped:", err?.message || err));
+      }
+      await logStripeWebhookEvent(env, { eventType, status: "processed", relatedId: paymentIntentId || entryId, rawEvent });
+      return json({ received: true });
     }
 
     // ── checkout.session.completed ────────────────────────────────────────

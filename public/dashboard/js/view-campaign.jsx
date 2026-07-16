@@ -185,6 +185,8 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
   const [saveMsg, setSaveMsg] = React.useState("");
+  const [entries, setEntries] = React.useState([]);
+  const [entryBusy, setEntryBusy] = React.useState("");
   const [form, setForm] = React.useState({
     id: "",
     title: "",
@@ -204,28 +206,63 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     }));
   }
 
-  React.useEffect(function() {
+  function money(cents) {
+    return "$" + (Number(cents || 0) / 100).toFixed(2);
+  }
+
+  async function loadCampaign() {
     if (isNew) return;
     setLoading(true);
-    fetch("/api/dashboard/fundraising/" + encodeURIComponent(campaignId), { credentials: "include" })
-      .then(r => r.json())
-      .then(d => {
-        if (!d.ok && !d.campaign) throw new Error(d.error || "Campaign not found");
-        const c = d.campaign;
-        const cfg = c.config || {};
-        setForm({
-          id: c.id,
-          title: c.title || "",
-          description: c.description || c.short_description || "",
-          is_public: Number(c.is_public) === 1 ? 1 : 0,
-          status: c.status || "draft",
-          attachments: attachmentsFromCampaign(c, cfg),
-          config: Object.assign({ show_on_donate: false, show_on_services: false }, cfg),
-        });
-      })
-      .catch(e => setError(e.message || "Failed to load campaign"))
-      .finally(() => setLoading(false));
+    try {
+      const r = await fetch("/api/dashboard/fundraising/" + encodeURIComponent(campaignId), { credentials: "include" });
+      const d = await r.json();
+      if (!d.ok && !d.campaign) throw new Error(d.error || "Campaign not found");
+      const c = d.campaign;
+      const cfg = c.config || {};
+      setForm({
+        id: c.id,
+        title: c.title || "",
+        description: c.description || c.short_description || "",
+        is_public: Number(c.is_public) === 1 ? 1 : 0,
+        status: c.status || "draft",
+        attachments: attachmentsFromCampaign(c, cfg),
+        config: Object.assign({ show_on_donate: false, show_on_services: false }, cfg),
+      });
+      setEntries(Array.isArray(d.entries) ? d.entries : []);
+    } catch (e) {
+      setError(e.message || "Failed to load campaign");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(function() {
+    loadCampaign();
   }, [campaignId, isNew]);
+
+  async function entryAction(entryId, action, body) {
+    setEntryBusy(entryId + ":" + action);
+    setError("");
+    try {
+      const res = await fetch(
+        "/api/dashboard/fundraising/" + encodeURIComponent(campaignId) +
+        "/entries/" + encodeURIComponent(entryId) + "/" + action,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body || {}),
+        }
+      );
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.ok === false) throw new Error(d.error || "Action failed");
+      await loadCampaign();
+    } catch (e) {
+      setError(e.message || "Entry action failed");
+    } finally {
+      setEntryBusy("");
+    }
+  }
 
   async function save() {
     if (!form.title.trim()) {
@@ -236,6 +273,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     setError("");
     setSaveMsg("");
     try {
+      const isPublic = form.is_public === 1;
       const firstImage = (form.attachments || []).find(a => a.type === "image");
       const coverUrl = firstImage?.url || null;
       const configJson = Object.assign({}, form.config, {
@@ -248,7 +286,6 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       if (!isPublic || !configJson.show_on_donate) {
         configJson.donate_placement = configJson.show_on_donate ? configJson.donate_placement : "";
       }
-      const isPublic = form.is_public === 1;
       const payload = {
         id: form.id || undefined,
         title: form.title.trim(),
@@ -284,6 +321,95 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   const field = (label, child, opts) => React.createElement("div", { className: "camp-field" + (opts?.large ? " camp-field--large" : "") },
     React.createElement("label", { className: "camp-label" }, label),
     child
+  );
+
+  const entryCounts = entries.reduce(function(acc, e) {
+    if (e.archived_at) acc.archived += 1;
+    else if (e.payment_status === "paid") acc.paid += 1;
+    else if (e.payment_status === "failed" || e.payment_status === "abandoned") acc.failed += 1;
+    else acc.pending += 1;
+    if (e.payment_status === "paid" && Number(e.is_approved) !== 1 && e.moderation_status !== "rejected") acc.unreviewed += 1;
+    return acc;
+  }, { pending: 0, paid: 0, failed: 0, archived: 0, unreviewed: 0 });
+
+  const entriesPanel = !isNew && React.createElement(Card, { className: "camp-form-card", style: { marginTop: 16 } },
+    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 } },
+      React.createElement("div", null,
+        React.createElement("h3", { style: { margin: 0, fontSize: 16 } }, "Competition entries"),
+        React.createElement("p", { style: { margin: "4px 0 0", fontSize: 12, opacity: 0.7 } },
+          entryCounts.paid + " paid · " + entryCounts.unreviewed + " awaiting review · " + entryCounts.pending + " pending payment")
+      ),
+      React.createElement(Btn, { variant: "secondary", size: "sm", onClick: loadCampaign, disabled: !!entryBusy }, "Refresh")
+    ),
+    entries.length === 0
+      ? React.createElement("p", { style: { margin: 0, fontSize: 13, opacity: 0.7 } }, "No entries yet. Paid submissions appear here with photo + campaign total.")
+      : React.createElement("div", { style: { display: "grid", gap: 12 } },
+          entries.map(function(entry) {
+            const busy = entryBusy.indexOf(entry.id) === 0;
+            return React.createElement("div", {
+              key: entry.id,
+              style: {
+                display: "grid",
+                gridTemplateColumns: "72px 1fr auto",
+                gap: 12,
+                alignItems: "center",
+                padding: 10,
+                border: "1px solid rgba(0,0,0,.08)",
+                borderRadius: 10,
+              },
+            },
+              entry.photo_url
+                ? React.createElement("img", {
+                    src: entry.photo_url,
+                    alt: entry.dog_name || "Entry",
+                    style: { width: 72, height: 72, objectFit: "cover", borderRadius: 8 },
+                  })
+                : React.createElement("div", {
+                    style: { width: 72, height: 72, borderRadius: 8, background: "#eee" },
+                  }),
+              React.createElement("div", null,
+                React.createElement("div", { style: { fontWeight: 700 } }, entry.dog_name || "Untitled pet"),
+                React.createElement("div", { style: { fontSize: 12, opacity: 0.75 } },
+                  (entry.owner_name || "") + " · " + (entry.owner_email || "") + (entry.owner_phone ? " · " + entry.owner_phone : "")
+                ),
+                React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 } },
+                  React.createElement(Badge, { label: entry.payment_status || "pending", dot: true }),
+                  React.createElement(Badge, { label: entry.moderation_status || "pending", dot: true }),
+                  entry.milestone_amount_cents != null && React.createElement(Badge, {
+                    label: "Campaign " + money(entry.milestone_amount_cents),
+                    dot: false,
+                  })
+                ),
+                entry.caption && React.createElement("div", { style: { fontSize: 12, marginTop: 4 } }, entry.caption)
+              ),
+              React.createElement("div", { style: { display: "grid", gap: 6 } },
+                entry.payment_status === "paid" && Number(entry.is_approved) !== 1 && React.createElement(Btn, {
+                  size: "sm",
+                  disabled: busy,
+                  onClick: () => entryAction(entry.id, "approve"),
+                }, "Approve"),
+                entry.payment_status === "paid" && entry.moderation_status !== "rejected" && React.createElement(Btn, {
+                  size: "sm",
+                  variant: "secondary",
+                  disabled: busy,
+                  onClick: () => entryAction(entry.id, "reject", { reason: "Needs a clearer photo or details." }),
+                }, "Reject"),
+                entry.payment_status === "paid" && React.createElement(Btn, {
+                  size: "sm",
+                  variant: "secondary",
+                  disabled: busy,
+                  onClick: () => entryAction(entry.id, "resend"),
+                }, "Resend email"),
+                !entry.archived_at && React.createElement(Btn, {
+                  size: "sm",
+                  variant: "secondary",
+                  disabled: busy,
+                  onClick: () => entryAction(entry.id, "archive"),
+                }, "Archive")
+              )
+            );
+          })
+        )
   );
 
   const publishPanel = React.createElement("aside", { className: "camp-sidebar" },
@@ -386,7 +512,8 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
             onChange: v => setField("attachments", v),
             disabled: saving,
           }))
-        )
+        ),
+        entriesPanel
       ),
       publishPanel
     )

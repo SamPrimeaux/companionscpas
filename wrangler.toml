@@ -23,6 +23,9 @@ ADMIN_EMAIL = "companionsCPAS@gmail.com"
 RESEND_FROM_EMAIL = "Companions of CPAS <no-reply@companionsofcaddo.org>"
 RESEND_SUPPORT_FROM = "Companions of CPAS <support@companionsofcaddo.org>"
 EMAIL_INBOX_MAILBOXES = "support@companionsofcaddo.org"
+# Temporary client-test lane: POST /api/public/competition-entries/:id/mock-settle
+# Flip to "0" after Wet Dog QA is done.
+ALLOW_ENTRY_MOCK_SETTLE = "1"
 
 [[d1_databases]]
 binding = "DB"

@@ -361,6 +361,12 @@ export default {
     ctx.waitUntil(syncToIAM(env));
 
     ctx.waitUntil(
+      import("./api/competition_notifications.js")
+        .then((m) => m.reconcileAbandonedCompetitionEntries(env))
+        .catch((e) => console.warn("[competition] abandon reconcile failed:", e?.message || e))
+    );
+
+    ctx.waitUntil(
       env.DB.prepare(`
         INSERT OR REPLACE INTO agentsam_usage_rollups_daily
           (tenant_id, workspace_id, day,

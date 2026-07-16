@@ -770,8 +770,14 @@ export async function dashboardApiRoutes(request, env, url) {
 
   // ─── GET/POST/PUT /api/dashboard/fundraising[/:id] ───────────────────────
   const fundraisingDetailMatch = path.match(/^\/api\/dashboard\/fundraising\/([^/]+)$/);
+  const fundraisingEntriesMatch = path.match(/^\/api\/dashboard\/fundraising\/([^/]+)\/entries$/);
+  const fundraisingEntryActionMatch = path.match(
+    /^\/api\/dashboard\/fundraising\/([^/]+)\/entries\/([^/]+)\/(approve|reject|archive|resend)$/
+  );
 
   if (fundraisingDetailMatch && method === 'GET') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
     const campaign = await fetchCampaignById(env, fundraisingDetailMatch[1]);
     if (!campaign) return json({ ok: false, error: 'Campaign not found' }, 404);
     const donationRows = await env.DB.prepare(`
@@ -789,20 +795,142 @@ export async function dashboardApiRoutes(request, env, url) {
       FROM donations WHERE campaign_id = ? AND status = 'succeeded'
     `).bind(campaign.id).first().catch(() => ({ total: 0 }));
     const liveRaised = Number(raisedLive?.total) || campaign.raised_cents;
+    const entryRows = await env.DB.prepare(`
+      SELECT ce.id, ce.dog_name, ce.owner_name, ce.owner_email, ce.owner_phone,
+             ce.caption, ce.photo_url, ce.payment_status, ce.submission_status,
+             ce.moderation_status, ce.is_approved, ce.expected_amount_cents,
+             ce.admin_notified_at, ce.failure_message, ce.created_at, ce.archived_at,
+             cu.id AS campaign_update_id, cu.milestone_amount_cents, cu.is_public AS update_is_public
+      FROM competition_entries ce
+      LEFT JOIN campaign_updates cu
+        ON cu.id = ('cupd_' || REPLACE(ce.id, 'entry_', ''))
+       AND cu.campaign_id = ce.campaign_id
+      WHERE ce.campaign_id = ? AND ce.tenant_id = ?
+      ORDER BY ce.created_at DESC
+      LIMIT 200
+    `).bind(campaign.id, TENANT).all().catch(() => ({ results: [] }));
+    const updateRows = await env.DB.prepare(`
+      SELECT id, title, body, image_asset_id, update_type, milestone_amount_cents,
+             status, is_public, published_at, created_at
+      FROM campaign_updates
+      WHERE campaign_id = ? AND tenant_id = ?
+      ORDER BY COALESCE(published_at, created_at) DESC
+      LIMIT 100
+    `).bind(campaign.id, TENANT).all().catch(() => ({ results: [] }));
     return json({
       ok: true,
       campaign: { ...campaign, raised_cents: liveRaised, raised_amount_cents: liveRaised },
       donations: donationRows.results || [],
+      entries: entryRows.results || [],
+      campaign_updates: updateRows.results || [],
     });
   }
 
+  if (fundraisingEntriesMatch && method === 'GET') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
+    const campaignId = fundraisingEntriesMatch[1];
+    const rows = await env.DB.prepare(`
+      SELECT ce.*, cu.id AS campaign_update_id, cu.milestone_amount_cents, cu.is_public AS update_is_public
+      FROM competition_entries ce
+      LEFT JOIN campaign_updates cu
+        ON cu.id = ('cupd_' || REPLACE(ce.id, 'entry_', ''))
+       AND cu.campaign_id = ce.campaign_id
+      WHERE ce.campaign_id = ? AND ce.tenant_id = ?
+      ORDER BY ce.created_at DESC
+      LIMIT 200
+    `).bind(campaignId, TENANT).all().catch(() => ({ results: [] }));
+    return json({ ok: true, entries: rows.results || [] });
+  }
+
+  if (fundraisingEntryActionMatch && method === 'POST') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
+    const campaignId = fundraisingEntryActionMatch[1];
+    const entryId = decodeURIComponent(fundraisingEntryActionMatch[2]);
+    const action = fundraisingEntryActionMatch[3];
+    const b = await request.json().catch(() => ({}));
+    const entry = await env.DB.prepare(`
+      SELECT id, campaign_id, payment_status FROM competition_entries
+      WHERE id = ? AND campaign_id = ? AND tenant_id = ? LIMIT 1
+    `).bind(entryId, campaignId, TENANT).first().catch(() => null);
+    if (!entry?.id) return json({ ok: false, error: 'Entry not found' }, 404);
+
+    if (action === 'approve') {
+      await env.DB.prepare(`
+        UPDATE competition_entries
+        SET is_approved = 1,
+            moderation_status = 'approved',
+            approved_by = ?,
+            approved_at = datetime('now'),
+            rejection_reason = NULL,
+            updated_at = datetime('now')
+        WHERE id = ? AND tenant_id = ?
+      `).bind(session.email || session.user_id || 'dashboard', entryId, TENANT).run();
+      const { setCampaignUpdatePublicForEntry } = await import('./competition_campaign_updates.js');
+      await setCampaignUpdatePublicForEntry(env, entryId, true);
+      return json({ ok: true, entry_id: entryId, moderation_status: 'approved' });
+    }
+
+    if (action === 'reject') {
+      const reason = String(b.reason || 'Rejected by admin').slice(0, 500);
+      await env.DB.prepare(`
+        UPDATE competition_entries
+        SET is_approved = 0,
+            moderation_status = 'rejected',
+            rejection_reason = ?,
+            updated_at = datetime('now')
+        WHERE id = ? AND tenant_id = ?
+      `).bind(reason, entryId, TENANT).run();
+      const { setCampaignUpdatePublicForEntry } = await import('./competition_campaign_updates.js');
+      await setCampaignUpdatePublicForEntry(env, entryId, false);
+      return json({ ok: true, entry_id: entryId, moderation_status: 'rejected' });
+    }
+
+    if (action === 'archive') {
+      await env.DB.prepare(`
+        UPDATE competition_entries
+        SET archived_at = datetime('now'),
+            moderation_status = CASE WHEN moderation_status = 'pending' THEN 'archived' ELSE moderation_status END,
+            updated_at = datetime('now')
+        WHERE id = ? AND tenant_id = ?
+      `).bind(entryId, TENANT).run();
+      const { setCampaignUpdatePublicForEntry } = await import('./competition_campaign_updates.js');
+      await setCampaignUpdatePublicForEntry(env, entryId, false);
+      return json({ ok: true, entry_id: entryId, archived: true });
+    }
+
+    if (action === 'resend') {
+      if (entry.payment_status !== 'paid') {
+        return json({ ok: false, error: 'Only paid entries can resend the paid notification' }, 400);
+      }
+      // Clear prior dashboard notification dedupe so resend can create a fresh row.
+      await env.DB.prepare(`
+        UPDATE dashboard_notifications
+        SET status = 'dismissed', dismissed_at = datetime('now')
+        WHERE tenant_id = ? AND related_type = 'competition_entry' AND related_id = ?
+      `).bind(TENANT, `${entryId}:paid`).run().catch(() => null);
+      await env.DB.prepare(`
+        UPDATE competition_entries SET admin_notified_at = NULL, updated_at = datetime('now')
+        WHERE id = ? AND tenant_id = ?
+      `).bind(entryId, TENANT).run().catch(() => null);
+      const { notifyCompetitionEntry } = await import('./competition_notifications.js');
+      const mail = await notifyCompetitionEntry(env, entryId, 'paid');
+      return json({ ok: true, entry_id: entryId, email: mail });
+    }
+  }
+
   if (path === '/api/dashboard/fundraising' && method === 'GET') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
     const rows = await env.DB.prepare(`${CAMPAIGN_SELECT} ORDER BY fc.updated_at DESC`)
       .all().catch(() => ({ results: [] }));
     return json({ campaigns: (rows.results || []).map(normalizeCampaign) });
   }
 
   if (path === '/api/dashboard/fundraising' && method === 'POST') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
     try {
       const b = await request.json().catch(() => ({}));
       const id = await saveCampaignRecord(env, b);
@@ -814,6 +942,8 @@ export async function dashboardApiRoutes(request, env, url) {
   }
 
   if (path === '/api/dashboard/fundraising' && method === 'PUT') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
     try {
       const b = await request.json().catch(() => ({}));
       if (!b.id) return json({ ok: false, error: 'id required' }, 400);
