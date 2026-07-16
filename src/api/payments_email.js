@@ -569,6 +569,7 @@ export async function paymentsEmailRoutes(request, env, url) {
       form.set("metadata[intended_cents]", String(intendedCents));
       form.set("metadata[cover_fees]", coverFees ? "true" : "false");
       if (data.campaign_id) form.set("metadata[campaign_id]", String(data.campaign_id));
+      if (data.entry_id) form.set("metadata[entry_id]", String(data.entry_id));
       if (donorNote) form.set("metadata[message]", donorNote);
       const res = await fetch("https://api.stripe.com/v1/payment_intents", { method: "POST", headers: stripeHeaders, body: form });
       const d = await res.json().catch(() => ({}));
@@ -581,9 +582,30 @@ export async function paymentsEmailRoutes(request, env, url) {
            VALUES (?, ?, NULL, NULL, ?, 'one_time', ?, ?, 'stripe', ?, 'pending_payment', 'pending_after_payment', ?, datetime('now'))`
         ).bind(
           localIntentId, TENANT_ID, chargeCents, data.campaign_id || null, donorNote, d.id,
-          JSON.stringify({ stripe_payment_intent_id: d.id, source: "donate_modal", intended_cents: intendedCents, cover_fees: coverFees, charge_cents: chargeCents, note: donorNote })
+          JSON.stringify({
+            stripe_payment_intent_id: d.id,
+            source: data.entry_id ? "campaign_entry" : "donate_modal",
+            intended_cents: intendedCents,
+            cover_fees: coverFees,
+            charge_cents: chargeCents,
+            note: donorNote,
+            entry_id: data.entry_id || null,
+          })
         ).run();
       } catch (err) { console.warn("donation_intents insert skipped:", err?.message); }
+      if (data.entry_id) {
+        try {
+          await env.DB.prepare(`
+            UPDATE competition_entries
+            SET donation_intent_id = ?,
+                stripe_payment_intent_id = ?,
+                updated_at = datetime('now')
+            WHERE id = ? AND tenant_id = ?
+          `).bind(localIntentId, d.id, String(data.entry_id), TENANT_ID).run();
+        } catch (err) {
+          console.warn("competition_entries intent link skipped:", err?.message);
+        }
+      }
       return json({ client_secret: d.client_secret, mode: "payment", intent_id: localIntentId, payment_intent_id: d.id, intended_cents: intendedCents, charge_cents: chargeCents, cover_fees: coverFees });
     } else {
       const form = new URLSearchParams();
@@ -645,6 +667,7 @@ export async function paymentsEmailRoutes(request, env, url) {
     const nlOptIn = Boolean(data.nl_opt_in);
     const saveInfo = Boolean(data.save_my_info);
     const piId = data.payment_intent_id || null;
+    const entryId = data.entry_id ? String(data.entry_id) : null;
 
     try {
       // 1. Backfill donor_email + consent flags onto the intent row
@@ -657,6 +680,16 @@ export async function paymentsEmailRoutes(request, env, url) {
                updated_at = datetime('now')
            WHERE provider_checkout_id = ? AND tenant_id = ?`
         ).bind(donorEmail, nlOptIn ? 1 : 0, saveInfo ? 1 : 0, piId, TENANT_ID).run();
+      }
+
+      if (entryId) {
+        await env.DB.prepare(`
+          UPDATE competition_entries
+          SET payment_status = 'paid',
+              stripe_payment_intent_id = COALESCE(?, stripe_payment_intent_id),
+              updated_at = datetime('now')
+          WHERE id = ? AND tenant_id = ?
+        `).bind(piId, entryId, TENANT_ID).run().catch(() => null);
       }
 
       // 2. Upsert donor record with consent flags
@@ -808,6 +841,21 @@ export async function paymentsEmailRoutes(request, env, url) {
           webhookEventType: eventType, rawEvent,
           stripeChargeId: chargeId, stripeReceiptUrl: receiptUrl,
         });
+        const entryId = meta.entry_id || intentMeta.entry_id || null;
+        if (entryId) {
+          try {
+            await env.DB.prepare(`
+              UPDATE competition_entries
+              SET payment_status = 'paid',
+                  stripe_payment_intent_id = ?,
+                  donation_intent_id = COALESCE(donation_intent_id, ?),
+                  updated_at = datetime('now')
+              WHERE id = ? AND tenant_id = ?
+            `).bind(paymentIntentId, intentRecord?.id || null, String(entryId), TENANT_ID).run();
+          } catch (err) {
+            console.warn("competition_entries paid update skipped:", err?.message || err);
+          }
+        }
         return json({ received: true, processed: !result.duplicate, duplicate: result.duplicate || false });
       }
       await logStripeWebhookEvent(env, { eventType, status: "acknowledged", relatedId: paymentIntentId, rawEvent });

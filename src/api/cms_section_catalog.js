@@ -9,6 +9,7 @@ import { renderHomeFragment } from "./render_home_section.js";
 import { renderAboutFragment } from "./render_about_section.js";
 import { renderDonateV2Section, isDonateV2SectionType } from "./render_donate_v2.js";
 import { renderCampaignTransportHero } from "./render_campaign_transport_hero.js";
+import { renderCampaignEntryHero } from "./render_campaign_entry_hero.js";
 import {
   renderContactHero,
   renderContactSocials,
@@ -22,6 +23,7 @@ const TENANT_ID = "tenant_companionscpas";
 /** D1 DISTINCT section_type values (2026-07-10) — every key must resolve. */
 export const D1_SECTION_TYPES = [
   "animal_grid",
+  "campaign_entry_hero",
   "campaign_grid",
   "campaign_transport_hero",
   "contact_form",
@@ -51,6 +53,7 @@ export const D1_SECTION_TYPES = [
   "testimonial",
   "testimonials",
   "text_image",
+  "wet_dog_competition",
 ];
 
 function normalizeRoute(route) {
@@ -139,6 +142,9 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
     if (type === "campaign_transport_hero") {
       return String(await renderCampaignTransportHero(section, blocks, brand, env) || "");
     }
+    if (type === "campaign_entry_hero") {
+      return String(await renderCampaignEntryHero(section, blocks, brand, env) || "");
+    }
 
     // Home: custom fragments keyed by section_key (D1 types are often generic aliases)
     if (route === "/") {
@@ -191,6 +197,7 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
 
 /** Types shown in dashboard Add Section (safe generic + contact + common). */
 export const ADDABLE_SECTION_TYPES = [
+  { type: "campaign_entry_hero", label: "Campaign Entry Hero", desc: "Split campaign hero with entry and sharing actions" },
   { type: "hero", label: "Hero", desc: "Headline, image, and CTAs" },
   { type: "text_image", label: "Text + Image", desc: "Story block with optional media" },
   { type: "feature_cards", label: "Feature Cards", desc: "Card grid for services or benefits" },

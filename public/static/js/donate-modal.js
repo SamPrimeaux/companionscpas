@@ -115,7 +115,8 @@
 
   let tiers = [], selectedAmount = 1, frequency = 'one_time';
   let coverFees = true;
-  let presetCampaignId = null, presetAmount = null;
+  let presetCampaignId = null, presetAmount = null, presetEntryId = null;
+  let presetDonorEmail = null, presetDonorNote = null;
   let stripeInst = null, elements = null, isSubmitting = false;
   let stripePk = null, stripeTestMode = false, configPromise = null;
   let reinitTimer = null;
@@ -305,8 +306,9 @@
         currency: 'usd',
       };
       if (presetCampaignId) payload.campaign_id = presetCampaignId;
+      if (presetEntryId) payload.entry_id = presetEntryId;
       // Include memo at intent creation time so it's stored in D1 + Stripe metadata
-      const note = getDonorNote();
+      const note = getDonorNote() || presetDonorNote;
       if (note) payload.note = note;
       const res = await fetch(ENDPOINT_INTENT, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -374,6 +376,8 @@
               intended_cents: intendedCents,
               cover_fees: !isMonthly && coverFees,
               payment_intent_id: paymentIntent?.id || null,
+              entry_id: presetEntryId || null,
+              campaign_id: presetCampaignId || null,
             }),
           }).catch(() => {});
         }
@@ -455,14 +459,22 @@
     initElements();
   }
 
-  function open(event) {
-    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+  function open(eventOrOpts) {
+    const opts = (eventOrOpts && typeof eventOrOpts === 'object' && typeof eventOrOpts.preventDefault !== 'function')
+      ? eventOrOpts
+      : null;
+    if (!opts && eventOrOpts && typeof eventOrOpts.preventDefault === 'function') eventOrOpts.preventDefault();
     if (document.getElementById('dm-overlay')) return;
-    const trigger = event?.currentTarget?.closest?.('[data-action="donate"],[data-donate]')
-      || event?.target?.closest?.('[data-action="donate"],[data-donate]');
-    presetCampaignId = trigger?.dataset?.campaignId || null;
-    const presetAmt = Number(trigger?.dataset?.amount || 0);
-    const presetCents = Number(trigger?.dataset?.amountCents || 0);
+    const trigger = opts ? null : (
+      eventOrOpts?.currentTarget?.closest?.('[data-action="donate"],[data-donate]')
+      || eventOrOpts?.target?.closest?.('[data-action="donate"],[data-donate]')
+    );
+    presetCampaignId = opts?.campaign_id || opts?.campaignId || trigger?.dataset?.campaignId || null;
+    presetEntryId = opts?.entry_id || opts?.entryId || trigger?.dataset?.entryId || null;
+    presetDonorEmail = opts?.donor_email || opts?.donorEmail || null;
+    presetDonorNote = opts?.note || null;
+    const presetAmt = Number(opts?.amount || trigger?.dataset?.amount || 0);
+    const presetCents = Number(opts?.amount_cents || opts?.amountCents || trigger?.dataset?.amountCents || 0);
     presetAmount = presetAmt > 0 ? presetAmt : (presetCents > 0 ? presetCents / 100 : null);
     injectStyles();
     selectedAmount = presetAmount || 1;
@@ -484,14 +496,24 @@
       await configLoad;
       tiers = loaded;
       if (!document.getElementById('dm-overlay')) return;
-      modal.innerHTML = buildHTML(); bindEvents(); mirrorReceiptEmail(); initElements();
+      modal.innerHTML = buildHTML(); bindEvents(); mirrorReceiptEmail();
+      if (presetDonorEmail) {
+        const emailInput = document.getElementById('receipt-email');
+        if (emailInput) emailInput.value = presetDonorEmail;
+      }
+      if (presetDonorNote) {
+        const memo = document.getElementById('dm-memo');
+        if (memo) memo.value = presetDonorNote;
+      }
+      initElements();
     });
   }
 
   function close() {
     const el = document.getElementById('dm-overlay'); if (el) el.remove();
     elements = null; isSubmitting = false;
-    presetCampaignId = null; presetAmount = null;
+    presetCampaignId = null; presetAmount = null; presetEntryId = null;
+    presetDonorEmail = null; presetDonorNote = null;
   }
 
   function bindEvents() {

@@ -632,6 +632,7 @@ function injectPreviewSectionInspector(iframe) {
 }
 
 const CMS_SECTION_TYPES = [
+  { type:'campaign_entry_hero', label:'Campaign Entry Hero', desc:'Split campaign opener with image, steps, entry, and sharing actions' },
   { type:'hero', label:'Hero', desc:'Large page opener with headline, image, and CTAs' },
   { type:'text_image', label:'Text + Image', desc:'Balanced story block with optional media' },
   { type:'feature_cards', label:'Feature Cards', desc:'Reusable card grid for services or benefits' },

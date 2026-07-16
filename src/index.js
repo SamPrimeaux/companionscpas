@@ -10,6 +10,7 @@ import { passwordResetRoutes } from './api/password_reset.js';
 import { dashboardApiRoutes } from './api/dashboard_api.js';
 import { membersApiRoutes } from './api/members_api.js';
 import { publicApiRoutes } from './api/public_api.js';
+import { competitionEntriesRoutes } from './api/competition_entries_api.js';
 import { contactApiRoutes } from './api/contact_api.js';
 import { donationApiRoutes } from './api/donation_api.js';
 import { paymentsEmailRoutes } from './api/payments_email.js';
@@ -204,6 +205,9 @@ export default {
 
       const publicResult = await publicApiRoutes(request, env, url);
       if (publicResult) return publicResult;
+
+      const competitionResult = await competitionEntriesRoutes(request, env, url);
+      if (competitionResult) return competitionResult;
 
       const cmsResult = await cmsRoutes(request, env, url);
       if (cmsResult) return cmsResult;
