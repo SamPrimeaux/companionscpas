@@ -51,7 +51,7 @@
     .cepay-head{position:relative;padding:25px 28px 22px;background:linear-gradient(145deg,#6f2270,#4e1a52);text-align:center;color:#fff}
     .cepay-logo{display:block;width:92px;height:auto;margin:0 auto 13px}
     .cepay-kicker{margin:0 0 6px;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.75)}
-    .cepay-title{margin:0;font-family:'Fraunces',Georgia,serif;font-size:27px;line-height:1.12}
+    .cepay-title{margin:0;font-family:'Fraunces',Georgia,serif;font-size:27px;line-height:1.12;color:#f8eefa;text-shadow:0 1px 0 rgba(0,0,0,.08)}
     .cepay-close{position:absolute;top:13px;right:13px;display:grid;place-items:center;width:32px;height:32px;border:1px solid rgba(255,255,255,.25);border-radius:50%;background:rgba(255,255,255,.1);color:#fff;font-size:20px;cursor:pointer}
     .cepay-body{padding:20px 24px 10px}
     .cepay-summary{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;margin-bottom:15px;padding:15px 16px;border:1px solid rgba(79,40,87,.12);border-radius:15px;background:#fff}
@@ -302,7 +302,7 @@
         </div>
         <footer class="cepay-foot">
           <button type="button" class="cepay-submit" id="cepay-submit" disabled>Loading secure payment…</button>
-          <p class="cepay-secure">Secured by Stripe · ${money(options.amount_cents)} one-time charge · confirmation emailed after webhook verification</p>
+          <p class="cepay-secure">Secured by Stripe · ${money(options.amount_cents)} one-time charge</p>
         </footer>
       </div>`;
     document.body.appendChild(overlay);

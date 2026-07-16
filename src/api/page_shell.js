@@ -1,7 +1,7 @@
 /** Shared public-page asset versions and script tags. */
 export const SHELL_VERSION = "contact-team-live-20260710";
 export const DONATE_MODAL_VERSION = "campaign-entry-20260716";
-export const COMPETITION_PAYMENT_MODAL_VERSION = "wet-dog-fixed-fee-20260716";
+export const COMPETITION_PAYMENT_MODAL_VERSION = "wet-dog-fixed-fee-20260716b";
 export const CPAS_MODALS_VERSION = "modals-v3-20260706";
 
 export { brandTokensStylesheetTag } from "./brand_tokens.js";
