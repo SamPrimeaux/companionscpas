@@ -283,7 +283,7 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
                 <strong>Competition entry fee</strong>
                 <span class="ceh-handoff-amount">${esc(feeExact)}</span>
               </div>
-              <p>We’ll save your pending entry and photo, then open the existing Stripe donation checkout for the ${esc(feeLabel)} entry fee. Your entry is valid only after payment succeeds.</p>
+              <p>We’ll save your pending entry and photo, then open a dedicated ${esc(feeLabel)} Stripe checkout. This is a one-time competition fee with no donation tiers or recurring option.</p>
             </div>
             <div class="ceh-footer">
               <button class="ceh-btn ceh-btn--quiet" type="button" data-ceh-back>Back to entry</button>
@@ -422,33 +422,22 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
       const donorEmail = String(form.elements.namedItem("owner_email").value || "").trim();
       const petName = String(form.elements.namedItem("dog_name").value || "").trim();
       const ownerName = String(form.elements.namedItem("owner_name").value || "").trim();
-      const amount = feeCents / 100;
       const note = "Wet Dog Competition entry — " + petName + " (" + data.entry_id + ")";
 
       closeModal();
 
-      if (typeof window.openDonateModal === "function") {
-        window.openDonateModal({
-          amount,
+      if (window.CompetitionEntryPaymentModal?.open) {
+        window.CompetitionEntryPaymentModal.open({
           amount_cents: feeCents,
           campaign_id: campaignId,
           entry_id: data.entry_id,
           donor_email: donorEmail,
           donor_name: ownerName,
+          dog_name: petName,
           note,
-          source: "campaign_entry",
         });
       } else {
-        const trigger = document.createElement("button");
-        trigger.type = "button";
-        trigger.setAttribute("data-action", "donate");
-        trigger.dataset.campaignId = campaignId;
-        trigger.dataset.amountCents = String(feeCents);
-        trigger.dataset.entryId = data.entry_id;
-        trigger.hidden = true;
-        document.body.appendChild(trigger);
-        trigger.click();
-        trigger.remove();
+        throw new Error("The competition payment form is still loading. Please wait a moment and try again.");
       }
     } catch (err) {
       setError(err?.message || "Could not continue to payment.");
