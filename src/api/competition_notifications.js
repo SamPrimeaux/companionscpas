@@ -59,14 +59,79 @@ async function alreadyNotified(env, entryId, kind) {
   return Boolean(row?.id);
 }
 
+async function alreadyThankedEntrant(env, entryId) {
+  const row = await env.DB.prepare(`
+    SELECT id FROM email_logs
+    WHERE tenant_id = ?
+      AND related_type = 'competition_entry'
+      AND related_id = ?
+      AND email_type = 'competition_entry_thank_you'
+      AND status IN ('delivered', 'sent', 'queued')
+    LIMIT 1
+  `).bind(TENANT_ID, entryId).first().catch(() => null);
+  return Boolean(row?.id);
+}
+
+async function sendEntrantThankYou(env, entry) {
+  const to = String(entry.owner_email || "").trim().toLowerCase();
+  if (!to || !to.includes("@")) return { ok: false, error: "no_owner_email" };
+  if (await alreadyThankedEntrant(env, entry.id)) {
+    return { ok: true, duplicate: true };
+  }
+
+  const amount = Number(entry.expected_amount_cents || 0) / 100;
+  const firstName = String(entry.owner_name || "friend").trim().split(/\s+/)[0] || "friend";
+  const campaignTitle = entry.campaign_title || "the Wet Dog Competition";
+  const subject = `You're in! ${entry.dog_name} is entered in ${campaignTitle}`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:640px;color:#211b25;line-height:1.6">
+      <p style="font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#6f2fa8">Entry confirmed</p>
+      <h1 style="font-size:24px;margin:0 0 12px">Thank you, ${esc(firstName)}!</h1>
+      <p><strong>${esc(entry.dog_name)}</strong> is officially entered in <strong>${esc(campaignTitle)}</strong>.</p>
+      <p>We received your $${amount.toFixed(2)} entry gift and your photo. Our team will review the submission before it appears in the public gallery.</p>
+      <p><strong>Entry reference:</strong> ${esc(entry.id)}</p>
+      ${entry.caption ? `<p><strong>Your caption:</strong> ${esc(entry.caption)}</p>` : ""}
+      <p style="margin-top:20px">Questions? Reply to this email or reach us at <a href="mailto:companionsCPAS@gmail.com">companionsCPAS@gmail.com</a>.</p>
+      <p style="font-size:13px;color:#6b5f72">— Companions of CPAS</p>
+    </div>`;
+  const text = [
+    `Thank you, ${firstName}!`,
+    `${entry.dog_name} is officially entered in ${campaignTitle}.`,
+    `Entry gift: $${amount.toFixed(2)}`,
+    `Entry reference: ${entry.id}`,
+    entry.caption ? `Caption: ${entry.caption}` : "",
+    "Our team will review the submission before it appears in the public gallery.",
+  ].filter(Boolean).join("\n");
+
+  return sendResend(env, {
+    to,
+    name: entry.owner_name || null,
+    subject,
+    html,
+    text,
+    type: "competition_entry_thank_you",
+    related_type: "competition_entry",
+    related_id: entry.id,
+  });
+}
+
 export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
   const entry = await loadEntry(env, entryId);
   if (!entry) return { ok: false, error: "entry_not_found" };
 
   const isPaid = kind === "paid";
-  // Dedupe via dashboard_notifications (related_id = entryId:kind). Not admin_notification_status.
+  let thankYou = null;
+  // Always attempt entrant thank-you on paid (separate dedupe from admin alert).
+  if (isPaid) {
+    thankYou = await sendEntrantThankYou(env, entry).catch((err) => ({
+      ok: false,
+      error: err?.message || "thank_you_failed",
+    }));
+  }
+
+  // Dedupe admin alert via dashboard_notifications (related_id = entryId:kind).
   if (await alreadyNotified(env, entryId, kind)) {
-    return { ok: true, duplicate: true };
+    return { ok: true, duplicate: true, thank_you: thankYou };
   }
 
   const adminTo = env.ADMIN_EMAIL || "companionsCPAS@gmail.com";
@@ -129,6 +194,7 @@ export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
       payment_status: entry.payment_status,
       stripe_payment_intent_id: entry.stripe_payment_intent_id || null,
       attachment_count: attachments.length,
+      thank_you_ok: thankYou?.ok ? 1 : 0,
     },
   });
 
@@ -150,13 +216,15 @@ export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
             COALESCE(NULLIF(metadata_json, ''), '{}'),
             '$.email_ok', ?,
             '$.email_error', ?,
-            '$.email_provider_id', ?
+            '$.email_provider_id', ?,
+            '$.thank_you_ok', ?
           )
       WHERE id = ?
     `).bind(
       result.ok ? 1 : 0,
       result.error || null,
       result.id || null,
+      thankYou?.ok ? 1 : 0,
       notifId
     ).run().catch(() => null);
   }
@@ -177,7 +245,7 @@ export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
     `).bind(entry.id, TENANT_ID).run().catch(() => null);
   }
 
-  return { ...result, notification_id: notifId || null };
+  return { ...result, notification_id: notifId || null, thank_you: thankYou };
 }
 
 export async function reconcileAbandonedCompetitionEntries(env) {

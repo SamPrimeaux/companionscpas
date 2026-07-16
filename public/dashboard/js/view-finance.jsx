@@ -359,9 +359,33 @@ function DonorDrawer({ donor, onClose }) {
 }
 
 // ── Unified GivingView (replaces both FundraisingView and DonationsView) ───────
-function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab }) {
+function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab, onDeleted }) {
   const pct = campaign.goal_cents ? Math.min(100, Math.round((campaign.raised_cents / campaign.goal_cents) * 100)) : 0;
   const cover = campaign.cover_url || campaign.config?.cover_url;
+  const [deleting, setDeleting] = React.useState(false);
+
+  async function hardDelete(e) {
+    e.stopPropagation();
+    const ok = window.confirm(
+      `Permanently delete "${campaign.title}"?\n\nThis hard-deletes the campaign, its competition entries, and campaign updates. Donation history is kept but unlinked. This cannot be undone.`
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/dashboard/fundraising/" + encodeURIComponent(campaign.id), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.ok === false) throw new Error(d.error || "Delete failed");
+      if (onDeleted) onDeleted(campaign.id);
+    } catch (err) {
+      window.alert(err.message || "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return React.createElement(Card, {
     key: campaign.id,
     style: { padding: 0, overflow: "hidden", cursor: "pointer" },
@@ -396,6 +420,15 @@ function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab }) {
           ),
           React.createElement("div", { style: { display: "flex", gap: 8 }, onClick: e => e.stopPropagation() },
             React.createElement(Btn, { variant: "secondary", size: "sm", icon: "edit", onClick: () => onNavigate && onNavigate("campaign-detail", { campaignId: campaign.id }) }, "Open"),
+            React.createElement(Btn, {
+              variant: "secondary",
+              size: "sm",
+              icon: "trash",
+              disabled: deleting,
+              onClick: hardDelete,
+              title: "Permanently delete campaign",
+              style: { color: "#a61b38" },
+            }, deleting ? "…" : ""),
             React.createElement(Btn, { variant: "secondary", size: "sm", icon: "arrowR", onClick: onDonationsTab }, "Donations")
           )
         )
@@ -502,6 +535,7 @@ function GivingView({ initialTab, onNavigate }) {
                 accent: ACCENT_COLORS[idx % ACCENT_COLORS.length],
                 onNavigate,
                 onDonationsTab: () => setTab("donations"),
+                onDeleted: () => reload && reload(),
               }))
             )
           : React.createElement(FinanceEmpty, { title: "No campaigns yet", body: "Create a campaign to get started." })

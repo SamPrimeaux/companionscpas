@@ -914,6 +914,14 @@ export async function dashboardApiRoutes(request, env, url) {
         UPDATE competition_entries SET admin_notified_at = NULL, updated_at = datetime('now')
         WHERE id = ? AND tenant_id = ?
       `).bind(entryId, TENANT).run().catch(() => null);
+      // Allow entrant thank-you to resend too.
+      await env.DB.prepare(`
+        DELETE FROM email_logs
+        WHERE tenant_id = ?
+          AND related_type = 'competition_entry'
+          AND related_id = ?
+          AND email_type = 'competition_entry_thank_you'
+      `).bind(TENANT, entryId).run().catch(() => null);
       const { notifyCompetitionEntry } = await import('./competition_notifications.js');
       const mail = await notifyCompetitionEntry(env, entryId, 'paid');
       return json({ ok: true, entry_id: entryId, email: mail });
@@ -953,6 +961,50 @@ export async function dashboardApiRoutes(request, env, url) {
     } catch (err) {
       return json({ ok: false, error: err.message || 'Campaign update failed' }, 400);
     }
+  }
+
+  // Hard delete campaign (not soft-hide). Cascades entry feed rows; keeps donation history unlinked.
+  if (fundraisingDetailMatch && method === 'DELETE') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
+    const campaignId = fundraisingDetailMatch[1];
+    const campaign = await fetchCampaignById(env, campaignId);
+    if (!campaign) return json({ ok: false, error: 'Campaign not found' }, 404);
+
+    const entryKeys = await env.DB.prepare(`
+      SELECT id, r2_key, asset_id FROM competition_entries
+      WHERE campaign_id = ? AND tenant_id = ?
+    `).bind(campaignId, TENANT).all().catch(() => ({ results: [] }));
+
+    try {
+      await env.DB.batch([
+        env.DB.prepare(`DELETE FROM campaign_updates WHERE campaign_id = ? AND tenant_id = ?`).bind(campaignId, TENANT),
+        env.DB.prepare(`DELETE FROM competition_entries WHERE campaign_id = ? AND tenant_id = ?`).bind(campaignId, TENANT),
+        env.DB.prepare(`UPDATE donations SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId),
+        env.DB.prepare(`UPDATE donation_intents SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId),
+        env.DB.prepare(`DELETE FROM fundraising_campaigns WHERE id = ?`).bind(campaignId),
+      ]);
+    } catch (err) {
+      console.warn('[fundraising] batch delete fallback:', err?.message || err);
+      await env.DB.prepare(`DELETE FROM campaign_updates WHERE campaign_id = ?`).bind(campaignId).run().catch(() => null);
+      await env.DB.prepare(`DELETE FROM competition_entries WHERE campaign_id = ?`).bind(campaignId).run().catch(() => null);
+      await env.DB.prepare(`UPDATE donations SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId).run().catch(() => null);
+      await env.DB.prepare(`UPDATE donation_intents SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId).run().catch(() => null);
+      await env.DB.prepare(`DELETE FROM fundraising_campaigns WHERE id = ?`).bind(campaignId).run();
+    }
+
+    for (const row of entryKeys.results || []) {
+      if (row.r2_key && env.WEBSITE_ASSETS) {
+        await env.WEBSITE_ASSETS.delete(row.r2_key).catch(() => null);
+      }
+      if (row.asset_id) {
+        await env.DB.prepare(`DELETE FROM cms_assets WHERE id = ? AND tenant_id = ?`)
+          .bind(row.asset_id, TENANT).run().catch(() => null);
+      }
+    }
+
+    await invalidateDonatePageCache(env);
+    return json({ ok: true, deleted: campaignId, entries_removed: (entryKeys.results || []).length });
   }
 
   // ─── GET /api/dashboard/donations ────────────────────────────────────────
