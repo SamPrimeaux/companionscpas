@@ -1,4 +1,4 @@
-import { sendResend } from "./payments_email.js";
+import { sendResend, sendTemplateEmail } from "./payments_email.js";
 import { createDashboardNotification } from "./notifications.js";
 
 const TENANT_ID = "tenant_companionscpas";
@@ -72,6 +72,29 @@ async function alreadyThankedEntrant(env, entryId) {
   return Boolean(row?.id);
 }
 
+function entryTemplateVars(entry, extra = {}) {
+  const amount = (Number(entry.expected_amount_cents || 0) / 100).toFixed(2);
+  const firstName = String(entry.owner_name || "friend").trim().split(/\s+/)[0] || "friend";
+  const caption = String(entry.caption || "").trim();
+  const dashboardPath = `/dashboard/fundraising/${encodeURIComponent(entry.campaign_id)}`;
+  return {
+    first_name: firstName,
+    owner_name: entry.owner_name || "",
+    owner_email: entry.owner_email || "",
+    owner_phone: entry.owner_phone || "Not provided",
+    dog_name: entry.dog_name || "your pet",
+    campaign_title: entry.campaign_title || "Wet Dog Competition",
+    entry_id: entry.id,
+    amount,
+    caption_line: caption ? `Caption: ${caption}` : "",
+    caption_html: caption ? `<p style="margin:0;"><strong>Caption:</strong> ${esc(caption)}</p>` : "",
+    photo_url: entry.photo_url || "https://companionsofcaddo.org/donate",
+    dashboard_url: `https://companionsofcaddo.org${dashboardPath}`,
+    stripe_payment_intent_id: entry.stripe_payment_intent_id || "",
+    ...extra,
+  };
+}
+
 async function sendEntrantThankYou(env, entry) {
   const to = String(entry.owner_email || "").trim().toLowerCase();
   if (!to || !to.includes("@")) return { ok: false, error: "no_owner_email" };
@@ -79,36 +102,26 @@ async function sendEntrantThankYou(env, entry) {
     return { ok: true, duplicate: true };
   }
 
-  const amount = Number(entry.expected_amount_cents || 0) / 100;
-  const firstName = String(entry.owner_name || "friend").trim().split(/\s+/)[0] || "friend";
-  const campaignTitle = entry.campaign_title || "the Wet Dog Competition";
-  const subject = `You're in! ${entry.dog_name} is entered in ${campaignTitle}`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:640px;color:#211b25;line-height:1.6">
-      <p style="font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#6f2fa8">Entry confirmed</p>
-      <h1 style="font-size:24px;margin:0 0 12px">Thank you, ${esc(firstName)}!</h1>
-      <p><strong>${esc(entry.dog_name)}</strong> is officially entered in <strong>${esc(campaignTitle)}</strong>.</p>
-      <p>We received your $${amount.toFixed(2)} entry gift and your photo. Our team will review the submission before it appears in the public gallery.</p>
-      <p><strong>Entry reference:</strong> ${esc(entry.id)}</p>
-      ${entry.caption ? `<p><strong>Your caption:</strong> ${esc(entry.caption)}</p>` : ""}
-      <p style="margin-top:20px">Questions? Reply to this email or reach us at <a href="mailto:companionsCPAS@gmail.com">companionsCPAS@gmail.com</a>.</p>
-      <p style="font-size:13px;color:#6b5f72">— Companions of CPAS</p>
-    </div>`;
-  const text = [
-    `Thank you, ${firstName}!`,
-    `${entry.dog_name} is officially entered in ${campaignTitle}.`,
-    `Entry gift: $${amount.toFixed(2)}`,
-    `Entry reference: ${entry.id}`,
-    entry.caption ? `Caption: ${entry.caption}` : "",
-    "Our team will review the submission before it appears in the public gallery.",
-  ].filter(Boolean).join("\n");
+  const vars = entryTemplateVars(entry);
+  const templated = await sendTemplateEmail(env, {
+    templateKey: "competition_entry_thank_you",
+    to,
+    name: entry.owner_name || null,
+    vars,
+    type: "competition_entry_thank_you",
+    related_type: "competition_entry",
+    related_id: entry.id,
+  });
+  if (templated?.ok || templated?.duplicate) return templated;
+  if (templated?.error && templated.error !== "template_not_found") return templated;
 
+  // Fallback if template missing — still deliver, but prefer D1 templates in production.
   return sendResend(env, {
     to,
     name: entry.owner_name || null,
-    subject,
-    html,
-    text,
+    subject: `You're in! ${vars.dog_name} is entered in ${vars.campaign_title}`,
+    html: `<p>Hi ${esc(vars.first_name)},</p><p><strong>${esc(vars.dog_name)}</strong> is entered. Reference: ${esc(vars.entry_id)}</p>`,
+    text: `Hi ${vars.first_name}, ${vars.dog_name} is entered. Reference: ${vars.entry_id}`,
     type: "competition_entry_thank_you",
     related_type: "competition_entry",
     related_id: entry.id,
@@ -121,7 +134,6 @@ export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
 
   const isPaid = kind === "paid";
   let thankYou = null;
-  // Always attempt entrant thank-you on paid (separate dedupe from admin alert).
   if (isPaid) {
     thankYou = await sendEntrantThankYou(env, entry).catch((err) => ({
       ok: false,
@@ -129,56 +141,30 @@ export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
     }));
   }
 
-  // Dedupe admin alert via dashboard_notifications (related_id = entryId:kind).
   if (await alreadyNotified(env, entryId, kind)) {
     return { ok: true, duplicate: true, thank_you: thankYou };
   }
 
   const adminTo = env.ADMIN_EMAIL || "companionsCPAS@gmail.com";
-  const amount = Number(entry.expected_amount_cents || 0) / 100;
   const reason = String(
     detail.reason || entry.failure_message || entry.failure_code || "Payment was not completed."
   );
   const statusLabel = isPaid ? "Paid entry" : kind === "abandoned" ? "Abandoned payment" : "Payment failed";
-  const subject = isPaid
-    ? `Paid competition entry: ${entry.dog_name} — ${entry.owner_name}`
-    : `Action needed: ${statusLabel.toLowerCase()} — ${entry.dog_name}`;
   const attachments = await attachmentForEntry(env, entry);
+  const vars = entryTemplateVars(entry, { reason, status_label: statusLabel });
   const actionUrl = `/dashboard/fundraising/${encodeURIComponent(entry.campaign_id)}`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:640px;color:#211b25">
-      <p style="font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#6f2fa8">${esc(statusLabel)}</p>
-      <h1 style="font-size:24px;margin:0 0 16px">${esc(entry.dog_name)} — ${esc(entry.campaign_title || "Campaign entry")}</h1>
-      <p><strong>Entry reference:</strong> ${esc(entry.id)}</p>
-      <p><strong>Owner:</strong> ${esc(entry.owner_name)}</p>
-      <p><strong>Email:</strong> ${esc(entry.owner_email)}</p>
-      <p><strong>Phone:</strong> ${esc(entry.owner_phone || "Not provided")}</p>
-      <p><strong>Expected entry fee:</strong> $${amount.toFixed(2)}</p>
-      ${entry.caption ? `<p><strong>Caption:</strong> ${esc(entry.caption)}</p>` : ""}
-      ${isPaid ? `<p><strong>Stripe PaymentIntent:</strong> ${esc(entry.stripe_payment_intent_id || "")}</p>` : `<p style="color:#a61b38"><strong>Follow-up reason:</strong> ${esc(reason)}</p>`}
-      <p>The submitted image is attached to this email.</p>
-      <p><a href="https://companionsofcaddo.org${actionUrl}">Open campaign in dashboard</a></p>
-    </div>`;
-  const text = [
-    statusLabel,
-    `Entry: ${entry.id}`,
-    `Campaign: ${entry.campaign_title || entry.campaign_id}`,
-    `Pet: ${entry.dog_name}`,
-    `Owner: ${entry.owner_name}`,
-    `Email: ${entry.owner_email}`,
-    `Phone: ${entry.owner_phone || "Not provided"}`,
-    `Expected fee: $${amount.toFixed(2)}`,
-    entry.caption ? `Caption: ${entry.caption}` : "",
-    isPaid ? `Stripe PaymentIntent: ${entry.stripe_payment_intent_id || ""}` : `Follow-up reason: ${reason}`,
-    "The submitted image is attached.",
-    `Dashboard: https://companionsofcaddo.org${actionUrl}`,
-  ].filter(Boolean).join("\n");
+  const templateKey = isPaid
+    ? "competition_entry_paid_admin"
+    : "competition_entry_followup_admin";
+  const emailType = isPaid ? "competition_entry_paid" : `competition_entry_${kind}`;
 
   const notifId = await createDashboardNotification(env, {
     type: isPaid ? "competition_entry_paid" : `competition_entry_${kind}`,
-    title: subject,
+    title: isPaid
+      ? `Paid competition entry: ${entry.dog_name} — ${entry.owner_name}`
+      : `Action needed: ${statusLabel.toLowerCase()} — ${entry.dog_name}`,
     body: isPaid
-      ? `${entry.owner_name} paid $${amount.toFixed(2)} for ${entry.dog_name}.`
+      ? `${entry.owner_name} paid $${vars.amount} for ${entry.dog_name}.`
       : `${statusLabel}: ${entry.dog_name} / ${entry.owner_name}. ${reason}`,
     source: isPaid ? "stripe" : "competition_entry",
     related_type: "competition_entry",
@@ -191,23 +177,35 @@ export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
       entry_id: entry.id,
       campaign_id: entry.campaign_id,
       kind,
-      payment_status: entry.payment_status,
-      stripe_payment_intent_id: entry.stripe_payment_intent_id || null,
-      attachment_count: attachments.length,
       thank_you_ok: thankYou?.ok ? 1 : 0,
+      attachment_count: attachments.length,
     },
   });
 
-  const result = await sendResend(env, {
+  let result = await sendTemplateEmail(env, {
+    templateKey,
     to: adminTo,
-    subject,
-    html,
-    text,
+    vars,
     attachments,
-    type: isPaid ? "competition_entry_paid" : `competition_entry_${kind}`,
+    type: emailType,
     related_type: "competition_entry",
     related_id: entry.id,
   });
+
+  if (result?.error === "template_not_found") {
+    result = await sendResend(env, {
+      to: adminTo,
+      subject: isPaid
+        ? `Paid competition entry: ${entry.dog_name} — ${entry.owner_name}`
+        : `Action needed: ${statusLabel.toLowerCase()} — ${entry.dog_name}`,
+      html: `<p>${esc(statusLabel)}</p><p>${esc(entry.dog_name)} / ${esc(entry.owner_name)} / ${esc(entry.owner_email)}</p><p>${esc(reason)}</p>`,
+      text: `${statusLabel}\n${entry.dog_name}\n${entry.owner_email}\n${reason}`,
+      attachments,
+      type: emailType,
+      related_type: "competition_entry",
+      related_id: entry.id,
+    });
+  }
 
   if (notifId) {
     await env.DB.prepare(`

@@ -244,7 +244,7 @@ export async function sendResend(env, { to, name, subject, html, text, attachmen
   return { ok: true, id: parsed.id || null };
 }
 
-export async function sendTemplateEmail(env, { templateKey, to, vars = {}, type, related_type, related_id }) {
+export async function sendTemplateEmail(env, { templateKey, to, name, vars = {}, type, related_type, related_id, attachments = [] }) {
   const tpl = await env.DB.prepare(
     "SELECT subject, body_html, body_text FROM email_templates WHERE template_key = ? AND status = 'active' LIMIT 1"
   ).bind(templateKey).first().catch(() => null);
@@ -256,7 +256,7 @@ export async function sendTemplateEmail(env, { templateKey, to, vars = {}, type,
     html = html.replaceAll(token, val);
     text = text.replaceAll(token, val);
   }
-  return sendResend(env, { to, subject, html, text, type, related_type, related_id });
+  return sendResend(env, { to, name, subject, html, text, attachments, type, related_type, related_id });
 }
 
 function isValidEmail(email) {

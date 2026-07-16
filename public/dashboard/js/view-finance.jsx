@@ -377,7 +377,9 @@ function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab, onDele
         credentials: "include",
       });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok || d.ok === false) throw new Error(d.error || "Delete failed");
+      if (!res.ok || d.ok === false) {
+        throw new Error(d.error || (`Delete failed (${res.status})`));
+      }
       if (onDeleted) onDeleted(campaign.id);
     } catch (err) {
       window.alert(err.message || "Delete failed");

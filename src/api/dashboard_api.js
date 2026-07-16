@@ -963,7 +963,7 @@ export async function dashboardApiRoutes(request, env, url) {
     }
   }
 
-  // Hard delete campaign (not soft-hide). Cascades entry feed rows; keeps donation history unlinked.
+  // Hard delete campaign (not soft-hide). Unlink FK refs, then remove campaign + entry feed.
   if (fundraisingDetailMatch && method === 'DELETE') {
     const session = await getAuthUser(request, env);
     if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
@@ -977,20 +977,24 @@ export async function dashboardApiRoutes(request, env, url) {
     `).bind(campaignId, TENANT).all().catch(() => ({ results: [] }));
 
     try {
+      // Null every known FK to fundraising_campaigns before the hard delete.
       await env.DB.batch([
-        env.DB.prepare(`DELETE FROM campaign_updates WHERE campaign_id = ? AND tenant_id = ?`).bind(campaignId, TENANT),
-        env.DB.prepare(`DELETE FROM competition_entries WHERE campaign_id = ? AND tenant_id = ?`).bind(campaignId, TENANT),
+        env.DB.prepare(`UPDATE cms_assets SET campaign_id = NULL, update_id = NULL WHERE campaign_id = ?`).bind(campaignId),
+        env.DB.prepare(`UPDATE animal_profiles SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId),
+        env.DB.prepare(`UPDATE scheduled_posts SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId),
+        env.DB.prepare(`UPDATE social_post_drafts SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId),
         env.DB.prepare(`UPDATE donations SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId),
         env.DB.prepare(`UPDATE donation_intents SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId),
+        env.DB.prepare(`DELETE FROM campaign_updates WHERE campaign_id = ?`).bind(campaignId),
+        env.DB.prepare(`DELETE FROM competition_entries WHERE campaign_id = ?`).bind(campaignId),
         env.DB.prepare(`DELETE FROM fundraising_campaigns WHERE id = ?`).bind(campaignId),
       ]);
     } catch (err) {
-      console.warn('[fundraising] batch delete fallback:', err?.message || err);
-      await env.DB.prepare(`DELETE FROM campaign_updates WHERE campaign_id = ?`).bind(campaignId).run().catch(() => null);
-      await env.DB.prepare(`DELETE FROM competition_entries WHERE campaign_id = ?`).bind(campaignId).run().catch(() => null);
-      await env.DB.prepare(`UPDATE donations SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId).run().catch(() => null);
-      await env.DB.prepare(`UPDATE donation_intents SET campaign_id = NULL WHERE campaign_id = ?`).bind(campaignId).run().catch(() => null);
-      await env.DB.prepare(`DELETE FROM fundraising_campaigns WHERE id = ?`).bind(campaignId).run();
+      console.warn('[fundraising] hard delete failed:', err?.message || err);
+      return json({
+        ok: false,
+        error: err?.message || 'Delete failed — a related record still references this campaign',
+      }, 409);
     }
 
     for (const row of entryKeys.results || []) {
