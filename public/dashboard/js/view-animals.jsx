@@ -995,6 +995,12 @@
       apiJSON('/api/dashboard/animals').then(function(d){ setAnimals(d.animals || []); setLoading(false); }).catch(function(e){ setError(e.message || 'Failed to load animals.'); setLoading(false); });
     }
     useEffect(function(){ loadAnimals(); }, []);
+    function deleteAnimal(a, done) {
+      apiJSON('/api/dashboard/animals/' + encodeURIComponent(a.id), { method:'DELETE' })
+        .then(function(){ setAnimals(function(list){ return list.filter(function(x){ return x.id !== a.id; }); }); })
+        .catch(function(e){ setError((e && e.message) || 'Could not delete animal.'); })
+        .finally(function(){ if (done) done(); });
+    }
     function filterMatch(a, f) {
       if (f === 'All') return true;
       if (f === 'Dogs') return a.species === 'Dog';
