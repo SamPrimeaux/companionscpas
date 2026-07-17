@@ -55,6 +55,44 @@ async function asset(env, request, path) {
   } catch {}
   return new Response('Not found', { status: 404 });
 }
+const ADOPT_TENANT_ID = "tenant_companionscpas";
+
+async function servePublicAnimalProfile(animalId, env) {
+  const headers = { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=120" };
+
+  const row = await env.DB.prepare(`
+    SELECT ap.*, ca.cdn_url AS asset_cdn_url, ca.public_url AS asset_public_url
+    FROM animal_profiles ap
+    LEFT JOIN cms_assets ca ON ca.asset_key = ap.id AND ca.tenant_id = ?
+    WHERE ap.id = ? AND ap.tenant_id = ? AND ap.public_visible = 1
+    LIMIT 1
+  `).bind(ADOPT_TENANT_ID, animalId, ADOPT_TENANT_ID).first().catch(() => null);
+
+  if (!row) {
+    return new Response("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
+  }
+
+  let metadata = {};
+  try { metadata = JSON.parse(row.metadata_json || "{}"); } catch {}
+  const animal = { ...row, metadata };
+
+  const brand = await getBrand(env).catch(() => ({}));
+  const [headerHtml, footerHtml] = await Promise.all([
+    getGlobalPartial("header", brand, env),
+    getGlobalPartial("footer", brand, env),
+  ]);
+
+  const sectionHtml = renderAnimalProfileSection(animal);
+  const page = {
+    route_path: `/adopt/dog/${animalId}`,
+    title: `${animal.name || "Adopt"} · Companions of CPAS`,
+    meta_description: (animal.bio || `Meet ${animal.name || "this dog"}, available for adoption through Companions of CPAS.`).slice(0, 200),
+  };
+
+  const html = assembleFullPage(page, brand, headerHtml, [sectionHtml], footerHtml, {});
+  return new Response(html, { headers });
+}
+
 async function servePublicPage(route, env) {
   const normalizedRoute = route === "" ? "/" : route;
   const cacheKey = `page:${normalizedRoute}`;
