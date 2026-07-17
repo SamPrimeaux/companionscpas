@@ -400,6 +400,37 @@ export async function dashboardApiRoutes(request, env, url) {
     return json({ ok: true, id });
   }
 
+  // ─── DELETE /api/dashboard/animals/:id ───────────────────────────────────
+  if (animalDetailMatch && method === 'DELETE') {
+    const session = await getAuthUser(request, env);
+    if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
+    const id = animalDetailMatch[1];
+
+    const existing = await env.DB.prepare(
+      `SELECT id, name FROM animal_profiles WHERE id = ? AND tenant_id = ? LIMIT 1`
+    ).bind(id, TENANT).first().catch(() => null);
+    if (!existing) return json({ ok: false, error: 'Animal not found' }, 404);
+
+    try {
+      await env.DB.batch([
+        env.DB.prepare(`DELETE FROM animal_notes WHERE animal_id = ? AND tenant_id = ?`).bind(id, TENANT),
+        env.DB.prepare(`DELETE FROM care_tasks WHERE animal_id = ?`).bind(id),
+        env.DB.prepare(`DELETE FROM scheduled_posts WHERE animal_id = ? AND tenant_id = ?`).bind(id, TENANT),
+        env.DB.prepare(`DELETE FROM dashboard_calendar_events WHERE animal_id = ?`).bind(id),
+        env.DB.prepare(`UPDATE foster_records SET animal_id = NULL WHERE animal_id = ? AND tenant_id = ?`).bind(id, TENANT),
+        env.DB.prepare(`DELETE FROM animal_profiles WHERE id = ? AND tenant_id = ?`).bind(id, TENANT),
+      ]);
+    } catch (err) {
+      console.warn('[animals] delete failed:', err?.message || err);
+      return json({
+        ok: false,
+        error: err?.message || 'Delete failed — a related record still references this animal',
+      }, 409);
+    }
+
+    return json({ ok: true, deleted: id, name: existing.name });
+  }
+
   // ─── POST /api/dashboard/animals/:id/attachments ─────────────────────────
   const attachmentsMatch = path.match(/^\/api\/dashboard\/animals\/([^/]+)\/attachments$/);
   if (attachmentsMatch && method === 'POST') {
