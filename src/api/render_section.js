@@ -381,7 +381,7 @@ function renderFeatureCards(section, blocks) {
   box-shadow:0 10px 32px rgba(15,22,35,.12);transform:translateY(-3px);
 }
 [data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card img{
-  aspect-ratio:4/3;width:100%;object-fit:cover;display:block;
+  aspect-ratio:4/3;width:100%;object-fit:contain;background:#eae6df;display:block;
 }
 [data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body{padding:20px 22px 22px}
 [data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body h3{margin:0 0 8px}
