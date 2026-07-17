@@ -1033,13 +1033,19 @@
   }
 
   function tdStyle() { var u = ui(); return { padding:'12px 14px', borderBottom:'1px solid ' + u.border, color:u.textSec, fontSize:13 }; }
-  function renderAnimalTable(rows, onNavigate) {
+  function renderAnimalTable(rows, onNavigate, onDelete) {
     var u = ui();
+    function handleRowDelete(e, a) {
+      e.stopPropagation();
+      if (!window.confirm('Delete ' + (a.name || 'this animal') + ' permanently? This removes the profile, notes, and care history.')) return;
+      if (onDelete) onDelete(a);
+    }
     return h('table', { style:{ width:'100%', borderCollapse:'collapse', minWidth:720 } },
-      h('thead', null, h('tr', null, ['Animal','Species','Breed','Age','Sex','Status','Profile'].map(function(hd){ return h('th', { key:hd, style:{ textAlign:'left', padding:'12px 14px', color:u.textMut, fontSize:11, textTransform:'uppercase', letterSpacing:'.06em', borderBottom:'1px solid ' + u.border } }, hd); }))),
+      h('thead', null, h('tr', null, ['Animal','Species','Breed','Age','Sex','Status','Profile',''].map(function(hd){ return h('th', { key:hd, style:{ textAlign:'left', padding:'12px 14px', color:u.textMut, fontSize:11, textTransform:'uppercase', letterSpacing:'.06em', borderBottom:'1px solid ' + u.border } }, hd); }))),
       h('tbody', null, rows.map(function(a){ return h('tr', { key:a.id, onClick:function(){ if (onNavigate) onNavigate('animal-profile', { animalId:a.id }); }, style:{ cursor:'pointer' } },
         h('td', { style:tdStyle() }, h('div', { style:{ display:'flex', alignItems:'center', gap:10 } }, a.photo ? h('img', { src:a.photo, alt:a.name, style:{ width:38, height:38, borderRadius:9, objectFit:'cover', objectPosition:'top center' } }) : null, h('div', null, h('div', { style:{ color:u.text, fontWeight:800 } }, a.name), h('div', { style:{ color:u.textMut, fontSize:11 } }, a.id)))),
-        h('td', { style:tdStyle() }, a.species || '-'), h('td', { style:tdStyle() }, a.breed || '-'), h('td', { style:tdStyle() }, a.age_label || '-'), h('td', { style:tdStyle() }, a.sex || '-'), h('td', { style:tdStyle() }, h(StatusPill, { status:a.status })), h('td', { style:tdStyle() }, percentProfile(a) + '%')
+        h('td', { style:tdStyle() }, a.species || '-'), h('td', { style:tdStyle() }, a.breed || '-'), h('td', { style:tdStyle() }, a.age_label || '-'), h('td', { style:tdStyle() }, a.sex || '-'), h('td', { style:tdStyle() }, h(StatusPill, { status:a.status })), h('td', { style:tdStyle() }, percentProfile(a) + '%'),
+        h('td', { style:tdStyle() }, h('button', { type:'button', title:'Delete', onClick:function(e){ handleRowDelete(e, a); }, style:iconButtonStyle(u.textMut) }, appIcon('trash', 14)))
       ); }))
     );
   }
