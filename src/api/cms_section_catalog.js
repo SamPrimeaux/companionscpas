@@ -152,6 +152,9 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
     if (type === "wet_dog_competition") {
       return String(await renderWetDogGallery(section, blocks, brand, env) || "");
     }
+    if (type === "adopt_live_gallery") {
+      return String(await renderAdoptAnimalGallery(section, blocks, brand, env) || "");
+    }
 
     // Home: custom fragments keyed by section_key (D1 types are often generic aliases)
     if (route === "/") {
