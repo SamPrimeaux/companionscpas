@@ -89,7 +89,15 @@ export async function renderAdoptAnimalGallery(section = {}, blocks = [], brand 
   const sectionId = `aag-${sectionKey.replace(/[^a-z0-9_-]+/gi, "-")}`;
 
   const animals = await loadLiveAnimals(env);
-  const cards = animals.map(buildCard).join("");
+  const VISIBLE_COUNT = 4;
+  const cards = animals.map((a, i) => {
+    const hiddenClass = i >= VISIBLE_COUNT ? " aag-card--overflow" : "";
+    return buildCard(a).replace('class="aag-card"', `class="aag-card${hiddenClass}"`);
+  }).join("");
+  const hasMore = animals.length > VISIBLE_COUNT;
+  const showAllBtn = hasMore
+    ? `<div class="aag-more-wrap"><button type="button" class="aag-more-btn" data-aag-show-all>Show all ${animals.length} dogs</button></div>`
+    : "";
   const emptyState = `<div class="aag-empty"><h3>No dogs available right now</h3><p>Check back soon — new arrivals happen regularly.</p></div>`;
 
   return `
