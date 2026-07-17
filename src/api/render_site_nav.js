@@ -93,7 +93,7 @@ export async function renderSiteHeader(env) {
       </ul>
     </nav>
     <div class="header-actions">
-      ${showDonate ? `<a class="btn btn-primary" href="/donate" data-action="donate">Donate</a>` : ""}
+      ${showDonate ? `<a class="btn btn-primary" href="/donate">Donate</a>` : ""}
     </div>
     <button class="mobile-menu-toggle" type="button" aria-label="Open navigation">
       <span></span><span></span><span></span>
