@@ -205,7 +205,12 @@ function renderCardLink(label, href, action = "") {
   if (intent.type === "modal") {
     return `<button class="ways-card-link" type="button" data-modal="${escapeAttribute(intent.value)}">${inner}</button>`;
   }
-  return `<a class="ways-card-link" href="${intent.value}">${inner}</a>`;
+  const isExternal = /^https?:\/\//i.test(intent.value);
+  const externalAttrs = isExternal ? ' target="_blank" rel="noopener noreferrer"' : "";
+  const externalInner = isExternal
+    ? `${escapeHtml(safeLabel)}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>`
+    : inner;
+  return `<a class="ways-card-link" href="${intent.value}"${externalAttrs}>${externalInner}</a>`;
 }
 
 function renderSharedHeroCta(label, url, variant = "primary", sub = "", action = "") {
