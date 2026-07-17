@@ -151,6 +151,7 @@ export async function renderAdoptAnimalGallery(section = {}, blocks = [], brand 
     <div class="aag-grid" data-aag-grid>
       ${cards || emptyState}
     </div>
+    ${showAllBtn}
   </div>
 </section>
 <script>
