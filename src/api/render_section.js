@@ -350,20 +350,56 @@ function renderCardGrid(section, blocks) {
 </section>`.trim();
 }
 
+// ---------------------------------------------------------------------------
+// IMAGE DISPLAY TEMPLATES for feature_cards
+// ---------------------------------------------------------------------------
+// Set config_json.image_display to one of these keys to switch mode.
+// The template controls how the photo portion of each card is rendered.
+// All modes use border-radius on the image to match card corners cleanly.
+//
+// "natural" (default) — image renders at its own intrinsic ratio, no crop,
+//   no letterbox, no background fill. Best for curated hand-picked photos
+//   where each shot has a strong composition worth preserving.
+//
+// "crop" — fixed 4:3 box, object-fit:cover. Best for large mixed-source sets
+//   where uniform grid density matters more than any individual photo.
+//
+// "square" — 1:1 box, object-fit:cover. Instagram-style grid; works well for
+//   portrait/animal profile shots that are already centered on the subject.
+//
+// "portrait" — 3:4 box, object-fit:cover. Tall format; maximizes vertical
+//   photo real-estate on cards, good for full-body animal or people shots.
+// ---------------------------------------------------------------------------
+const FEATURE_CARD_IMAGE_TEMPLATES = {
+  natural: (sk) => `[data-cpas-section="${sk}"] .ways-card-img-wrap{display:block;}
+[data-cpas-section="${sk}"] .ways-card-img-wrap img{width:100%;height:auto;display:block;border-radius:12px 12px 0 0;}`,
+
+  crop: (sk) => `[data-cpas-section="${sk}"] .ways-card-img-wrap{aspect-ratio:4/3;overflow:hidden;}
+[data-cpas-section="${sk}"] .ways-card-img-wrap img{width:100%;height:100%;object-fit:cover;object-position:center;display:block;border-radius:12px 12px 0 0;}`,
+
+  square: (sk) => `[data-cpas-section="${sk}"] .ways-card-img-wrap{aspect-ratio:1/1;overflow:hidden;}
+[data-cpas-section="${sk}"] .ways-card-img-wrap img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;border-radius:12px 12px 0 0;}`,
+
+  portrait: (sk) => `[data-cpas-section="${sk}"] .ways-card-img-wrap{aspect-ratio:3/4;overflow:hidden;}
+[data-cpas-section="${sk}"] .ways-card-img-wrap img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;border-radius:12px 12px 0 0;}`,
+};
+
 function renderFeatureCards(section, blocks) {
   const sectionKey = pickText(section, ["section_key"]);
+  const sk = escapeAttribute(sectionKey);
   const config = safeJson(section?.config_json, {});
-  // "crop" (default): fixed 4:3 box, object-fit cover — best for large sets of
-  // varied/unknown photos where a tight uniform grid matters more than any one photo.
-  // "natural": image keeps its own intrinsic ratio, no crop, no letterbox — best for
-  // small, curated card sets (like this one) where every photo can be handpicked.
-  const imageDisplay = config.image_display === "natural" ? "natural" : "crop";
+
+  // Resolve image_display template — "natural" is default for curated card sets.
+  const rawDisplay = text(config.image_display).trim().toLowerCase();
+  const imageDisplay = FEATURE_CARD_IMAGE_TEMPLATES[rawDisplay] ? rawDisplay : "natural";
+  const imageCss = FEATURE_CARD_IMAGE_TEMPLATES[imageDisplay](sk);
+
   const cards = sortBlocks(blocks).map((block) => {
     const parts = cardParts(block);
     const imageSrc = parts.imageUrl ? safeUrl(parts.imageUrl, "") : "";
     return `
     <article class="ways-card">
-      ${imageSrc ? `<img src="${imageSrc}" alt="${escapeAttribute(parts.imageAlt || parts.title || "")}" loading="lazy">` : ""}
+      ${imageSrc ? `<div class="ways-card-img-wrap"><img src="${imageSrc}" alt="${escapeAttribute(parts.imageAlt || parts.title || "")}" loading="lazy"></div>` : ""}
       <div class="ways-card-body">
         ${parts.title ? `<h3>${escapeHtml(parts.title)}</h3>` : ""}
         ${parts.body ? `<p>${escapeHtml(parts.body)}</p>` : ""}
@@ -376,33 +412,31 @@ function renderFeatureCards(section, blocks) {
   const includeBody = !hasSubheading;
   const anchorId = sectionKey === "adoptable_dogs" ? ' id="adoptable-dogs"' : "";
 
-  const imageCss = imageDisplay === "natural"
-    ? `[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card img{
-  width:100%;height:auto;display:block;border-radius:10px 10px 0 0;
-}`
-    : `[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card img{
-  aspect-ratio:4/3;width:100%;object-fit:contain;background:#eae6df;display:block;
-}`;
+  // Background: intentional two-stop gradient from the brand purple (very faint)
+  // at the top edge into the warm parchment neutral — not accidental, not flat.
+  // The purple stop is low-opacity so it reads as a tint, not a color block.
+  // Bottom matches #f5f2e9 so the section bleeds cleanly into whatever follows.
+  const sectionBg = `linear-gradient(175deg,rgba(123,47,190,.07) 0%,#f5f2e9 38%)`;
 
   return `
 <style>
-[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}
-[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card{
-  border-radius:16px;overflow:hidden;background:#fff;border:1px solid rgba(15,22,35,.08);
-  box-shadow:0 2px 12px rgba(15,22,35,.06);transition:box-shadow .2s ease,transform .2s ease;
+[data-cpas-section="${sk}"]{background:${sectionBg}}
+[data-cpas-section="${sk}"] .ways-card{
+  border-radius:14px;overflow:hidden;background:#fff;border:1px solid rgba(15,22,35,.07);
+  box-shadow:0 2px 14px rgba(15,22,35,.06);transition:box-shadow .2s ease,transform .2s ease;
 }
-[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card:hover{
-  box-shadow:0 10px 32px rgba(15,22,35,.12);transform:translateY(-3px);
+[data-cpas-section="${sk}"] .ways-card:hover{
+  box-shadow:0 10px 36px rgba(15,22,35,.12);transform:translateY(-3px);
 }
 ${imageCss}
-[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body{padding:20px 22px 22px}
-[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body h3{margin:0 0 8px}
-[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body p{margin:0 0 16px}
-[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-link{
+[data-cpas-section="${sk}"] .ways-card-body{padding:20px 22px 22px}
+[data-cpas-section="${sk}"] .ways-card-body h3{margin:0 0 8px}
+[data-cpas-section="${sk}"] .ways-card-body p{margin:0 0 16px}
+[data-cpas-section="${sk}"] .ways-card-link{
   display:inline-flex;align-items:center;gap:6px;font-weight:600;
 }
 </style>
-<section class="section s-light"${anchorId} data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
+<section class="section s-light"${anchorId} data-cpas-section="${sk}" data-section-key="${sk}">
   <div class="container">
     <div class="section-intro-center">
       ${renderSectionHeader(section, { includeBody })}
