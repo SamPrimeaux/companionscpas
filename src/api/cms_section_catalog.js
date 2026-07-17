@@ -11,6 +11,7 @@ import { renderDonateV2Section, isDonateV2SectionType } from "./render_donate_v2
 import { renderCampaignTransportHero } from "./render_campaign_transport_hero.js";
 import { renderCampaignEntryHero } from "./render_campaign_entry_hero.js";
 import { renderWetDogGallery } from "./render_wet_dog_gallery.js";
+import { renderAdoptAnimalGallery } from "./render_adopt_gallery.js";
 import {
   renderContactHero,
   renderContactSocials,
