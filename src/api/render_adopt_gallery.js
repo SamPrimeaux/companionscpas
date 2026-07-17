@@ -114,8 +114,13 @@ export async function renderAdoptAnimalGallery(section = {}, blocks = [], brand 
 #${sectionId} .aag-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:20px; }
 #${sectionId} .aag-card{ background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 2px 12px rgba(15,22,35,.08); transition:box-shadow .2s, transform .15s; display:flex; flex-direction:column; }
 #${sectionId} .aag-card:hover{ box-shadow:0 8px 32px rgba(15,22,35,.13); transform:translateY(-3px); }
-#${sectionId} .aag-card__img-wrap{ position:relative; aspect-ratio:4/3; overflow:hidden; background:#e8e4df; }
-#${sectionId} .aag-card__img{ width:100%; height:100%; object-fit:cover; object-position:center top; display:block; }
+#${sectionId} .aag-card--overflow{ display:none; }
+#${sectionId} .aag-card__img-link{ display:block; }
+#${sectionId} .aag-card__img-wrap{ position:relative; aspect-ratio:1/1; overflow:hidden; background:#eae6df; }
+#${sectionId} .aag-card__img{ width:100%; height:100%; object-fit:contain; object-position:center; display:block; }
+#${sectionId} .aag-more-wrap{ grid-column:1 / -1; text-align:center; margin-top:8px; }
+#${sectionId} .aag-more-btn{ padding:11px 26px; border-radius:999px; border:1.5px solid rgba(15,22,35,.14); background:#fff; font-size:.85rem; font-weight:700; color:#5e6b7f; cursor:pointer; transition:all .14s; }
+#${sectionId} .aag-more-btn:hover{ border-color:#7c3aed; background:rgba(124,58,237,.08); color:#6d28d9; }
 #${sectionId} .aag-status{ position:absolute; top:12px; left:12px; padding:4px 10px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; background:rgba(9,13,24,.72); color:#a78bfa; backdrop-filter:blur(6px); }
 #${sectionId} .aag-status--foster{ color:#6ee7b7; }
 #${sectionId} .aag-card__body{ padding:18px 20px 20px; flex:1; display:flex; flex-direction:column; }
