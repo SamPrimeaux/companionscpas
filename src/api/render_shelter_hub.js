@@ -14,7 +14,7 @@ export function renderShelterHub(section) {
   const sectionKey = String(section?.section_key || "adoption_next_steps").trim();
 
   return `
-<style>[data-cpas-section="${esc(sectionKey)}"]{display:block;background:#ede8df;padding:0}</style>
+<style>[data-cpas-section="${esc(sectionKey)}"]{display:block;background:#f5f2e9;padding:0}</style>
 <section class="shelter-hub" data-cpas-section="${esc(sectionKey)}" data-section-key="${esc(sectionKey)}" id="${esc(sectionKey)}">
 
   <div class="shelter-hub__intro">
