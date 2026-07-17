@@ -156,7 +156,7 @@ function renderHero(section) {
         </div>
         <h1 class="hero-heading">${escapeHtml(heading)}</h1>
         <p class="hero-sub">${escapeHtml(body)}</p>
-        <div class="hero-actions">${heroModalBtn("Contact Us", "Let's work together", "contact", "primary")}${heroModalBtn(cta2Label, cta2Sub, "donate", "ghost")}</div>
+        <div class="hero-actions">${heroModalBtn("Contact Us", "Let's work together", "contact", "primary")}${heroCtaButton(cta2Label, cta2Sub, cta2Href, "ghost")}</div>
       </div>
     </div>
   </div>
