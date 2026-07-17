@@ -521,8 +521,64 @@ async function renderStoriesHelp(section, blocks, brand, env) {
 </section>`;
 }
 
+function renderTwoCardCampaignGrid(section, config) {
+  const heading = pickText(section, ["heading"]) || "More ways to give";
+  const intro = pickText(section, ["body"]) || "";
+  const sectionKey = pickText(section, ["section_key"]);
+  const WISHLIST_LOGO = `<img src="${CDN}/static/assets/amz-wishlist-bttn.webp" alt="Amazon Wishlist" style="height:32px;width:auto;display:block">`;
+  const cardHtml = config.cards.map((card) => {
+    const href = escAttr(card.cta_href || "#");
+    const external = card.cta_external ? ' target="_blank" rel="noopener noreferrer"' : "";
+    const isWishlist = card.cta_href && card.cta_href.includes("amazon.com");
+    const btn = isWishlist
+      ? `<a class="home-img-btn home-img-btn--wishlist" href="${href}"${external} aria-label="Shop Amazon Wishlist">${WISHLIST_LOGO}</a>`
+      : `<a class="home-img-btn home-img-btn--donate" href="${href}"${external}>${esc(card.cta_label || "Donate Now")}</a>`;
+    const eyebrow = card.eyebrow ? `<p class="ey-purple" style="margin:0 0 .5rem;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">${esc(card.eyebrow)}</p>` : "";
+    const title = card.title ? `<p style="margin:0 0 .75rem;font-size:1rem;font-weight:600;color:var(--text-1)">${esc(card.title)}</p>` : "";
+    return `<div class="home-img-card">
+        ${eyebrow}${title}
+        <a href="${href}"${external} class="home-img-card-img" aria-label="${escAttr(card.title)}">
+          <img src="${escAttr(card.image)}" alt="${escAttr(card.title)}" loading="lazy" decoding="async" />
+        </a>
+        <div class="home-img-card-foot">${btn}</div>
+      </div>`;
+  }).join("\n");
+  return `
+<section class="section s-light dv2-campaigns-grid" data-section-key="${escAttr(sectionKey)}" id="donate-campaign-grid">
+  <div class="container">
+    <div class="foster-header">
+      <div class="section-intro-center" style="margin-bottom:0;text-align:left;max-width:none;">
+        <h2 class="mission-heading">${esc(heading)}</h2>
+        ${intro ? `<p class="mission-body">${esc(intro)}</p>` : ""}
+      </div>
+    </div>
+    <div class="home-img-cards">${cardHtml}</div>
+  </div>
+</section>
+<style>
+.home-img-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:2rem;align-items:start;max-width:840px;margin:0 auto}
+.home-img-card{display:flex;flex-direction:column;gap:.875rem}
+.home-img-card-img{display:block;border-radius:12px;overflow:hidden;border:1px solid var(--border);transition:opacity .2s,transform .2s}
+.home-img-card-img:hover{opacity:.93;transform:translateY(-2px)}
+.home-img-card-img img{width:100%;height:auto;display:block}
+.home-img-card-foot{display:flex;justify-content:center}
+.home-img-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;border-radius:999px;border:1.5px solid rgba(0,0,0,.12);background:#fff;text-decoration:none;transition:box-shadow .2s,transform .2s;min-width:160px}
+.home-img-btn:hover{box-shadow:0 4px 14px rgba(0,0,0,.1);transform:translateY(-1px)}
+.home-img-btn--donate{font-size:.875rem;font-weight:600;color:#5b2d8e;border-color:#5b2d8e}
+.home-img-btn--donate:hover{background:#5b2d8e;color:#fff}
+@media(max-width:640px){.home-img-cards{grid-template-columns:1fr;max-width:100%}}
+</style>`;
+}
+
 async function renderDonateCampaignGrid(section, blocks, brand, env) {
   const config = safeJson(section?.config_json, {});
+
+  // Manual two-card layout — same pattern as the homepage campaigns section.
+  // Takes priority over the live-campaign grid below.
+  if (config.layout === "two_cards" && Array.isArray(config.cards) && config.cards.length) {
+    return renderTwoCardCampaignGrid(section, config);
+  }
+
   const heading = pickText(section, ["heading"]) || "More ways to give";
   const intro = pickText(section, ["body"]) || "Every gift goes directly toward medical care, transport, and second chances.";
   const sectionKey = pickText(section, ["section_key"]);
