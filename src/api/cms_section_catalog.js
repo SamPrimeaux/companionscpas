@@ -56,6 +56,7 @@ export const D1_SECTION_TYPES = [
   "testimonials",
   "text_image",
   "wet_dog_competition",
+  "adopt_live_gallery",
 ];
 
 function normalizeRoute(route) {
