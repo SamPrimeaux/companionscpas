@@ -198,7 +198,7 @@ function renderPaths(section, blocks) {
   const cardHtml = cards.map((b, i) => {
     const cfg = blockCfg(b);
     const icon = pick(cfg, ["icon_svg"]) || PATH_ICONS[i % PATH_ICONS.length];
-    const href = escUrl(pick(b, ["href"]) || pick(cfg, ["href"]), "/services");
+    const href = escUrl(pick(b, ["href"]) || pick(cfg, ["href"]), "/donate");
     return `<div class="pillar">
         <div class="pillar-icon-wrap">${icon}</div>
         <h3>${escapeHtml(pick(b, ["title"]) || "")}</h3>
