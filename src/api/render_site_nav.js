@@ -79,7 +79,7 @@ export async function renderSiteHeader(env) {
 
   const mobileLinks = [
     ...navItems.map((item) => `<a href="${esc(item.route)}">${esc(item.label)}</a>`),
-    ...(showDonate ? ['<a href="/donate" class="mobile-donate">Donate</a>'] : []),
+    ...(showDonate ? ['<a href="/donate" class="mobile-donate" data-action="donate">Donate</a>'] : []),
   ].join("\n  ");
 
   return `<header class="site-header">
