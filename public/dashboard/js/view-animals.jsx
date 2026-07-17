@@ -732,9 +732,17 @@
     var a = props.animal;
     var isMobile = props.isMobile;
     var hoverState = useState(false), hover = hoverState[0], setHover = hoverState[1];
+    var deletingState = useState(false), deleting = deletingState[0], setDeleting = deletingState[1];
     var u = ui();
     var completion = percentProfile(a);
     var needsFosterBadge = Number(a.foster_needed) === 1 && a.status !== 'foster';
+    function handleDelete(e) {
+      e.stopPropagation();
+      if (deleting) return;
+      if (!window.confirm('Delete ' + (a.name || 'this animal') + ' permanently? This removes the profile, notes, and care history.')) return;
+      setDeleting(true);
+      if (props.onDelete) props.onDelete(a, function(){ setDeleting(false); });
+    }
     return h('div', { onClick:function(){ if (props.onOpen) props.onOpen(a); }, onMouseEnter:function(){ setHover(true); }, onMouseLeave:function(){ setHover(false); }, style:{ position:'relative', background:'linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.012)), ' + u.surface, border:'1px solid ' + (hover ? u.purple + '77' : u.border), borderRadius:18, overflow:'hidden', cursor:'pointer', transition:'all .16s ease', transform:hover && !isMobile ? 'translateY(-2px)' : 'none', boxShadow:hover && !isMobile ? '0 22px 58px rgba(12,12,28,.18)' : '0 14px 34px rgba(12,12,28,.08)' } },
       h('div', { style:{ height:isMobile ? 160 : 190, background:u.raised, overflow:'hidden', position:'relative' } },
         a.photo ? h('img', { src:a.photo, alt:a.name || 'Animal photo', style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' }, onError:function(e){ e.currentTarget.style.display='none'; } }) :
@@ -751,6 +759,18 @@
         }),
         h('div', { style:{ position:'absolute', top:8, right:8 } }, h(StatusPill, { status:a.status, style:{ background:'rgba(15,15,30,.72)', backdropFilter:'blur(10px)' } })),
         needsFosterBadge ? h('div', { style:{ position:'absolute', top:8, left:8 } }, h(StatusPill, { label:'Foster Needed', color:u.yellow, dot:true, style:{ background:'rgba(15,15,30,.72)', backdropFilter:'blur(10px)' } })) : null,
+        (hover || isMobile) ? h('button', {
+          type: 'button',
+          title: 'Delete ' + (a.name || 'animal'),
+          onClick: handleDelete,
+          disabled: deleting,
+          style: {
+            position:'absolute', bottom:8, right:8, width:28, height:28, borderRadius:8, zIndex:2,
+            border:'1px solid rgba(255,255,255,.16)', background:'rgba(15,15,30,.72)', backdropFilter:'blur(10px)',
+            color: deleting ? u.textMut : '#f2a3a3', cursor: deleting ? 'not-allowed' : 'pointer',
+            display:'flex', alignItems:'center', justifyContent:'center'
+          }
+        }, appIcon('trash', 14)) : null,
         hover && !isMobile ? h('div', { style:{ position:'absolute', inset:0, background:'rgba(0,0,0,.42)', display:'flex', alignItems:'center', justifyContent:'center' } }, h(Button, { size:'sm', iconName:'edit' }, 'Edit Profile')) : null
       ),
       h('div', { style:{ padding:isMobile ? '12px' : '14px' } },
