@@ -121,6 +121,7 @@ export async function renderAdoptAnimalGallery(section = {}, blocks = [], brand 
 #${sectionId} .aag-more-wrap{ grid-column:1 / -1; text-align:center; margin-top:8px; }
 #${sectionId} .aag-more-btn{ padding:11px 26px; border-radius:999px; border:1.5px solid rgba(15,22,35,.14); background:#fff; font-size:.85rem; font-weight:700; color:#5e6b7f; cursor:pointer; transition:all .14s; }
 #${sectionId} .aag-more-btn:hover{ border-color:#7c3aed; background:rgba(124,58,237,.08); color:#6d28d9; }
+#${sectionId} .aag-hide-filter{ display:none; }
 #${sectionId} .aag-status{ position:absolute; top:12px; left:12px; padding:4px 10px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; background:rgba(9,13,24,.72); color:#a78bfa; backdrop-filter:blur(6px); }
 #${sectionId} .aag-status--foster{ color:#6ee7b7; }
 #${sectionId} .aag-card__body{ padding:18px 20px 20px; flex:1; display:flex; flex-direction:column; }
