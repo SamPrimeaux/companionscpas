@@ -2,6 +2,8 @@
  * Public competition entry API.
  * POST /api/public/competition-entries — multipart form + photo → pending D1 row + R2 asset.
  * POST /api/public/competition-entries/:id/mock-settle — test-only paid path (ALLOW_ENTRY_MOCK_SETTLE=1).
+ * POST /api/public/competition-entries/:id/vote — public vote cast, persisted + deduped per visitor.
+ * GET  /api/public/competitions/:campaignId/entries — approved entries + vote counts for the public gallery.
  */
 
 const TENANT_ID = "tenant_companionscpas";
@@ -305,6 +307,100 @@ async function handleMockSettle(request, env, entryId) {
   return json(result, result.status || (result.ok ? 200 : 400));
 }
 
+/**
+ * Hash a per-visitor fingerprint from IP + User-Agent so one visitor can cast
+ * one vote per entry without requiring an account. Not identity-grade —
+ * good enough to stop casual double-clicking and basic script spam.
+ */
+async function voterFingerprint(request) {
+  const ip = request.headers.get("CF-Connecting-IP") || "";
+  const ua = request.headers.get("User-Agent") || "";
+  const raw = `${ip}::${ua}`;
+  const bytes = new TextEncoder().encode(raw);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function voteId() {
+  return `vote_${crypto.randomUUID().replace(/-/g, "")}`;
+}
+
+/**
+ * POST /api/public/competition-entries/:id/vote
+ * Persists one vote per (entry, visitor fingerprint). Recomputes vote_count
+ * from competition_entry_votes so the counter can never drift from reality.
+ */
+async function handleCastVote(request, env, entryIdParam) {
+  const entry = await env.DB.prepare(`
+    SELECT ce.id, ce.campaign_id, ce.is_approved, ce.moderation_status, ce.archived_at,
+           fc.is_public, fc.status
+    FROM competition_entries ce
+    JOIN fundraising_campaigns fc ON fc.id = ce.campaign_id
+    WHERE ce.id = ? AND ce.tenant_id = ?
+    LIMIT 1
+  `).bind(entryIdParam, TENANT_ID).first().catch(() => null);
+
+  if (!entry?.id) return json({ ok: false, error: "Entry not found" }, 404);
+  if (Number(entry.is_approved) !== 1 || entry.archived_at) {
+    return json({ ok: false, error: "This entry is not open for voting" }, 403);
+  }
+  if (Number(entry.is_public) !== 1 || entry.status !== "active") {
+    return json({ ok: false, error: "This competition is not open for voting" }, 403);
+  }
+
+  const fingerprint = await voterFingerprint(request);
+  const ip = request.headers.get("CF-Connecting-IP") || null;
+  const id = voteId();
+
+  const insert = await env.DB.prepare(`
+    INSERT OR IGNORE INTO competition_entry_votes
+      (id, tenant_id, entry_id, campaign_id, voter_fingerprint, ip_address, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+  `).bind(id, TENANT_ID, entryIdParam, entry.campaign_id, fingerprint, ip).run();
+
+  const alreadyVoted = !insert?.meta || insert.meta.changes === 0;
+
+  const countRow = await env.DB.prepare(`
+    SELECT COUNT(*) AS n FROM competition_entry_votes WHERE entry_id = ?
+  `).bind(entryIdParam).first().catch(() => ({ n: 0 }));
+  const voteCount = Number(countRow?.n) || 0;
+
+  await env.DB.prepare(`
+    UPDATE competition_entries SET vote_count = ?, updated_at = datetime('now')
+    WHERE id = ? AND tenant_id = ?
+  `).bind(voteCount, entryIdParam, TENANT_ID).run().catch(() => null);
+
+  return json({ ok: true, entry_id: entryIdParam, vote_count: voteCount, already_voted: alreadyVoted });
+}
+
+/**
+ * GET /api/public/competitions/:campaignId/entries
+ * Approved, non-archived entries with live vote counts, for the public gallery.
+ */
+async function handlePublicEntriesList(env, campaignId) {
+  const campaign = await env.DB.prepare(`
+    SELECT id, title, is_public, status FROM fundraising_campaigns
+    WHERE id = ? AND (tenant_id = ? OR organization_id = ?)
+    LIMIT 1
+  `).bind(campaignId, TENANT_ID, TENANT_ID).first().catch(() => null);
+
+  if (!campaign) return json({ ok: false, error: "Campaign not found" }, 404);
+  if (Number(campaign.is_public) !== 1 || campaign.status !== "active") {
+    return json({ ok: true, campaign_id: campaignId, entries: [] });
+  }
+
+  const rows = await env.DB.prepare(`
+    SELECT id, dog_name, caption, photo_url, category, vote_count, created_at
+    FROM competition_entries
+    WHERE campaign_id = ? AND tenant_id = ?
+      AND payment_status = 'paid' AND is_approved = 1 AND archived_at IS NULL
+    ORDER BY vote_count DESC, created_at DESC
+    LIMIT 100
+  `).bind(campaignId, TENANT_ID).all().catch(() => ({ results: [] }));
+
+  return json({ ok: true, campaign_id: campaignId, entries: rows.results || [] });
+}
+
 export async function competitionEntriesRoutes(request, env, url) {
   if (url.pathname === "/api/public/competition-entries" && request.method === "POST") {
     return handleCreateEntry(request, env);
@@ -313,6 +409,16 @@ export async function competitionEntriesRoutes(request, env, url) {
   const mockMatch = url.pathname.match(/^\/api\/public\/competition-entries\/([^/]+)\/mock-settle$/);
   if (mockMatch && request.method === "POST") {
     return handleMockSettle(request, env, decodeURIComponent(mockMatch[1]));
+  }
+
+  const voteMatch = url.pathname.match(/^\/api\/public\/competition-entries\/([^/]+)\/vote$/);
+  if (voteMatch && request.method === "POST") {
+    return handleCastVote(request, env, decodeURIComponent(voteMatch[1]));
+  }
+
+  const listMatch = url.pathname.match(/^\/api\/public\/competitions\/([^/]+)\/entries$/);
+  if (listMatch && request.method === "GET") {
+    return handlePublicEntriesList(env, decodeURIComponent(listMatch[1]));
   }
 
   return null;
