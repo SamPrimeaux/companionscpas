@@ -60,21 +60,23 @@ function buildCard(a) {
   if (a.energy_level) tags.push(text(a.energy_level));
   const metaParts = [a.breed, a.sex, a.age_label].filter(Boolean).map(text);
   const bio = truncateText(a.bio, 120);
-  const mailto = `mailto:companionsCPAS@gmail.com?subject=${encodeURIComponent(`Inquiry about ${name}`)}`;
+  const profileHref = `/adopt/dog/${encodeURIComponent(a.id)}`;
   const fosterFlag = Number(a.foster_needed) === 1 && String(a.status || "").toLowerCase() !== "foster";
 
   return `
   <article class="aag-card">
-    <div class="aag-card__img-wrap">
-      <img class="aag-card__img" src="${esc(img)}" alt="${esc(name)}" loading="lazy" />
-      ${statusBadge(a.status, fosterFlag)}
-    </div>
+    <a class="aag-card__img-link" href="${esc(profileHref)}" aria-label="View ${esc(name)}'s profile">
+      <div class="aag-card__img-wrap">
+        <img class="aag-card__img" src="${esc(img)}" alt="${esc(name)}" loading="lazy" />
+        ${statusBadge(a.status, fosterFlag)}
+      </div>
+    </a>
     <div class="aag-card__body">
-      <h3 class="aag-card__name">${esc(name)}</h3>
+      <h3 class="aag-card__name"><a href="${esc(profileHref)}">${esc(name)}</a></h3>
       <p class="aag-card__meta">${esc(metaParts.join(" · ") || "Dog")}</p>
       ${tags.length ? `<div class="aag-card__tags">${tags.slice(0, 3).map((t) => `<span class="aag-card__tag">${esc(t)}</span>`).join("")}</div>` : ""}
       ${bio ? `<p class="aag-card__bio">${esc(bio)}</p>` : ""}
-      <a class="aag-card__cta" href="${esc(mailto)}">Ask about ${esc(name)}</a>
+      <a class="aag-card__cta" href="${esc(profileHref)}">Meet ${esc(name)}</a>
     </div>
   </article>`.trim();
 }
