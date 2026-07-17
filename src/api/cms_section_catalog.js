@@ -209,6 +209,7 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
 export const ADDABLE_SECTION_TYPES = [
   { type: "campaign_entry_hero", label: "Campaign Entry Hero", desc: "Split campaign hero with entry and sharing actions" },
   { type: "wet_dog_competition", label: "Competition Vote Gallery", desc: "Side-by-side entry gallery with public voting and sharing" },
+  { type: "adopt_live_gallery", label: "Live Animal Gallery", desc: "Adoptable dogs pulled live from the Animals dashboard" },
   { type: "hero", label: "Hero", desc: "Headline, image, and CTAs" },
   { type: "text_image", label: "Text + Image", desc: "Story block with optional media" },
   { type: "feature_cards", label: "Feature Cards", desc: "Card grid for services or benefits" },
