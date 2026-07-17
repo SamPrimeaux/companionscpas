@@ -380,6 +380,14 @@ export default {
       return asset(env, request, "/dashboard/index.html");
     }
 
+    // Individual animal profile pages — /adopt/dog/:id
+    if (request.method === "GET") {
+      const animalProfileMatch = url.pathname.match(/^\/adopt\/dog\/([^/]+)$/);
+      if (animalProfileMatch) {
+        return servePublicAnimalProfile(decodeURIComponent(animalProfileMatch[1]), env);
+      }
+    }
+
     // Public CMS pages — hardcoded list OR any cms_pages route (client-created)
     if (request.method === "GET") {
       const path = url.pathname;
