@@ -10,6 +10,7 @@ import { renderAboutFragment } from "./render_about_section.js";
 import { renderDonateV2Section, isDonateV2SectionType } from "./render_donate_v2.js";
 import { renderCampaignTransportHero } from "./render_campaign_transport_hero.js";
 import { renderCampaignEntryHero } from "./render_campaign_entry_hero.js";
+import { renderWetDogGallery } from "./render_wet_dog_gallery.js";
 import {
   renderContactHero,
   renderContactSocials,
@@ -99,8 +100,9 @@ async function renderGeneric(section, blocks, brand, env) {
 
 /**
  * Resolve renderer for a section row.
- * Order: contact types → donate v2 → campaign transport → home key overrides →
- * about key overrides → typed home_* → generic SECTION_RENDERERS → stub.
+ * Order: contact types → donate v2 → campaign transport → campaign entry hero →
+ * wet dog gallery → home key overrides → about key overrides → typed home_* →
+ * generic SECTION_RENDERERS → stub.
  */
 export async function renderSectionByType(section, blocks = [], brand = {}, env = null, opts = {}) {
   const preview = opts.preview === true;
@@ -144,6 +146,9 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
     }
     if (type === "campaign_entry_hero") {
       return String(await renderCampaignEntryHero(section, blocks, brand, env) || "");
+    }
+    if (type === "wet_dog_competition") {
+      return String(await renderWetDogGallery(section, blocks, brand, env) || "");
     }
 
     // Home: custom fragments keyed by section_key (D1 types are often generic aliases)
@@ -198,6 +203,7 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
 /** Types shown in dashboard Add Section (safe generic + contact + common). */
 export const ADDABLE_SECTION_TYPES = [
   { type: "campaign_entry_hero", label: "Campaign Entry Hero", desc: "Split campaign hero with entry and sharing actions" },
+  { type: "wet_dog_competition", label: "Competition Vote Gallery", desc: "Side-by-side entry gallery with public voting and sharing" },
   { type: "hero", label: "Hero", desc: "Headline, image, and CTAs" },
   { type: "text_image", label: "Text + Image", desc: "Story block with optional media" },
   { type: "feature_cards", label: "Feature Cards", desc: "Card grid for services or benefits" },
