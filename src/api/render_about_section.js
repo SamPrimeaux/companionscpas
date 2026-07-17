@@ -41,6 +41,28 @@ function heroModalBtn(label, sub, action, variant = "primary") {
           </button>`;
 }
 
+// Renders a real navigational link (not a modal trigger) unless the configured
+// destination is actually /donate, in which case it opens the shared donate modal
+// like every other donate CTA on the site.
+function heroCtaButton(label, sub, href, variant = "primary") {
+  if (!label) return "";
+  const dest = t(href).trim() || "/adopt";
+  if (dest === "/donate" || dest === "donate") {
+    return heroModalBtn(label, sub, "donate", variant);
+  }
+  const cls = variant === "ghost" ? "hero-cta hero-cta-ghost" : "hero-cta hero-cta-primary";
+  const icon = variant === "ghost"
+    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>`
+    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`;
+  return `<a class="${cls}" href="${escAttr(escUrl(dest, "/adopt"))}">
+            <span class="hero-cta-icon">${icon}</span>
+            <span class="hero-cta-text">
+              <span class="hero-cta-label">${escapeHtml(label)}</span>
+              ${sub ? `<span class="hero-cta-sub">${escapeHtml(sub)}</span>` : ""}
+            </span>
+          </a>`;
+}
+
 function renderMissionStatement(section) {
   const c = safeJson(section.config_json, {});
   const heading = pick(section, ["heading"]) || "To promote, educate, and advocate for <em>every animal</em> at Caddo Parish Animal Services.";
