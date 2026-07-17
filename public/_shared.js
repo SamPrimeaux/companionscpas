@@ -216,45 +216,11 @@
   }
 })();
 
-// Donate CTA fallback + legacy adopt support form bridge
-(() => {
-  function openUnifiedDonate(event, preset) {
-    if (window.DonateModal && typeof window.DonateModal.open === 'function') {
-      event?.preventDefault?.();
-      const legacy = document.getElementById('cpasDonateModal');
-      if (legacy) {
-        legacy.classList.remove('open');
-        legacy.setAttribute('aria-hidden', 'true');
-      }
-      window.DonateModal.open(event || { currentTarget: preset?.trigger || null, target: preset?.trigger || null });
-      return true;
-    }
-    return false;
-  }
-
-  function isSupportDonateLabel(el) {
-    const text = String(el?.textContent || '').trim().toLowerCase();
-    return /support our (work|mission)/.test(text);
-  }
-
-  document.addEventListener('click', (event) => {
-    const donate = event.target.closest('[data-action="donate"], [data-donate]');
-    if (donate) {
-      if (openUnifiedDonate(event)) return;
-    }
-    const legacyTrigger = event.target.closest('a, button');
-    if (legacyTrigger && (legacyTrigger.hasAttribute('data-donate') || isSupportDonateLabel(legacyTrigger))) {
-      openUnifiedDonate(event, { trigger: legacyTrigger });
-    }
-  });
-
-  document.addEventListener('submit', (event) => {
-    const form = event.target.closest('#cpasDonateForm');
-    if (!form) return;
-    event.preventDefault();
-    openUnifiedDonate(event, { trigger: form.querySelector('button[type="submit"]') });
-  });
-})();
+// Legacy donate-click bridge removed 2026-07-17 — was redundant with
+// donate-modal.js's own [data-action="donate"]/[data-donate] listener, and
+// additionally matched on visible button/link TEXT ("support our work/mission"),
+// which was a fragile, hard-to-audit way for unrelated CTAs to accidentally
+// open the payment modal.
 
 // CPAS reusable newsletter form
 (() => {
