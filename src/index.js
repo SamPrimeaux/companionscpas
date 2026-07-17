@@ -16,8 +16,9 @@ import { donationApiRoutes } from './api/donation_api.js';
 import { paymentsEmailRoutes } from './api/payments_email.js';
 import { socialRoutes } from './api/social.js';
 import { driveRoutes } from './api/drive_api.js';
-import { renderPage, getBrand } from "./api/render_page.js";
+import { renderPage, getBrand, getGlobalPartial, assembleFullPage } from "./api/render_page.js";
 import { assemblePage, isCmsPageRoute, publishRoute } from "./api/cms_pipeline.js";
+import { renderAnimalProfileSection } from "./api/render_animal_profile_page.js";
 import { emailApiRoutes } from './api/email_api.js';
 import { gmailRoutes } from './api/gmail_api.js';
 
