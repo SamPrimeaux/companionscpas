@@ -135,7 +135,7 @@ function renderHero(section) {
   const ctaHref = pick(section, ["cta_href"]) || pick(c, ["cta_href"]) || "/adopt";
   const cta2Label = pick(section, ["cta_secondary_label"]) || pick(c, ["cta_secondary_label"]) || "Support Our Mission";
   const cta2Href = pick(section, ["cta_secondary_href"]) || pick(c, ["cta_secondary_href"]) || "/donate";
-  const cta2Sub = pick(c, ["cta_secondary_sub"]) || "Donate or give supplies";
+  const cta2Sub = pick(c, ["cta_secondary_sub"]) || (cta2Href === "/donate" ? "Donate or give supplies" : "See who needs a home");
 
   return `<style>
 [data-cpas-section="hero"]{isolation:isolate}
