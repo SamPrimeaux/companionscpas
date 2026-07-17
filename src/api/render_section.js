@@ -371,7 +371,25 @@ function renderFeatureCards(section, blocks) {
   const anchorId = sectionKey === "adoptable_dogs" ? ' id="adoptable-dogs"' : "";
 
   return `
-<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}</style>
+<style>
+[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}
+[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card{
+  border-radius:16px;overflow:hidden;background:#fff;border:1px solid rgba(15,22,35,.08);
+  box-shadow:0 2px 12px rgba(15,22,35,.06);transition:box-shadow .2s ease,transform .2s ease;
+}
+[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card:hover{
+  box-shadow:0 10px 32px rgba(15,22,35,.12);transform:translateY(-3px);
+}
+[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card img{
+  aspect-ratio:4/3;width:100%;object-fit:cover;display:block;
+}
+[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body{padding:20px 22px 22px}
+[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body h3{margin:0 0 8px}
+[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body p{margin:0 0 16px}
+[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-link{
+  display:inline-flex;align-items:center;gap:6px;font-weight:600;
+}
+</style>
 <section class="section s-light"${anchorId} data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container">
     <div class="section-intro-center">
