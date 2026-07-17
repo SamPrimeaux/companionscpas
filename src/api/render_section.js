@@ -352,6 +352,12 @@ function renderCardGrid(section, blocks) {
 
 function renderFeatureCards(section, blocks) {
   const sectionKey = pickText(section, ["section_key"]);
+  const config = safeJson(section?.config_json, {});
+  // "crop" (default): fixed 4:3 box, object-fit cover — best for large sets of
+  // varied/unknown photos where a tight uniform grid matters more than any one photo.
+  // "natural": image keeps its own intrinsic ratio, no crop, no letterbox — best for
+  // small, curated card sets (like this one) where every photo can be handpicked.
+  const imageDisplay = config.image_display === "natural" ? "natural" : "crop";
   const cards = sortBlocks(blocks).map((block) => {
     const parts = cardParts(block);
     const imageSrc = parts.imageUrl ? safeUrl(parts.imageUrl, "") : "";
@@ -370,6 +376,14 @@ function renderFeatureCards(section, blocks) {
   const includeBody = !hasSubheading;
   const anchorId = sectionKey === "adoptable_dogs" ? ' id="adoptable-dogs"' : "";
 
+  const imageCss = imageDisplay === "natural"
+    ? `[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card img{
+  width:100%;height:auto;display:block;border-radius:10px 10px 0 0;
+}`
+    : `[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card img{
+  aspect-ratio:4/3;width:100%;object-fit:contain;background:#eae6df;display:block;
+}`;
+
   return `
 <style>
 [data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}
@@ -380,9 +394,7 @@ function renderFeatureCards(section, blocks) {
 [data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card:hover{
   box-shadow:0 10px 32px rgba(15,22,35,.12);transform:translateY(-3px);
 }
-[data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card img{
-  aspect-ratio:4/3;width:100%;object-fit:contain;background:#eae6df;display:block;
-}
+${imageCss}
 [data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body{padding:20px 22px 22px}
 [data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body h3{margin:0 0 8px}
 [data-cpas-section="${escapeAttribute(sectionKey)}"] .ways-card-body p{margin:0 0 16px}
