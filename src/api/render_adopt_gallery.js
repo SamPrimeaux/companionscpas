@@ -162,23 +162,34 @@ export async function renderAdoptAnimalGallery(section = {}, blocks = [], brand 
   root.dataset.aagReady = "1";
   const cards = Array.from(root.querySelectorAll(".aag-card"));
   const buttons = Array.from(root.querySelectorAll("[data-filter]"));
+  const showAllBtn = root.querySelector("[data-aag-show-all]");
+
+  function matchesFilter(card, filter) {
+    if (filter === "all") return true;
+    if (filter === "foster_needed") return !!card.querySelector(".aag-status--foster");
+    if (filter === "available") {
+      const badge = card.querySelector(".aag-status");
+      return !!(badge && badge.textContent.trim() === "Available");
+    }
+    return true;
+  }
+
   buttons.forEach((btn) => {
     btn.addEventListener("click", () => {
       buttons.forEach((b) => b.classList.toggle("is-active", b === btn));
       const filter = btn.getAttribute("data-filter");
       cards.forEach((card) => {
-        if (filter === "all") { card.style.display = ""; return; }
-        if (filter === "foster_needed") {
-          card.style.display = card.querySelector(".aag-status--foster") ? "" : "none";
-          return;
-        }
-        if (filter === "available") {
-          const badge = card.querySelector(".aag-status");
-          card.style.display = (badge && badge.textContent.trim() === "Available") ? "" : "none";
-        }
+        card.classList.toggle("aag-hide-filter", !matchesFilter(card, filter));
       });
     });
   });
+
+  if (showAllBtn) {
+    showAllBtn.addEventListener("click", () => {
+      cards.forEach((card) => card.classList.remove("aag-card--overflow"));
+      showAllBtn.remove();
+    });
+  }
 })();
 </script>`;
 }
