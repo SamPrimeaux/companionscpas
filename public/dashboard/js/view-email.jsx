@@ -657,7 +657,7 @@ function EmailView() {
     : view === "sent" ? "Outbound log incl. no-reply automations"
     : "Filtered mailbox view";
 
-  return React.createElement("div", { className: "email-workspace" },
+  return React.createElement("div", { className: "email-workspace email-workspace--flush" },
     toast && React.createElement("div", { className: "mail-toast" + (toast.indexOf("err:") === 0 ? " is-error" : "") },
       toast.replace(/^(err:|ok:)/, "")
     ),

@@ -633,24 +633,31 @@ body.cpas-nav-open { overflow: hidden !important; }
 .email-workspace {
   --mail-rail-w: 248px;
   --mail-list-w: 360px;
-  --mail-glass: rgba(255, 255, 255, 0.72);
-  --mail-glass-strong: rgba(255, 255, 255, 0.88);
+  --mail-glass: rgba(255, 255, 255, 0.96);
+  --mail-glass-strong: rgba(255, 255, 255, 0.98);
   --mail-border: rgba(99, 102, 241, 0.12);
-  --mail-shadow: 0 8px 32px rgba(79, 70, 229, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --mail-shadow: none;
   --mail-accent: var(--brand-primary, #6366f1);
   --mail-accent-soft: rgba(99, 102, 241, 0.12);
   --mail-text: var(--dash-text, #1e1b4b);
   --mail-muted: var(--dash-muted, #64748b);
   flex: 1;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 14px 18px 18px;
+  /* Flush to #main-scroll — no cream gutter around the mail surface */
+  padding: 0;
+  margin: 0;
   position: relative;
-  background:
-    radial-gradient(ellipse 80% 60% at 10% 0%, rgba(99, 102, 241, 0.08), transparent 55%),
-    radial-gradient(ellipse 60% 50% at 90% 100%, rgba(168, 85, 247, 0.06), transparent 50%),
-    var(--dash-bg, #faf8f5);
+  background: #fff;
+}
+.cpas-dash-content.dash-content--flush {
+  padding: 0;
+}
+.email-workspace.email-workspace--flush {
+  padding: 0;
+  margin: 0;
 }
 .mail-toast {
   position: fixed;
@@ -681,14 +688,14 @@ body.cpas-nav-open { overflow: hidden !important; }
 .mail-app {
   flex: 1;
   min-height: 0;
+  height: 100%;
   display: grid;
   grid-template-columns: var(--mail-rail-w) var(--mail-list-w) minmax(0, 1fr);
   gap: 0;
   background: var(--mail-glass);
-  backdrop-filter: blur(20px) saturate(1.2);
-  border: 1px solid var(--mail-border);
-  border-radius: 20px;
-  box-shadow: var(--mail-shadow);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
   position: relative;
 }
@@ -1373,11 +1380,12 @@ body.cpas-nav-open { overflow: hidden !important; }
   .mail-mobile-tabs {
     display: flex;
     gap: 4px;
-    margin-bottom: 10px;
-    padding: 4px;
-    border-radius: 12px;
-    background: rgba(255,255,255,0.6);
-    border: 1px solid var(--mail-border);
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 0;
+    background: #fff;
+    border: none;
+    border-bottom: 1px solid var(--mail-border);
   }
   .mail-mobile-tabs button {
     flex: 1;

@@ -279,7 +279,11 @@ function App() {
     ),
     React.createElement("div", { className: "cpas-main-col" },
       React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => setNavOpen(true), navigate }),
-      React.createElement("main", { id: "main-scroll", className: "cpas-dash-content", style: mainScrollStyle }, renderView())
+      React.createElement("main", {
+        id: "main-scroll",
+        className: "cpas-dash-content" + (isEmailWorkspace || isCmsEditor ? " dash-content--flush" : ""),
+        style: mainScrollStyle
+      }, renderView())
     ),
     isMobile && React.createElement("div", {
       className: `cpas-drawer-backdrop ${navOpen ? "open" : ""}`,
