@@ -5,6 +5,7 @@
   var useState = React.useState;
   var useEffect = React.useEffect;
   var useCallback = React.useCallback;
+  var useRef = React.useRef;
 
   function h(type, props) {
     var children = Array.prototype.slice.call(arguments, 2);
@@ -1788,6 +1789,8 @@
 
   function EditDrawer(props) {
     var data = props.data, isMobile = props.isMobile, onClose = props.onClose, reload = props.reload;
+    var saveRef = props.saveRef;
+    var onSavingChange = props.onSavingChange;
     var a = data.animal;
     var u = ui();
     var parsedAge = parseAgeFields(a.age_label);
@@ -1801,25 +1804,41 @@
     var form = formState[0], setForm = formState[1];
     var savingState = useState(false), saving = savingState[0], setSaving = savingState[1];
     var fieldErrorsState = useState({}), fieldErrors = fieldErrorsState[0], setFieldErrors = fieldErrorsState[1];
+    var formRef = useRef(form);
+    formRef.current = form;
     function set(k, v) { var n = Object.assign({}, form); n[k] = v; setForm(n); }
     function save() {
-      var ageLabel = formatAgeLabel(form.age_value, form.age_unit);
-      var weightLabel = formatWeightLabel(form.weight_value, form.weight_unit);
+      var current = formRef.current || form;
+      var ageLabel = formatAgeLabel(current.age_value, current.age_unit);
+      var weightLabel = formatWeightLabel(current.weight_value, current.weight_unit);
       var errors = {};
-      if (String(form.age_value || '').trim() && !ageLabel) errors.age = 'Enter a valid age number.';
-      if (String(form.weight_value || '').trim() && !weightLabel) errors.weight = 'Enter a valid weight number.';
+      if (String(current.age_value || '').trim() && !ageLabel) errors.age = 'Enter a valid age number.';
+      if (String(current.weight_value || '').trim() && !weightLabel) errors.weight = 'Enter a valid weight number.';
       if (Object.keys(errors).length) { setFieldErrors(errors); return; }
       setFieldErrors({});
       var payload = {
-        name:form.name, species:form.species, breed:form.breed, sex:form.sex, energy_level:form.energy_level,
-        status:form.status, intake_date:form.intake_date || null, good_with_dogs:form.good_with_dogs,
-        good_with_cats:form.good_with_cats, good_with_kids:form.good_with_kids, medical_notes:form.medical_notes,
-        foster_needed:form.foster_needed ? 1 : 0, featured:form.featured ? 1 : 0, public_visible:form.public_visible ? 1 : 0,
-        photo_url:form.photo_url, age_label:ageLabel || null, weight_label:weightLabel || null
+        name:current.name, species:current.species, breed:current.breed, sex:current.sex, energy_level:current.energy_level,
+        status:current.status, intake_date:current.intake_date || null, good_with_dogs:current.good_with_dogs,
+        good_with_cats:current.good_with_cats, good_with_kids:current.good_with_kids, medical_notes:current.medical_notes,
+        foster_needed:current.foster_needed ? 1 : 0, featured:current.featured ? 1 : 0, public_visible:current.public_visible ? 1 : 0,
+        photo_url:current.photo_url, age_label:ageLabel || null, weight_label:weightLabel || null
       };
       setSaving(true);
-      apiJSON('/api/dashboard/animals/' + encodeURIComponent(a.id), { method:'PATCH', body:JSON.stringify(payload) }).then(function(){ onClose(); reload(); }).finally(function(){ setSaving(false); });
+      if (onSavingChange) onSavingChange(true);
+      apiJSON('/api/dashboard/animals/' + encodeURIComponent(a.id), { method:'PATCH', body:JSON.stringify(payload) })
+        .then(function(){ onClose(); reload(); })
+        .finally(function(){
+          setSaving(false);
+          if (onSavingChange) onSavingChange(false);
+        });
     }
+    useEffect(function(){
+      if (saveRef) saveRef.current = save;
+      return function(){ if (saveRef) saveRef.current = null; };
+    });
+    useEffect(function(){
+      if (onSavingChange) onSavingChange(saving);
+    }, [saving]);
     var panel = h('div', { style:{ width:isMobile ? '100%' : 420, height:isMobile ? '100%' : '100vh', maxHeight:'100vh', overflowY:'auto', background:u.bg, borderLeft:isMobile ? 'none' : '1px solid ' + u.border, padding:isMobile ? 18 : 24, boxSizing:'border-box' } },
       h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 } }, h('h2', { style:{ margin:0, color:u.text, fontSize:20 } }, 'Edit Profile'), h(Button, { variant:'secondary', size:'sm', onClick:onClose }, 'Close')),
       h('div', { style:{ display:'grid', gridTemplateColumns:'1fr', gap:12 } },
@@ -1841,7 +1860,10 @@
         h(ToggleRow, { label:'Featured', checked:form.featured, onClick:function(){ set('featured', !form.featured); } }),
         h(ToggleRow, { label:'Public', checked:form.public_visible, onClick:function(){ set('public_visible', !form.public_visible); } })
       ),
-      h('div', { style:{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:20 } }, h(Button, { variant:'secondary', onClick:onClose }, 'Cancel'), h(Button, { disabled:saving, onClick:save }, saving ? 'Saving...' : 'Save Changes'))
+      h('div', { style:{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:20 } },
+        h(Button, { variant:'secondary', onClick:onClose }, 'Cancel'),
+        h(Button, { disabled:saving, onClick:save }, saving ? 'Saving...' : 'Save Changes')
+      )
     );
     return h('div', { style:{ position:'fixed', inset:0, zIndex:230, background:'rgba(0,0,0,.46)', display:'flex', justifyContent:isMobile ? 'stretch' : 'flex-end' } }, panel);
   }
@@ -1857,6 +1879,8 @@
     var savingState = useState(false), saving = savingState[0], setSaving = savingState[1];
     var msgState = useState(''), saveMsg = msgState[0], setSaveMsg = msgState[1];
     var editState = useState(false), showEdit = editState[0], setShowEdit = editState[1];
+    var editSavingState = useState(false), editSaving = editSavingState[0], setEditSaving = editSavingState[1];
+    var editSaveRef = useRef(null);
     var addTaskState = useState(false), showAddTask = addTaskState[0], setShowAddTask = addTaskState[1];
     var newTaskState = useState({ task_type:'feed', title:'', priority:'normal', due_at:'' }), newTask = newTaskState[0], setNewTask = newTaskState[1];
     var draftState = useState({ content_text:'', platforms:[], scheduled_at:'', media:[] }), postDraft = draftState[0], setPostDraft = draftState[1];
@@ -1940,10 +1964,37 @@
       return null;
     }
     return h('div', { style:{ padding:isMobile ? '18px 12px 40px' : '28px 28px 40px', flex:1, overflowY:'auto', boxSizing:'border-box' } },
-      h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' } },
+      h('div', {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 18,
+          flexWrap: 'wrap',
+          // Sit above the edit drawer overlay so Save stays next to where Edit was
+          position: 'sticky',
+          top: 0,
+          zIndex: showEdit ? 240 : 1,
+          background: u.bg,
+          padding: '8px 0',
+          marginTop: -8,
+        }
+      },
         h('button', { onClick:function(){ if (onNavigate) onNavigate('animals'); }, style:{ border:'none', background:'transparent', color:u.textSec, fontSize:13, fontWeight:800, cursor:'pointer' } }, '< Back to Animals'),
         h('div', { style:{ display:'flex', alignItems:'center', gap:8 } },
-          h(Button, { variant:'secondary', size:'sm', iconName:'edit', onClick:function(){ setShowEdit(true); } }, 'Edit'),
+          showEdit
+            ? h(Button, {
+                size: 'sm',
+                disabled: editSaving,
+                onClick: function(){
+                  if (editSaveRef.current) editSaveRef.current();
+                }
+              }, editSaving ? 'Saving...' : 'Save')
+            : h(Button, { variant:'secondary', size:'sm', iconName:'edit', onClick:function(){ setShowEdit(true); } }, 'Edit'),
+          showEdit
+            ? h(Button, { variant:'secondary', size:'sm', onClick:function(){ setShowEdit(false); setEditSaving(false); } }, 'Cancel')
+            : null,
           h('button', {
             type: 'button',
             title: 'Delete ' + (a.name || 'animal'),
@@ -1979,7 +2030,14 @@
         ),
         isDesktop ? h('div', { style:{ width:340, flexShrink:0, position:'sticky', top:20 } }, h(PublishPanel, { data:data, reload:loadProfile, isCompact:false, postDraft:postDraft, setPostDraft:setPostDraft, posting:posting, setPosting:setPosting })) : null
       ),
-      showEdit ? h(EditDrawer, { data:data, isMobile:isMobile, onClose:function(){ setShowEdit(false); }, reload:loadProfile }) : null
+      showEdit ? h(EditDrawer, {
+        data: data,
+        isMobile: isMobile,
+        onClose: function(){ setShowEdit(false); setEditSaving(false); },
+        reload: loadProfile,
+        saveRef: editSaveRef,
+        onSavingChange: setEditSaving
+      }) : null
     );
   }
 
