@@ -12,6 +12,10 @@ const MOCK = {
     adoptionsMTD: 18, adoptionsDelta: 4,
     medicalDue: 9, medicalOverdue: 2,
     donationsMTD: 8432, donationsDeltaPct: 18,
+    applicationsMTD: 0,
+    mediaCount: 0,
+    pagesCount: 0,
+    campaignsActive: 3,
     volunteerHoursMTD: 245, volunteerDeltaPct: 18
   },
   animals: [
@@ -284,6 +288,21 @@ window.__loadDashboardData = async function() {
 
     // Applications — always replace mock (empty until real submissions exist)
     window.CPAS.applications = (overview.applications || []).map(transformApp);
+    {
+      const apps = window.CPAS.applications;
+      const status = { pending: 0, approved: 0, underReview: 0, denied: 0 };
+      for (const a of apps) {
+        const s = String(a.status || "").toLowerCase();
+        if (s.includes("approved")) status.approved += 1;
+        else if (s.includes("denied")) status.denied += 1;
+        else if (s.includes("review")) status.underReview += 1;
+        else status.pending += 1;
+      }
+      window.CPAS.chartData = {
+        ...window.CPAS.chartData,
+        applicationStatus: status,
+      };
+    }
 
     // Donations — hydrate KPIs + financial donut from succeeded Stripe rows
     if (overview.donations?.length) {
@@ -321,13 +340,32 @@ window.__loadDashboardData = async function() {
       const k = overview.kpis;
       const mtdDollars = Math.round((k.donations_mtd_cents ?? k.raised_cents ?? 0) / 100);
       const mtdCount = k.donations_mtd_count ?? k.donation_count ?? 0;
+      const fosterFromAnimals = (window.CPAS.animals || []).filter((a) =>
+        /foster/i.test(String(a.status || ""))
+      ).length;
       window.CPAS.stats = {
         ...MOCK.stats,
-        totalAnimals: k.animals || MOCK.stats.totalAnimals,
+        totalAnimals: k.animals ?? MOCK.stats.totalAnimals,
+        inFoster: k.in_foster ?? fosterFromAnimals,
+        applicationsMTD: k.applications_mtd ?? 0,
+        mediaCount: k.media_count ?? 0,
+        pagesCount: k.pages_count ?? 0,
+        campaignsActive: k.campaigns ?? (window.CPAS.campaigns || []).length,
         donationsMTD: mtdDollars,
         donationsDeltaPct: mtdCount,
         donationsMtdLabel: mtdCount === 1 ? "1 Stripe payment this month" : `${mtdCount} Stripe payments this month`,
       };
+    }
+
+    if (Array.isArray(overview.recent_activity) && overview.recent_activity.length) {
+      window.CPAS.recentActivity = overview.recent_activity.map((ev, i) => ({
+        id: ev.id || `RA-${i}`,
+        type: ev.type || "update",
+        text: ev.text || "Update",
+        at: ev.at || null,
+        time: ev.time || null,
+        link: ev.link || "overview",
+      }));
     }
 
   } catch (e) {

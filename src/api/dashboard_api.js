@@ -197,7 +197,7 @@ export async function dashboardApiRoutes(request, env, url) {
   if (path === '/api/dashboard/overview') {
     const monthPrefix = new Date().toISOString().slice(0, 7);
     const paidStatuses = new Set(['succeeded', 'paid', 'completed', 'received']);
-    const [animalRows, appRows, campaignRows, volunteerRows, donationRows] = await Promise.all([
+    const [animalRows, appRows, campaignRows, volunteerRows, donationRows, mediaCountRow, pagesCountRow] = await Promise.all([
       env.DB.prepare(`
         SELECT ap.*, ca.cdn_url AS asset_cdn_url
         FROM animal_profiles ap
@@ -208,22 +208,33 @@ export async function dashboardApiRoutes(request, env, url) {
       env.DB.prepare(`
         SELECT id, first_name, last_name,
                first_name || ' ' || last_name AS applicant_name,
-               email, phone, review_status, submitted_at, answers_json, internal_notes
+               email, phone, review_status, submitted_at, created_at, answers_json, internal_notes
         FROM cpas_foster_applications
         WHERE tenant_id = ?
-        ORDER BY submitted_at DESC LIMIT 20
+        ORDER BY COALESCE(submitted_at, created_at) DESC LIMIT 20
       `).bind(FOSTER_TENANT).all().catch(() => ({ results: [] })),
       env.DB.prepare(`SELECT *, goal_amount_cents AS goal_cents, raised_amount_cents AS raised_cents FROM fundraising_campaigns WHERE is_public = 1 ORDER BY updated_at DESC`).all().catch(() => ({ results: [] })),
       env.DB.prepare(`SELECT * FROM volunteer_records ORDER BY hours_month DESC`).all().catch(() => ({ results: [] })),
       env.DB.prepare(`
         SELECT d.amount_cents, d.status, d.campaign_id, d.donated_at, d.created_at,
+               COALESCE(dn.full_name, dn.email, 'a supporter') AS donor_name,
                fc.title AS campaign_title, fc.campaign_type
         FROM donations d
+        LEFT JOIN donors dn ON dn.id = d.donor_id
         LEFT JOIN fundraising_campaigns fc ON fc.id = d.campaign_id
         WHERE d.organization_id = ?
         ORDER BY COALESCE(d.donated_at, d.created_at) DESC
       `).bind(TENANT).all().catch(() => ({ results: [] })),
+      env.DB.prepare(`
+        SELECT COUNT(*) AS n FROM cms_assets
+        WHERE tenant_id = ? AND (status IS NULL OR status = 'active')
+      `).bind(TENANT).first().catch(() => ({ n: 0 })),
+      env.DB.prepare(`
+        SELECT COUNT(*) AS n FROM cms_pages WHERE tenant_id = ?
+      `).bind(TENANT).first().catch(() => ({ n: 0 })),
     ]);
+    const animals = animalRows.results || [];
+    const apps = appRows.results || [];
     const paidDonations = (donationRows.results || []).filter((row) =>
       paidStatuses.has(String(row.status || '').toLowerCase())
     );
@@ -233,19 +244,72 @@ export async function dashboardApiRoutes(request, env, url) {
     );
     const mtdCents = mtdDonations.reduce((sum, row) => sum + Number(row.amount_cents || 0), 0);
     const goal = (campaignRows.results || []).reduce((s, c) => s + Number(c.goal_cents || 0), 0);
+    const inFoster = animals.filter((a) => /foster/i.test(String(a.status || ''))).length;
+    const applicationsMtd = apps.filter((a) =>
+      String(a.submitted_at || a.created_at || '').slice(0, 7) === monthPrefix
+    ).length;
+
+    // Recent activity — synthesize from live D1 rows (audit_log is empty today)
+    const activity = [];
+    for (const a of animals.slice(0, 8)) {
+      const when = a.updated_at || a.created_at;
+      if (!when) continue;
+      activity.push({
+        id: `animal_${a.id}_${when}`,
+        type: "animal",
+        text: a.created_at && a.created_at === a.updated_at
+          ? `Animal added — ${a.name}`
+          : `Animal updated — ${a.name}`,
+        at: when,
+        link: "animals",
+      });
+    }
+    for (const a of apps.slice(0, 8)) {
+      const when = a.submitted_at || a.created_at;
+      if (!when) continue;
+      const name = a.applicant_name || [a.first_name, a.last_name].filter(Boolean).join(" ") || "Applicant";
+      activity.push({
+        id: `app_${a.id}`,
+        type: "application",
+        text: `Application submitted — ${name}`,
+        at: when,
+        link: "applications",
+      });
+    }
+    for (const d of paidDonations.slice(0, 8)) {
+      const when = d.donated_at || d.created_at;
+      if (!when) continue;
+      const dollars = Math.round(Number(d.amount_cents || 0) / 100);
+      const donor = d.donor_name || "a supporter";
+      activity.push({
+        id: `don_${when}_${dollars}`,
+        type: "donation",
+        text: `Donation received — $${dollars.toLocaleString()} from ${donor}`,
+        at: when,
+        link: "fundraising",
+      });
+    }
+    activity.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+
     return json({
       kpis: {
-        animals:      animalRows.results?.length || 0,
-        applications: appRows.results?.length    || 0,
+        animals:      animals.length,
+        in_foster:    inFoster,
+        applications: apps.length,
+        applications_mtd: applicationsMtd,
         volunteers:   volunteerRows.results?.length || 0,
         raised_cents: raisedFromDonations,
         donations_mtd_cents: mtdCents,
         donation_count: paidDonations.length,
         donations_mtd_count: mtdDonations.length,
+        media_count:  Number(mediaCountRow?.n || 0),
+        pages_count:  Number(pagesCountRow?.n || 0),
+        campaigns:    (campaignRows.results || []).length,
         goal_cents:   goal,
       },
-      animals:      (animalRows.results || []).map(normalizeAnimal),
-      applications: appRows.results || [],
+      recent_activity: activity.slice(0, 8),
+      animals:      animals.map(normalizeAnimal),
+      applications: apps,
       campaigns:    campaignRows.results || [],
       volunteers:   volunteerRows.results || [],
       donations:    paidDonations,
