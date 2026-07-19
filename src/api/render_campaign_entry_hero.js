@@ -236,10 +236,11 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
         <form data-ceh-form novalidate>
           <section data-ceh-step="entry">
             <div class="ceh-grid-fields">
-              <div class="ceh-field"><label for="${modalId}-owner">Owner’s full name <span>*</span></label><input id="${modalId}-owner" name="owner_name" autocomplete="name" required></div>
-              <div class="ceh-field"><label for="${modalId}-phone">Phone number <span>*</span></label><input id="${modalId}-phone" name="owner_phone" type="tel" autocomplete="tel" required></div>
-              <div class="ceh-field"><label for="${modalId}-email">Email address <span>*</span></label><input id="${modalId}-email" name="owner_email" type="email" autocomplete="email" required></div>
-              <div class="ceh-field"><label for="${modalId}-pet">Pet’s name <span>*</span></label><input id="${modalId}-pet" name="dog_name" required></div>
+              <div class="ceh-field"><label for="${modalId}-first">First name <span>*</span></label><input id="${modalId}-first" name="owner_first_name" autocomplete="given-name" inputmode="text" pattern="[A-Za-z]+(?:['-][A-Za-z]+)*" maxlength="40" required placeholder="Letters only"></div>
+              <div class="ceh-field"><label for="${modalId}-last">Last name <span>*</span></label><input id="${modalId}-last" name="owner_last_name" autocomplete="family-name" inputmode="text" pattern="[A-Za-z]+(?:['-][A-Za-z]+)*" maxlength="40" required placeholder="Letters only"></div>
+              <div class="ceh-field"><label for="${modalId}-phone">Phone number <span>*</span></label><input id="${modalId}-phone" name="owner_phone" type="tel" autocomplete="tel" inputmode="numeric" maxlength="14" required placeholder="10-digit US phone"></div>
+              <div class="ceh-field"><label for="${modalId}-email">Email address <span>*</span></label><input id="${modalId}-email" name="owner_email" type="email" autocomplete="email" required placeholder="name@example.com"></div>
+              <div class="ceh-field ceh-field--full"><label for="${modalId}-pet">Pet’s name <span>*</span></label><input id="${modalId}-pet" name="dog_name" required maxlength="60"></div>
               <div class="ceh-field ceh-field--full">
                 <label>Pet photo <span>*</span></label>
                 <label class="ceh-upload" for="${modalId}-photo">
@@ -249,10 +250,10 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
                   </span>
                   <span>
                     <strong>Choose one wet-dog photo</strong>
-                    <small>JPG, PNG or WEBP. Previewed before payment, then reviewed by the team.</small>
+                    <small>JPG, PNG, WEBP, or HEIC (iPhone). Previewed before payment, then reviewed by the team.</small>
                   </span>
                 </label>
-                <input id="${modalId}-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required hidden>
+                <input id="${modalId}-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" required hidden>
               </div>
               <div class="ceh-field ceh-field--full">
                 <label for="${modalId}-caption">Short caption</label>
@@ -331,11 +332,25 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
     setError("");
   }
 
+  const ALPHA_NAME = /^[A-Za-z]+(?:['-][A-Za-z]+)*$/;
+  const EMAIL_RE = /^[A-Za-z0-9.!#$%&'*+/=?^_\`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
+  const ALLOWED_PHOTO = /^(image\\/(jpeg|jpg|png|webp|heic|heif))$/i;
+
+  function digitsOnly(value) {
+    return String(value || "").replace(/\\D/g, "");
+  }
+
+  function ownerFullName() {
+    const first = String(form.elements.namedItem("owner_first_name")?.value || "").trim();
+    const last = String(form.elements.namedItem("owner_last_name")?.value || "").trim();
+    return [first, last].filter(Boolean).join(" ");
+  }
+
   function openModal() {
     modal.dataset.open = "true";
     document.body.style.overflow = "hidden";
     setStep("entry");
-    setTimeout(() => root.querySelector('input[name="owner_name"]')?.focus(), 40);
+    setTimeout(() => root.querySelector('input[name="owner_first_name"]')?.focus(), 40);
   }
 
   function closeModal() {
@@ -345,25 +360,59 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
   }
 
   function validateEntry() {
-    const required = [
-      ["owner_name", "Owner’s full name is required."],
-      ["owner_phone", "Phone number is required."],
-      ["owner_email", "A valid email address is required."],
-      ["dog_name", "Pet’s name is required."],
-    ];
-    for (const [name, message] of required) {
-      const field = form.elements.namedItem(name);
-      if (!field || !String(field.value || "").trim() || (field.checkValidity && !field.checkValidity())) {
-        field?.focus?.();
-        setError(message);
-        return false;
-      }
+    const firstField = form.elements.namedItem("owner_first_name");
+    const lastField = form.elements.namedItem("owner_last_name");
+    const phoneField = form.elements.namedItem("owner_phone");
+    const emailField = form.elements.namedItem("owner_email");
+    const petField = form.elements.namedItem("dog_name");
+    const first = String(firstField?.value || "").trim();
+    const last = String(lastField?.value || "").trim();
+    const phoneDigits = digitsOnly(phoneField?.value);
+    const email = String(emailField?.value || "").trim().toLowerCase();
+    const pet = String(petField?.value || "").trim();
+
+    if (!first || !ALPHA_NAME.test(first)) {
+      firstField?.focus?.();
+      setError("First name is required and may only include letters A–Z (hyphen or apostrophe allowed).");
+      return false;
+    }
+    if (!last || !ALPHA_NAME.test(last)) {
+      lastField?.focus?.();
+      setError("Last name is required and may only include letters A–Z (hyphen or apostrophe allowed).");
+      return false;
+    }
+    if (phoneDigits.length !== 10) {
+      phoneField?.focus?.();
+      setError("Phone number must be exactly 10 digits.");
+      return false;
+    }
+    if (!email || !EMAIL_RE.test(email)) {
+      emailField?.focus?.();
+      setError("Enter a valid email address (example: name@example.com).");
+      return false;
+    }
+    if (!pet) {
+      petField?.focus?.();
+      setError("Pet’s name is required.");
+      return false;
     }
     if (!photoInput.files || !photoInput.files[0]) {
       setError("Choose one pet photo before continuing.");
       return false;
     }
-    if (photoInput.files[0].size > 10 * 1024 * 1024) {
+    const file = photoInput.files[0];
+    const mime = String(file.type || "").toLowerCase();
+    const name = String(file.name || "").toLowerCase();
+    const heicByExt = name.endsWith(".heic") || name.endsWith(".heif");
+    if (mime && !ALLOWED_PHOTO.test(mime) && !heicByExt) {
+      setError("Photo must be JPG, PNG, WEBP, or HEIC.");
+      return false;
+    }
+    if (!mime && !heicByExt) {
+      setError("Photo must be JPG, PNG, WEBP, or HEIC.");
+      return false;
+    }
+    if (file.size > 10 * 1024 * 1024) {
       setError("Photo must be under 10 MB.");
       return false;
     }
@@ -371,12 +420,14 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
       setError("Photo-use consent is required before continuing.");
       return false;
     }
+    if (phoneField) phoneField.value = phoneDigits.replace(/(\\d{3})(\\d{3})(\\d{4})/, "($1) $2-$3");
+    if (emailField) emailField.value = email;
     return true;
   }
 
   function populateSummary() {
     const pet = String(form.elements.namedItem("dog_name").value || "").trim();
-    const owner = String(form.elements.namedItem("owner_name").value || "").trim();
+    const owner = ownerFullName();
     const email = String(form.elements.namedItem("owner_email").value || "").trim();
     const phone = String(form.elements.namedItem("owner_phone").value || "").trim();
     root.querySelector("[data-ceh-summary-pet]").textContent = pet;
@@ -401,13 +452,22 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
 
     try {
       if (!campaignId) throw new Error("This section is missing a campaign_id in CMS config.");
+      const first = String(form.elements.namedItem("owner_first_name").value || "").trim();
+      const last = String(form.elements.namedItem("owner_last_name").value || "").trim();
+      const ownerName = ownerFullName();
+      const phoneDigits = digitsOnly(form.elements.namedItem("owner_phone").value);
+      const donorEmail = String(form.elements.namedItem("owner_email").value || "").trim().toLowerCase();
+      const petName = String(form.elements.namedItem("dog_name").value || "").trim();
+
       const payload = new FormData();
       payload.set("campaign_id", campaignId);
       payload.set("entry_fee_cents", String(feeCents));
-      payload.set("owner_name", String(form.elements.namedItem("owner_name").value || "").trim());
-      payload.set("owner_phone", String(form.elements.namedItem("owner_phone").value || "").trim());
-      payload.set("owner_email", String(form.elements.namedItem("owner_email").value || "").trim());
-      payload.set("dog_name", String(form.elements.namedItem("dog_name").value || "").trim());
+      payload.set("owner_first_name", first);
+      payload.set("owner_last_name", last);
+      payload.set("owner_name", ownerName);
+      payload.set("owner_phone", phoneDigits);
+      payload.set("owner_email", donorEmail);
+      payload.set("dog_name", petName);
       payload.set("caption", String(form.elements.namedItem("caption").value || "").trim());
       payload.set("photo_consent", "1");
       payload.set("category", "general");
@@ -419,9 +479,6 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
         throw new Error(data.error || "Could not save your entry.");
       }
 
-      const donorEmail = String(form.elements.namedItem("owner_email").value || "").trim();
-      const petName = String(form.elements.namedItem("dog_name").value || "").trim();
-      const ownerName = String(form.elements.namedItem("owner_name").value || "").trim();
       const note = "Wet Dog Competition entry — " + petName + " (" + data.entry_id + ")";
 
       closeModal();
@@ -475,8 +532,19 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
   photoInput?.addEventListener("change", () => {
     const file = photoInput.files && photoInput.files[0];
     if (!file) return;
+    const mime = String(file.type || "").toLowerCase();
+    const name = String(file.name || "").toLowerCase();
+    const isHeic = mime.includes("heic") || mime.includes("heif") || name.endsWith(".heic") || name.endsWith(".heif");
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     objectUrl = URL.createObjectURL(file);
+    if (isHeic) {
+      // Many browsers cannot preview HEIC — still accept the file for upload
+      photoPreview.removeAttribute("src");
+      photoPreview.style.display = "none";
+      if (photoPlaceholder) photoPlaceholder.style.display = "block";
+      setError("");
+      return;
+    }
     photoPreview.src = objectUrl;
     photoPreview.style.display = "block";
     if (photoPlaceholder) photoPlaceholder.style.display = "none";

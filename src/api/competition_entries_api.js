@@ -8,8 +8,17 @@
 
 const TENANT_ID = "tenant_companionscpas";
 const CDN = "https://assets.companionsofcaddo.org";
-const ALLOWED_MIME = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const ALLOWED_MIME = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
 const MAX_BYTES = 10 * 1024 * 1024;
+const ALPHA_NAME_RE = /^[A-Za-z]+(?:['-][A-Za-z]+)*$/;
+const EMAIL_RE = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -54,8 +63,10 @@ async function handleCreateEntry(request, env) {
   }
 
   const campaignId = text(form.get("campaign_id"));
-  const ownerName = text(form.get("owner_name"));
-  const ownerPhone = text(form.get("owner_phone"));
+  const ownerFirst = text(form.get("owner_first_name"));
+  const ownerLast = text(form.get("owner_last_name"));
+  const ownerName = text(form.get("owner_name")) || [ownerFirst, ownerLast].filter(Boolean).join(" ");
+  const ownerPhoneDigits = text(form.get("owner_phone")).replace(/\D/g, "");
   const ownerEmail = text(form.get("owner_email")).toLowerCase();
   const dogName = text(form.get("dog_name") || form.get("pet_name"));
   const caption = text(form.get("caption")).slice(0, 240);
@@ -64,9 +75,19 @@ async function handleCreateEntry(request, env) {
   const category = text(form.get("category")) || "general";
 
   if (!campaignId) return json({ ok: false, error: "campaign_id is required" }, 400);
+  if (!ownerFirst || !ALPHA_NAME_RE.test(ownerFirst)) {
+    return json({ ok: false, error: "First name is required and may only include letters A–Z" }, 400);
+  }
+  if (!ownerLast || !ALPHA_NAME_RE.test(ownerLast)) {
+    return json({ ok: false, error: "Last name is required and may only include letters A–Z" }, 400);
+  }
   if (!ownerName) return json({ ok: false, error: "Owner name is required" }, 400);
-  if (!ownerPhone) return json({ ok: false, error: "Phone number is required" }, 400);
-  if (!ownerEmail || !ownerEmail.includes("@")) return json({ ok: false, error: "Valid email is required" }, 400);
+  if (ownerPhoneDigits.length !== 10) {
+    return json({ ok: false, error: "Phone number must be exactly 10 digits" }, 400);
+  }
+  if (!ownerEmail || !EMAIL_RE.test(ownerEmail)) {
+    return json({ ok: false, error: "Enter a valid email address (example: name@example.com)" }, 400);
+  }
   if (!dogName) return json({ ok: false, error: "Pet name is required" }, 400);
   if (!(consent === "1" || consent === "true" || consent === "on")) {
     return json({ ok: false, error: "Photo consent is required" }, 400);
@@ -74,8 +95,14 @@ async function handleCreateEntry(request, env) {
   if (!file || typeof file.arrayBuffer !== "function") {
     return json({ ok: false, error: "Pet photo is required" }, 400);
   }
-  if (!ALLOWED_MIME.has(file.type)) {
-    return json({ ok: false, error: "Photo must be JPG, PNG, or WebP" }, 400);
+  const fileName = String(file.name || "").toLowerCase();
+  const mime = String(file.type || "").toLowerCase();
+  const heicByExt = fileName.endsWith(".heic") || fileName.endsWith(".heif");
+  if (mime && !ALLOWED_MIME.has(mime) && !heicByExt) {
+    return json({ ok: false, error: "Photo must be JPG, PNG, WEBP, or HEIC" }, 400);
+  }
+  if (!mime && !heicByExt) {
+    return json({ ok: false, error: "Photo must be JPG, PNG, WEBP, or HEIC" }, 400);
   }
 
   const campaign = await env.DB.prepare(`
@@ -107,7 +134,12 @@ async function handleCreateEntry(request, env) {
   const r2Key = `media/campaign/${campaignId}/entries/${id}/${filename}`;
   const photoUrl = `${CDN}/${r2Key}`;
   const ip = request.headers.get("CF-Connecting-IP") || null;
-  const metadata = { photo_consent: true, source: "campaign_entry_hero" };
+  const metadata = {
+    photo_consent: true,
+    source: "campaign_entry_hero",
+    owner_first_name: ownerFirst,
+    owner_last_name: ownerLast,
+  };
 
   await env.DB.prepare(`
     INSERT INTO competition_entries
@@ -119,15 +151,19 @@ async function handleCreateEntry(request, env) {
             'pending', 'pending_upload', 'pending', 0,
             ?, ?, datetime('now'), datetime('now'))
   `).bind(
-    id, TENANT_ID, campaignId, ownerName, ownerEmail, ownerPhone,
+    id, TENANT_ID, campaignId, ownerName, ownerEmail, ownerPhoneDigits,
     dogName, category, caption || null, entryFeeCents,
     ip, JSON.stringify(metadata)
   ).run();
 
+  const contentType = mime
+    || (heicByExt ? "image/heic" : "")
+    || "application/octet-stream";
+
   try {
     await env.WEBSITE_ASSETS.put(r2Key, bytes, {
       httpMetadata: {
-        contentType: file.type,
+        contentType,
         cacheControl: "public, max-age=31536000, immutable",
       },
       customMetadata: {

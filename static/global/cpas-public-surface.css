@@ -478,13 +478,14 @@
   color: rgba(255, 255, 255, 0.32);
 }
 .footer-iam-logo {
-  height: 28px;
-  width: 28px;
+  height: 52px;
+  width: auto;
+  max-width: 160px;
   object-fit: contain;
-  opacity: 0.55;
+  opacity: 0.85;
   transition: opacity 0.2s;
 }
-.footer-iam-mark:hover .footer-iam-logo { opacity: 0.9; }
+.footer-iam-mark:hover .footer-iam-logo { opacity: 1; }
 .footer-col-label {
   font-size: 10px;
   font-weight: 700;
