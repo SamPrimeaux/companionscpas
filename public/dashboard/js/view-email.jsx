@@ -422,20 +422,37 @@ function EmailView() {
   }
 
   function canHardDeleteMessages() {
-    return view === "inbox" || view === "important" || view === "folder";
+    return view === "inbox" || view === "important" || view === "folder" || view === "sent";
+  }
+
+  function deleteApiPath(msgId) {
+    if (view === "sent") {
+      return msgId
+        ? "/api/email/outbound/" + encodeURIComponent(msgId)
+        : "/api/email/outbound";
+    }
+    return msgId
+      ? "/api/email/messages/" + encodeURIComponent(msgId)
+      : "/api/email/messages";
   }
 
   function removeMessagesLocally(ids) {
     const idSet = {};
     (ids || []).forEach(function(id) { idSet[id] = true; });
-    const removedUnread = messages.filter(function(m) {
-      return idSet[m.id] && m.status === "unread";
-    }).length;
-    setMessages(function(prev) {
-      return prev.filter(function(m) { return !idSet[m.id]; });
-    });
-    if (removedUnread) {
-      setUnreadCount(function(n) { return Math.max(0, n - removedUnread); });
+    if (view === "sent") {
+      setSent(function(prev) {
+        return prev.filter(function(m) { return !idSet[m.id]; });
+      });
+    } else {
+      const removedUnread = messages.filter(function(m) {
+        return idSet[m.id] && m.status === "unread";
+      }).length;
+      setMessages(function(prev) {
+        return prev.filter(function(m) { return !idSet[m.id]; });
+      });
+      if (removedUnread) {
+        setUnreadCount(function(n) { return Math.max(0, n - removedUnread); });
+      }
     }
     if (selected && idSet[selected]) {
       setSelected(null);
@@ -447,7 +464,7 @@ function EmailView() {
     if (e) e.stopPropagation();
     if (!msgId || !canHardDeleteMessages()) return;
     if (!window.confirm("Delete this message?")) return;
-    emailApi("/api/email/messages/" + encodeURIComponent(msgId), { method: "DELETE" })
+    emailApi(deleteApiPath(msgId), { method: "DELETE" })
       .then(function() {
         removeMessagesLocally([msgId]);
         notify("Message deleted.");
@@ -461,9 +478,9 @@ function EmailView() {
       .filter(function(m) { return m && m.id && !m.is_notification; })
       .map(function(m) { return m.id; });
     if (!ids.length) return;
-    const label = view === "inbox" ? "Clear inbox" : "Delete all";
+    const label = view === "inbox" ? "Clear inbox" : view === "sent" ? "Clear sent" : "Delete all";
     if (!window.confirm(label + ": permanently delete " + ids.length + " message(s)?")) return;
-    emailApi("/api/email/messages", {
+    emailApi(deleteApiPath(), {
       method: "DELETE",
       body: JSON.stringify({ ids: ids }),
     })
@@ -847,7 +864,7 @@ function EmailView() {
                 type: "button",
                 className: "mail-clear-btn",
                 onClick: clearListedMessages,
-              }, view === "inbox" ? "Clear inbox" : "Delete all")
+              }, view === "inbox" ? "Clear inbox" : view === "sent" ? "Clear sent" : "Delete all")
             )
           ),
           React.createElement("div", { className: "mail-rows" },
@@ -884,17 +901,17 @@ function EmailView() {
                     })
                   )
                 ),
-                view !== "sent" && view !== "drafts" && view !== "notifications" && React.createElement("div", {
+                canHardDeleteMessages() && React.createElement("div", {
                   className: "mail-row-actions",
                   onClick: function(e) { e.stopPropagation(); },
                 },
-                  React.createElement("button", {
+                  view !== "sent" && React.createElement("button", {
                     type: "button",
                     className: "mail-star-btn" + (m.is_important ? " is-active" : ""),
                     onClick: function(e) { toggleStar(m, e); },
                     "aria-label": "Star",
                   }, React.createElement(Icon, { name: "star", size: 14 })),
-                  canHardDeleteMessages() && React.createElement("button", {
+                  React.createElement("button", {
                     type: "button",
                     className: "mail-trash-btn",
                     onClick: function(e) { deleteMessage(m.id, e); },

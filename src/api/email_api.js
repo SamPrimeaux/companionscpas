@@ -618,6 +618,31 @@ export async function emailApiRoutes(request, env, url) {
     return json({ messages });
   }
 
+  if (path === "/api/email/outbound" && method === "DELETE") {
+    const data = await body(request);
+    const ids = Array.isArray(data.ids)
+      ? [...new Set(data.ids.map((v) => String(v || "").trim()).filter(Boolean))]
+      : [];
+    if (!ids.length) return json({ error: "ids is required" }, 400);
+    if (ids.length > 200) return json({ error: "Too many ids (max 200)" }, 400);
+    const placeholders = ids.map(() => "?").join(", ");
+    const result = await env.DB.prepare(
+      `DELETE FROM email_logs WHERE tenant_id = ? AND id IN (${placeholders})`
+    ).bind(TENANT_ID, ...ids).run();
+    return json({ ok: true, deleted: Number(result?.meta?.changes || 0) });
+  }
+
+  const outboundDeleteMatch = path.match(/^\/api\/email\/outbound\/([^/]+)$/);
+  if (outboundDeleteMatch && method === "DELETE") {
+    const logId = decodeURIComponent(outboundDeleteMatch[1]);
+    const result = await env.DB.prepare(
+      "DELETE FROM email_logs WHERE id = ? AND tenant_id = ?"
+    ).bind(logId, TENANT_ID).run();
+    const deleted = Number(result?.meta?.changes || 0);
+    if (!deleted) return json({ error: "Not found" }, 404);
+    return json({ ok: true, deleted: 1 });
+  }
+
   if (path === "/api/email/templates" && method === "GET") {
     const rows = await env.DB.prepare(
       "SELECT id, template_key, subject, body_text, body_html, status FROM email_templates WHERE tenant_id = ? AND status = 'active' ORDER BY template_key"
