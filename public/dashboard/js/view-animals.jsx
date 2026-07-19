@@ -1601,8 +1601,8 @@
     return h('div', { style:{ width:isCompact ? '100%' : 340 } },
       section('Publishing', h('div', null,
         h('div', { style:{ marginBottom:10 } }, h(FieldLabel, null, 'Status'), h(SelectInput, { value:a.status || 'available', onChange:function(v){ patchAnimal({ status:v }); }, options:[{value:'available', label:'Available'}, {value:'foster', label:'Foster'}, {value:'medical', label:'Medical'}, {value:'adopted', label:'Adopted'}] })),
-        h(ToggleRow, { label:'Visible', help:'Show on public website', checked:Number(a.public_visible) === 1, onClick:function(){ patchAnimal({ public_visible:Number(a.public_visible) === 1 ? 0 : 1 }); } }),
-        h(ToggleRow, { label:'Featured', help:'Prioritize in animal grids', checked:Number(a.featured) === 1, onClick:function(){ patchAnimal({ featured:Number(a.featured) === 1 ? 0 : 1 }); } }),
+        h(ToggleRow, { label:'Visible', help:'Show on /adopt (and live animal gallery)', checked:Number(a.public_visible) === 1, onClick:function(){ patchAnimal({ public_visible:Number(a.public_visible) === 1 ? 0 : 1 }); } }),
+        h(ToggleRow, { label:'Featured', help:'Pin near the top of /adopt grids', checked:Number(a.featured) === 1, onClick:function(){ patchAnimal({ featured:Number(a.featured) === 1 ? 0 : 1 }); } }),
         h('div', { style:{ marginTop:12 } }, h(FieldLabel, null, 'Profile completeness'), h('div', { style:{ display:'flex', alignItems:'center', gap:8 } }, h('div', { style:{ flex:1, height:7, borderRadius:99, background:'rgba(255,255,255,.08)', overflow:'hidden' } }, h('div', { style:{ width:percentProfile(a) + '%', height:'100%', background:u.purple } })), h('span', { style:{ color:u.textMut, fontSize:12, fontWeight:800 } }, percentProfile(a) + '%')))
       )),
       section('Post & Schedule', h('div', null,
