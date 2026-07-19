@@ -1540,10 +1540,10 @@ function MediaStorageMeter({ stats }) {
 }
 
 function mediaUsageTags(asset) {
+  // Only show tags backed by cms_asset_usages rows (never a bare "Live")
   const live = asset?.live_labels || [];
-  const all = asset?.usage_labels || [];
   if (live.length) return live.slice(0, 3);
-  if (asset?.is_live_usage) return ["Live"];
+  const all = asset?.usage_labels || [];
   return all.slice(0, 2);
 }
 
@@ -1641,14 +1641,16 @@ function MediaPreviewModal({ asset, onClose, onSave, onDelete, copyUrl, notify }
         React.createElement("div", { className: "media-preview-kv" },
           React.createElement("span", null, mediaFormatBytes(asset.size)),
           React.createElement("span", null, asset.mime_type || asset.asset_type || "file"),
-          React.createElement("span", null, asset.r2_key || mediaFolderLabel(mediaFolderKey(asset)))
+          React.createElement("span", null, mediaFolderLabel(mediaFolderKey(asset)) || "Library")
         ),
-        usageTags.length > 0 && React.createElement("div", { className: "media-usage-tags" },
-          usageTags.map((t, i) => React.createElement("span", {
-            key: i,
-            className: "media-usage-tag" + ((asset.live_labels || []).includes(t) || asset.is_live_usage ? " is-live" : ""),
-          }, t))
-        ),
+        usageTags.length > 0
+          ? React.createElement("div", { className: "media-usage-tags" },
+              usageTags.map((t, i) => React.createElement("span", {
+                key: i,
+                className: "media-usage-tag" + ((asset.live_labels || []).includes(t) ? " is-live" : ""),
+              }, t))
+            )
+          : React.createElement("div", { className: "media-usage-empty" }, "Not linked to a live page yet"),
         React.createElement("code", { className: "media-preview-url" }, url)
       ),
       React.createElement("div", { className: "media-preview-actions" },

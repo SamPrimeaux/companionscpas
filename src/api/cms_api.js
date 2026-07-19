@@ -958,11 +958,12 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     const enriched = assets.map((a) => {
       const usages = usageMap.get(a.id) || [];
       const liveUsages = usages.filter((u) => u.is_live);
+      // Trust only cms_asset_usages — ignore legacy cms_assets.is_live flags
       return {
         ...a,
         usages,
         usage_labels: usages.map((u) => u.label),
-        is_live_usage: liveUsages.length > 0 || Number(a.is_live) === 1,
+        is_live_usage: liveUsages.length > 0,
         live_labels: liveUsages.map((u) => u.label),
       };
     });
