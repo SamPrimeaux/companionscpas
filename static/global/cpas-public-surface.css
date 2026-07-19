@@ -454,8 +454,37 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   margin-bottom: 1.5rem;
 }
-.site-footer .footer-brand img { height: 48px; width: auto; margin-bottom: 1rem; }
+/* Match header mark weight (~90px = --header-h + 18) */
+.site-footer .footer-brand-logo {
+  display: block;
+  height: 90px;
+  width: 90px;
+  object-fit: contain;
+  margin-bottom: 1rem;
+}
 .footer-tagline { font-size: 13px; color: rgba(255, 255, 255, 0.62); line-height: 1.65; max-width: 240px; }
+.footer-iam-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+.footer-iam-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.32);
+}
+.footer-iam-logo {
+  height: 28px;
+  width: 28px;
+  object-fit: contain;
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+.footer-iam-mark:hover .footer-iam-logo { opacity: 0.9; }
 .footer-col-label {
   font-size: 10px;
   font-weight: 700;
