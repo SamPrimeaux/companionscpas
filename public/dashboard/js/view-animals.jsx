@@ -791,14 +791,56 @@
     var assetsState = useState(null), assets = assetsState[0], setAssets = assetsState[1];
     var loadingState = useState(true), loading = loadingState[0], setLoading = loadingState[1];
     var errorState = useState(''), error = errorState[0], setError = errorState[1];
+    var categoryState = useState('all'), category = categoryState[0], setCategory = categoryState[1];
 
     useEffect(function(){
       setLoading(true); setError('');
-      apiJSON('/api/cms/assets?category=animal')
+      // Same source as /dashboard/cms/images (cms_assets) — no category filter so all library assets surface
+      apiJSON('/api/cms/assets')
         .then(function(d){ setAssets(d.assets || []); })
         .catch(function(e){ setError(e.message || 'Failed to load library images'); })
         .finally(function(){ setLoading(false); });
     }, []);
+
+    function categoryLabel(raw) {
+      var key = String(raw || '').toLowerCase();
+      if (!key) return 'Uncategorized';
+      if (key === 'animal' || key === 'animals' || key === 'animal_profile') return 'Animals';
+      if (key === 'campaign' || key === 'campaign_cover') return 'Campaign';
+      if (key === 'global' || key === 'image') return key === 'global' ? 'Global' : 'Images';
+      if (key === 'competition') return 'Competition';
+      return key.replace(/[_-]+/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+    }
+
+    function categoryGroup(raw) {
+      var key = String(raw || '').toLowerCase();
+      if (key === 'animal' || key === 'animals' || key === 'animal_profile') return 'animals';
+      if (key === 'campaign' || key === 'campaign_cover') return 'campaign';
+      if (key === 'competition') return 'competition';
+      if (key === 'global') return 'global';
+      if (key === 'image' || !key) return 'image';
+      return key;
+    }
+
+    var categories = ['all'];
+    var categoryCounts = { all: (assets || []).length };
+    (assets || []).forEach(function(asset){
+      var g = categoryGroup(asset.category);
+      if (categories.indexOf(g) === -1) categories.push(g);
+      categoryCounts[g] = (categoryCounts[g] || 0) + 1;
+    });
+    categories.sort(function(a, b){
+      if (a === 'all') return -1;
+      if (b === 'all') return 1;
+      if (a === 'animals') return -1;
+      if (b === 'animals') return 1;
+      return a.localeCompare(b);
+    });
+
+    var filtered = (assets || []).filter(function(asset){
+      if (category === 'all') return true;
+      return categoryGroup(asset.category) === category;
+    });
 
     var content;
     if (loading) {
@@ -806,10 +848,12 @@
     } else if (error) {
       content = h('div', { style:{ padding:30, textAlign:'center', color:u.red } }, error);
     } else if (!assets || assets.length === 0) {
-      content = h('div', { style:{ padding:30, textAlign:'center', color:u.textMut } }, 'No animal photos in library.');
+      content = h('div', { style:{ padding:30, textAlign:'center', color:u.textMut } }, 'No photos in library yet.');
+    } else if (!filtered.length) {
+      content = h('div', { style:{ padding:30, textAlign:'center', color:u.textMut } }, 'No photos in this category.');
     } else {
-      content = h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:12, maxHeight:320, overflowY:'auto', padding:'4px 2px' } },
-        assets.map(function(asset){
+      content = h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:12, maxHeight:isMobile ? '60vh' : 420, overflowY:'auto', padding:'4px 2px' } },
+        filtered.map(function(asset){
           var url = asset.public_url || asset.cdn_url || asset.pub_url || asset.url || '';
           return h('div', {
             key: asset.id,
@@ -835,10 +879,37 @@
     }
 
     return h('div', { style:{ position:'fixed', inset:0, zIndex:250, background:'rgba(0,0,0,.52)', display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? 0 : 16 } },
-      h('div', { style:{ width:isMobile ? '100%' : 460, maxHeight:'90vh', background:u.bg, border:'1px solid ' + u.border, borderRadius:isMobile ? 0 : 16, padding:18, display:'flex', flexDirection:'column', boxSizing:'border-box' } },
-        h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 } },
+      h('div', { style:{ width:isMobile ? '100%' : 520, maxHeight:'90vh', background:u.bg, border:'1px solid ' + u.border, borderRadius:isMobile ? 0 : 16, padding:18, display:'flex', flexDirection:'column', boxSizing:'border-box' } },
+        h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, gap:10 } },
           h('h3', { style:{ margin:0, color:u.text, fontSize:16, fontWeight:800 } }, 'Select Photo from Library'),
           h(Button, { variant:'secondary', size:'sm', onClick:onClose }, 'Close')
+        ),
+        !loading && !error && assets && assets.length > 0 && h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:12, flexWrap:'wrap' } },
+          h('label', { style:{ fontSize:12, fontWeight:700, color:u.textSec } }, 'Category'),
+          h('select', {
+            value: category,
+            onChange: function(e){ setCategory(e.target.value); },
+            style: {
+              flex: 1,
+              minWidth: 160,
+              height: 34,
+              borderRadius: 10,
+              border: '1px solid ' + u.border,
+              background: u.surface,
+              color: u.text,
+              fontSize: 13,
+              fontWeight: 600,
+              padding: '0 10px',
+              fontFamily: 'inherit',
+            }
+          },
+            categories.map(function(key){
+              var label = key === 'all' ? 'All images' : categoryLabel(key);
+              var count = categoryCounts[key] || 0;
+              return h('option', { key: key, value: key }, label + ' (' + count + ')');
+            })
+          ),
+          h('span', { style:{ fontSize:11, color:u.textMut, fontWeight:600 } }, filtered.length + ' shown')
         ),
         content
       )
