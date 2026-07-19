@@ -199,48 +199,7 @@ function OverviewView({ onNavigate }) {
         React.createElement(MetricTile, { icon:"dollar", label:"Donations MTD",          value: `$${(stats.donationsMTD || 0).toLocaleString()}` })
       ),
 
-      // Recent activity (live D1-backed feed)
-      React.createElement(Card, { style:{ padding:20, minWidth:0, marginBottom:24 } },
-        React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 } },
-          React.createElement("h3", { className: "dash-section-title", style:{ margin:0 } }, "Recent Activity")
-        ),
-        activity.length
-          ? React.createElement("div", { style:{ display:"flex", flexDirection:"column", gap:0 } },
-              activity.map((ev) =>
-                React.createElement("button", {
-                  key: ev.id,
-                  type: "button",
-                  onClick: () => ev.link && onNavigate(ev.link),
-                  style: {
-                    display: "flex", alignItems: "flex-start", gap: 12,
-                    padding: "12px 0",
-                    border: "none", borderBottom: `1px solid ${C.border}`,
-                    background: "transparent", cursor: ev.link ? "pointer" : "default",
-                    textAlign: "left", width: "100%", fontFamily: "inherit",
-                  }
-                },
-                  React.createElement("div", {
-                    style: {
-                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                      background: C.bg2, color: C.purple,
-                      display: "grid", placeItems: "center",
-                    }
-                  }, React.createElement(Icon, { name: activityIcon(ev.type), size: 15 })),
-                  React.createElement("div", { style:{ minWidth:0, flex:1 } },
-                    React.createElement("div", { style:{ fontSize:13, fontWeight:600, color:C.text, lineHeight:1.4 } }, ev.text),
-                    React.createElement("div", { style:{ fontSize:11, color:C.textMut, marginTop:3 } },
-                      ev.time || relativeTime(ev.at)
-                    )
-                  )
-                )
-              )
-            )
-          : React.createElement("div", { style:{ fontSize:13, color:C.textSec, padding:"8px 0" } },
-              "No recent changes yet. Updates to animals, applications, and donations will show up here."
-            )
-      ),
-
-      // Financial / Applications / Volunteer — above Recent Animals
+      // Financial / Applications / Volunteer — above Recent Activity
       React.createElement("div", { style:{ display:"grid", gridTemplateColumns:bottomGrid, gap:16, marginBottom:24 } },
         React.createElement(Card, { style:{ padding:20, minWidth:0 } },
           React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 } },
@@ -296,6 +255,47 @@ function OverviewView({ onNavigate }) {
           React.createElement("div", { style:{ fontSize:11, color:C.green, marginTop:4, marginBottom:16 } }, `+${stats.volunteerDeltaPct ?? 0}% vs last month`),
           React.createElement(Sparkline, { data:[180,195,210,200,225,245], color:C.green, width: isMobile ? 100 : 140, height:40 })
         )
+      ),
+
+      // Recent activity (live D1-backed feed)
+      React.createElement(Card, { style:{ padding:20, minWidth:0, marginBottom:24 } },
+        React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 } },
+          React.createElement("h3", { className: "dash-section-title", style:{ margin:0 } }, "Recent Activity")
+        ),
+        activity.length
+          ? React.createElement("div", { style:{ display:"flex", flexDirection:"column", gap:0 } },
+              activity.map((ev) =>
+                React.createElement("button", {
+                  key: ev.id,
+                  type: "button",
+                  onClick: () => ev.link && onNavigate(ev.link),
+                  style: {
+                    display: "flex", alignItems: "flex-start", gap: 12,
+                    padding: "12px 0",
+                    border: "none", borderBottom: `1px solid ${C.border}`,
+                    background: "transparent", cursor: ev.link ? "pointer" : "default",
+                    textAlign: "left", width: "100%", fontFamily: "inherit",
+                  }
+                },
+                  React.createElement("div", {
+                    style: {
+                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                      background: C.bg2, color: C.purple,
+                      display: "grid", placeItems: "center",
+                    }
+                  }, React.createElement(Icon, { name: activityIcon(ev.type), size: 15 })),
+                  React.createElement("div", { style:{ minWidth:0, flex:1 } },
+                    React.createElement("div", { style:{ fontSize:13, fontWeight:600, color:C.text, lineHeight:1.4 } }, ev.text),
+                    React.createElement("div", { style:{ fontSize:11, color:C.textMut, marginTop:3 } },
+                      ev.time || relativeTime(ev.at)
+                    )
+                  )
+                )
+              )
+            )
+          : React.createElement("div", { style:{ fontSize:13, color:C.textSec, padding:"8px 0" } },
+              "No recent changes yet. Updates to animals, applications, and donations will show up here."
+            )
       ),
 
       // Recent animals

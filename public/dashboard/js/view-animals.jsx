@@ -1821,20 +1821,26 @@
     return h('div', { style:{ padding:isMobile ? '18px 12px 40px' : '28px 28px 40px', flex:1, overflowY:'auto', boxSizing:'border-box' } },
       h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap' } },
         h('button', { onClick:function(){ if (onNavigate) onNavigate('animals'); }, style:{ border:'none', background:'transparent', color:u.textSec, fontSize:13, fontWeight:800, cursor:'pointer' } }, '< Back to Animals'),
-        h('div', { style:{ display:'flex', gap:8 } },
+        h('div', { style:{ display:'flex', alignItems:'center', gap:8 } },
           h(Button, { variant:'secondary', size:'sm', iconName:'edit', onClick:function(){ setShowEdit(true); } }, 'Edit'),
-          h(Button, { size:'sm', iconName:'plus', onClick:function(){ setTab('notes'); setShowAddTask(true); } }, 'Add Record'),
           h('button', {
             type: 'button',
             title: 'Delete ' + (a.name || 'animal'),
+            'aria-label': 'Delete ' + (a.name || 'animal'),
             onClick: function(){
               if (!window.confirm('Delete ' + (a.name || 'this animal') + ' permanently? This removes the profile, notes, and care history.')) return;
               apiJSON('/api/dashboard/animals/' + encodeURIComponent(animalId), { method:'DELETE' })
                 .then(function(){ if (onNavigate) onNavigate('animals'); })
-                .catch(function(){});
+                .catch(function(err){ window.alert(err && err.message ? err.message : 'Delete failed'); });
             },
-            style: Object.assign(iconButtonStyle('#f2a3a3'), { border:'1px solid ' + u.border, height:40, width:40 })
-          }, appIcon('trash', 16))
+            style: {
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              height: 36, width: 36, borderRadius: 8, cursor: 'pointer',
+              border: '1px solid ' + (u.border || 'rgba(0,0,0,0.1)'),
+              background: '#fff', color: '#b91c1c', flexShrink: 0,
+            }
+          }, appIcon('trash', 16)),
+          h(Button, { size:'sm', iconName:'plus', onClick:function(){ setTab('notes'); setShowAddTask(true); } }, 'Add Record')
         )
       ),
       h('div', { style:{ display:isDesktop ? 'flex' : 'block', gap:20, alignItems:'flex-start' } },

@@ -116,6 +116,85 @@ async function invalidateDonatePageCache(env) {
   }
 }
 
+/** Bust public /adopt (and related) so Visible/Featured/status edits show up promptly. */
+async function invalidateAdoptSurfaces(env) {
+  if (!env?.CMS_CACHE) return;
+  await Promise.all([
+    env.CMS_CACHE.delete('page:/adopt').catch(() => {}),
+    env.CMS_CACHE.delete('page:/').catch(() => {}),
+  ]);
+}
+
+function donorLabel(raw) {
+  const s = String(raw || '').trim();
+  if (!s || s === 'a supporter') return 'a supporter';
+  if (s.includes('@')) {
+    const local = s.split('@')[0];
+    return local.length >= 2 ? local : 'a supporter';
+  }
+  return s;
+}
+
+/** Prefer donations + applications; only surface animal *adds* (not mass updates). */
+function buildOverviewActivity({ animals, apps, donations }) {
+  const items = [];
+
+  for (const d of (donations || []).slice(0, 12)) {
+    const when = d.donated_at || d.created_at;
+    if (!when) continue;
+    const dollars = Math.round(Number(d.amount_cents || 0) / 100);
+    const campaign = d.campaign_title ? ` · ${d.campaign_title}` : '';
+    items.push({
+      id: `don_${d.stripe_payment_intent_id || d.id || when}_${dollars}`,
+      type: 'donation',
+      text: `Donation received — $${dollars.toLocaleString()} from ${donorLabel(d.donor_name)}${campaign}`,
+      at: when,
+      link: 'fundraising',
+      priority: 3,
+    });
+  }
+
+  for (const a of (apps || []).slice(0, 12)) {
+    const when = a.submitted_at || a.created_at;
+    if (!when) continue;
+    const name = a.applicant_name || [a.first_name, a.last_name].filter(Boolean).join(' ') || 'Applicant';
+    const status = String(a.review_status || 'new').replace(/_/g, ' ');
+    items.push({
+      id: `app_${a.id}`,
+      type: 'application',
+      text: `Foster application — ${name} (${status})`,
+      at: when,
+      link: 'applications',
+      priority: 2,
+    });
+  }
+
+  // Animal adds only — batch "updated" rows drown out real activity
+  const adds = (animals || [])
+    .filter((a) => a.created_at)
+    .slice()
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .slice(0, 6);
+  for (const a of adds) {
+    items.push({
+      id: `animal_add_${a.id}`,
+      type: 'animal',
+      text: `Animal added — ${a.name}`,
+      at: a.created_at,
+      link: 'animals',
+      priority: 1,
+    });
+  }
+
+  items.sort((a, b) => {
+    const t = String(b.at).localeCompare(String(a.at));
+    if (t !== 0) return t;
+    return (b.priority || 0) - (a.priority || 0);
+  });
+
+  return items.slice(0, 8).map(({ priority, ...rest }) => rest);
+}
+
 const CAMPAIGN_SELECT = `
   SELECT fc.*,
          fc.goal_amount_cents AS goal_cents,
@@ -249,47 +328,11 @@ export async function dashboardApiRoutes(request, env, url) {
       String(a.submitted_at || a.created_at || '').slice(0, 7) === monthPrefix
     ).length;
 
-    // Recent activity — synthesize from live D1 rows (audit_log is empty today)
-    const activity = [];
-    for (const a of animals.slice(0, 8)) {
-      const when = a.updated_at || a.created_at;
-      if (!when) continue;
-      activity.push({
-        id: `animal_${a.id}_${when}`,
-        type: "animal",
-        text: a.created_at && a.created_at === a.updated_at
-          ? `Animal added — ${a.name}`
-          : `Animal updated — ${a.name}`,
-        at: when,
-        link: "animals",
-      });
-    }
-    for (const a of apps.slice(0, 8)) {
-      const when = a.submitted_at || a.created_at;
-      if (!when) continue;
-      const name = a.applicant_name || [a.first_name, a.last_name].filter(Boolean).join(" ") || "Applicant";
-      activity.push({
-        id: `app_${a.id}`,
-        type: "application",
-        text: `Application submitted — ${name}`,
-        at: when,
-        link: "applications",
-      });
-    }
-    for (const d of paidDonations.slice(0, 8)) {
-      const when = d.donated_at || d.created_at;
-      if (!when) continue;
-      const dollars = Math.round(Number(d.amount_cents || 0) / 100);
-      const donor = d.donor_name || "a supporter";
-      activity.push({
-        id: `don_${when}_${dollars}`,
-        type: "donation",
-        text: `Donation received — $${dollars.toLocaleString()} from ${donor}`,
-        at: when,
-        link: "fundraising",
-      });
-    }
-    activity.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    const recentActivity = buildOverviewActivity({
+      animals,
+      apps,
+      donations: paidDonations,
+    });
 
     return json({
       kpis: {
@@ -307,7 +350,7 @@ export async function dashboardApiRoutes(request, env, url) {
         campaigns:    (campaignRows.results || []).length,
         goal_cents:   goal,
       },
-      recent_activity: activity.slice(0, 8),
+      recent_activity: recentActivity,
       animals:      animals.map(normalizeAnimal),
       applications: apps,
       campaigns:    campaignRows.results || [],
@@ -461,6 +504,11 @@ export async function dashboardApiRoutes(request, env, url) {
     await env.DB.prepare(
       `UPDATE animal_profiles SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
     ).bind(...vals).run();
+
+    // Public /adopt gallery reads animal_profiles live but page HTML may be KV-cached
+    const touchesPublic = ['public_visible', 'featured', 'status', 'name', 'bio', 'photo_url', 'breed', 'age_label'].some((k) => k in b);
+    if (touchesPublic) await invalidateAdoptSurfaces(env);
+
     return json({ ok: true, id });
   }
 
@@ -492,6 +540,7 @@ export async function dashboardApiRoutes(request, env, url) {
       }, 409);
     }
 
+    await invalidateAdoptSurfaces(env);
     return json({ ok: true, deleted: id, name: existing.name });
   }
 
