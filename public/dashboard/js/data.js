@@ -16,7 +16,8 @@ const MOCK = {
     mediaCount: 0,
     pagesCount: 0,
     campaignsActive: 3,
-    volunteerHoursMTD: 245, volunteerDeltaPct: 18
+    volunteerHoursMTD: 245, volunteerDeltaPct: 18,
+    inboxUnread: 0, inboxTotal: 0
   },
   animals: [
     { id:"animal_bluepit",          name:"Blue",          species:"Dog", breed:"Pit Mix",            age:"Unknown", sex:"M", weight:"—", color:"Blue",    status:"Foster",        intake:"—", photo:`${R2_CDN}/media/animals/bluepit.webp`,          description:"Blue is a sweet pit mix in foster care." },
@@ -354,6 +355,8 @@ window.__loadDashboardData = async function() {
         donationsMTD: mtdDollars,
         donationsDeltaPct: mtdCount,
         donationsMtdLabel: mtdCount === 1 ? "1 Stripe payment this month" : `${mtdCount} Stripe payments this month`,
+        inboxUnread: k.inbox_unread ?? 0,
+        inboxTotal: k.inbox_total ?? 0,
       };
     }
 

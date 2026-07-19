@@ -222,10 +222,30 @@ function OverviewView({ onNavigate }) {
           )
         ),
         React.createElement(Card, { style:{ padding:20, minWidth:0 } },
-          React.createElement("h3", { className:"dash-section-title", style:{ margin:"0 0 8px" } }, "Volunteer Hours (MTD)"),
-          React.createElement("div", { style:{ fontSize:36, fontWeight:700, color:C.text, lineHeight:1 } }, stats.volunteerHoursMTD ?? 0),
-          React.createElement("div", { style:{ fontSize:11, color:C.green, marginTop:4, marginBottom:16 } }, `+${stats.volunteerDeltaPct ?? 0}% vs last month`),
-          React.createElement(Sparkline, { data:[180,195,210,200,225,245], color:C.green, width: isMobile ? 100 : 140, height:40 })
+          React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 } },
+            React.createElement("h3", { className:"dash-section-title", style:{ margin:0 } }, "Inbox"),
+            React.createElement("button", { type:"button", className:"dash-link", onClick:()=>onNavigate("email") }, "Open inbox →")
+          ),
+          React.createElement("div", { style:{ display:"flex", alignItems:"flex-end", gap:16, flexWrap:"wrap" } },
+            React.createElement("div", { style:{ minWidth:0 } },
+              React.createElement("div", { style:{ fontSize:36, fontWeight:700, color:C.text, lineHeight:1 } }, stats.inboxUnread ?? 0),
+              React.createElement("div", { style:{ fontSize:12, color:C.textSec, marginTop:6 } },
+                (stats.inboxUnread ?? 0) === 1 ? "1 unread message" : `${stats.inboxUnread ?? 0} unread messages`
+              ),
+              React.createElement("div", { style:{ fontSize:11, color:C.textMut, marginTop:4 } },
+                `${stats.inboxTotal ?? 0} in inbox`
+              )
+            ),
+            React.createElement("div", {
+              style: {
+                marginLeft: "auto",
+                width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+                background: (stats.inboxUnread ?? 0) > 0 ? C.purpleDim : C.bg2,
+                color: C.purple,
+                display: "grid", placeItems: "center",
+              }
+            }, React.createElement(Icon, { name: "mail", size: 22 }))
+          )
         )
       ),
 

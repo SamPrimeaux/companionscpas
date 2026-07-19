@@ -276,7 +276,7 @@ export async function dashboardApiRoutes(request, env, url) {
   if (path === '/api/dashboard/overview') {
     const monthPrefix = new Date().toISOString().slice(0, 7);
     const paidStatuses = new Set(['succeeded', 'paid', 'completed', 'received']);
-    const [animalRows, appRows, campaignRows, volunteerRows, donationRows, mediaCountRow, pagesCountRow] = await Promise.all([
+    const [animalRows, appRows, campaignRows, volunteerRows, donationRows, mediaCountRow, pagesCountRow, inboxCountRow] = await Promise.all([
       env.DB.prepare(`
         SELECT ap.*, ca.cdn_url AS asset_cdn_url
         FROM animal_profiles ap
@@ -311,6 +311,15 @@ export async function dashboardApiRoutes(request, env, url) {
       env.DB.prepare(`
         SELECT COUNT(*) AS n FROM cms_pages WHERE tenant_id = ?
       `).bind(TENANT).first().catch(() => ({ n: 0 })),
+      env.DB.prepare(`
+        SELECT
+          SUM(CASE WHEN COALESCE(is_deleted,0)=0 AND status='unread'
+                   AND (folder_id IS NULL OR folder_id='') THEN 1 ELSE 0 END) AS unread_inbox,
+          SUM(CASE WHEN COALESCE(is_deleted,0)=0
+                   AND (folder_id IS NULL OR folder_id='') THEN 1 ELSE 0 END) AS inbox_total
+        FROM inbound_emails
+        WHERE tenant_id = ?
+      `).bind(TENANT).first().catch(() => ({ unread_inbox: 0, inbox_total: 0 })),
     ]);
     const animals = animalRows.results || [];
     const apps = appRows.results || [];
@@ -349,6 +358,8 @@ export async function dashboardApiRoutes(request, env, url) {
         pages_count:  Number(pagesCountRow?.n || 0),
         campaigns:    (campaignRows.results || []).length,
         goal_cents:   goal,
+        inbox_unread: Number(inboxCountRow?.unread_inbox || 0),
+        inbox_total:  Number(inboxCountRow?.inbox_total || 0),
       },
       recent_activity: recentActivity,
       animals:      animals.map(normalizeAnimal),
