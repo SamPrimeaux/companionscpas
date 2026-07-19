@@ -283,7 +283,8 @@ function OverviewView({ onNavigate }) {
             )
           )
         )
-      )
+      ),
+
       // Recent activity (live D1-backed feed)
       React.createElement(Card, { style:{ padding:20, minWidth:0, marginBottom:24 } },
         React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 } },
