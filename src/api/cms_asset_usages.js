@@ -145,12 +145,11 @@ export async function rebuildCmsAssetUsages(env) {
 
   const entries = await env.DB.prepare(
     `SELECT ce.id, ce.dog_name, ce.asset_id, ce.photo_url, ce.payment_status,
-            ce.submission_status, ce.is_approved, ce.campaign_id,
+            ce.submission_status, ce.is_approved, ce.campaign_id, ce.archived_at,
             fc.title AS campaign_title
      FROM competition_entries ce
      LEFT JOIN fundraising_campaigns fc ON fc.id = ce.campaign_id
      WHERE ce.tenant_id = ?
-       AND (ce.archived_at IS NULL OR ce.archived_at = '')
        AND (ce.asset_id IS NOT NULL OR (ce.photo_url IS NOT NULL AND ce.photo_url != ''))`
   ).bind(TENANT_ID).all().catch(() => ({ results: [] }));
 
@@ -158,18 +157,23 @@ export async function rebuildCmsAssetUsages(env) {
     let assetId = e.asset_id || null;
     if (!assetId) assetId = await findAssetIdByUrl(env, e.photo_url, urlIndex);
     if (!assetId) continue;
+    const archived = !!(e.archived_at && String(e.archived_at).trim());
     const paid = String(e.payment_status || "").toLowerCase() === "paid"
       || String(e.submission_status || "").toLowerCase() === "paid";
     const approved = Number(e.is_approved) === 1;
-    const isLive = paid && (approved || String(e.submission_status || "").toLowerCase() === "paid");
+    // Live only when paid + not archived (public competition gallery)
+    const isLive = !archived && paid && (approved || String(e.submission_status || "").toLowerCase() === "paid");
     const dog = e.dog_name || "Entry";
     const camp = e.campaign_title || "Competition";
+    const label = archived
+      ? `Archived · ${dog} · ${camp}`
+      : `${dog} · ${camp}`;
     await upsertUsage(env, {
       asset_id: assetId,
       surface: "competition_entry",
       entity_type: "competition_entry",
       entity_id: e.id,
-      entity_label: `${dog} · ${camp}`,
+      entity_label: label,
       field: "asset_id",
       is_live: isLive,
     });
@@ -257,9 +261,11 @@ export function usageDisplayLabel(u) {
   if (u.surface === "campaign_cover") return name ? `Campaign · ${name}` : "Campaign";
   if (u.surface === "competition_entry") {
     if (!name) return "Competition entry";
-    return Number(u.is_live) === 1 || u.is_live === true
-      ? `Live · ${name}`
-      : `Entry · ${name}`;
+    if (Number(u.is_live) === 1 || u.is_live === true) {
+      return name.startsWith("Live ·") ? name : `Live · ${name}`;
+    }
+    if (name.startsWith("Archived ·") || name.startsWith("Entry ·")) return name;
+    return `Entry · ${name}`;
   }
   if (u.surface === "cms_page") return name ? `Page · ${name}` : "CMS page";
   return name || u.surface || "Used";
