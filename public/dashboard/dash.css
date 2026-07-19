@@ -69,7 +69,14 @@ body {
   overflow-x: hidden;
 }
 
-::selection { background: transparent; }
+::selection {
+  background: rgba(134, 100, 183, 0.28);
+  color: var(--dash-text);
+}
+::-moz-selection {
+  background: rgba(134, 100, 183, 0.28);
+  color: var(--dash-text);
+}
 
 /* Sidebar nav: thin native-ish bar (main column scrollbar is hidden below). */
 .cpas-sidebar-nav {

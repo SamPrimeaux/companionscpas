@@ -257,6 +257,33 @@ function OverviewView({ onNavigate }) {
         )
       ),
 
+      // Recent animals
+      React.createElement(Card, { style:{ padding:20, marginBottom:8 } },
+        React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 } },
+          React.createElement("h3", { className:"dash-section-title", style:{ margin:0 } }, "Recent Animals"),
+          React.createElement("button", { type:"button", className:"dash-link", onClick:()=>onNavigate("animals") }, "View all")
+        ),
+        React.createElement("div", { style:{ display:"grid", gridTemplateColumns:recentGrid, gap:12 } },
+          recentAnimals.map(a =>
+            React.createElement("div", {
+              key: a.id,
+              onClick: ()=>onNavigate("animal-profile", { animalId: a.id }),
+              style:{ cursor:"pointer", borderRadius:10, overflow:"hidden", border:`1px solid ${C.border}`, transition:"border-color .15s", minWidth:0 },
+              onMouseEnter: e=>e.currentTarget.style.borderColor=C.purple,
+              onMouseLeave: e=>e.currentTarget.style.borderColor=C.border
+            },
+              React.createElement("div", { style:{ height:isMobile ? 90 : 110, overflow:"hidden", background:C.raised } },
+                React.createElement("img", { src:a.photo, alt:a.name, style:{ width:"100%", height:"100%", objectFit:"contain" }, onError:e=>{ e.target.style.display="none"; } })
+              ),
+              React.createElement("div", { style:{ padding:"10px 10px 12px" } },
+                React.createElement("div", { style:{ fontSize:13, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" } }, a.name),
+                React.createElement("div", { style:{ fontSize:10, color:C.textSec, margin:"2px 0 6px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" } }, `${a.breed}`),
+                React.createElement(Badge, { label:a.status, dot:true })
+              )
+            )
+          )
+        )
+      )
       // Recent activity (live D1-backed feed)
       React.createElement(Card, { style:{ padding:20, minWidth:0, marginBottom:24 } },
         React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 } },
@@ -298,33 +325,7 @@ function OverviewView({ onNavigate }) {
             )
       ),
 
-      // Recent animals
-      React.createElement(Card, { style:{ padding:20, marginBottom:8 } },
-        React.createElement("div", { style:{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 } },
-          React.createElement("h3", { className:"dash-section-title", style:{ margin:0 } }, "Recent Animals"),
-          React.createElement("button", { type:"button", className:"dash-link", onClick:()=>onNavigate("animals") }, "View all")
-        ),
-        React.createElement("div", { style:{ display:"grid", gridTemplateColumns:recentGrid, gap:12 } },
-          recentAnimals.map(a =>
-            React.createElement("div", {
-              key: a.id,
-              onClick: ()=>onNavigate("animal-profile", { animalId: a.id }),
-              style:{ cursor:"pointer", borderRadius:10, overflow:"hidden", border:`1px solid ${C.border}`, transition:"border-color .15s", minWidth:0 },
-              onMouseEnter: e=>e.currentTarget.style.borderColor=C.purple,
-              onMouseLeave: e=>e.currentTarget.style.borderColor=C.border
-            },
-              React.createElement("div", { style:{ height:isMobile ? 90 : 110, overflow:"hidden", background:C.raised } },
-                React.createElement("img", { src:a.photo, alt:a.name, style:{ width:"100%", height:"100%", objectFit:"contain" }, onError:e=>{ e.target.style.display="none"; } })
-              ),
-              React.createElement("div", { style:{ padding:"10px 10px 12px" } },
-                React.createElement("div", { style:{ fontSize:13, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" } }, a.name),
-                React.createElement("div", { style:{ fontSize:10, color:C.textSec, margin:"2px 0 6px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" } }, `${a.breed}`),
-                React.createElement(Badge, { label:a.status, dot:true })
-              )
-            )
-          )
-        )
-      )
+
     )
   );
 }
