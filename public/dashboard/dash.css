@@ -1019,7 +1019,16 @@ body.cpas-nav-open { overflow: hidden !important; }
 .mail-label.client { background: #d1fae5; color: #047857; }
 .mail-label.promo { background: #fef3c7; color: #b45309; }
 
-.mail-star-btn {
+.mail-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+.mail-star-btn,
+.mail-trash-btn {
   width: 28px;
   height: 28px;
   border: none;
@@ -1035,6 +1044,23 @@ body.cpas-nav-open { overflow: hidden !important; }
 }
 .mail-star-btn:hover { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
 .mail-star-btn.is-active { color: #f59e0b; }
+.mail-trash-btn:hover { background: #fef2f2; color: #dc2626; }
+.mail-list-meta-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mail-clear-btn {
+  border: none;
+  background: transparent;
+  color: #b91c1c;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.mail-clear-btn:hover { text-decoration: underline; }
 
 .mail-empty {
   flex: 1;

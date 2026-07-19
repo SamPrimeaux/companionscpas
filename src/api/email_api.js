@@ -507,6 +507,32 @@ export async function emailApiRoutes(request, env, url) {
     return json({ ok: true });
   }
 
+  // Hard delete — no soft-delete / trash / restore
+  if (path === "/api/email/messages" && method === "DELETE") {
+    const data = await body(request);
+    const ids = Array.isArray(data.ids)
+      ? [...new Set(data.ids.map((v) => String(v || "").trim()).filter(Boolean))]
+      : [];
+    if (!ids.length) return json({ error: "ids is required" }, 400);
+    if (ids.length > 200) return json({ error: "Too many ids (max 200)" }, 400);
+    const placeholders = ids.map(() => "?").join(", ");
+    const result = await env.DB.prepare(
+      `DELETE FROM inbound_emails WHERE tenant_id = ? AND id IN (${placeholders})`
+    ).bind(TENANT_ID, ...ids).run();
+    return json({ ok: true, deleted: Number(result?.meta?.changes || 0) });
+  }
+
+  const messageDeleteMatch = path.match(/^\/api\/email\/messages\/([^/]+)$/);
+  if (messageDeleteMatch && method === "DELETE") {
+    const messageId = decodeURIComponent(messageDeleteMatch[1]);
+    const result = await env.DB.prepare(
+      "DELETE FROM inbound_emails WHERE id = ? AND tenant_id = ?"
+    ).bind(messageId, TENANT_ID).run();
+    const deleted = Number(result?.meta?.changes || 0);
+    if (!deleted) return json({ error: "Not found" }, 404);
+    return json({ ok: true, deleted: 1 });
+  }
+
   if (path === "/api/email/drafts" && method === "GET") {
     const rows = await env.DB.prepare(
       "SELECT * FROM email_drafts WHERE tenant_id = ? ORDER BY updated_at DESC LIMIT 50"

@@ -43,7 +43,6 @@ const MAILBOX_NAV = [
   { key: "important", label: "Starred", icon: "star" },
   { key: "sent", label: "Sent", icon: "arrowR" },
   { key: "drafts", label: "Drafts", icon: "docs" },
-  { key: "deleted", label: "Deleted", icon: "trash" },
 ];
 
 const SMART_NAV = [
@@ -422,6 +421,59 @@ function EmailView() {
     }).then(loadMessages).catch(function(err) { notify(err.message, true); });
   }
 
+  function canHardDeleteMessages() {
+    return view === "inbox" || view === "important" || view === "folder";
+  }
+
+  function removeMessagesLocally(ids) {
+    const idSet = {};
+    (ids || []).forEach(function(id) { idSet[id] = true; });
+    const removedUnread = messages.filter(function(m) {
+      return idSet[m.id] && m.status === "unread";
+    }).length;
+    setMessages(function(prev) {
+      return prev.filter(function(m) { return !idSet[m.id]; });
+    });
+    if (removedUnread) {
+      setUnreadCount(function(n) { return Math.max(0, n - removedUnread); });
+    }
+    if (selected && idSet[selected]) {
+      setSelected(null);
+      setDetail(null);
+    }
+  }
+
+  function deleteMessage(msgId, e) {
+    if (e) e.stopPropagation();
+    if (!msgId || !canHardDeleteMessages()) return;
+    if (!window.confirm("Delete this message?")) return;
+    emailApi("/api/email/messages/" + encodeURIComponent(msgId), { method: "DELETE" })
+      .then(function() {
+        removeMessagesLocally([msgId]);
+        notify("Message deleted.");
+      })
+      .catch(function(err) { notify(err.message || "Delete failed.", true); });
+  }
+
+  function clearListedMessages() {
+    if (!canHardDeleteMessages()) return;
+    const ids = (listRows || [])
+      .filter(function(m) { return m && m.id && !m.is_notification; })
+      .map(function(m) { return m.id; });
+    if (!ids.length) return;
+    const label = view === "inbox" ? "Clear inbox" : "Delete all";
+    if (!window.confirm(label + ": permanently delete " + ids.length + " message(s)?")) return;
+    emailApi("/api/email/messages", {
+      method: "DELETE",
+      body: JSON.stringify({ ids: ids }),
+    })
+      .then(function() {
+        removeMessagesLocally(ids);
+        notify("Deleted " + ids.length + " message(s).");
+      })
+      .catch(function(err) { notify(err.message || "Delete failed.", true); });
+  }
+
   function sendCompose() {
     const to = String(compose.to || "").trim();
     const subject = String(compose.subject || "").trim() || "(no subject)";
@@ -787,8 +839,15 @@ function EmailView() {
           ),
           React.createElement("div", { className: "mail-list-meta" },
             React.createElement("span", null, loading ? "Loading…" : listRows.length + (view === "notifications" ? " notifications" : " messages")),
-            view === "inbox" && React.createElement("button", { type: "button", onClick: function() { setReadFilter(readFilter === "unread" ? "all" : "unread"); } },
-              readFilter === "unread" ? "Show all" : "Unread only"
+            React.createElement("div", { className: "mail-list-meta-actions" },
+              view === "inbox" && React.createElement("button", { type: "button", onClick: function() { setReadFilter(readFilter === "unread" ? "all" : "unread"); } },
+                readFilter === "unread" ? "Show all" : "Unread only"
+              ),
+              canHardDeleteMessages() && listRows.length > 0 && React.createElement("button", {
+                type: "button",
+                className: "mail-clear-btn",
+                onClick: clearListedMessages,
+              }, view === "inbox" ? "Clear inbox" : "Delete all")
             )
           ),
           React.createElement("div", { className: "mail-rows" },
@@ -825,12 +884,23 @@ function EmailView() {
                     })
                   )
                 ),
-                view !== "sent" && view !== "drafts" && view !== "notifications" && React.createElement("button", {
-                  type: "button",
-                  className: "mail-star-btn" + (m.is_important ? " is-active" : ""),
-                  onClick: function(e) { toggleStar(m, e); },
-                  "aria-label": "Star",
-                }, React.createElement(Icon, { name: "star", size: 14 }))
+                view !== "sent" && view !== "drafts" && view !== "notifications" && React.createElement("div", {
+                  className: "mail-row-actions",
+                  onClick: function(e) { e.stopPropagation(); },
+                },
+                  React.createElement("button", {
+                    type: "button",
+                    className: "mail-star-btn" + (m.is_important ? " is-active" : ""),
+                    onClick: function(e) { toggleStar(m, e); },
+                    "aria-label": "Star",
+                  }, React.createElement(Icon, { name: "star", size: 14 })),
+                  canHardDeleteMessages() && React.createElement("button", {
+                    type: "button",
+                    className: "mail-trash-btn",
+                    onClick: function(e) { deleteMessage(m.id, e); },
+                    "aria-label": "Delete message",
+                  }, React.createElement(Icon, { name: "trash", size: 14 }))
+                )
               );
             })
           )
@@ -884,10 +954,14 @@ function EmailView() {
                   React.createElement(Icon, { name: "trash", size: 14 })
                 )
               ),
-              detail && view !== "notifications" && view !== "sent" && React.createElement("button", { type: "button", className: "mail-tool-btn danger", onClick: function() {
-                patchMessage({ is_deleted: 1 }).then(function() { setDetail(null); setSelected(null); });
-              }},
-                React.createElement(Icon, { name: "trash", size: 14 })
+              detail && canHardDeleteMessages() && React.createElement("button", {
+                type: "button",
+                className: "mail-tool-btn danger",
+                onClick: function() { deleteMessage(detail.id); },
+                "aria-label": "Delete message",
+              },
+                React.createElement(Icon, { name: "trash", size: 14 }),
+                React.createElement("span", null, "Delete")
               ),
               onboardingFolder && detail && view !== "sent" && view !== "notifications" && React.createElement("button", { type: "button", className: "mail-tool-btn", onClick: function() {
                 patchMessage({ folder_id: onboardingFolder.id }).then(function() { notify("Moved to Onboarding."); });
