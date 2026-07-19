@@ -94,25 +94,6 @@ function LaunchCard({ icon, title, description, countLabel, countValue, cta, onO
   );
 }
 
-function MetricTile({ icon, label, value }) {
-  return React.createElement("div", {
-    style: {
-      background: C.surface,
-      border: `1px solid ${C.border}`,
-      borderRadius: 12,
-      padding: "16px 18px",
-      minWidth: 0,
-      boxShadow: "0 2px 10px rgba(26,22,34,0.05)",
-    }
-  },
-    React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:8, marginBottom:10 } },
-      React.createElement(Icon, { name: icon, size: 16, style:{ color: C.purple } }),
-      React.createElement("span", { style:{ fontSize:12, fontWeight:600, color:C.textSec } }, label)
-    ),
-    React.createElement("div", { style:{ fontSize:28, fontWeight:700, color:C.text, lineHeight:1 } }, value)
-  );
-}
-
 function OverviewView({ onNavigate }) {
   const { stats, animals, recentActivity, chartData } = CPAS;
 
@@ -123,7 +104,6 @@ function OverviewView({ onNavigate }) {
   const activity = (recentActivity || []).slice(0, 8);
 
   const launchGrid = isNarrow ? "1fr" : isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(220px, 1fr))";
-  const metricGrid = isNarrow ? "1fr" : isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
   const recentGrid = isNarrow ? "1fr" : isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(160px, 1fr))";
   const bottomGrid = isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))";
   const userName = (window.CPAS?.user?.name || window.CPAS_USER?.full_name || "Team").split(" ")[0];
@@ -189,14 +169,6 @@ function OverviewView({ onNavigate }) {
           cta: "Open fundraising",
           onOpen: () => onNavigate("fundraising"),
         })
-      ),
-
-      // 2×2 / 4-up metric grid
-      React.createElement("div", { style:{ display:"grid", gridTemplateColumns:metricGrid, gap:12, marginBottom:24 } },
-        React.createElement(MetricTile, { icon:"paw",    label:"Total Animals",          value: stats.totalAnimals ?? 0 }),
-        React.createElement(MetricTile, { icon:"heart",  label:"In Foster",              value: stats.inFoster ?? 0 }),
-        React.createElement(MetricTile, { icon:"docs",   label:"Applications This Month", value: stats.applicationsMTD ?? 0 }),
-        React.createElement(MetricTile, { icon:"dollar", label:"Donations MTD",          value: `$${(stats.donationsMTD || 0).toLocaleString()}` })
       ),
 
       // Financial / Applications / Volunteer — above Recent Activity
