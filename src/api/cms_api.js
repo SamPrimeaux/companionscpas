@@ -11,6 +11,10 @@ import {
 } from "./page_cms_registry.js";
 import { bootstrapNewCmsPage } from "./cms_pipeline.js";
 import { getAuthUser } from "./session_api.js";
+import {
+  rebuildCmsAssetUsages,
+  loadUsagesByAssetIds,
+} from "./cms_asset_usages.js";
 const TENANT_ID = "tenant_companionscpas";
 
 const R2_MEDIA_FOLDERS = new Set([
@@ -933,6 +937,12 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     });
   }
 
+  // POST /api/cms/assets/rebuild-usages — scan animals/campaigns into cms_asset_usages
+  if (path === "/api/cms/assets/rebuild-usages" && method === "POST") {
+    const result = await rebuildCmsAssetUsages(env);
+    return json({ success: true, ...result });
+  }
+
     // GET /api/cms/assets
   if (path === "/api/cms/assets" && method === "GET") {
     const context = url.searchParams.get("context") || null;
@@ -943,7 +953,20 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     if (category) { q += " AND category = ?"; binds.push(category); }
     q += " ORDER BY updated_at DESC, created_at DESC LIMIT 500";
     const { results } = await env.DB.prepare(q).bind(...binds).all().catch(() => ({ results: [] }));
-    return json({ success: true, assets: results || [] });
+    const assets = results || [];
+    const usageMap = await loadUsagesByAssetIds(env, assets.map((a) => a.id));
+    const enriched = assets.map((a) => {
+      const usages = usageMap.get(a.id) || [];
+      const liveUsages = usages.filter((u) => u.is_live);
+      return {
+        ...a,
+        usages,
+        usage_labels: usages.map((u) => u.label),
+        is_live_usage: liveUsages.length > 0 || Number(a.is_live) === 1,
+        live_labels: liveUsages.map((u) => u.label),
+      };
+    });
+    return json({ success: true, assets: enriched });
   }
 
   // POST /api/cms/asset/upload — multipart file upload → R2 → cms_assets

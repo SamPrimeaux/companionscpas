@@ -4,6 +4,7 @@
 // Org: org_companionscpas
 
 import { getAuthUser } from "./session_api.js";
+import { syncAnimalPhotoUsage } from "./cms_asset_usages.js";
 
 const TENANT = 'tenant_companionscpas';
 const FOSTER_TENANT = TENANT;
@@ -519,6 +520,13 @@ export async function dashboardApiRoutes(request, env, url) {
     // Public /adopt gallery reads animal_profiles live but page HTML may be KV-cached
     const touchesPublic = ['public_visible', 'featured', 'status', 'name', 'bio', 'photo_url', 'breed', 'age_label'].some((k) => k in b);
     if (touchesPublic) await invalidateAdoptSurfaces(env);
+
+    if (['photo_url', 'public_visible', 'status', 'name'].some((k) => k in b)) {
+      const animal = await env.DB.prepare(
+        `SELECT id, name, photo_url, public_visible, status FROM animal_profiles WHERE id = ? AND tenant_id = ? LIMIT 1`
+      ).bind(id, TENANT).first().catch(() => null);
+      if (animal) await syncAnimalPhotoUsage(env, animal);
+    }
 
     return json({ ok: true, id });
   }

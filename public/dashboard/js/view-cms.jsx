@@ -1539,6 +1539,43 @@ function MediaStorageMeter({ stats }) {
   );
 }
 
+function mediaUsageTags(asset) {
+  const live = asset?.live_labels || [];
+  const all = asset?.usage_labels || [];
+  if (live.length) return live.slice(0, 3);
+  if (asset?.is_live_usage) return ["Live"];
+  return all.slice(0, 2);
+}
+
+async function downloadMediaAsset(url, filename, notify) {
+  if (!url) return;
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) throw new Error("fetch failed");
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = filename || "download";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+    if (notify) notify("Download started");
+  } catch {
+    // CORS fallback — open in new tab so the browser can save
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.download = filename || "download";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if (notify) notify("Opened file — use Save As if download did not start");
+  }
+}
+
 function MediaPreviewModal({ asset, onClose, onSave, onDelete, copyUrl, notify }) {
   const [altText, setAltText] = React.useState(asset?.alt_text || "");
   const [label, setLabel] = React.useState(asset?.label || asset?.filename || "");
@@ -1547,6 +1584,7 @@ function MediaPreviewModal({ asset, onClose, onSave, onDelete, copyUrl, notify }
   const url = mediaAssetUrl(asset);
   const isVideo = String(asset.mime_type || "").startsWith("video/") || asset.asset_type === "video";
   const isPdf = asset.mime_type === "application/pdf" || asset.asset_type === "document";
+  const usageTags = mediaUsageTags(asset);
 
   const save = async () => {
     setBusy(true);
@@ -1605,10 +1643,22 @@ function MediaPreviewModal({ asset, onClose, onSave, onDelete, copyUrl, notify }
           React.createElement("span", null, asset.mime_type || asset.asset_type || "file"),
           React.createElement("span", null, asset.r2_key || mediaFolderLabel(mediaFolderKey(asset)))
         ),
+        usageTags.length > 0 && React.createElement("div", { className: "media-usage-tags" },
+          usageTags.map((t, i) => React.createElement("span", {
+            key: i,
+            className: "media-usage-tag" + ((asset.live_labels || []).includes(t) || asset.is_live_usage ? " is-live" : ""),
+          }, t))
+        ),
         React.createElement("code", { className: "media-preview-url" }, url)
       ),
       React.createElement("div", { className: "media-preview-actions" },
         React.createElement(Btn, { variant: "secondary", size: "sm", icon: "copy", onClick: () => copyUrl(url) }, "Copy URL"),
+        React.createElement(Btn, {
+          variant: "secondary",
+          size: "sm",
+          icon: "download",
+          onClick: () => downloadMediaAsset(url, label || asset.filename || "asset", notify),
+        }, "Download"),
         React.createElement("a", { href: url, target: "_blank", rel: "noopener noreferrer", className: "media-preview-open" }, "Open"),
         React.createElement("div", { style: { flex: 1 } }),
         React.createElement(Btn, { variant: "danger", size: "sm", icon: "trash", disabled: busy, onClick: del }, "Delete"),
@@ -1630,6 +1680,8 @@ function CmsImagesView({ onNavigate }) {
   const loadAssets = async () => {
     setAssetsLoading(true);
     try {
+      // Keep usage tags current (animals/campaigns → cms_asset_usages)
+      await fetch("/api/cms/assets/rebuild-usages", { method: "POST", credentials: "include" }).catch(() => {});
       const [res, statsRes] = await Promise.all([
         fetch("/api/cms/assets", { credentials: "include" }),
         fetch("/api/cms/assets/stats", { credentials: "include" }),
@@ -1768,20 +1820,42 @@ function ImagesLibraryTab({ assets, loading, onReload, copyUrl, notify, folder, 
           : viewMode === "grid"
             ? React.createElement("div", { className: "media-grid" },
                 filtered.map(a => {
-                  return React.createElement("button", {
-                    key: a.id, type: "button", className: "media-card",
-                    onClick: () => setPreview(a),
+                  const tags = mediaUsageTags(a);
+                  return React.createElement("div", {
+                    key: a.id, className: "media-card",
                   },
-                    React.createElement("div", { className: "media-card-thumb" },
-                      React.createElement(MediaThumbPreview, { asset: a }),
-                      mediaAssetKind(a) === "pdf" && React.createElement("span", { className: "media-card-badge pdf" }, "PDF"),
-                      mediaAssetKind(a) === "video" && React.createElement("span", { className: "media-card-badge video" }, "Video"),
-                      a.source_provider === "google_drive" && React.createElement("span", { className: "media-card-badge drive" }, "Drive")
+                    React.createElement("button", {
+                      type: "button",
+                      className: "media-card-main",
+                      onClick: () => setPreview(a),
+                    },
+                      React.createElement("div", { className: "media-card-thumb" },
+                        React.createElement(MediaThumbPreview, { asset: a }),
+                        mediaAssetKind(a) === "pdf" && React.createElement("span", { className: "media-card-badge pdf" }, "PDF"),
+                        mediaAssetKind(a) === "video" && React.createElement("span", { className: "media-card-badge video" }, "Video"),
+                        a.source_provider === "google_drive" && React.createElement("span", { className: "media-card-badge drive" }, "Drive"),
+                        a.is_live_usage && React.createElement("span", { className: "media-card-badge live" }, "Live")
+                      ),
+                      React.createElement("div", { className: "media-card-meta" },
+                        React.createElement("strong", null, a.label || a.filename),
+                        React.createElement("span", null, mediaSizeLabel(a)),
+                        tags.length > 0 && React.createElement("div", { className: "media-usage-tags compact" },
+                          tags.map((t, i) => React.createElement("span", {
+                            key: i,
+                            className: "media-usage-tag" + (a.is_live_usage ? " is-live" : ""),
+                          }, t))
+                        )
+                      )
                     ),
-                    React.createElement("div", { className: "media-card-meta" },
-                      React.createElement("strong", null, a.label || a.filename),
-                      React.createElement("span", null, mediaSizeLabel(a))
-                    )
+                    React.createElement("button", {
+                      type: "button",
+                      className: "media-card-download",
+                      title: "Download",
+                      onClick: (e) => {
+                        e.stopPropagation();
+                        downloadMediaAsset(mediaAssetUrl(a), a.label || a.filename || "asset", notify);
+                      },
+                    }, React.createElement(Icon, { name: "download", size: 14 }), " Download")
                   );
                 })
               )
