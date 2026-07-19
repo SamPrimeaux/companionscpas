@@ -842,17 +842,25 @@
       return categoryGroup(asset.category) === category;
     });
 
-    var content;
+    var gridBody;
     if (loading) {
-      content = h('div', { style:{ padding:30, textAlign:'center', color:u.textMut } }, 'Loading library...');
+      gridBody = h('div', { style:{ padding:40, textAlign:'center', color:u.textMut } }, 'Loading library...');
     } else if (error) {
-      content = h('div', { style:{ padding:30, textAlign:'center', color:u.red } }, error);
+      gridBody = h('div', { style:{ padding:40, textAlign:'center', color:u.red } }, error);
     } else if (!assets || assets.length === 0) {
-      content = h('div', { style:{ padding:30, textAlign:'center', color:u.textMut } }, 'No photos in library yet.');
+      gridBody = h('div', { style:{ padding:40, textAlign:'center', color:u.textMut } }, 'No photos in library yet.');
     } else if (!filtered.length) {
-      content = h('div', { style:{ padding:30, textAlign:'center', color:u.textMut } }, 'No photos in this category.');
+      gridBody = h('div', { style:{ padding:40, textAlign:'center', color:u.textMut } }, 'No photos in this category.');
     } else {
-      content = h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:12, maxHeight:isMobile ? '60vh' : 420, overflowY:'auto', padding:'4px 2px' } },
+      gridBody = h('div', {
+        style: {
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+          gap: 14,
+          padding: '4px 2px 8px',
+          alignContent: 'start',
+        }
+      },
         filtered.map(function(asset){
           var url = asset.public_url || asset.cdn_url || asset.pub_url || asset.url || '';
           return h('div', {
@@ -867,51 +875,93 @@
               display: 'flex',
               flexDirection: 'column',
               transition: 'border-color 0.2s',
+              minWidth: 0,
             }
           },
-            h('div', { style:{ width:'100%', height:80, background:'#000', overflow:'hidden' } },
-              h('img', { src:url, alt:asset.label || 'Asset', style:{ width:'100%', height:'100%', objectFit:'cover' } })
+            h('div', { style:{ width:'100%', aspectRatio:'1 / 1', background:'#000', overflow:'hidden' } },
+              h('img', { src:url, alt:asset.label || 'Asset', style:{ width:'100%', height:'100%', objectFit:'cover', display:'block' } })
             ),
-            h('div', { style:{ padding:6, fontSize:10, color:u.text, textOverflow:'ellipsis', overflow:'hidden', whiteSpace:'nowrap', fontWeight:700, textAlign:'center' } }, asset.label || asset.filename || 'Image')
+            h('div', { style:{ padding:'8px 10px', fontSize:12, color:u.text, textOverflow:'ellipsis', overflow:'hidden', whiteSpace:'nowrap', fontWeight:700, textAlign:'center' } }, asset.label || asset.filename || 'Image')
           );
         })
       );
     }
 
-    return h('div', { style:{ position:'fixed', inset:0, zIndex:250, background:'rgba(0,0,0,.52)', display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? 0 : 16 } },
-      h('div', { style:{ width:isMobile ? '100%' : 520, maxHeight:'90vh', background:u.bg, border:'1px solid ' + u.border, borderRadius:isMobile ? 0 : 16, padding:18, display:'flex', flexDirection:'column', boxSizing:'border-box' } },
-        h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, gap:10 } },
-          h('h3', { style:{ margin:0, color:u.text, fontSize:16, fontWeight:800 } }, 'Select Photo from Library'),
-          h(Button, { variant:'secondary', size:'sm', onClick:onClose }, 'Close')
-        ),
-        !loading && !error && assets && assets.length > 0 && h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:12, flexWrap:'wrap' } },
-          h('label', { style:{ fontSize:12, fontWeight:700, color:u.textSec } }, 'Category'),
-          h('select', {
-            value: category,
-            onChange: function(e){ setCategory(e.target.value); },
-            style: {
-              flex: 1,
-              minWidth: 160,
-              height: 34,
-              borderRadius: 10,
-              border: '1px solid ' + u.border,
-              background: u.surface,
-              color: u.text,
-              fontSize: 13,
-              fontWeight: 600,
-              padding: '0 10px',
-              fontFamily: 'inherit',
-            }
-          },
-            categories.map(function(key){
-              var label = key === 'all' ? 'All images' : categoryLabel(key);
-              var count = categoryCounts[key] || 0;
-              return h('option', { key: key, value: key }, label + ' (' + count + ')');
-            })
+    return h('div', {
+      style: {
+        position: 'fixed',
+        inset: 0,
+        zIndex: 250,
+        background: 'rgba(0,0,0,.52)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: isMobile ? 0 : 20,
+      }
+    },
+      h('div', {
+        style: {
+          width: isMobile ? '100%' : '80vw',
+          height: isMobile ? '100%' : '80vh',
+          maxWidth: isMobile ? '100%' : 1280,
+          background: u.bg,
+          border: '1px solid ' + u.border,
+          borderRadius: isMobile ? 0 : 16,
+          display: 'flex',
+          flexDirection: 'column',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+        }
+      },
+        h('div', {
+          style: {
+            flexShrink: 0,
+            padding: '16px 18px 12px',
+            borderBottom: '1px solid ' + u.border,
+            background: u.bg,
+          }
+        },
+          h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: assets && assets.length ? 12 : 0, gap:10 } },
+            h('h3', { style:{ margin:0, color:u.text, fontSize:17, fontWeight:800 } }, 'Select Photo from Library'),
+            h(Button, { variant:'secondary', size:'sm', onClick:onClose }, 'Close')
           ),
-          h('span', { style:{ fontSize:11, color:u.textMut, fontWeight:600 } }, filtered.length + ' shown')
+          !loading && !error && assets && assets.length > 0 && h('div', { style:{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' } },
+            h('label', { style:{ fontSize:12, fontWeight:700, color:u.textSec } }, 'Category'),
+            h('select', {
+              value: category,
+              onChange: function(e){ setCategory(e.target.value); },
+              style: {
+                flex: 1,
+                minWidth: 180,
+                height: 36,
+                borderRadius: 10,
+                border: '1px solid ' + u.border,
+                background: u.surface,
+                color: u.text,
+                fontSize: 13,
+                fontWeight: 600,
+                padding: '0 10px',
+                fontFamily: 'inherit',
+              }
+            },
+              categories.map(function(key){
+                var label = key === 'all' ? 'All images' : categoryLabel(key);
+                var count = categoryCounts[key] || 0;
+                return h('option', { key: key, value: key }, label + ' (' + count + ')');
+              })
+            ),
+            h('span', { style:{ fontSize:12, color:u.textMut, fontWeight:600 } }, filtered.length + ' shown')
+          )
         ),
-        content
+        h('div', {
+          style: {
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            padding: '14px 18px 18px',
+            WebkitOverflowScrolling: 'touch',
+          }
+        }, gridBody)
       )
     );
   }
