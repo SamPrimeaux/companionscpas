@@ -71,10 +71,35 @@ body {
 
 ::selection { background: transparent; }
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--dash-border-strong); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: var(--nav-bg); }
+/* Scrollbars: only on real scrollports (not every nested flex child).
+   Global 5px near-invisible thumbs looked like a broken hairline inset
+   when .dash-page also scrolled inside a max-width box. */
+#main-scroll,
+.cpas-sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(26, 22, 34, 0.35) transparent;
+}
+#main-scroll::-webkit-scrollbar,
+.cpas-sidebar-nav::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+#main-scroll::-webkit-scrollbar-track,
+.cpas-sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+#main-scroll::-webkit-scrollbar-thumb,
+.cpas-sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(26, 22, 34, 0.28);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+#main-scroll::-webkit-scrollbar-thumb:hover,
+.cpas-sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(26, 22, 34, 0.45);
+  background-clip: padding-box;
+}
 
 input, select, textarea, button { font-family: var(--font-ui); }
 select option { background: #faf7f3; color: #1a1622; }
@@ -87,7 +112,8 @@ a { color: inherit; text-decoration: none; }
 
 .dash-page {
   flex: 1;
-  overflow-y: auto;
+  min-width: 0;
+  /* Vertical scroll lives on #main-scroll only — avoids inset dual track */
   overflow-x: hidden;
   padding: 28px 28px 40px;
   box-sizing: border-box;

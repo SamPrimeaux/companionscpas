@@ -124,8 +124,10 @@ export async function renderSiteFooter(env) {
   const fbUrl    = socials.facebook    || "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
   const igUrl    = socials.instagram   || "https://www.instagram.com/companionscpas";
 
-  // Same avatar as the header — consistent brand mark across header + footer
-  const logoSrc  = DEFAULT_LOGO;
+  // Same brand mark as the header (logo_light_url → DEFAULT_LOGO)
+  const logoSrc = headerLogoSrc(brand);
+  const iamLogo = brand?.developer_logo_light_url
+    || "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/238de9d1-a470-4fe5-5424-9182f4bc0500/avatar";
 
   const footerLis = navItems
     .map((item) => `<li><a href="${esc(item.route)}">${esc(item.label)}</a></li>`)
@@ -140,7 +142,7 @@ export async function renderSiteFooter(env) {
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <img src="${esc(logoSrc)}" alt="${esc(orgName)}" class="footer-brand-logo" style="height:90px;width:90px;object-fit:contain;" />
+        <img src="${esc(logoSrc)}" alt="${esc(orgName)}" class="footer-brand-logo" />
         <p class="footer-tagline">${esc(tagline)}</p>
       </div>
       <div>
@@ -173,9 +175,9 @@ export async function renderSiteFooter(env) {
     </div>
     <div class="footer-bottom">
       <p class="footer-ein">${esc(orgName)} &nbsp;·&nbsp; 501(c)(3) &nbsp;·&nbsp; EIN ${esc(ein)}</p>
-      <a href="https://inneranimalmedia.com" target="_blank" rel="noopener" class="footer-iam-mark" aria-label="Built by Inner Animal Media" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;">
-        <span style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.32);">Built by</span>
-        <img src="https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/238de9d1-a470-4fe5-5424-9182f4bc0500/avatar" alt="Inner Animal Media" style="height:28px;width:28px;object-fit:contain;opacity:0.55;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='0.55'" />
+      <a href="https://inneranimalmedia.com" target="_blank" rel="noopener" class="footer-iam-mark" aria-label="Built by Inner Animal Media">
+        <span class="footer-iam-label">Built by</span>
+        <img src="${esc(iamLogo)}" alt="Inner Animal Media" class="footer-iam-logo" />
       </a>
     </div>
   </div>
