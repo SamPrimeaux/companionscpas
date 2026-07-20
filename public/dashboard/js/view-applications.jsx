@@ -115,12 +115,6 @@ function ApplicationsView({ onNavigate }) {
     React.createElement(PageHeader, {
       title: "Applications",
       subtitle: "Foster applications from the public site form",
-      action: React.createElement(Btn, {
-        variant: "secondary",
-        size: "sm",
-        icon: "external",
-        onClick: function() { window.open("https://companionsofcaddo.org/services", "_blank"); },
-      }, "Test Foster Form"),
     }),
 
     error && React.createElement("div", {
