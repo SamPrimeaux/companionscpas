@@ -38,8 +38,12 @@ const CDN = "https://assets.companionsofcaddo.org";
 function safeUrl(value, fallback = "") {
   const raw = text(value).trim();
   if (!raw) return fallback;
-  // Normalise relative /media/* paths to full CDN URL
-  if (raw.startsWith("/media/") || raw.startsWith("/static/")) {
+  // Legacy /assets/pages/* → static/pages/* on CDN
+  if (raw.startsWith("/assets/pages/")) {
+    return escapeAttribute(CDN + raw.replace(/^\/assets\//, "/static/"));
+  }
+  // Normalise relative /media/* and /static/* paths to full CDN URL
+  if (raw.startsWith("/media/") || raw.startsWith("/static/") || raw.startsWith("/assets/")) {
     return escapeAttribute(CDN + raw);
   }
   if (raw.startsWith("/") || raw.startsWith("#") || raw.startsWith("./") || raw.startsWith("../")) {

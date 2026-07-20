@@ -1861,7 +1861,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           { value:'contained_split', label:'Contained' },
           { value:'soft_split', label:'Soft fade' },
           { value:'overlay', label:'Overlay' },
-          { value:'true_split', label:'Edge bleed' },
+          { value:'true_split', label:'Split / side' },
         ], (v) => setConfigPatch({
           hero_layout: v,
           overlay_strength: (v === 'true_split' || v === 'contained_split') ? 'none' : (cfg.overlay_strength || 'medium'),

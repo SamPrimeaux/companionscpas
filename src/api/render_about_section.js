@@ -15,11 +15,66 @@ function pick(o, keys) {
 function escUrl(v, fb = "") {
   const raw = t(v).trim();
   if (!raw) return fb;
-  if (raw.startsWith("/media/") || raw.startsWith("/static/")) return CDN + raw;
+  // Legacy /assets/pages/* uploads → R2 static/pages/*
+  if (raw.startsWith("/assets/pages/")) return CDN + raw.replace(/^\/assets\//, "/static/");
+  if (raw.startsWith("/media/") || raw.startsWith("/static/") || raw.startsWith("/assets/")) return CDN + raw;
   if (raw.startsWith("/") || raw.startsWith("#")) return raw;
   if (raw.startsWith("http")) return raw;
   return fb;
 }
+
+function resolveAboutHeroLayout(config) {
+  const raw = pick(config, ["hero_layout", "layout"]).toLowerCase().replace(/-/g, "_");
+  if (raw === "contained" || raw === "contained_split" || raw === "inset" || raw === "guttered") return "contained_split";
+  if (raw === "true" || raw === "true_split" || raw === "split" || raw === "panel" || raw === "edge_bleed") return "true_split";
+  if (raw === "overlay" || raw === "full_bleed" || raw === "fullbleed") return "overlay";
+  if (raw === "soft" || raw === "soft_split" || raw === "fade") return "soft_split";
+  // About group portraits read poorly as soft-fade overlays — default to true split.
+  return "true_split";
+}
+
+function resolveAboutOverlay(config, layout) {
+  const raw = pick(config, ["overlay_strength"]).toLowerCase();
+  if (raw === "none" || raw === "soft" || raw === "medium" || raw === "strong") return raw;
+  if (layout === "overlay") return "medium";
+  if (layout === "true_split" || layout === "contained_split") return "none";
+  return "medium";
+}
+
+function aboutScrimCss(layout, strength, imageSide) {
+  if (layout === "true_split" || layout === "contained_split" || strength === "none") return "transparent";
+  const dir = imageSide === "left" ? "270deg" : "90deg";
+  if (layout === "overlay") {
+    if (strength === "soft") {
+      return `linear-gradient(${dir}, rgba(28,20,32,0.72) 0%, rgba(28,20,32,0.45) 42%, rgba(28,20,32,0.12) 70%, transparent 100%)`;
+    }
+    if (strength === "strong") {
+      return `linear-gradient(${dir}, rgba(28,20,32,0.92) 0%, rgba(28,20,32,0.78) 48%, rgba(28,20,32,0.35) 78%, transparent 100%)`;
+    }
+    return `linear-gradient(${dir}, rgba(28,20,32,0.82) 0%, rgba(28,20,32,0.58) 46%, rgba(28,20,32,0.2) 74%, transparent 100%)`;
+  }
+  if (strength === "soft") {
+    return `linear-gradient(${dir}, var(--bg) 0%, var(--bg) 58%, rgba(250,248,244,0.45) 82%, transparent 100%)`;
+  }
+  if (strength === "strong") {
+    return `linear-gradient(${dir}, var(--bg) 0%, var(--bg) 88%, rgba(250,248,244,0.65) 96%, transparent 100%)`;
+  }
+  return `linear-gradient(${dir}, var(--bg) 0%, var(--bg) 72%, rgba(250,248,244,0.55) 90%, transparent 100%)`;
+}
+
+function objectPosition(config) {
+  const focalX = Number(config.image_focal_x);
+  const focalY = Number(config.image_focal_y);
+  if (Number.isFinite(focalX) && Number.isFinite(focalY)) {
+    return `${Math.min(100, Math.max(0, focalX))}% ${Math.min(100, Math.max(0, focalY))}%`;
+  }
+  const focal = pick(config, ["image_object_position"]) || "center";
+  if (focal === "top") return "center top";
+  if (focal === "left") return "left center";
+  if (focal === "right") return "right center";
+  return "center 35%";
+}
+
 function escAttr(v) { return escapeHtml(v); }
 function sortBlocks(blocks) {
   return [...(blocks || [])].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
@@ -36,14 +91,6 @@ function softHtml(value) {
       .replace(/on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
   }
   return escapeHtml(raw);
-}
-
-function objectPosition(config) {
-  const focal = pick(config, ["image_object_position"]) || "center";
-  if (focal === "top") return "center top";
-  if (focal === "left") return "left center";
-  if (focal === "right") return "right center";
-  return "center 20%";
 }
 
 function heroModalBtn(label, sub, action, variant = "primary", cmsField = "") {
@@ -155,19 +202,52 @@ function renderHero(section) {
   const eyebrow = pick(section, ["eyebrow"]) || "Caddo Parish · 100% Volunteer-Based";
   const heading = pick(section, ["heading"]) || "Giving Caddo dogs the second chance they might not get otherwise.";
   const body = pick(section, ["body"]) || pick(section, ["subheading"]) || "";
-  const img = escUrl(pick(section, ["image_url"]) || pick(c, ["image_url"]), `${CDN}/static/pages/about/theteam.webp`);
+  const img = escUrl(
+    pick(section, ["image_url"]) || pick(c, ["image_url"]),
+    `${CDN}/static/pages/about/theteam.webp`
+  );
   const alt = pick(c, ["image_alt"]) || heading || "Companions of CPAS volunteer team";
-  const cta2Label = pick(section, ["cta_secondary_label"]) || pick(c, ["cta_secondary_label"]) || "Support Our Mission";
-  const cta2Href = pick(section, ["cta_secondary_href"]) || pick(c, ["cta_secondary_href"]) || "/donate";
+  const cta2Label = pick(section, ["cta_secondary_label"]) || pick(c, ["cta_secondary_label"]) || "Meet Adoptable Dogs";
+  const cta2Href = pick(section, ["cta_secondary_href"]) || pick(c, ["cta_secondary_href"]) || "/adopt";
   const cta2Sub = pick(c, ["cta_secondary_sub"]) || (cta2Href === "/donate" || cta2Href === "donate" ? "Donate or give supplies" : "See who needs a home");
+
+  const layout = resolveAboutHeroLayout(c);
+  const overlayStrength = resolveAboutOverlay(c, layout);
+  const imageSide = pick(c, ["image_side"]).toLowerCase() === "left" ? "left" : "right";
+  let imageWidth = Number(c.image_width);
+  if (!Number.isFinite(imageWidth)) imageWidth = 55;
+  imageWidth = Math.min(70, Math.max(40, Math.round(imageWidth)));
+  const imageFit = pick(c, ["image_fit"]).toLowerCase() === "contain" ? "contain" : "cover";
   const pos = objectPosition(c);
+  let zoom = Number(c.image_zoom);
+  if (!Number.isFinite(zoom)) zoom = 1;
+  zoom = Math.min(1.6, Math.max(0.85, zoom));
+  const zoomCss = zoom !== 1 ? `transform:scale(${zoom});transform-origin:${pos};` : "";
+  const scrimBg = aboutScrimCss(layout, overlayStrength, imageSide);
+  const textPanelPct = Math.max(30, 100 - imageWidth);
+
+  const layoutClass =
+    layout === "true_split" ? " hero-split--true" :
+    layout === "contained_split" ? " hero-split--contained" :
+    layout === "overlay" ? " hero-split--overlay" :
+    " hero-split--soft";
+  const sideClass = imageSide === "left" ? " hero-split--image-left" : "";
 
   return `<style>
-[data-cpas-section="hero"]{isolation:isolate}
-[data-cpas-section="hero"] .hero-media-bg img{object-fit:cover;object-position:${pos};width:100%;height:100%}
-@media(max-width:768px){[data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(320px,62vw,520px)}[data-cpas-section="hero"] .hero-body{background:linear-gradient(180deg,#faf8f4 0%,#f2ede4 100%)}}
+[data-cpas-section="hero"]{isolation:isolate;--hero-image-width:${imageWidth}%;--hero-text-width:${textPanelPct}%;}
+[data-cpas-section="hero"] .hero-media-bg img{object-fit:${imageFit};object-position:${pos};width:100%;height:100%;${zoomCss}}
+[data-cpas-section="hero"] .hero-scrim{background:${scrimBg};}
+[data-cpas-section="hero"].hero-split--image-left .hero-media-bg img{left:0;right:auto;}
+[data-cpas-section="hero"].hero-split--image-left .hero-content{margin-left:auto;}
+@media(max-width:768px){
+  [data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(320px,62vw,520px)}
+  [data-cpas-section="hero"].hero-split--true .hero-media-bg,
+  [data-cpas-section="hero"].hero-split--contained .hero-media-bg{height:clamp(280px,58vw,480px)}
+  [data-cpas-section="hero"] .hero-body{background:var(--bg)}
+  [data-cpas-section="hero"].hero-split--image-left .hero-media-bg img{left:0;right:0;width:100%}
+}
 </style>
-<section class="hero-split" data-cpas-section="hero" data-section-key="hero">
+<section class="hero-split${layoutClass}${sideClass}" data-cpas-section="hero" data-section-key="hero" data-hero-layout="${layout}">
   <div class="hero-media-bg" data-cms-field="image_url">
     <img src="${escAttr(img)}" alt="${escAttr(alt)}" loading="eager" fetchpriority="high" decoding="async" />
     <div class="hero-scrim"></div>
