@@ -901,6 +901,16 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   React.useEffect(() => { loadPage(); }, [loadPage]);
 
   React.useEffect(() => {
+    const onRestored = (e) => {
+      const detail = e?.detail || {};
+      if (detail.page_route && detail.page_route !== route) return;
+      loadPage().then(() => bumpPreview()).catch(() => {});
+    };
+    window.addEventListener("cpas:section-restored", onRestored);
+    return () => window.removeEventListener("cpas:section-restored", onRestored);
+  }, [loadPage, bumpPreview, route]);
+
+  React.useEffect(() => {
     if (!showAddSection) return;
     let cancelled = false;
     (async () => {
@@ -1064,16 +1074,45 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     try { await saveSectionObject(next, true); bumpPreview(); notify(next.is_visible === 0 ? 'Section hidden' : 'Section visible'); } catch(e) { notify(e.message, 'error'); }
   };
 
-  const deleteSection = async () => {
-    if (!selected || !confirm('Delete this section?')) return;
+  const deleteSectionByKey = async (section, { skipConfirm = false } = {}) => {
+    if (!section?.section_key) return;
+    if (!skipConfirm && !confirm('Delete this section? You can Undo for 30 seconds.')) return;
     setBusy(true);
     try {
-      const res = await fetch('/api/cms/section/delete', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ section_key:selected.section_key, page_route:route }) });
+      const res = await fetch('/api/cms/section/delete', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ section_key: section.section_key, page_route: route }),
+      });
       const d = await res.json().catch(() => ({}));
-      notify(d.success ? 'Section deleted' : (d.error || 'Delete failed'), d.success ? 'ok' : 'error');
+      if (!d.success) {
+        notify(d.error || 'Delete failed', 'error');
+        setBusy(false);
+        return;
+      }
+      try {
+        sessionStorage.setItem('cpas.sectionUndo', JSON.stringify({
+          page_route: route,
+          section_key: section.section_key,
+          label: section.heading || section.section_key,
+          expires_at: Date.now() + 30000,
+        }));
+        window.dispatchEvent(new CustomEvent('cpas:section-undo'));
+      } catch (_) {}
+      if (selectedKey === section.section_key) clearSelection();
       await loadPage();
-    } catch(e) { notify('Delete failed: ' + e.message, 'error'); }
+      bumpPreview();
+      notify('Section deleted — Undo available for 30s');
+    } catch (e) {
+      notify('Delete failed: ' + e.message, 'error');
+    }
     setBusy(false);
+  };
+
+  const deleteSection = async () => {
+    if (!selected) return;
+    await deleteSectionByKey(selected);
   };
 
   const reorderSections = async (fromKey, toKey) => {
@@ -1279,7 +1318,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                 onClick:()=>{
                   selectSection(s.section_key, { clearUnsaved: true });
                 },
-                style:{ display:'grid', gridTemplateColumns:'18px minmax(0,1fr) auto 28px', alignItems:'center', gap:8, padding:'10px 8px', marginBottom:6, borderRadius:12, cursor:'pointer', border:`2px solid ${active ? C.purple : dragOverKey === s.section_key ? C.purple + '55' : C.border}`, borderLeft:`5px solid ${active ? C.purple : color}`, background:active ? C.purpleDim : C.bg, opacity:hidden ? .55 : 1, boxShadow: active ? `0 0 0 2px ${C.purple}44` : 'none', transition:'all 0.12s' }
+                style:{ display:'grid', gridTemplateColumns:'18px minmax(0,1fr) auto 28px 28px', alignItems:'center', gap:8, padding:'10px 8px', marginBottom:6, borderRadius:12, cursor:'pointer', border:`2px solid ${active ? C.purple : dragOverKey === s.section_key ? C.purple + '55' : C.border}`, borderLeft:`5px solid ${active ? C.purple : color}`, background:active ? C.purpleDim : C.bg, opacity:hidden ? .55 : 1, boxShadow: active ? `0 0 0 2px ${C.purple}44` : 'none', transition:'all 0.12s' }
               },
                 React.createElement('span', { style:{ color:C.textMut, fontSize:14, cursor:'grab' } }, '≡'),
                 React.createElement('div', { style:{ minWidth:0 } },
@@ -1288,7 +1327,16 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                   React.createElement('div', { style:{ color:active ? C.purple : C.textMut, fontSize:10, fontFamily:'var(--font-mono)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, s.section_key)
                 ),
                 cmsTypeBadge(s.section_type),
-                React.createElement('button', { title:hidden ? 'Show section' : 'Hide section', onClick:e=>{ e.stopPropagation(); toggleVisible(s); }, style:{ width:28, height:28, border:`1px solid ${C.border}`, borderRadius:8, background:C.surface, color:hidden ? C.textMut : C.purpleL, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' } }, React.createElement(Icon, { name:hidden ? 'eyeOff' : 'eye', size:13 }))
+                React.createElement('button', { title:hidden ? 'Show section' : 'Hide section', onClick:e=>{ e.stopPropagation(); toggleVisible(s); }, style:{ width:28, height:28, border:`1px solid ${C.border}`, borderRadius:8, background:C.surface, color:hidden ? C.textMut : C.purpleL, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' } }, React.createElement(Icon, { name:hidden ? 'eyeOff' : 'eye', size:13 })),
+                React.createElement('button', {
+                  title: 'Delete section',
+                  onClick: (e) => { e.stopPropagation(); deleteSectionByKey(s); },
+                  style: {
+                    width: 28, height: 28, border: `1px solid ${C.red}44`, borderRadius: 8,
+                    background: C.surface, color: C.red, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', cursor: 'pointer',
+                  },
+                }, React.createElement(Icon, { name: 'trash', size: 13 }))
               );
             })
       )
@@ -3166,8 +3214,122 @@ function CmsBrandView({ onNavigate }) {
   );
 }
 
+/** Session-scoped 30s undo toast — restores from D1 only (never R2 trash). */
+function CmsSectionUndoToast() {
+  const [pending, setPending] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const [tick, setTick] = React.useState(0);
+
+  const readPending = React.useCallback(() => {
+    try {
+      const raw = sessionStorage.getItem("cpas.sectionUndo");
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data?.section_key || !data?.page_route || !data?.expires_at) {
+        sessionStorage.removeItem("cpas.sectionUndo");
+        return null;
+      }
+      if (Date.now() > Number(data.expires_at)) {
+        sessionStorage.removeItem("cpas.sectionUndo");
+        return null;
+      }
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    setPending(readPending());
+    const onEvt = () => setPending(readPending());
+    window.addEventListener("cpas:section-undo", onEvt);
+    window.addEventListener("storage", onEvt);
+    const id = setInterval(() => {
+      setTick((t) => t + 1);
+      setPending(readPending());
+    }, 1000);
+    return () => {
+      window.removeEventListener("cpas:section-undo", onEvt);
+      window.removeEventListener("storage", onEvt);
+      clearInterval(id);
+    };
+  }, [readPending]);
+
+  if (!pending) return null;
+  const secsLeft = Math.max(0, Math.ceil((Number(pending.expires_at) - Date.now()) / 1000));
+  if (secsLeft <= 0) return null;
+
+  const undo = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/cms/section/restore", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          page_route: pending.page_route,
+          section_key: pending.section_key,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      sessionStorage.removeItem("cpas.sectionUndo");
+      setPending(null);
+      if (!d.success) {
+        alert(d.error || "Could not restore section");
+        setBusy(false);
+        return;
+      }
+      // Reload editor if still on that page
+      window.dispatchEvent(new CustomEvent("cpas:section-restored", {
+        detail: { page_route: pending.page_route, section_key: pending.section_key },
+      }));
+    } catch (e) {
+      alert(String(e?.message || e));
+    }
+    setBusy(false);
+  };
+
+  void tick;
+  return React.createElement("div", {
+    role: "status",
+    style: {
+      position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 9999,
+      display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+      background: "#1a1420", color: "#f8f7ff", borderRadius: 12,
+      boxShadow: "0 12px 40px rgba(0,0,0,.35)", maxWidth: "min(520px, calc(100vw - 24px))",
+      fontFamily: "var(--font-ui)", fontSize: 13,
+    },
+  },
+    React.createElement("span", { style: { flex: 1 } },
+      `Deleted “${pending.label || pending.section_key}”. Undo within ${secsLeft}s.`
+    ),
+    React.createElement("button", {
+      type: "button",
+      disabled: busy,
+      onClick: undo,
+      style: {
+        padding: "7px 14px", borderRadius: 8, border: 0, cursor: busy ? "wait" : "pointer",
+        background: "#a78bfa", color: "#1a1420", fontWeight: 800, fontSize: 12,
+      },
+    }, busy ? "Restoring…" : "Undo"),
+    React.createElement("button", {
+      type: "button",
+      "aria-label": "Dismiss",
+      onClick: () => {
+        try { sessionStorage.removeItem("cpas.sectionUndo"); } catch (_) {}
+        setPending(null);
+      },
+      style: {
+        width: 28, height: 28, border: 0, borderRadius: 8, background: "transparent",
+        color: "#c4b5d4", cursor: "pointer", fontSize: 16, lineHeight: 1,
+      },
+    }, "×")
+  );
+}
+
 Object.assign(window, {
   CMSView: CmsWebsiteView,
   CmsWebsiteView, CmsPagesView, CmsPageEditorView,
-  CmsImagesView, CmsBrandView,
+  CmsImagesView, CmsBrandView, CmsSectionUndoToast,
 });

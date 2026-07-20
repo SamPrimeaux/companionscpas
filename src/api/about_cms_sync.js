@@ -113,8 +113,12 @@ function cfgString(v) {
 
 export async function loadAboutPageData(env) {
   const [sectionsRes, blocksRes] = await Promise.all([
-    env.DB.prepare("SELECT * FROM cms_page_sections WHERE tenant_id = ? AND page_route = ? ORDER BY sort_order, section_key")
-      .bind(TENANT_ID, ABOUT_ROUTE).all(),
+    env.DB.prepare(
+      `SELECT * FROM cms_page_sections
+       WHERE tenant_id = ? AND page_route = ?
+         AND (deleted_at IS NULL OR deleted_at = '')
+       ORDER BY sort_order, section_key`
+    )      .bind(TENANT_ID, ABOUT_ROUTE).all(),
     env.DB.prepare("SELECT * FROM cms_page_content_blocks WHERE tenant_id = ? AND page_route = ? ORDER BY sort_order, section_key, block_key")
       .bind(TENANT_ID, ABOUT_ROUTE).all(),
   ]);

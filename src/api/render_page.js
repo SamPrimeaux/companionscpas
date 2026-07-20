@@ -413,9 +413,11 @@ export async function renderPage(route, jobId, env, opts = {}) {
       includeHidden
         ? `SELECT * FROM cms_page_sections
            WHERE page_route=? AND tenant_id=?
+             AND (deleted_at IS NULL OR deleted_at = '')
            ORDER BY sort_order`
         : `SELECT * FROM cms_page_sections
            WHERE page_route=? AND tenant_id=? AND is_visible=1
+             AND (deleted_at IS NULL OR deleted_at = '')
            ORDER BY sort_order`,
       normalizedRoute,
       TENANT_ID

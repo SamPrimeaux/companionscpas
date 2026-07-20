@@ -1,4 +1,4 @@
-import { renderPage } from "./render_page.js";
+import { renderPage, getBrand } from "./render_page.js";
 import {
   isFragmentPageRoute,
   ensureFragmentPageSections,
@@ -9,7 +9,7 @@ import {
   getFragmentSectionKeys,
   normalizeFragmentRoute,
 } from "./page_cms_registry.js";
-import { bootstrapNewCmsPage } from "./cms_pipeline.js";
+import { bootstrapNewCmsPage, archiveAndClearLiveFragment, syncSectionToR2, loadRouteSections } from "./cms_pipeline.js";
 import { getAuthUser } from "./session_api.js";
 import {
   rebuildCmsAssetUsages,
@@ -782,11 +782,20 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
     if (!page) return json({ error: "Page not found", route }, 404);
 
-    const sections = await env.DB.prepare("SELECT * FROM cms_page_sections WHERE tenant_id = ? AND page_route = ? ORDER BY sort_order, section_key")
+    const sections = await env.DB.prepare(
+      `SELECT * FROM cms_page_sections
+       WHERE tenant_id = ? AND page_route = ?
+         AND (deleted_at IS NULL OR deleted_at = '')
+       ORDER BY sort_order, section_key`
+    )
       .bind(TENANT_ID, route).all().catch(() => ({ results: [] }));
 
     const blocks = await env.DB.prepare("SELECT * FROM cms_page_content_blocks WHERE tenant_id = ? AND page_route = ? ORDER BY sort_order, section_key, block_key")
       .bind(TENANT_ID, route).all().catch(() => ({ results: [] }));
+
+    // Drop blocks whose section was soft-deleted (and thus omitted above)
+    const activeKeys = new Set((sections.results || []).map((s) => s.section_key));
+    const blockResults = (blocks.results || []).filter((b) => activeKeys.has(b.section_key));
 
     let sectionResults = sections.results || [];
     const fragmentKeys = getFragmentSectionKeys(route);
@@ -794,7 +803,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       sectionResults = sectionResults.filter((s) => fragmentKeys.includes(s.section_key));
     }
 
-    return json({ success: true, page, sections: sectionResults, blocks: blocks.results || [] });
+    return json({ success: true, page, sections: sectionResults, blocks: blockResults });
   }
 
   if (path === "/api/cms/page/bootstrap" && method === "POST") {
@@ -1641,7 +1650,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     return json({ success: true, message: "Brand updated. KV cache invalidated." });
   }
 
-  // POST /api/cms/section/delete
+  // POST /api/cms/section/delete — soft-delete (D1 deleted_at + R2 archive). Undo restores from D1 only.
   if (path === "/api/cms/section/delete" && method === "POST") {
     const cmsUser = await requireCmsUser(request, env, sessionUser);
     if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
@@ -1650,13 +1659,26 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     const { page_route, section_key } = data;
     if (!page_route || !section_key) return json({ error: "page_route and section_key required" }, 400);
 
+    const existing = await env.DB.prepare(
+      `SELECT section_key, heading FROM cms_page_sections
+       WHERE tenant_id = ? AND page_route = ? AND section_key = ?
+         AND (deleted_at IS NULL OR deleted_at = '')
+       LIMIT 1`
+    ).bind(TENANT_ID, page_route, section_key).first().catch(() => null);
+    if (!existing) return json({ success: false, error: "Section not found" }, 404);
+
     await env.DB.prepare(
-      "DELETE FROM cms_page_sections WHERE tenant_id = ? AND page_route = ? AND section_key = ?"
+      `UPDATE cms_page_sections
+       SET deleted_at = datetime('now'), updated_at = datetime('now')
+       WHERE tenant_id = ? AND page_route = ? AND section_key = ?`
     ).bind(TENANT_ID, page_route, section_key).run();
+
+    const archive = await archiveAndClearLiveFragment(env, page_route, section_key);
 
     await bustCache(env,
       `sections:${TENANT_ID}:${page_route}`,
-      `bootstrap:${TENANT_ID}`
+      `bootstrap:${TENANT_ID}`,
+      `page:${page_route}`
     );
 
     let fragmentSync = null;
@@ -1664,7 +1686,62 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       fragmentSync = await syncFragmentCmsToR2(env, page_route);
     }
 
-    return json({ success: true, deleted: { page_route, section_key }, fragment_sync: fragmentSync });
+    return json({
+      success: true,
+      soft_deleted: true,
+      deleted: { page_route, section_key, heading: existing.heading || section_key },
+      archive,
+      fragment_sync: fragmentSync,
+      undo_window_seconds: 30,
+    });
+  }
+
+  // POST /api/cms/section/restore — clear deleted_at and re-render live fragment from D1 (never from R2 trash).
+  if (path === "/api/cms/section/restore" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const { page_route, section_key } = data;
+    if (!page_route || !section_key) return json({ error: "page_route and section_key required" }, 400);
+
+    const row = await env.DB.prepare(
+      `SELECT * FROM cms_page_sections
+       WHERE tenant_id = ? AND page_route = ? AND section_key = ?
+         AND deleted_at IS NOT NULL AND deleted_at != ''
+       LIMIT 1`
+    ).bind(TENANT_ID, page_route, section_key).first().catch(() => null);
+    if (!row) return json({ success: false, error: "Nothing to restore (expired or already restored)" }, 404);
+
+    await env.DB.prepare(
+      `UPDATE cms_page_sections
+       SET deleted_at = NULL, updated_at = datetime('now')
+       WHERE tenant_id = ? AND page_route = ? AND section_key = ?`
+    ).bind(TENANT_ID, page_route, section_key).run();
+
+    const brand = await getBrand(env);
+    const { blocksBySection } = await loadRouteSections(env, page_route, { includeHidden: true });
+    const sectionBlocks = blocksBySection.get(section_key) || [];
+    const restored = { ...row, deleted_at: null };
+    const sync = await syncSectionToR2(env, page_route, restored, sectionBlocks, brand, {});
+
+    await bustCache(env,
+      `sections:${TENANT_ID}:${page_route}`,
+      `bootstrap:${TENANT_ID}`,
+      `page:${page_route}`
+    );
+
+    let fragmentSync = null;
+    if (isFragmentPageRoute(page_route)) {
+      fragmentSync = await syncFragmentCmsToR2(env, page_route);
+    }
+
+    return json({
+      success: true,
+      restored: { page_route, section_key },
+      sync,
+      fragment_sync: fragmentSync,
+    });
   }
 
 

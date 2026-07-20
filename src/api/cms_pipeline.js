@@ -82,9 +82,11 @@ export async function isCmsPageRoute(env, route) {
 
 export async function loadRouteSections(env, route, { includeHidden = false } = {}) {
   const r = normalizeCmsRoute(route);
+  // Soft-deleted rows are never publishable. Hide vs delete stay distinct.
+  const deletedClause = " AND (deleted_at IS NULL OR deleted_at = '')";
   const sql = includeHidden
-    ? `SELECT * FROM cms_page_sections WHERE tenant_id = ? AND page_route = ? ORDER BY sort_order, section_key`
-    : `SELECT * FROM cms_page_sections WHERE tenant_id = ? AND page_route = ? AND is_visible = 1 ORDER BY sort_order, section_key`;
+    ? `SELECT * FROM cms_page_sections WHERE tenant_id = ? AND page_route = ?${deletedClause} ORDER BY sort_order, section_key`
+    : `SELECT * FROM cms_page_sections WHERE tenant_id = ? AND page_route = ? AND is_visible = 1${deletedClause} ORDER BY sort_order, section_key`;
   const [sectionsRes, blocksRes] = await Promise.all([
     env.DB.prepare(sql).bind(TENANT_ID, r).all(),
     env.DB.prepare(
@@ -96,6 +98,80 @@ export async function loadRouteSections(env, route, { includeHidden = false } = 
     blocks: blocksRes?.results || [],
     blocksBySection: groupBlocks(blocksRes?.results || []),
   };
+}
+
+/** Archive key for soft-deleted section HTML. Lifecycle rule expires cms/section-trash/ after 3 days. */
+export function sectionTrashR2Key(route, sectionKey, deletedAtIso = null) {
+  const day = (deletedAtIso || new Date().toISOString()).slice(0, 10);
+  const r = normalizeCmsRoute(route);
+  const routeSeg = r === "/" ? "home" : sanitizePathSegment(r.replace(/^\//, "").replace(/\//g, "__"), "page");
+  const seg = sanitizePathSegment(sectionKey, "section");
+  return `cms/section-trash/${day}/${routeSeg}/${seg}.html`;
+}
+
+/**
+ * Soft-delete: archive live fragment → remove live key.
+ * Restore never reads the archive — only D1 row + re-render.
+ */
+export async function archiveAndClearLiveFragment(env, route, sectionKey) {
+  const liveKey = fragmentR2Key(route, sectionKey);
+  const trashKey = sectionTrashR2Key(route, sectionKey);
+  let archived = false;
+  try {
+    const obj = await env.WEBSITE_ASSETS?.get(liveKey);
+    if (obj) {
+      const body = await obj.arrayBuffer();
+      await env.WEBSITE_ASSETS.put(trashKey, body, {
+        httpMetadata: obj.httpMetadata || { contentType: "text/html; charset=utf-8" },
+        customMetadata: {
+          ...(obj.customMetadata || {}),
+          soft_deleted_from: liveKey,
+          page_route: normalizeCmsRoute(route),
+          section_key: String(sectionKey),
+        },
+      });
+      archived = true;
+    }
+  } catch (err) {
+    console.warn("[cms] archive fragment failed:", err?.message || err);
+  }
+  try {
+    await env.WEBSITE_ASSETS?.delete(liveKey);
+  } catch (_) {}
+  return { live_key: liveKey, trash_key: trashKey, archived };
+}
+
+/** Purge D1 soft-deleted sections older than 3 days (+ their content blocks). R2 trash is lifecycle-owned. */
+export async function purgeExpiredSoftDeletedSections(env, { olderThanDays = 3 } = {}) {
+  const days = Math.max(1, Number(olderThanDays) || 3);
+  const expired = await env.DB.prepare(
+    `SELECT page_route, section_key FROM cms_page_sections
+     WHERE tenant_id = ?
+       AND deleted_at IS NOT NULL AND deleted_at != ''
+       AND deleted_at < datetime('now', ?)
+     LIMIT 200`
+  ).bind(TENANT_ID, `-${days} days`).all().catch(() => ({ results: [] }));
+
+  const rows = expired?.results || [];
+  let purged = 0;
+  for (const row of rows) {
+    const pageRoute = row.page_route;
+    const sectionKey = row.section_key;
+    await env.DB.prepare(
+      `DELETE FROM cms_page_content_blocks
+       WHERE tenant_id = ? AND page_route = ? AND section_key = ?`
+    ).bind(TENANT_ID, pageRoute, sectionKey).run().catch(() => null);
+    await env.DB.prepare(
+      `DELETE FROM cms_page_sections
+       WHERE tenant_id = ? AND page_route = ? AND section_key = ?`
+    ).bind(TENANT_ID, pageRoute, sectionKey).run().catch(() => null);
+    // Leftover live fragment only — do not touch cms/section-trash (lifecycle).
+    try {
+      await env.WEBSITE_ASSETS?.delete(fragmentR2Key(pageRoute, sectionKey));
+    } catch (_) {}
+    purged += 1;
+  }
+  return { purged, older_than_days: days };
 }
 
 export async function syncSectionToR2(env, route, section, blocks, brand, opts = {}) {

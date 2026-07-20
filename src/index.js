@@ -463,6 +463,15 @@ export default {
     );
 
     ctx.waitUntil(
+      import("./api/cms_pipeline.js")
+        .then((m) => m.purgeExpiredSoftDeletedSections(env, { olderThanDays: 3 }))
+        .then((r) => {
+          if (r?.purged) console.log("[cms] purged soft-deleted sections:", r.purged);
+        })
+        .catch((e) => console.warn("[cms] soft-delete purge failed:", e?.message || e))
+    );
+
+    ctx.waitUntil(
       env.DB.prepare(`
         INSERT OR REPLACE INTO agentsam_usage_rollups_daily
           (tenant_id, workspace_id, day,

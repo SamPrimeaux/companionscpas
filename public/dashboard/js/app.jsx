@@ -305,7 +305,10 @@ function App() {
       onClose: () => setNavOpen(false),
       onLogout: handleLogout
     }),
-    React.createElement(AgentSamDrawer, null)
+    React.createElement(AgentSamDrawer, null),
+    typeof CmsSectionUndoToast === "function"
+      ? React.createElement(CmsSectionUndoToast, null)
+      : null
   );
 }
 
