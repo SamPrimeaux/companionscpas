@@ -21,12 +21,6 @@ function safeUrl(value, fallback = "") {
   return fallback;
 }
 
-function humanizeCategory(key) {
-  const raw = text(key).replace(/[_-]+/g, " ").trim();
-  if (!raw) return "";
-  return raw.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 async function loadCampaign(env, campaignId) {
   if (!env?.DB || !campaignId) return null;
   const row = await env.DB.prepare(`
@@ -70,22 +64,16 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
   const description = text(section.subheading || section.body || config.public_description)
     || "Every approved entry is here. Tap a photo for a larger preview, then vote or share.";
   const shareBase = safeUrl(config.share_url, "https://companionsofcaddo.org/donate");
-  const categories = Array.isArray(config.categories) ? config.categories : [];
   const sectionKey = text(section.section_key) || "wet_dog_gallery";
   const sectionId = `wdg-${sectionKey.replace(/[^a-z0-9_-]+/gi, "-")}`;
 
   const votingOpen = Number(campaign?.is_public) === 1 && campaign?.status === "active";
-
-  const categoryChips = categories.length
-    ? `<div class="wdg-cats" aria-label="Competition categories">${categories.map((c) => `<span class="wdg-cat-chip">${esc(humanizeCategory(c))}</span>`).join("")}</div>`
-    : "";
 
   const cards = entries.map((entry) => {
     const photo = safeUrl(entry.photo_url);
     const dogName = text(entry.dog_name) || "Untitled";
     const caption = text(entry.caption);
     const captionHtml = caption ? `<p class="wdg-caption">"${esc(caption)}"</p>` : "";
-    const catLabel = humanizeCategory(entry.category);
     const votes = Number(entry.vote_count) || 0;
     return `
     <article class="wdg-card" data-entry-id="${esc(entry.id)}"
@@ -97,7 +85,6 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
         ${photo
           ? `<img src="${esc(photo)}" alt="${esc(dogName)}" loading="lazy" decoding="async">`
           : `<div class="wdg-photo-ph" aria-hidden="true">No photo</div>`}
-        ${catLabel ? `<span class="wdg-cat-badge">${esc(catLabel)}</span>` : ""}
         <span class="wdg-photo-hint">View</span>
       </button>
       <div class="wdg-body">
@@ -142,14 +129,11 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
 #${sectionId} .wdg-eyebrow{margin:0 0 10px;color:var(--wdg-accent);font-size:12px;font-weight:820;letter-spacing:.13em;text-transform:uppercase}
 #${sectionId} .wdg-heading{margin:0 0 12px;font-family:var(--font-display,'Fraunces',Georgia,serif);font-size:clamp(30px,4vw,44px);letter-spacing:-.03em;line-height:1.05}
 #${sectionId} .wdg-desc{margin:0;color:var(--wdg-muted);font-size:15px;line-height:1.6}
-#${sectionId} .wdg-cats{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0 0}
-#${sectionId} .wdg-cat-chip{padding:5px 12px;border-radius:999px;background:#f3ecfa;color:var(--wdg-accent);font-size:12px;font-weight:700}
 #${sectionId} .wdg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px;align-items:start}
 #${sectionId} .wdg-card{border-radius:16px;overflow:hidden;background:#fff;border:1px solid var(--wdg-line);box-shadow:0 2px 10px rgba(26,22,34,.06);display:flex;flex-direction:column}
 #${sectionId} .wdg-photo{position:relative;display:block;width:100%;margin:0;padding:0;border:0;background:#efeae4;cursor:pointer;min-height:180px}
 #${sectionId} .wdg-photo img{width:100%;height:auto;max-height:360px;object-fit:contain;object-position:center;display:block;background:#efeae4}
 #${sectionId} .wdg-photo-ph{min-height:180px;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:12px}
-#${sectionId} .wdg-cat-badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 9px;border-radius:999px;backdrop-filter:blur(4px)}
 #${sectionId} .wdg-photo-hint{position:absolute;right:8px;bottom:8px;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.92);color:var(--wdg-ink);font-size:11px;font-weight:700;opacity:0;transition:opacity .15s ease}
 #${sectionId} .wdg-photo:hover .wdg-photo-hint,#${sectionId} .wdg-photo:focus-visible .wdg-photo-hint{opacity:1}
 #${sectionId} .wdg-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px}
@@ -188,7 +172,6 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
       <p class="wdg-eyebrow">${esc(eyebrow)}</p>
       <h2 class="wdg-heading">${esc(heading)}</h2>
       <p class="wdg-desc">${esc(description)}</p>
-      ${categoryChips}
     </div>
     ${closedNotice}
     <div class="wdg-grid">
