@@ -1281,7 +1281,9 @@ function CmsPageEditorView({ pageId, onNavigate }) {
               cmsFieldLabel('Image URL'),
               cmsTextInput(selectedBlock.image_url, v => setBlockField('image_url', v), () => saveSelectedBlock(true), 'https://assets.companionsofcaddo.org/...', true)
             ),
-            selectedBlock.image_url && React.createElement('img', { src: selectedBlock.image_url, alt: '', style:{ width:'100%', height:86, objectFit:'cover', borderRadius:12, border:`1px solid ${C.border}` } })
+            selectedBlock.image_url && React.createElement('div', { style:{ width:'100%', maxHeight:220, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center' } },
+              React.createElement('img', { src: selectedBlock.image_url, alt: '', style:{ width:'100%', height:'auto', maxHeight:220, objectFit:'contain', display:'block' } })
+            )
           )
         : React.createElement('div', { style:{ color:C.textMut, fontSize:13 } }, 'Block not found in page data. Try reloading the editor.')
     );
@@ -1306,7 +1308,9 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         selectedField === 'body' && field('Body', 'body', 'textarea', { rows: 6 }),
         selectedField === 'image_url' && React.createElement('div', { style:{ display:'grid', gap:12 } },
           React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } }, React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)), React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick'))),
-          selected.image_url && React.createElement('img', { src:selected.image_url, style:{ width:'100%', height:86, objectFit:'cover', borderRadius:12, border:`1px solid ${C.border}` } })
+          selected.image_url && React.createElement('div', { style:{ width:'100%', maxHeight:220, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center' } },
+            React.createElement('img', { src:selected.image_url, alt:'', style:{ width:'100%', height:'auto', maxHeight:220, objectFit:'contain', display:'block' } })
+          )
         ),
         selectedField === 'cta_label' && React.createElement(React.Fragment, null, field('Primary CTA label', 'cta_label'), field('Primary CTA href', 'cta_href', 'text', { placeholder:'/foster' })),
         selectedField === 'cta_secondary_label' && React.createElement(React.Fragment, null, field('Secondary CTA label', 'cta_secondary_label'), field('Secondary CTA href', 'cta_secondary_href', 'text', { placeholder:'/donate' })),
@@ -1319,7 +1323,9 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       needsImage && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Media'),
         React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } }, React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)), React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick'))),
-        selected.image_url && React.createElement('img', { src:selected.image_url, style:{ width:'100%', height:86, objectFit:'cover', borderRadius:12, border:`1px solid ${C.border}` } })
+        selected.image_url && React.createElement('div', { style:{ width:'100%', maxHeight:220, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center' } },
+          React.createElement('img', { src:selected.image_url, alt:'', style:{ width:'100%', height:'auto', maxHeight:220, objectFit:'contain', display:'block' } })
+        )
       ),
       React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Links'), field('Primary CTA label','cta_label'), field('Primary CTA href','cta_href','text',{ placeholder:'/foster' }), field('Secondary CTA label','cta_secondary_label'), field('Secondary CTA href','cta_secondary_href','text',{ placeholder:'/donate' })),
       React.createElement('div', { style:{ display:'grid', gap:12 } },
