@@ -203,12 +203,16 @@ function transformCampaign(row) {
 }
 
 // ── Build financialBreakdown from real Stripe donations ─────────────────────
-function buildFinancialBreakdownFromDonations(donations) {
+function buildFinancialBreakdownFromDonations(donations, monthPrefix) {
   const DEFAULT_COLORS = ["#7c3aed", "#10b981", "#06b6d4", "#f59e0b", "#ef4444", "#a78bfa"];
+  const prefix = monthPrefix || new Date().toISOString().slice(0, 7);
   const totals = {};
   for (const row of donations || []) {
+    const when = String(row.donated_at || row.created_at || "");
+    if (when && when.slice(0, 7) !== prefix) continue;
     const label = row.campaign_title || "General";
     const cents = Number(row.amount_cents || 0);
+    if (!(cents > 0)) continue;
     totals[label] = (totals[label] || 0) + cents;
   }
   const entries = Object.entries(totals).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
@@ -315,25 +319,45 @@ window.__loadDashboardData = async function() {
       }
     }
 
-    // Donations — hydrate KPIs + financial donut from succeeded Stripe rows
+    // Donations — hydrate KPIs + financial donut from succeeded Stripe rows (MTD only)
+    if (overview.financial_breakdown && Array.isArray(overview.financial_breakdown.labels)) {
+      window.CPAS.chartData = {
+        ...window.CPAS.chartData,
+        financialBreakdown: {
+          labels: overview.financial_breakdown.labels,
+          values: overview.financial_breakdown.values || [],
+          colors: overview.financial_breakdown.colors || [],
+        },
+      };
+    } else {
+      const donationRows = overview.donations_mtd?.length
+        ? overview.donations_mtd
+        : (overview.donations || []);
+      if (donationRows.length) {
+        const breakdown = buildFinancialBreakdownFromDonations(
+          donationRows,
+          overview.month_prefix || new Date().toISOString().slice(0, 7)
+        );
+        if (breakdown) {
+          window.CPAS.chartData = {
+            ...window.CPAS.chartData,
+            financialBreakdown: breakdown
+          };
+        }
+      } else if (overview.campaigns?.length) {
+        window.CPAS.campaigns = overview.campaigns.map(transformCampaign);
+        const breakdown = buildFinancialBreakdown(overview.campaigns);
+        if (breakdown) {
+          window.CPAS.chartData = {
+            ...window.CPAS.chartData,
+            financialBreakdown: breakdown
+          };
+        }
+      }
+    }
+
     if (overview.donations?.length) {
       window.CPAS.donations = overview.donations;
-      const breakdown = buildFinancialBreakdownFromDonations(overview.donations);
-      if (breakdown) {
-        window.CPAS.chartData = {
-          ...window.CPAS.chartData,
-          financialBreakdown: breakdown
-        };
-      }
-    } else if (overview.campaigns?.length) {
-      window.CPAS.campaigns = overview.campaigns.map(transformCampaign);
-      const breakdown = buildFinancialBreakdown(overview.campaigns);
-      if (breakdown) {
-        window.CPAS.chartData = {
-          ...window.CPAS.chartData,
-          financialBreakdown: breakdown
-        };
-      }
     }
 
     if (overview.campaigns?.length && !window.CPAS.campaigns?.length) {

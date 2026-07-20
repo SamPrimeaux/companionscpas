@@ -157,11 +157,48 @@ function donorLabel(raw) {
   return s;
 }
 
+/** Parse D1 timestamps that mix "YYYY-MM-DD HH:MM:SS" and ISO "…T…Z". */
+function activityEpochMs(raw) {
+  if (!raw) return 0;
+  const s = String(raw).trim();
+  const normalized = /T/.test(s) ? s : s.replace(' ', 'T') + (s.endsWith('Z') ? '' : 'Z');
+  const t = Date.parse(normalized);
+  return Number.isFinite(t) ? t : 0;
+}
+
+function isSameMonthPrefix(raw, monthPrefix) {
+  if (!raw || !monthPrefix) return false;
+  const s = String(raw).trim();
+  // "2026-07-20 …" or "2026-07-20T…"
+  return s.slice(0, 7) === monthPrefix;
+}
+
+function buildFinancialBreakdownMtd(donations) {
+  const DEFAULT_COLORS = ['#7c3aed', '#10b981', '#06b6d4', '#f59e0b', '#ef4444', '#a78bfa'];
+  const totals = {};
+  for (const row of donations || []) {
+    const label = String(row.campaign_title || 'General').trim() || 'General';
+    const cents = Number(row.amount_cents || 0);
+    if (!(cents > 0)) continue;
+    totals[label] = (totals[label] || 0) + cents;
+  }
+  const entries = Object.entries(totals).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
+  if (!entries.length) {
+    return { labels: [], values: [], colors: [], total_cents: 0 };
+  }
+  return {
+    labels: entries.map(([label]) => label),
+    values: entries.map(([, cents]) => Math.round(cents / 100)),
+    colors: entries.map((_, i) => DEFAULT_COLORS[i % DEFAULT_COLORS.length]),
+    total_cents: entries.reduce((sum, [, cents]) => sum + cents, 0),
+  };
+}
+
 /** Prefer donations + applications; only surface animal *adds* (not mass updates). */
 function buildOverviewActivity({ animals, apps, donations }) {
   const items = [];
 
-  for (const d of (donations || []).slice(0, 12)) {
+  for (const d of (donations || []).slice(0, 20)) {
     const when = d.donated_at || d.created_at;
     if (!when) continue;
     const dollars = Math.round(Number(d.amount_cents || 0) / 100);
@@ -173,6 +210,7 @@ function buildOverviewActivity({ animals, apps, donations }) {
       at: when,
       link: 'fundraising',
       priority: 3,
+      _ts: activityEpochMs(when),
     });
   }
 
@@ -188,6 +226,7 @@ function buildOverviewActivity({ animals, apps, donations }) {
       at: when,
       link: 'applications',
       priority: 2,
+      _ts: activityEpochMs(when),
     });
   }
 
@@ -195,7 +234,7 @@ function buildOverviewActivity({ animals, apps, donations }) {
   const adds = (animals || [])
     .filter((a) => a.created_at)
     .slice()
-    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .sort((a, b) => activityEpochMs(b.created_at) - activityEpochMs(a.created_at))
     .slice(0, 6);
   for (const a of adds) {
     items.push({
@@ -205,16 +244,17 @@ function buildOverviewActivity({ animals, apps, donations }) {
       at: a.created_at,
       link: 'animals',
       priority: 1,
+      _ts: activityEpochMs(a.created_at),
     });
   }
 
   items.sort((a, b) => {
-    const t = String(b.at).localeCompare(String(a.at));
+    const t = (b._ts || 0) - (a._ts || 0);
     if (t !== 0) return t;
     return (b.priority || 0) - (a.priority || 0);
   });
 
-  return items.slice(0, 8).map(({ priority, ...rest }) => rest);
+  return items.slice(0, 8).map(({ priority, _ts, ...rest }) => rest);
 }
 
 const CAMPAIGN_SELECT = `
@@ -380,15 +420,17 @@ export async function dashboardApiRoutes(request, env, url) {
     });
     const raisedFromDonations = paidDonations.reduce((sum, row) => sum + Number(row.amount_cents || 0), 0);
     const mtdDonations = paidDonations.filter((row) =>
-      String(row.donated_at || row.created_at || '').slice(0, 7) === monthPrefix
+      isSameMonthPrefix(row.donated_at || row.created_at, monthPrefix)
     );
     const mtdCents = mtdDonations.reduce((sum, row) => sum + Number(row.amount_cents || 0), 0);
+    const financialBreakdown = buildFinancialBreakdownMtd(mtdDonations);
     const goal = (campaignRows.results || []).reduce((s, c) => s + Number(c.goal_cents || 0), 0);
     const inFoster = animals.filter((a) => /foster/i.test(String(a.status || ''))).length;
     const applicationsMtd = apps.filter((a) =>
-      String(a.submitted_at || a.created_at || '').slice(0, 7) === monthPrefix
+      isSameMonthPrefix(a.submitted_at || a.created_at, monthPrefix)
     ).length;
 
+    // Activity: prefer recent paid rows (any month) so the feed stays live; sort by real clock time.
     const recentActivity = buildOverviewActivity({
       animals,
       apps,
@@ -415,6 +457,8 @@ export async function dashboardApiRoutes(request, env, url) {
         inbox_total:  Number(inboxCountRow?.inbox_total || 0),
         competition_review_count: competitionReviewCount,
       },
+      financial_breakdown: financialBreakdown,
+      month_prefix: monthPrefix,
       recent_activity: recentActivity,
       animals:      animals.map(normalizeAnimal),
       applications: apps,
@@ -422,6 +466,7 @@ export async function dashboardApiRoutes(request, env, url) {
       campaigns:    campaignRows.results || [],
       volunteers:   volunteerRows.results || [],
       donations:    paidDonations,
+      donations_mtd: mtdDonations,
     });
   }
 

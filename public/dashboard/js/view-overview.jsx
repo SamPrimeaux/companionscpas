@@ -4,6 +4,7 @@ const { useState: useState2, useEffect: useEffect2, useRef: useRef2 } = React;
 function DonutChart({ labels, values, colors }) {
   const ref = useRef2(null);
   const chartRef = useRef2(null);
+  const sig = JSON.stringify({ labels, values, colors });
   useEffect2(() => {
     if (!ref.current) return;
     if (chartRef.current) chartRef.current.destroy();
@@ -16,7 +17,7 @@ function DonutChart({ labels, values, colors }) {
       }
     });
     return () => { if (chartRef.current) chartRef.current.destroy(); };
-  }, []);
+  }, [sig]);
   return React.createElement("canvas", { ref, style:{ width:"100%", height:"100%" } });
 }
 
@@ -95,7 +96,11 @@ function LaunchCard({ icon, title, description, countLabel, countValue, cta, onO
 }
 
 function OverviewView({ onNavigate }) {
-  const { stats, animals, recentActivity, chartData } = CPAS;
+  const seed = window.CPAS || {};
+  const [stats, setStats] = React.useState(() => seed.stats || {});
+  const [animals, setAnimals] = React.useState(() => seed.animals || []);
+  const [recentActivity, setRecentActivity] = React.useState(() => seed.recentActivity || []);
+  const [chartData, setChartData] = React.useState(() => seed.chartData || {});
 
   const isMobile  = typeof useIsMobile  === "function" ? useIsMobile(900)  : false;
   const isNarrow  = typeof useIsNarrow  === "function" ? useIsNarrow(520)  : false;
@@ -112,6 +117,41 @@ function OverviewView({ onNavigate }) {
   const [appStatus, setAppStatus] = React.useState(
     () => chartData?.applicationStatus || emptyAppStatus
   );
+
+  function syncFromCpas() {
+    const c = window.CPAS || {};
+    setStats({ ...(c.stats || {}) });
+    setAnimals([...(c.animals || [])]);
+    setRecentActivity([...(c.recentActivity || [])]);
+    setChartData({ ...(c.chartData || {}) });
+    if (c.chartData?.applicationStatus) {
+      setAppStatus({ ...c.chartData.applicationStatus });
+    }
+  }
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function refreshOverview() {
+      try {
+        if (window.__loadDashboardData) await window.__loadDashboardData();
+        if (!cancelled) syncFromCpas();
+      } catch (_) {
+        /* keep last good snapshot */
+      }
+    }
+
+    refreshOverview();
+    const interval = setInterval(refreshOverview, 45000);
+    function onVis() {
+      if (document.visibilityState === "visible") refreshOverview();
+    }
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
