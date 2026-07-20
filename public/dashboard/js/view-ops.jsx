@@ -271,10 +271,7 @@ function VolunteersView({ onNavigate }) {
             phone: row.phone || "—",
             role: row.role || "Volunteer",
             status: row.status === "active" ? "Active" : "Inactive",
-            joinDate: (row.created_at || "—").slice(0, 10),
-            hoursMTD: row.hours_month || 0,
-            totalHours: row.hours_total || 0,
-            lastShift: row.last_shift || "—"
+            joinDate: (row.created_at || "—").slice(0, 10)
           };
         });
         setVolunteers(rows);
@@ -292,7 +289,6 @@ function VolunteersView({ onNavigate }) {
     const matchSearch = !search || v.name.toLowerCase().includes(search.toLowerCase()) || v.role.toLowerCase().includes(search.toLowerCase());
     return matchFilter && matchSearch;
   });
-  const totalHours = volunteers.reduce((s,v)=>s+v.hoursMTD,0);
   const active = volunteers.filter(v=>v.status==="Active").length;
 
   function addVolunteer() {
@@ -322,15 +318,13 @@ function VolunteersView({ onNavigate }) {
   return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
       title:"Volunteers",
-      subtitle:"Team members and hour tracking",
+      subtitle:"Team roster for Companions of CPAS",
       action: React.createElement(Btn, { icon:"plus", size:"sm", onClick: function() { setShowAdd(true); setError(""); } }, "Add Volunteer")
     }),
 
-    React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 } },
+    React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12, marginBottom:24 } },
       React.createElement(StatCard, { icon:"👥", label:"Total Volunteers",value:volunteers.length }),
       React.createElement(StatCard, { icon:"✅", label:"Active",           value:active,      sub:`${volunteers.length-active} inactive` }),
-      React.createElement(StatCard, { icon:"⏱️", label:"Hours (MTD)",      value:totalHours,  sub:"+18% vs last month", subPositive:true }),
-      React.createElement(StatCard, { icon:"📅", label:"Avg Hours/Person", value:active ? Math.round(totalHours/active) : 0, sub:"Active volunteers" }),
     ),
 
     React.createElement("div", { style:{ display:"flex", gap:10, marginBottom:16 } },
@@ -347,13 +341,6 @@ function VolunteersView({ onNavigate }) {
               { key:"role",       label:"Role",     render:v=>React.createElement("span",{style:{color:C.textSec}},v) },
               { key:"status",     label:"Status",   render:v=>React.createElement(Badge,{label:v,dot:true}) },
               { key:"joinDate",   label:"Joined",   render:v=>React.createElement("span",{style:{color:C.textSec,fontSize:12}},v) },
-              { key:"hoursMTD",   label:"Hrs (MTD)",render:v=>React.createElement("span",{style:{fontWeight:600,color:C.purpleL}},v) },
-              { key:"totalHours", label:"Total Hrs" },
-              { key:"lastShift",  label:"Last Shift",render:v=>React.createElement("span",{style:{color:C.textSec,fontSize:12}},v) },
-              { key:"id",         label:"",         render:(v,row)=>React.createElement("div",{style:{display:"flex",gap:6}},
-                React.createElement(Btn,{size:"sm",variant:"ghost",icon:"mail"},""),
-                React.createElement(Btn,{size:"sm",variant:"ghost",icon:"eye"},"")
-              )},
             ],
             rows: filtered,
             emptyMsg: "No volunteers found"

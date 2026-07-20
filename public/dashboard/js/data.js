@@ -182,9 +182,6 @@ function transformVolunteer(row) {
     role:       row.role || "Volunteer",
     status:     row.status === "active" ? "Active" : "Inactive",
     joinDate:   row.created_at?.slice(0,10) || "—",
-    hoursMTD:   row.hours_month || 0,
-    totalHours: row.hours_total || 0,
-    lastShift:  row.last_shift || "—"
   };
 }
 
