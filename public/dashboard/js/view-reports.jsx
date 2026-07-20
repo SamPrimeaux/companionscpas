@@ -163,7 +163,17 @@ function ReportsView({ onNavigate }) {
   });
   const financialSummary = financial?.summary || {};
   const financialDonations = financial?.donations || [];
-  const paidDonations = financialDonations.filter(d => ["completed", "received", "paid", "succeeded"].includes(String(d.status || "").toLowerCase()));
+  const paidDonations = financialDonations.filter(d => {
+    const status = String(d.status || "").toLowerCase();
+    const pi = String(d.stripe_payment_intent_id || "");
+    const isDemo = Number(d.is_demo) === 1 || status === "demo" || String(d.payment_provider || "").toLowerCase() === "mock_settle";
+    return !isDemo && ["completed", "received", "paid", "succeeded"].includes(status) && pi.startsWith("pi_");
+  });
+  const demoDonations = financialDonations.filter(d => {
+    const status = String(d.status || "").toLowerCase();
+    return Number(d.is_demo) === 1 || status === "demo" || String(d.payment_provider || "").toLowerCase() === "mock_settle" || (["completed", "received", "paid", "succeeded"].includes(status) && !String(d.stripe_payment_intent_id || "").startsWith("pi_"));
+  });
+  const reportDonations = paidDonations.concat(demoDonations);
   const vols = {
     total: 3, active: 3, totalHours: 54,
     rows: [
@@ -281,14 +291,14 @@ function ReportsView({ onNavigate }) {
           ) : (
             <>
               <div style={grid4}>
-                <StatCard label="Total Raised" value={financialSummary.total_raised_display || fmt.usdCents(0)} sub={`${financialSummary.total_donations || 0} succeeded payments`} subColor={RPT.green} />
+                <StatCard label="Total Raised" value={financialSummary.total_raised_display || fmt.usdCents(0)} sub={`${financialSummary.total_donations || 0} real Stripe payments`} subColor={RPT.green} />
                 <StatCard label="This Month" value={financialSummary.this_month_display || fmt.usdCents(0)} sub={`${financialSummary.this_month_donations || 0} donations in ${new Date().toLocaleString(undefined, { month: "long", year: "numeric" })}`} subColor={RPT.green} />
-                <StatCard label="Total Donations" value={financialSummary.total_donations || 0} sub="Stripe succeeded" subColor={RPT.muted} />
-                <StatCard label="Avg Gift" value={financialSummary.avg_gift_display || fmt.usdCents(0)} sub="per succeeded donation" subColor={RPT.muted} />
+                <StatCard label="Total Donations" value={financialSummary.total_donations || 0} sub="Stripe succeeded only" subColor={RPT.muted} />
+                <StatCard label="Avg Gift" value={financialSummary.avg_gift_display || fmt.usdCents(0)} sub="per real donation" subColor={RPT.muted} />
               </div>
               <div style={card}>
-                <SectionHeader title="Donations" sub="Live Stripe records from D1 · newest first" />
-                {!paidDonations.length ? (
+                <SectionHeader title="Donations" sub={`Real Stripe charges · demos excluded from totals${demoDonations.length ? ` · ${demoDonations.length} demo/test row(s) shown below` : ""}`} />
+                {!reportDonations.length ? (
                   <div style={{ color: RPT.muted, fontSize: 13, padding: "8px 0" }}>No donations recorded yet.</div>
                 ) : (
                   <div style={{ overflowX: "auto" }}>
@@ -301,29 +311,36 @@ function ReportsView({ onNavigate }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {paidDonations.map(row => {
+                        {reportDonations.map(row => {
+                          const isDemo = Number(row.is_demo) === 1 || String(row.status || "").toLowerCase() === "demo" || String(row.payment_provider || "").toLowerCase() === "mock_settle";
                           const donorLabel = row.is_anonymous ? "Anonymous" : (row.donor_name || row.donor_email || "—");
                           const stripeId = row.stripe_payment_intent_id || "";
                           const raisedCents = Number(row.intended_amount_cents ?? row.amount_cents ?? 0);
                           const chargedCents = Number(row.amount_cents ?? raisedCents);
                           const feeNote = row.cover_fees ? "Fees covered" : null;
                           return (
-                            <tr key={row.id} style={{ borderBottom: `1px solid ${RPT.border}` }}>
+                            <tr key={row.id} style={{ borderBottom: `1px solid ${RPT.border}`, opacity: isDemo ? 0.72 : 1 }}>
                               <td style={{ padding: "11px 8px", color: RPT.textSec, whiteSpace: "nowrap" }}>{fmt.date(row.donated_at || row.created_at)}</td>
                               <td style={{ padding: "11px 8px", color: RPT.text }}>{donorLabel}</td>
-                              <td style={{ padding: "11px 8px", color: RPT.green, fontWeight: 600 }}>{fmt.usdCents(raisedCents)}</td>
+                              <td style={{ padding: "11px 8px", color: isDemo ? RPT.muted : RPT.green, fontWeight: 600 }}>{fmt.usdCents(raisedCents)}</td>
                               <td style={{ padding: "11px 8px", color: RPT.textSec }}>
                                 {fmt.usdCents(chargedCents)}
                                 {feeNote && <span style={{ display: "block", fontSize: 11, color: RPT.muted, marginTop: 2 }}>{feeNote}</span>}
                               </td>
                               <td style={{ padding: "11px 8px", color: RPT.textSec }}>{row.campaign_title || "General"}</td>
-                              <td style={{ padding: "11px 8px" }}><Badge label={row.status || "succeeded"} color={RPT.green} bg="#0d3320" /></td>
                               <td style={{ padding: "11px 8px" }}>
-                                {stripeId ? (
+                                <Badge
+                                  label={isDemo ? "demo / not paid" : (row.status || "succeeded")}
+                                  color={isDemo ? RPT.muted : RPT.green}
+                                  bg={isDemo ? "#1e293b" : "#0d3320"}
+                                />
+                              </td>
+                              <td style={{ padding: "11px 8px" }}>
+                                {stripeId && stripeId.startsWith("pi_") ? (
                                   <a href={`https://dashboard.stripe.com/payments/${stripeId}`} target="_blank" rel="noopener noreferrer" style={{ color: RPT.blue, textDecoration: "none", fontFamily: "monospace", fontSize: 12 }}>
                                     {stripeId.slice(0, 18)}…
                                   </a>
-                                ) : "—"}
+                                ) : (isDemo ? "— (demo)" : "—")}
                               </td>
                             </tr>
                           );

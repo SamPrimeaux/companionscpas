@@ -297,6 +297,7 @@ export async function dashboardApiRoutes(request, env, url) {
       env.DB.prepare(`SELECT * FROM volunteer_records ORDER BY hours_month DESC`).all().catch(() => ({ results: [] })),
       env.DB.prepare(`
         SELECT d.amount_cents, d.status, d.campaign_id, d.donated_at, d.created_at,
+               d.payment_provider, d.stripe_payment_intent_id,
                COALESCE(dn.full_name, dn.email, 'a supporter') AS donor_name,
                fc.title AS campaign_title, fc.campaign_type
         FROM donations d
@@ -324,9 +325,15 @@ export async function dashboardApiRoutes(request, env, url) {
     ]);
     const animals = animalRows.results || [];
     const apps = appRows.results || [];
-    const paidDonations = (donationRows.results || []).filter((row) =>
-      paidStatuses.has(String(row.status || '').toLowerCase())
-    );
+    const paidDonations = (donationRows.results || []).filter((row) => {
+      const status = String(row.status || '').toLowerCase();
+      const pi = String(row.stripe_payment_intent_id || '');
+      const provider = String(row.payment_provider || 'stripe').toLowerCase();
+      return paidStatuses.has(status)
+        && status !== 'demo'
+        && provider === 'stripe'
+        && pi.startsWith('pi_');
+    });
     const raisedFromDonations = paidDonations.reduce((sum, row) => sum + Number(row.amount_cents || 0), 0);
     const mtdDonations = paidDonations.filter((row) =>
       String(row.donated_at || row.created_at || '').slice(0, 7) === monthPrefix
@@ -984,13 +991,18 @@ export async function dashboardApiRoutes(request, env, url) {
     `).bind(campaign.id).all().catch(() => ({ results: [] }));
     const raisedLive = await env.DB.prepare(`
       SELECT COALESCE(SUM(amount_cents), 0) AS total
-      FROM donations WHERE campaign_id = ? AND status = 'succeeded'
+      FROM donations
+      WHERE campaign_id = ?
+        AND status = 'succeeded'
+        AND payment_provider = 'stripe'
+        AND stripe_payment_intent_id LIKE 'pi_%'
     `).bind(campaign.id).first().catch(() => ({ total: 0 }));
-    const liveRaised = Number(raisedLive?.total) || campaign.raised_cents;
+    const liveRaised = Number(raisedLive?.total) || 0;
     const entryRows = await env.DB.prepare(`
       SELECT ce.id, ce.dog_name, ce.owner_name, ce.owner_email, ce.owner_phone,
              ce.caption, ce.photo_url, ce.payment_status, ce.submission_status,
              ce.moderation_status, ce.is_approved, ce.expected_amount_cents,
+             ce.stripe_payment_intent_id, ce.metadata_json,
              ce.admin_notified_at, ce.failure_message, ce.created_at, ce.archived_at,
              cu.id AS campaign_update_id, cu.milestone_amount_cents, cu.is_public AS update_is_public
       FROM competition_entries ce
@@ -1548,7 +1560,8 @@ export async function dashboardApiRoutes(request, env, url) {
     const [donationRows, webhookRows] = await Promise.all([
       env.DB.prepare(`
         SELECT d.id, d.amount_cents, d.intended_amount_cents, d.cover_fees, d.currency, d.status, d.campaign_id,
-               d.stripe_payment_intent_id, d.donated_at, d.created_at, d.is_anonymous,
+               d.payment_provider, d.stripe_payment_intent_id, d.donated_at, d.created_at, d.is_anonymous,
+               d.donor_message,
                dn.email AS donor_email, dn.full_name AS donor_name,
                fc.title AS campaign_title
         FROM donations d
@@ -1567,11 +1580,27 @@ export async function dashboardApiRoutes(request, env, url) {
       `).bind(TENANT).all().catch(() => ({ results: [] })),
     ]);
 
-    const donations = donationRows.results || [];
+    const donations = (donationRows.results || []).map((row) => {
+      const pi = String(row.stripe_payment_intent_id || "");
+      const provider = String(row.payment_provider || "").toLowerCase();
+      const status = String(row.status || "").toLowerCase();
+      const isDemo = status === "demo"
+        || provider === "mock_settle"
+        || String(row.id || "").startsWith("donation_mock_")
+        || (paidStatuses.has(status) && !pi.startsWith("pi_"));
+      return { ...row, is_demo: isDemo ? 1 : 0 };
+    });
     const giftCents = (row) => Number(row.intended_amount_cents ?? row.amount_cents ?? 0);
-    const paid = donations.filter((row) => paidStatuses.has(String(row.status || '').toLowerCase()));
+    // Only real Stripe charges count toward raised totals
+    const paid = donations.filter((row) => {
+      if (row.is_demo) return false;
+      const pi = String(row.stripe_payment_intent_id || "");
+      return paidStatuses.has(String(row.status || "").toLowerCase())
+        && String(row.payment_provider || "stripe").toLowerCase() === "stripe"
+        && pi.startsWith("pi_");
+    });
     const totalCents = paid.reduce((sum, row) => sum + giftCents(row), 0);
-    const thisMonth = paid.filter((row) => String(row.donated_at || row.created_at || '').slice(0, 7) === monthPrefix);
+    const thisMonth = paid.filter((row) => String(row.donated_at || row.created_at || "").slice(0, 7) === monthPrefix);
     const thisMonthCents = thisMonth.reduce((sum, row) => sum + giftCents(row), 0);
     const avgCents = paid.length ? Math.round(totalCents / paid.length) : 0;
 
@@ -1585,6 +1614,7 @@ export async function dashboardApiRoutes(request, env, url) {
         this_month_donations: thisMonth.length,
         avg_gift_cents: avgCents,
         avg_gift_display: `$${(avgCents / 100).toFixed(2)}`,
+        demo_excluded_count: donations.filter((r) => r.is_demo).length,
       },
       donations,
       recent_webhooks: webhookRows.results || [],

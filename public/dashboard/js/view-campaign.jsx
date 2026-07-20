@@ -166,22 +166,37 @@ function CampaignLivePreview({ title, description, attachments }) {
 }
 
 // ── Entry card: admin grid view ────────────────────────────────────────────
+function entryIsDemo(entry) {
+  if (!entry) return false;
+  if (entry.payment_status === "demo" || entry.moderation_status === "demo") return true;
+  const pi = String(entry.stripe_payment_intent_id || "");
+  if (pi.startsWith("mock_pi_")) return true;
+  try {
+    const meta = typeof entry.metadata_json === "string" ? JSON.parse(entry.metadata_json || "{}") : (entry.metadata_json || {});
+    return Number(meta.is_demo) === 1 || meta.is_demo === true;
+  } catch (_) { return false; }
+}
+
 function EntryCard({ entry, busy, votes, onVote, onAction, campaignTitle }) {
   const voteCount = votes[entry.id] || 0;
   const hasVoted = votes["__voted_" + entry.id] || false;
-  const isPaid = entry.payment_status === "paid";
-  const isApproved = Number(entry.is_approved) === 1;
+  const isDemo = entryIsDemo(entry);
+  const isPaid = !isDemo && entry.payment_status === "paid";
+  const isApproved = !isDemo && Number(entry.is_approved) === 1;
   const isRejected = entry.moderation_status === "rejected";
   const isArchived = !!entry.archived_at;
   function money(c) { return "$" + (Number(c || 0) / 100).toFixed(2); }
 
   const payChip = { fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999, textTransform: "uppercase", letterSpacing: "0.04em",
-    background: isPaid ? "#dcfce7" : "#fef3c7", color: isPaid ? "#15803d" : "#92400e" };
+    background: isDemo ? "#e2e8f0" : isPaid ? "#dcfce7" : "#fef3c7",
+    color: isDemo ? "#475569" : isPaid ? "#15803d" : "#92400e" };
   const modChip = { fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999, textTransform: "uppercase", letterSpacing: "0.04em",
-    background: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ede9fe",
-    color: isApproved ? "#15803d" : isRejected ? "#dc2626" : "#7c3aed" };
+    background: isDemo ? "#e2e8f0" : isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ede9fe",
+    color: isDemo ? "#475569" : isApproved ? "#15803d" : isRejected ? "#dc2626" : "#7c3aed" };
   const dollarChip = { fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999, textTransform: "uppercase", letterSpacing: "0.04em",
     background: "#f0fdf4", color: "#166534" };
+  const demoChip = { fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, textTransform: "uppercase", letterSpacing: "0.04em",
+    background: "#334155", color: "#f8fafc" };
 
   return React.createElement("div", {
     style: { borderRadius: 12, border: "1px solid rgba(0,0,0,0.09)",
@@ -217,9 +232,10 @@ function EntryCard({ entry, busy, votes, onVote, onAction, campaignTitle }) {
         "\"" + entry.caption + "\""
       ),
       React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap" } },
-        React.createElement("span", { style: payChip }, entry.payment_status || "pending"),
-        React.createElement("span", { style: modChip }, isApproved ? "approved" : isRejected ? "rejected" : entry.moderation_status || "pending"),
-        entry.milestone_amount_cents != null && React.createElement("span", { style: dollarChip }, money(entry.milestone_amount_cents))
+        isDemo ? React.createElement("span", { style: demoChip, title: "Trial/QA — not a real Stripe payment" }, "Demo / test") : null,
+        React.createElement("span", { style: payChip }, isDemo ? "not paid" : (entry.payment_status || "pending")),
+        React.createElement("span", { style: modChip }, isDemo ? "demo" : (isApproved ? "approved" : isRejected ? "rejected" : entry.moderation_status || "pending")),
+        !isDemo && entry.milestone_amount_cents != null && React.createElement("span", { style: dollarChip }, money(entry.milestone_amount_cents))
       )
     ),
 
@@ -457,25 +473,28 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     React.createElement("label", { className: "camp-label" }, label), child);
 
   const entryCounts = entries.reduce(function(acc, e) {
+    const demo = entryIsDemo(e);
     if (e.archived_at) acc.archived += 1;
+    else if (demo) acc.demo += 1;
     else if (e.payment_status === "paid") acc.paid += 1;
     else if (e.payment_status === "failed" || e.payment_status === "abandoned") acc.failed += 1;
     else acc.pending += 1;
-    if (e.payment_status === "paid" && Number(e.is_approved) !== 1 && e.moderation_status !== "rejected") acc.unreviewed += 1;
+    if (!demo && e.payment_status === "paid" && Number(e.is_approved) !== 1 && e.moderation_status !== "rejected") acc.unreviewed += 1;
     return acc;
-  }, { pending: 0, paid: 0, failed: 0, archived: 0, unreviewed: 0 });
+  }, { pending: 0, paid: 0, failed: 0, archived: 0, unreviewed: 0, demo: 0 });
 
   const filteredEntries = entries.filter(e => {
-    if (entryFilter === "approved") return e.payment_status === "paid" && Number(e.is_approved) === 1;
-    if (entryFilter === "review") return e.payment_status === "paid" && Number(e.is_approved) !== 1 && e.moderation_status !== "rejected";
-    if (entryFilter === "pending") return e.payment_status !== "paid" && !e.archived_at;
+    const demo = entryIsDemo(e);
+    if (entryFilter === "approved") return !demo && e.payment_status === "paid" && Number(e.is_approved) === 1;
+    if (entryFilter === "review") return !demo && e.payment_status === "paid" && Number(e.is_approved) !== 1 && e.moderation_status !== "rejected";
+    if (entryFilter === "pending") return !demo && e.payment_status !== "paid" && !e.archived_at;
     if (entryFilter === "archived") return !!e.archived_at;
     return !e.archived_at;
   });
 
-  // Gallery: approved only, sorted by votes desc
+  // Gallery: real paid+approved only, sorted by votes desc
   const galleryEntries = entries
-    .filter(e => e.payment_status === "paid" && Number(e.is_approved) === 1 && !e.archived_at)
+    .filter(e => !entryIsDemo(e) && e.payment_status === "paid" && Number(e.is_approved) === 1 && !e.archived_at)
     .slice()
     .sort((a, b) => (votes[b.id] || 0) - (votes[a.id] || 0));
 
@@ -507,6 +526,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         React.createElement("h3", { style: { margin: 0, fontSize: 15, fontWeight: 700 } }, "Competition entries"),
         React.createElement("p", { style: { margin: "3px 0 0", fontSize: 12, color: "var(--dash-text-muted)" } },
           entryCounts.paid + " paid · " + entryCounts.unreviewed + " awaiting review · " + entryCounts.pending + " pending" +
+          (entryCounts.demo ? " · " + entryCounts.demo + " demo/test" : "") +
           (totalVotes > 0 ? " · " + totalVotes + " votes cast" : "")
         )
       ),
