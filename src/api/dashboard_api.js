@@ -298,7 +298,7 @@ export async function dashboardApiRoutes(request, env, url) {
   if (path === '/api/dashboard/overview') {
     const monthPrefix = new Date().toISOString().slice(0, 7);
     const paidStatuses = new Set(['succeeded', 'paid', 'completed', 'received']);
-    const [animalRows, appRows, campaignRows, volunteerRows, donationRows, mediaCountRow, pagesCountRow, inboxCountRow] = await Promise.all([
+    const [animalRows, appRows, campaignRows, volunteerRows, donationRows, mediaCountRow, pagesCountRow, inboxCountRow, competitionReviewRow] = await Promise.all([
       env.DB.prepare(`
         SELECT ap.*, ca.cdn_url AS asset_cdn_url
         FROM animal_profiles ap
@@ -343,9 +343,19 @@ export async function dashboardApiRoutes(request, env, url) {
         FROM inbound_emails
         WHERE tenant_id = ?
       `).bind(TENANT).first().catch(() => ({ unread_inbox: 0, inbox_total: 0 })),
+      env.DB.prepare(`
+        SELECT COUNT(*) AS n
+        FROM competition_entries
+        WHERE tenant_id = ?
+          AND payment_status = 'paid'
+          AND COALESCE(is_approved, 0) = 0
+          AND archived_at IS NULL
+          AND COALESCE(moderation_status, '') NOT IN ('rejected', 'demo', 'archived')
+      `).bind(TENANT).first().catch(() => ({ n: 0 })),
     ]);
     const animals = animalRows.results || [];
     const apps = appRows.results || [];
+    const competitionReviewCount = Number(competitionReviewRow?.n || 0);
     const paidDonations = (donationRows.results || []).filter((row) => {
       const status = String(row.status || '').toLowerCase();
       const pi = String(row.stripe_payment_intent_id || '');
@@ -389,6 +399,7 @@ export async function dashboardApiRoutes(request, env, url) {
         goal_cents:   goal,
         inbox_unread: Number(inboxCountRow?.unread_inbox || 0),
         inbox_total:  Number(inboxCountRow?.inbox_total || 0),
+        competition_review_count: competitionReviewCount,
       },
       recent_activity: recentActivity,
       animals:      animals.map(normalizeAnimal),
@@ -1023,7 +1034,7 @@ export async function dashboardApiRoutes(request, env, url) {
       SELECT ce.id, ce.dog_name, ce.owner_name, ce.owner_email, ce.owner_phone,
              ce.caption, ce.photo_url, ce.payment_status, ce.submission_status,
              ce.moderation_status, ce.is_approved, ce.expected_amount_cents,
-             ce.stripe_payment_intent_id, ce.metadata_json,
+             ce.vote_count, ce.stripe_payment_intent_id, ce.metadata_json,
              ce.admin_notified_at, ce.failure_message, ce.created_at, ce.archived_at,
              cu.id AS campaign_update_id, cu.milestone_amount_cents, cu.is_public AS update_is_public
       FROM competition_entries ce
@@ -1094,6 +1105,19 @@ export async function dashboardApiRoutes(request, env, url) {
       `).bind(session.email || session.user_id || 'dashboard', entryId, TENANT).run();
       const { setCampaignUpdatePublicForEntry } = await import('./competition_campaign_updates.js');
       await setCampaignUpdatePublicForEntry(env, entryId, true);
+      // Clear entry-related admin alerts once reviewed.
+      await env.DB.prepare(`
+        UPDATE dashboard_notifications
+        SET status = 'dismissed', dismissed_at = datetime('now')
+        WHERE tenant_id = ?
+          AND related_type = 'competition_entry'
+          AND (
+            related_id = ?
+            OR related_id = ?
+            OR related_id LIKE ?
+          )
+          AND COALESCE(status, 'active') = 'active'
+      `).bind(TENANT, entryId, `${entryId}:paid`, `${entryId}%`).run().catch(() => null);
       // Gallery HTML is baked into KV page:/donate — bust so approved entries appear immediately.
       await invalidateDonatePageCache(env);
       return json({ ok: true, entry_id: entryId, moderation_status: 'approved' });
@@ -1160,10 +1184,19 @@ export async function dashboardApiRoutes(request, env, url) {
   if (path === '/api/dashboard/fundraising' && method === 'GET') {
     const session = await getAuthUser(request, env);
     if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
-    const [rows, liveStats] = await Promise.all([
+    const [rows, liveStats, reviewCountRow] = await Promise.all([
       env.DB.prepare(`${CAMPAIGN_SELECT} ORDER BY fc.updated_at DESC`)
         .all().catch(() => ({ results: [] })),
       loadCampaignLiveStats(env),
+      env.DB.prepare(`
+        SELECT COUNT(*) AS n
+        FROM competition_entries
+        WHERE tenant_id = ?
+          AND payment_status = 'paid'
+          AND COALESCE(is_approved, 0) = 0
+          AND archived_at IS NULL
+          AND COALESCE(moderation_status, '') NOT IN ('rejected', 'demo', 'archived')
+      `).bind(TENANT).first().catch(() => ({ n: 0 })),
     ]);
     const campaigns = (rows.results || []).map((row) => {
       const base = normalizeCampaign(row);
@@ -1173,12 +1206,15 @@ export async function dashboardApiRoutes(request, env, url) {
         ...base,
         raised_cents: live.raised_cents,
         raised_amount_cents: live.raised_cents,
-        donors: live.donor_count,
-        donor_count: live.donor_count,
+        donors: live.gift_count,
+        donor_count: live.gift_count,
         gift_count: live.gift_count,
       };
     });
-    return json({ campaigns });
+    return json({
+      campaigns,
+      competition_review_count: Number(reviewCountRow?.n || 0),
+    });
   }
 
   if (path === '/api/dashboard/fundraising' && method === 'POST') {

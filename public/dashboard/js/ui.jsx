@@ -332,8 +332,32 @@ function Select({ value, onChange, options, style:extra={} }) {
 
 function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse }) {
   const [hovItem, setHovItem] = useState(null);
+  const [fundraisingBadge, setFundraisingBadge] = useState(0);
   const user = window.CPAS?.user || { name:"Admin", role:"Staff" };
   const logoUrl = window.CPAS_CONFIG?.logoUrl || LOGO_LIGHT;
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadBadge() {
+      try {
+        const res = await fetch("/api/dashboard/fundraising", { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled) setFundraisingBadge(Number(data.competition_review_count || 0));
+      } catch (_) {}
+    }
+    loadBadge();
+    const t = setInterval(loadBadge, 60000);
+    const onFocus = () => loadBadge();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("cpas:fundraising-review-changed", loadBadge);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("cpas:fundraising-review-changed", loadBadge);
+    };
+  }, []);
 
   return React.createElement("aside", {
     className: "cpas-sidebar" + (collapsed ? " is-collapsed" : ""),
@@ -361,6 +385,7 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
             || (item.children && item.children.some(c => c.key === view || (c.key === "cms-forms" && view === "cms-form-editor")));
           const hasKids = item.children && item.children.length;
           const childOpen = hasKids && isActiveCMS(view) && !collapsed;
+          const showBadge = item.key === "fundraising" && fundraisingBadge > 0;
           return React.createElement("div", { key: item.key },
             React.createElement("button", {
               onClick: () => navigate(item.key),
@@ -368,10 +393,16 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
               onMouseLeave: () => setHovItem(null),
               className: `cpas-nav-item ${active && !hasKids ? "active" : ""} ${active && hasKids ? "active-parent" : ""}`,
               "aria-current": active ? "page" : undefined,
-              title: collapsed ? item.label : undefined
+              title: collapsed
+                ? (showBadge ? `${item.label} (${fundraisingBadge} awaiting review)` : item.label)
+                : undefined
             },
               React.createElement(Icon, { name: item.icon, size: 16 }),
               React.createElement("span", { className: "cpas-nav-label" }, item.label),
+              showBadge && React.createElement("span", {
+                className: "cpas-nav-badge",
+                "aria-label": fundraisingBadge + " competition entries awaiting review",
+              }, fundraisingBadge > 9 ? "9+" : String(fundraisingBadge)),
               hasKids && React.createElement("span", { className: "cpas-nav-chev", style: { marginLeft: "auto", transition: "transform 200ms", transform: childOpen ? "rotate(90deg)" : "none", display: "flex" } },
                 React.createElement(Icon, { name: "chevR", size: 13, style: { color: "var(--nav-text-muted)" } }))
             ),

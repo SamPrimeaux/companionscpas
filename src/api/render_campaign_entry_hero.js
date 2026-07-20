@@ -77,12 +77,26 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
   const feeExact = `$${(feeCents / 100).toFixed(2)}`;
   const primaryLabel = text(section.cta_label || config.primary_cta_label) || `Enter the Competition — ${feeLabel}`;
   const secondaryLabel = text(section.cta_secondary_label || config.secondary_cta_label) || "Share on Facebook";
-  const shareUrl = safeUrl(
-    section.cta_secondary_href || config.share_url,
-    `https://companionsofcaddo.org/donate#${text(section.section_key) || "campaign-entry"}`
+  // Prefer the org's original Facebook post URL for the hero CTA (amplify the campaign post).
+  // Falls back to facebook_share_url / share_url / site donate anchor.
+  const DEFAULT_FB_POST =
+    "https://www.facebook.com/permalink.php?story_fbid=pfbid02FijZY8jSJGdCD6Tg5pWo3mrrpqgytkS4FbBqCv6rYgFMgH1Ka8M9Yo9hUdCNNNoSl&id=100069291576354";
+  const facebookPostUrl = safeUrl(
+    config.facebook_post_url || campaignConfig.facebook_post_url || section.cta_secondary_href,
+    DEFAULT_FB_POST
   );
-  const reviewNote = text(config.review_note)
-    || "Every submission is reviewed by the Companions team before appearing publicly.";
+  const shareUrl = safeUrl(
+    config.facebook_share_url || config.share_url,
+    facebookPostUrl
+  );
+  const shareMode = text(config.facebook_share_mode || "post").toLowerCase() === "sharer" ? "sharer" : "post";
+  const metaLines = Array.isArray(config.meta_lines) && config.meta_lines.length
+    ? config.meta_lines.map(text).filter(Boolean).slice(0, 4)
+    : [
+      "Voting open July 20–25",
+      "Win a $200 Amazon Gift Card",
+      "Every $10 entry directly supports shelter animals at Caddo Parish Animal Services.",
+    ];
   const steps = Array.isArray(config.steps) && config.steps.length
     ? config.steps.slice(0, 3).map(text)
     : [
@@ -127,11 +141,9 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
 #${sectionId} .ceh-btn--primary:hover{background:var(--campaign-accent-dark)}
 #${sectionId} .ceh-btn--fb{background:var(--campaign-fb);color:#fff}
 #${sectionId} .ceh-btn--quiet{background:#f4f1f6;color:#4d4454}
-#${sectionId} .ceh-review{display:flex;align-items:flex-start;gap:8px;margin:16px 0 0;color:#746d77;font-size:12px;line-height:1.45}
-#${sectionId} .ceh-review::before{content:"✓";display:grid;place-items:center;flex:none;width:16px;height:16px;margin-top:1px;border:1px solid var(--campaign-accent);border-radius:50%;color:var(--campaign-accent);font-size:10px;font-weight:900}
 #${sectionId} .ceh-media{position:relative;min-height:clamp(360px,43vw,560px);margin:0;overflow:hidden;border-radius:34px;background:#e5e0dc;box-shadow:0 22px 70px rgba(52,25,69,.10)}
 #${sectionId} .ceh-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${esc(imagePosition)}}
-#${sectionId} .ceh-meta{display:flex;justify-content:space-between;gap:16px;margin:10px 4px 0;color:#706a73;font-size:12px}
+#${sectionId} .ceh-meta{display:flex;flex-wrap:wrap;justify-content:flex-start;gap:8px 18px;margin:10px 4px 0;color:#706a73;font-size:12px}
 #${sectionId} .ceh-meta strong{color:#2b2630}
 #${modalId}{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(19,11,26,.66);backdrop-filter:blur(8px)}
 #${modalId}[data-open="true"]{display:flex}
@@ -202,17 +214,20 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
         </ol>
         <div class="ceh-actions">
           <button class="ceh-btn ceh-btn--primary" type="button" data-ceh-open>${uploadIcon()}<span>${esc(primaryLabel)}</span></button>
-          <button class="ceh-btn ceh-btn--fb" type="button" data-ceh-share>${facebookIcon()}<span>${esc(secondaryLabel)}</span></button>
+          <button class="ceh-btn ceh-btn--fb" type="button" data-ceh-share data-share-mode="${esc(shareMode)}" data-share-url="${esc(shareUrl)}" data-facebook-post-url="${esc(facebookPostUrl)}">${facebookIcon()}<span>${esc(secondaryLabel)}</span></button>
         </div>
-        <p class="ceh-review">${esc(reviewNote)}</p>
       </div>
       <div>
         <figure class="ceh-media">
           <img src="${esc(imageUrl)}" alt="${esc(imageAlt)}" decoding="async" fetchpriority="high">
         </figure>
         <div class="ceh-meta">
-          <span><strong>${esc(feeLabel)}</strong> general entry · one photo per submission</span>
-          <span>Secure payment powered by Stripe</span>
+          ${metaLines.map((line) => {
+            let out = esc(line);
+            out = out.replace("July 20–25", "<strong>July 20–25</strong>");
+            out = out.replace("$200 Amazon Gift Card", "<strong>$200 Amazon Gift Card</strong>");
+            return `<span>${out}</span>`;
+          }).join("")}
         </div>
       </div>
     </div>
@@ -516,11 +531,20 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
     if (event.key === "Escape" && modal.dataset.open === "true") closeModal();
   });
   root.querySelector("[data-ceh-share]")?.addEventListener("click", () => {
-    window.open(
-      "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(shareUrl),
-      "facebook-share",
-      "popup=yes,width=720,height=640,noopener,noreferrer"
-    );
+    const btn = root.querySelector("[data-ceh-share]");
+    const mode = (btn?.getAttribute("data-share-mode") || "post").toLowerCase();
+    const postUrl = btn?.getAttribute("data-facebook-post-url") || ${JSON.stringify(facebookPostUrl)};
+    const fallbackShare = btn?.getAttribute("data-share-url") || ${JSON.stringify(shareUrl)};
+    if (mode === "sharer") {
+      window.open(
+        "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(fallbackShare),
+        "facebook-share",
+        "popup=yes,width=720,height=640,noopener,noreferrer"
+      );
+      return;
+    }
+    // Default: open the original campaign Facebook post so staff/public can reshare it.
+    window.open(postUrl, "facebook-post", "noopener,noreferrer");
   });
   root.querySelector("[data-ceh-continue]")?.addEventListener("click", () => {
     if (!validateEntry()) return;

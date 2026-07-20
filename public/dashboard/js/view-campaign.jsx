@@ -401,7 +401,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       setEntries(rawEntries);
       setVotes(prev => {
         const next = Object.assign({}, prev);
-        rawEntries.forEach(e => { if (next[e.id] == null) next[e.id] = Number(e.internal_votes || 0); });
+        rawEntries.forEach(e => { if (next[e.id] == null) next[e.id] = Number(e.vote_count || e.internal_votes || 0); });
         return next;
       });
     } catch (e) { setError(e.message || "Failed to load campaign"); }
@@ -421,6 +421,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.ok === false) throw new Error(d.error || "Action failed");
       await loadCampaign();
+      try { window.dispatchEvent(new CustomEvent("cpas:fundraising-review-changed")); } catch (_) {}
     } catch (e) { setError(e.message || "Entry action failed"); }
     finally { setEntryBusy(""); }
   }

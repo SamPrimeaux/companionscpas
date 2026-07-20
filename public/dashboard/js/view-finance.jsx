@@ -433,7 +433,7 @@ function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab, onDele
             pct != null
               ? React.createElement("span", null, pct + "% funded")
               : null,
-            React.createElement("span", null, donors + (donors === 1 ? " donor" : " donors")),
+            React.createElement("span", null, gifts + (gifts === 1 ? " entry gift" : " entry gifts")),
             campaign.category && React.createElement("span", null, campaign.category)
           ),
           React.createElement("div", { style: { display: "flex", gap: 8 }, onClick: e => e.stopPropagation() },
