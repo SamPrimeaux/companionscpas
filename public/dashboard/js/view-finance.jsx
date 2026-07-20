@@ -66,7 +66,8 @@ function useFinanceData() {
         ...c,
         raised_cents: Number(c.raised_amount_cents ?? c.raised_cents ?? 0),
         goal_cents: Number(c.goal_amount_cents ?? c.goal_cents ?? 0),
-        donors: Number(c.donor_count || 0),
+        donors: Number(c.donor_count ?? c.donors ?? 0),
+        gift_count: Number(c.gift_count || 0),
         category: c.campaign_type || c.category || "fundraiser",
         status: c.status || "draft",
         config: c.config || {},
@@ -360,7 +361,11 @@ function DonorDrawer({ donor, onClose }) {
 
 // ── Unified GivingView (replaces both FundraisingView and DonationsView) ───────
 function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab, onDeleted }) {
-  const pct = campaign.goal_cents ? Math.min(100, Math.round((campaign.raised_cents / campaign.goal_cents) * 100)) : 0;
+  const raised = Number(campaign.raised_cents || 0);
+  const goal = Number(campaign.goal_cents || 0);
+  const donors = Number(campaign.donors || campaign.donor_count || 0);
+  const gifts = Number(campaign.gift_count || donors || 0);
+  const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : null;
   const cover = campaign.cover_url || campaign.config?.cover_url;
   const [deleting, setDeleting] = React.useState(false);
 
@@ -407,17 +412,28 @@ function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab, onDele
             React.createElement(Badge, { label: campaign.status, dot: true })
           ),
           React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
-            React.createElement("div", { style: { fontSize: 20, fontWeight: 700, color: C.text } }, financeMoney(campaign.raised_cents)),
-            React.createElement("div", { style: { fontSize: 12, color: C.textSec } }, "of " + financeMoney(campaign.goal_cents))
+            React.createElement("div", { style: { fontSize: 20, fontWeight: 700, color: C.text } }, financeMoney(raised)),
+            React.createElement("div", { style: { fontSize: 12, color: C.textSec } },
+              goal > 0 ? ("of " + financeMoney(goal)) : (gifts + (gifts === 1 ? " gift" : " gifts"))
+            )
           )
         ),
         React.createElement("p", { style: { margin: "8px 0 0", fontSize: 13, color: C.textSec, lineHeight: 1.45 } },
           campaign.short_description || campaign.description || "No description yet."),
-        React.createElement(ProgressBar, { value: campaign.raised_cents, max: Math.max(campaign.goal_cents, 1), color: accent, height: 8 }),
+        goal > 0
+          ? React.createElement(ProgressBar, { value: raised, max: goal, color: accent, height: 8 })
+          : React.createElement("div", {
+              style: { height: 8, marginTop: 10, borderRadius: 99, background: "rgba(111,47,168,0.12)", overflow: "hidden" },
+            }, React.createElement("div", {
+              style: { height: "100%", width: raised > 0 ? "100%" : "0%", background: accent, borderRadius: 99 },
+            })),
         React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginTop: 10 } },
           React.createElement("div", { style: { display: "flex", gap: 14, fontSize: 12, color: C.textSec } },
-            React.createElement("span", null, pct + "% funded"),
-            React.createElement("span", null, campaign.donors + " donors"),
+            React.createElement("span", { style: { fontWeight: 700, color: C.text } }, financeMoney(raised) + " raised"),
+            pct != null
+              ? React.createElement("span", null, pct + "% funded")
+              : null,
+            React.createElement("span", null, donors + (donors === 1 ? " donor" : " donors")),
             campaign.category && React.createElement("span", null, campaign.category)
           ),
           React.createElement("div", { style: { display: "flex", gap: 8 }, onClick: e => e.stopPropagation() },

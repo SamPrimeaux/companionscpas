@@ -235,7 +235,7 @@ function EntryCard({ entry, busy, votes, onVote, onAction, campaignTitle }) {
         isDemo ? React.createElement("span", { style: demoChip, title: "Trial/QA — not a real Stripe payment" }, "Demo / test") : null,
         React.createElement("span", { style: payChip }, isDemo ? "not paid" : (entry.payment_status || "pending")),
         React.createElement("span", { style: modChip }, isDemo ? "demo" : (isApproved ? "approved" : isRejected ? "rejected" : entry.moderation_status || "pending")),
-        !isDemo && entry.milestone_amount_cents != null && React.createElement("span", { style: dollarChip }, money(entry.milestone_amount_cents))
+        !isDemo && entry.payment_status === "paid" && React.createElement("span", { style: dollarChip, title: "Entry gift amount" }, money(entry.expected_amount_cents ?? 1000))
       )
     ),
 

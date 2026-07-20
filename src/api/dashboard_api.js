@@ -104,17 +104,38 @@ function normalizeCampaign(row) {
 }
 
 async function invalidateDonatePageCache(env) {
-  if (!env?.CMS_CACHE) return;
-  await env.CMS_CACHE.delete('page:/donate').catch(() => {});
   try {
-    const { assembleGenericPageFromFragments } = await import('./render_generic_fragments.js');
-    const html = await assembleGenericPageFromFragments(env, '/donate');
-    if (html) {
-      await env.CMS_CACHE.put('page:/donate', html, { expirationTtl: 3600 }).catch(() => {});
-    }
+    const { publishRoute } = await import('./cms_pipeline.js');
+    await publishRoute(env, '/donate', 'donate_cache_warm');
   } catch (err) {
-    console.warn('[donate-cache] warm failed:', err?.message || err);
+    console.warn('[donate-cache] publish warm failed:', err?.message || err);
+    if (env?.CMS_CACHE) await env.CMS_CACHE.delete('page:/donate').catch(() => {});
   }
+}
+
+/** Live Stripe totals for campaign list cards (denormalized columns can lag). */
+async function loadCampaignLiveStats(env) {
+  const rows = await env.DB.prepare(`
+    SELECT campaign_id,
+           COALESCE(SUM(amount_cents), 0) AS raised_cents,
+           COUNT(*) AS gift_count,
+           COUNT(DISTINCT COALESCE(donor_id, stripe_payment_intent_id, id)) AS donor_count
+    FROM donations
+    WHERE campaign_id IS NOT NULL
+      AND status = 'succeeded'
+      AND payment_provider = 'stripe'
+      AND stripe_payment_intent_id LIKE 'pi_%'
+    GROUP BY campaign_id
+  `).all().catch(() => ({ results: [] }));
+  const map = new Map();
+  for (const row of rows.results || []) {
+    map.set(String(row.campaign_id), {
+      raised_cents: Number(row.raised_cents) || 0,
+      gift_count: Number(row.gift_count) || 0,
+      donor_count: Number(row.donor_count) || 0,
+    });
+  }
+  return map;
 }
 
 /** Bust public /adopt (and related) so Visible/Featured/status edits show up promptly. */
@@ -1139,9 +1160,25 @@ export async function dashboardApiRoutes(request, env, url) {
   if (path === '/api/dashboard/fundraising' && method === 'GET') {
     const session = await getAuthUser(request, env);
     if (!session) return json({ ok: false, error: 'Not authenticated' }, 401);
-    const rows = await env.DB.prepare(`${CAMPAIGN_SELECT} ORDER BY fc.updated_at DESC`)
-      .all().catch(() => ({ results: [] }));
-    return json({ campaigns: (rows.results || []).map(normalizeCampaign) });
+    const [rows, liveStats] = await Promise.all([
+      env.DB.prepare(`${CAMPAIGN_SELECT} ORDER BY fc.updated_at DESC`)
+        .all().catch(() => ({ results: [] })),
+      loadCampaignLiveStats(env),
+    ]);
+    const campaigns = (rows.results || []).map((row) => {
+      const base = normalizeCampaign(row);
+      const live = liveStats.get(String(base.id)) || null;
+      if (!live) return base;
+      return {
+        ...base,
+        raised_cents: live.raised_cents,
+        raised_amount_cents: live.raised_cents,
+        donors: live.donor_count,
+        donor_count: live.donor_count,
+        gift_count: live.gift_count,
+      };
+    });
+    return json({ campaigns });
   }
 
   if (path === '/api/dashboard/fundraising' && method === 'POST') {
