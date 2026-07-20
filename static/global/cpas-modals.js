@@ -178,41 +178,47 @@
     .cm-success-msg{font-size:.9rem;color:#b0a8be;line-height:1.6}
     .fa-backdrop{position:fixed;inset:0;z-index:9100;background:rgba(4,7,17,.82);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:16px}
     .fa-backdrop.is-open{display:flex}
-    .fa-card{width:min(100%,540px);max-height:92vh;overflow-y:auto;background:#090d18;border:1px solid rgba(255,255,255,.1);border-radius:20px;box-shadow:0 40px 100px rgba(0,0,0,.65);font-family:'DM Sans',system-ui,sans-serif;color:#f4efe8;scrollbar-width:none}
+    .fa-card{width:min(100%,540px);max-height:92vh;overflow-y:auto;background:var(--fa-bg,#090d18);border:1px solid rgba(255,255,255,.1);border-radius:calc(var(--fa-radius,12)*1px + 8px);box-shadow:0 40px 100px rgba(0,0,0,.65);font-family:'DM Sans',system-ui,sans-serif;color:var(--fa-text,#f4efe8);scrollbar-width:none;--fa-accent:var(--fa-accent,#7c3aed)}
     .fa-card::-webkit-scrollbar{display:none}
     .fa-card *{box-sizing:border-box}
+    .fa-brand-bar{display:flex;align-items:center;gap:10px;padding:14px 24px 0;font-size:12px;font-weight:700}
+    .fa-brand-bar img{height:28px;width:auto;object-fit:contain}
     .fa-header{padding:24px 24px 0;position:relative}
     .fa-close{position:absolute;top:18px;right:18px;width:30px;height:30px;border:1px solid rgba(255,255,255,.12);border-radius:50%;background:rgba(255,255,255,.06);color:#9ca3af;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
-    .fa-eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#a78bfa;margin-bottom:6px}
-    .fa-title{font-family:'Fraunces',Georgia,serif;font-size:1.5rem;font-weight:700;color:#f4efe8;margin:0 0 4px}
+    .fa-eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--fa-accent,#a78bfa);margin-bottom:6px}
+    .fa-title{font-family:'Fraunces',Georgia,serif;font-size:1.5rem;font-weight:700;color:inherit;margin:0 0 4px}
     .fa-sub{font-size:.84rem;color:#8a94a6;margin:0 0 16px;line-height:1.5}
     .fa-progress{display:flex;gap:6px;padding:0 24px;margin-bottom:20px}
     .fa-pip{flex:1;height:3px;border-radius:99px;background:rgba(255,255,255,.08);transition:background .3s}
-    .fa-pip.done{background:#7c3aed}.fa-pip.active{background:#a78bfa}
+    .fa-pip.done{background:var(--fa-accent,#7c3aed)}.fa-pip.active{background:var(--fa-accent,#a78bfa);opacity:.85}
     .fa-step-label{padding:0 24px;margin-bottom:16px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6b7280}
     .fa-body{padding:0 24px 24px}
     .fa-field{margin-bottom:16px}
     .fa-label{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;margin-bottom:6px}
     .fa-req{color:#f87171}
-    .fa-input,.fa-select,.fa-textarea{width:100%;background:rgba(255,255,255,.045);border:1.5px solid rgba(255,255,255,.09);border-radius:9px;padding:10px 12px;color:#f4efe8;font-family:inherit;font-size:.88rem;outline:none}
-    .fa-input:focus,.fa-select:focus,.fa-textarea:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.18)}
+    .fa-input,.fa-select,.fa-textarea{width:100%;background:rgba(255,255,255,.045);border:1.5px solid rgba(255,255,255,.09);border-radius:calc(var(--fa-radius,9)*1px);padding:10px 12px;color:inherit;font-family:inherit;font-size:.88rem;outline:none}
+    .fa-input:focus,.fa-select:focus,.fa-textarea:focus{border-color:var(--fa-accent,#7c3aed);box-shadow:0 0 0 3px color-mix(in srgb, var(--fa-accent,#7c3aed) 22%, transparent)}
     .fa-textarea{resize:vertical;min-height:80px}
     .fa-radio-group{display:flex;flex-direction:column;gap:7px}
-    .fa-radio-opt,.fa-check-opt{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1.5px solid rgba(255,255,255,.08);border-radius:9px;cursor:pointer}
-    .fa-radio-opt input,.fa-check-opt input{accent-color:#7c3aed;width:16px;height:16px}
-    .fa-radio-opt.selected,.fa-check-opt.selected{border-color:#7c3aed;background:rgba(124,58,237,.1)}
+    .fa-radio-opt,.fa-check-opt{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1.5px solid rgba(255,255,255,.08);border-radius:calc(var(--fa-radius,9)*1px);cursor:pointer}
+    .fa-radio-opt input,.fa-check-opt input{accent-color:var(--fa-accent,#7c3aed);width:16px;height:16px}
+    .fa-radio-opt.selected,.fa-check-opt.selected{border-color:var(--fa-accent,#7c3aed);background:color-mix(in srgb, var(--fa-accent,#7c3aed) 12%, transparent)}
     .fa-multi{display:flex;flex-wrap:wrap;gap:7px}
     .fa-multi-opt{padding:7px 14px;border:1.5px solid rgba(255,255,255,.08);border-radius:999px;cursor:pointer;font-size:.8rem;color:#9ca3af}
-    .fa-multi-opt.selected{border-color:#7c3aed;background:rgba(124,58,237,.15);color:#c4b5fd}
+    .fa-multi-opt.selected{border-color:var(--fa-accent,#7c3aed);background:color-mix(in srgb, var(--fa-accent,#7c3aed) 15%, transparent);color:#c4b5fd}
     .fa-footer{padding:0 24px 24px;display:flex;gap:10px}
-    .fa-btn{flex:1;min-height:46px;border:none;border-radius:10px;font-family:inherit;font-size:.9rem;font-weight:700;cursor:pointer}
+    .fa-btn{flex:1;min-height:46px;border:none;border-radius:calc(var(--fa-radius,10)*1px);font-family:inherit;font-size:.9rem;font-weight:700;cursor:pointer}
     .fa-btn-back{background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.1);color:#d1d5db}
-    .fa-btn-next{background:#7c3aed;color:#fff}
+    .fa-btn-next{background:var(--fa-accent,#7c3aed);color:#fff}
     .fa-error{margin:0 24px 16px;padding:10px 12px;background:rgba(248,113,113,.09);border:1px solid rgba(248,113,113,.25);border-radius:9px;color:#fca5a5;font-size:.82rem;display:none}
     .fa-success{text-align:center;padding:48px 28px;display:none}
-    .fa-success-icon{width:56px;height:56px;border-radius:50%;margin:0 auto 18px;background:rgba(124,58,237,.15);border:1.5px solid rgba(124,58,237,.35);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#a78bfa}
-    .fa-success h3{font-family:'Fraunces',Georgia,serif;font-size:1.3rem;color:#f4efe8;margin:0 0 8px}
+    .fa-success-icon{width:56px;height:56px;border-radius:50%;margin:0 auto 18px;background:color-mix(in srgb, var(--fa-accent,#7c3aed) 15%, transparent);border:1.5px solid color-mix(in srgb, var(--fa-accent,#7c3aed) 35%, transparent);display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:var(--fa-accent,#a78bfa)}
+    .fa-success h3{font-family:'Fraunces',Georgia,serif;font-size:1.3rem;color:inherit;margin:0 0 8px}
     .fa-success p{font-size:.86rem;color:#9ca3af;margin:0;line-height:1.5}
+    .fa-card.is-light{--fa-bg:#f7f7f9;--fa-text:#16171c;background:#f7f7f9;color:#16171c;border-color:#e5e7eb}
+    .fa-card.is-light .fa-sub,.fa-card.is-light .fa-label,.fa-card.is-light .fa-step-label{color:#6b7280}
+    .fa-card.is-light .fa-input,.fa-card.is-light .fa-select,.fa-card.is-light .fa-textarea{background:#fff;border-color:#d9dbe1;color:#16171c}
+    .fa-card.is-light .fa-btn-back{background:#fff;border-color:#d9dbe1;color:#374151}
     @media(max-width:520px){.cm-backdrop,.fa-backdrop{padding:0;align-items:flex-end}.cm-card,.fa-card{border-radius:20px 20px 0 0;max-height:96vh}.cm-form-row{grid-template-columns:1fr}}
   `;
 
@@ -221,6 +227,71 @@
   let fosterStep = 0;
   let fosterData = {};
   let fosterSubmitting = false;
+  let activeFormKey = 'foster_application';
+  let activeSchema = null;
+  let activeSteps = FOSTER_STEPS;
+  const schemaCache = {};
+
+  async function loadPublishedForm(formKey) {
+    const key = String(formKey || '').trim();
+    if (!key) return null;
+    if (schemaCache[key] && Date.now() - schemaCache[key]._ts < 60000) return schemaCache[key];
+    try {
+      const res = await fetch(`/api/public/forms/${encodeURIComponent(key)}`, { headers: { accept: 'application/json' } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) return null;
+      const steps = (data.steps || []).map((s) => ({
+        id: s.id || s.step_key,
+        title: s.title || 'Step',
+        fields: (data.fields || [])
+          .filter((f) => !s.id || f.step_id === s.id)
+          .map((f) => ({
+            key: f.field_key,
+            label: f.label,
+            type: f.field_type === 'tel' ? 'tel' : f.field_type,
+            required: !!f.is_required,
+            placeholder: f.placeholder || '',
+            options: Array.isArray(f.options) ? f.options : [],
+          })),
+      })).filter((s) => s.fields.length);
+      // If steps empty but fields exist, one step
+      let built = steps;
+      if (!built.length && (data.fields || []).length) {
+        built = [{
+          id: 'main',
+          title: 'Your information',
+          fields: (data.fields || []).map((f) => ({
+            key: f.field_key,
+            label: f.label,
+            type: f.field_type === 'tel' ? 'tel' : f.field_type,
+            required: !!f.is_required,
+            placeholder: f.placeholder || '',
+            options: Array.isArray(f.options) ? f.options : [],
+          })),
+        }];
+      }
+      const packed = {
+        form: data.form,
+        steps: built,
+        _ts: Date.now(),
+      };
+      schemaCache[key] = packed;
+      return packed;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function applyFormTheme(card, settings, intro) {
+    if (!card) return;
+    const theme = (settings && settings.theme) || {};
+    const accent = theme.accent || '#7c3aed';
+    card.style.setProperty('--fa-accent', accent);
+    card.style.setProperty('--fa-radius', String(theme.radius || 12));
+    card.classList.toggle('is-light', theme.mode === 'light');
+    card.dataset.themeReady = '1';
+    card._formMeta = { settings: settings || {}, intro: intro || {}, theme };
+  }
 
   function ensureStyles() {
     if (document.getElementById('cpas-modals-styles')) return;
@@ -443,27 +514,41 @@
   }
 
   function renderFosterStep(card) {
-    const s = FOSTER_STEPS[fosterStep];
-    const pips = FOSTER_STEPS.map((_, i) => `<div class="fa-pip${i < fosterStep ? ' done' : i === fosterStep ? ' active' : ''}"></div>`).join('');
+    const s = activeSteps[fosterStep];
+    if (!s) return;
+    const meta = card._formMeta || {};
+    const intro = meta.intro || {};
+    const settings = meta.settings || {};
+    const theme = meta.theme || {};
+    const pips = activeSteps.map((_, i) => `<div class="fa-pip${i < fosterStep ? ' done' : i === fosterStep ? ' active' : ''}"></div>`).join('');
+    const brandBar = theme.show_header === false ? '' : `
+      <div class="fa-brand-bar">
+        ${theme.logo_url ? `<img src="${theme.logo_url}" alt="" />` : ''}
+        <span>${theme.org_name || 'Companions of CPAS'}</span>
+      </div>`;
+    const submitLabel = settings.submit_label || (fosterStep === activeSteps.length - 1 ? 'Submit Application' : 'Continue');
+    const successTitle = settings.success_title || 'Application received.';
+    const successMsg = settings.success_message || 'We review every application personally and will be in touch within 2-3 business days. Thank you for opening your home.';
     card.innerHTML = `
+      ${brandBar}
       <div class="fa-header">
         <button class="fa-close" id="fa-close" type="button" aria-label="Close">&times;</button>
-        <div class="fa-eyebrow">Companions of CPAS · Foster Application</div>
-        <h2 class="fa-title">Apply to Foster</h2>
-        <p class="fa-sub">Open your home. Change a life. About 5 minutes.</p>
+        <div class="fa-eyebrow">${intro.eyebrow || 'Companions of CPAS'}</div>
+        <h2 class="fa-title">${intro.heading || (meta.formTitle || 'Apply')}</h2>
+        <p class="fa-sub">${intro.subheading || ''}</p>
       </div>
       <div class="fa-progress">${pips}</div>
-      <div class="fa-step-label">Step ${fosterStep + 1} of ${FOSTER_STEPS.length} — ${s.title}</div>
+      <div class="fa-step-label">Step ${fosterStep + 1} of ${activeSteps.length} — ${s.title}</div>
       <div class="fa-error" id="fa-error"></div>
       <div class="fa-body">${s.fields.map(buildField).join('')}</div>
       <div class="fa-footer">
         ${fosterStep > 0 ? '<button class="fa-btn fa-btn-back" id="fa-back" type="button">Back</button>' : ''}
-        <button class="fa-btn fa-btn-next" id="fa-next" type="button">${fosterStep === FOSTER_STEPS.length - 1 ? 'Submit Application' : 'Continue'}</button>
+        <button class="fa-btn fa-btn-next" id="fa-next" type="button">${fosterStep === activeSteps.length - 1 ? submitLabel : 'Continue'}</button>
       </div>
       <div class="fa-success" id="fa-success">
         <div class="fa-success-icon">&#10003;</div>
-        <h3>Application received.</h3>
-        <p>We review every application personally and will be in touch within 2-3 business days. Thank you for opening your home.</p>
+        <h3>${successTitle}</h3>
+        <p>${successMsg}</p>
       </div>`;
 
     document.getElementById('fa-close').addEventListener('click', closeFosterApplication);
@@ -490,13 +575,13 @@
     document.getElementById('fa-next').addEventListener('click', async () => {
       if (!validateFosterStep(card)) return;
       collectFosterStep(card);
-      if (fosterStep < FOSTER_STEPS.length - 1) { fosterStep++; renderFosterStep(card); card.scrollTop = 0; }
+      if (fosterStep < activeSteps.length - 1) { fosterStep++; renderFosterStep(card); card.scrollTop = 0; }
       else { await submitFosterForm(card); }
     });
   }
 
   function collectFosterStep(card) {
-    const s = FOSTER_STEPS[fosterStep];
+    const s = activeSteps[fosterStep];
     s.fields.forEach((f) => {
       if (f.type === 'multiselect') {
         const h = card.querySelector(`input[type=hidden][name="${f.key}"]`);
@@ -512,7 +597,7 @@
   }
 
   function validateFosterStep(card) {
-    const s = FOSTER_STEPS[fosterStep];
+    const s = activeSteps[fosterStep];
     const err = document.getElementById('fa-error');
     const missing = [];
     s.fields.forEach((f) => {
@@ -541,19 +626,35 @@
     if (fosterSubmitting) return;
     fosterSubmitting = true;
     const btn = document.getElementById('fa-next');
+    const settings = (card._formMeta && card._formMeta.settings) || {};
+    const endpoint = settings.submit_endpoint || (activeFormKey === 'contact' ? '/api/contact/request' : '/api/foster/apply');
     if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
     try {
       const payload = { ...fosterData };
       Object.keys(payload).forEach((k) => { if (Array.isArray(payload[k])) payload[k] = payload[k].join(', '); });
-      const res = await fetch('/api/foster/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (activeFormKey === 'contact' || endpoint.includes('/contact')) {
+        payload.name = [payload.first_name, payload.last_name].filter(Boolean).join(' ').trim() || payload.name || payload.full_name || '';
+        const subjectMap = {
+          'Fostering a dog': 'fostering',
+          'Adopting a dog': 'adopting',
+          'Volunteering': 'volunteering',
+          'Donations / Fundraising': 'donating',
+          'Press / Media inquiry': 'media',
+          'Something else': 'other',
+        };
+        payload.request_type = subjectMap[payload.subject] || payload.request_type || 'general';
+        payload.source = 'modal:contact';
+      } else {
+        payload.form_key = activeFormKey || 'foster_application';
+      }
+      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
         const detail = Array.isArray(d.errors) && d.errors.length ? (' ' + d.errors.join('; ')) : '';
         throw new Error((d.error || 'Submission failed.') + detail);
       }
-      ['fa-header', 'fa-progress', 'fa-step-label', 'fa-body', 'fa-footer', 'fa-error'].forEach((id) => {
-        const el = document.getElementById(id) || card.querySelector('.' + id);
-        if (el) el.style.display = 'none';
+      ['fa-header', 'fa-progress', 'fa-step-label', 'fa-body', 'fa-footer', 'fa-error', 'fa-brand-bar'].forEach((cls) => {
+        card.querySelectorAll('.' + cls).forEach((el) => { el.style.display = 'none'; });
       });
       document.getElementById('fa-success').style.display = 'block';
       setTimeout(closeFosterApplication, 6000);
@@ -561,15 +662,27 @@
       const err = document.getElementById('fa-error');
       if (err) { err.textContent = e.message || 'Submission failed. Please try again.'; err.style.display = 'block'; }
       fosterSubmitting = false;
-      if (btn) { btn.disabled = false; btn.textContent = 'Submit Application'; }
+      if (btn) { btn.disabled = false; btn.textContent = settings.submit_label || 'Submit'; }
     }
   }
 
-  function openFosterApplication() {
+  async function openPublishedApplication(formKey) {
     ensureStyles();
+    activeFormKey = formKey || 'foster_application';
     fosterStep = 0;
     fosterData = {};
     fosterSubmitting = false;
+    const published = await loadPublishedForm(activeFormKey);
+    if (published && published.steps?.length) {
+      activeSchema = published;
+      activeSteps = published.steps;
+    } else if (activeFormKey === 'foster_application') {
+      activeSteps = FOSTER_STEPS;
+      activeSchema = null;
+    } else {
+      activeSteps = FOSTER_STEPS;
+    }
+
     let backdrop = document.getElementById('fa-backdrop');
     if (!backdrop) {
       backdrop = document.createElement('div');
@@ -587,10 +700,17 @@
       card.className = 'fa-card';
       backdrop.appendChild(card);
     }
+    const form = published?.form || {};
+    applyFormTheme(card, form.settings || {}, form.intro || {});
+    card._formMeta.formTitle = form.title || '';
     renderFosterStep(card);
     backdrop.classList.add('is-open');
     lockScroll(true);
     document.addEventListener('keydown', escHandler);
+  }
+
+  function openFosterApplication() {
+    return openPublishedApplication('foster_application');
   }
 
   function closeFosterApplication() {
@@ -629,15 +749,16 @@
     }
     if (modal === 'contact' || action === 'contact') {
       e.preventDefault();
-      openFormModal('contact');
+      openPublishedApplication('contact');
     }
   });
 
   window.CPASModals = {
     openFosterIntro,
     openFosterApplication,
+    openPublishedApplication,
     openVolunteer: () => openFormModal('volunteer'),
-    openContact: () => openFormModal('contact'),
+    openContact: () => openPublishedApplication('contact'),
     close: closeAll,
   };
 

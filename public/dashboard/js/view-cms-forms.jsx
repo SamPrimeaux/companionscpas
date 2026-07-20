@@ -484,6 +484,39 @@ function CmsFormEditorView({ formId, onNavigate }) {
 
   const intro = form.intro || {};
   const settings = form.settings || {};
+  const theme = settings.theme || {};
+  const accent = theme.accent || "#7c3aed";
+  const patchTheme = (patch) => {
+    setForm((p) => ({
+      ...p,
+      settings: {
+        ...(p.settings || {}),
+        theme: { ...((p.settings || {}).theme || {}), ...patch },
+      },
+    }));
+    markDirty();
+  };
+
+  const uploadThemeLogo = async (file) => {
+    if (!file) return;
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("usage_context", "brand");
+      fd.append("label", "Form logo");
+      const res = await fetch("/api/cms/asset/upload", { method: "POST", credentials: "include", body: fd });
+      const d = await res.json();
+      const url = d.public_url || d.cdn_url || d.url;
+      if (!d.success || !url) {
+        notify(d.error || "Logo upload failed", "error");
+        return;
+      }
+      patchTheme({ logo_url: url });
+      notify("Logo updated");
+    } catch (e) {
+      notify(e.message || "Upload failed", "error");
+    }
+  };
 
   const toolbarBtn = (label, active, onClick) =>
     React.createElement("button", {
@@ -529,6 +562,7 @@ function CmsFormEditorView({ formId, onNavigate }) {
       style: { display: "flex", gap: 2, padding: "0 12px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 },
     },
       toolbarBtn("Build", tab === "build", () => setTab("build")),
+      toolbarBtn("Design", tab === "design", () => setTab("design")),
       toolbarBtn("Settings", tab === "settings", () => setTab("settings")),
       toolbarBtn("Delivery", tab === "delivery", () => setTab("delivery"))
     ),
@@ -613,25 +647,33 @@ function CmsFormEditorView({ formId, onNavigate }) {
             margin: "0 auto",
             borderRadius: 14,
             border: `1px solid ${C.borderStr}`,
-            background: "#f8f8fa",
-            color: "#16171c",
+            background: theme.mode === "light" ? "#f8f8fa" : "#090d18",
+            color: theme.mode === "light" ? "#16171c" : "#f4efe8",
             boxShadow: "0 20px 60px rgba(0,0,0,.12)",
             overflow: "hidden",
             transition: "width .2s ease",
+            ["--form-accent"]: accent,
           },
         },
-          React.createElement("div", {
+          (theme.show_header !== false) && React.createElement("div", {
             style: {
-              height: 52, display: "flex", alignItems: "center", padding: "0 20px",
-              borderBottom: "1px solid #e5e7eb", background: "rgba(255,255,255,.9)", fontWeight: 700, fontSize: 12,
+              height: 52, display: "flex", alignItems: "center", gap: 10, padding: "0 20px",
+              borderBottom: theme.mode === "light" ? "1px solid #e5e7eb" : "1px solid rgba(255,255,255,.1)",
+              background: theme.mode === "light" ? "rgba(255,255,255,.9)" : "rgba(255,255,255,.04)",
+              fontWeight: 700, fontSize: 12,
             },
-          }, "Companions of CPAS"),
+          },
+            theme.logo_url
+              ? React.createElement("img", { src: theme.logo_url, alt: "", style: { height: 28, width: "auto", objectFit: "contain" } })
+              : null,
+            theme.org_name || "Companions of CPAS"
+          ),
           React.createElement("div", { style: { padding: device === "mobile" ? "28px 18px 40px" : "40px 28px 48px" } },
-            React.createElement("div", { style: { color: C.purple, fontSize: 10, fontWeight: 780, letterSpacing: ".12em", textTransform: "uppercase", marginBottom: 8 } },
+            React.createElement("div", { style: { color: accent, fontSize: 10, fontWeight: 780, letterSpacing: ".12em", textTransform: "uppercase", marginBottom: 8 } },
               intro.eyebrow || "Get involved"),
-            React.createElement("h2", { style: { margin: 0, fontSize: device === "mobile" ? 24 : 28, letterSpacing: "-.03em", color: "#15161a" } },
+            React.createElement("h2", { style: { margin: 0, fontSize: device === "mobile" ? 24 : 28, letterSpacing: "-.03em" } },
               intro.heading || form.title),
-            React.createElement("p", { style: { color: "#6b7280", fontSize: 13, lineHeight: 1.5, margin: "10px 0 22px", maxWidth: 520 } },
+            React.createElement("p", { style: { color: theme.mode === "light" ? "#6b7280" : "#8a94a6", fontSize: 13, lineHeight: 1.5, margin: "10px 0 22px", maxWidth: 520 } },
               intro.subheading || form.description || ""),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
               fields.map((f) => {
@@ -647,13 +689,13 @@ function CmsFormEditorView({ formId, onNavigate }) {
                   style: {
                     gridColumn: half ? "span 1" : "span 2",
                     padding: 8, margin: -4, borderRadius: 12, cursor: "pointer",
-                    border: `1px solid ${selectedStyle ? C.purple : "transparent"}`,
-                    background: selectedStyle ? "rgba(123,47,190,.06)" : "transparent",
-                    boxShadow: selectedStyle ? `0 0 0 3px ${C.purpleDim}` : "none",
+                    border: `1px solid ${selectedStyle ? accent : "transparent"}`,
+                    background: selectedStyle ? `${accent}14` : "transparent",
+                    boxShadow: selectedStyle ? `0 0 0 3px ${accent}22` : "none",
                   },
                 },
                   f.field_type !== "checkbox" && React.createElement("div", {
-                    style: { display: "flex", gap: 4, marginBottom: 6, fontSize: 11, fontWeight: 680, color: "#292b31" },
+                    style: { display: "flex", gap: 4, marginBottom: 6, fontSize: 11, fontWeight: 680 },
                   }, f.label, f.is_required ? React.createElement("span", { style: { color: "#e44e5e" } }, "*") : null),
                   React.createElement(FakeControl, { field: f })
                 );
@@ -662,8 +704,8 @@ function CmsFormEditorView({ formId, onNavigate }) {
             React.createElement("button", {
               type: "button",
               style: {
-                marginTop: 22, height: 42, padding: "0 20px", border: 0, borderRadius: 10,
-                background: C.purple, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "default",
+                marginTop: 22, height: 42, padding: "0 20px", border: 0, borderRadius: Number(theme.radius) || 10,
+                background: accent, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "default",
               },
             }, settings.submit_label || "Continue application")
           )
@@ -743,10 +785,104 @@ function CmsFormEditorView({ formId, onNavigate }) {
       )
     ),
 
+    tab === "design" && React.createElement("div", { style: { flex: 1, overflow: "auto", padding: "28px clamp(18px,4vw,48px)" } },
+      React.createElement("h2", { style: { margin: "0 0 6px", fontSize: 20, color: C.text } }, "Form appearance"),
+      React.createElement("p", { style: { margin: "0 0 20px", color: C.textSec, fontSize: 13, maxWidth: 620 } },
+        "Customize this form's modal look. Changes apply after Save & Publish — no code deploy needed. Site-wide brand can still be edited separately if you want a global default."),
+      React.createElement("div", {
+        style: { maxWidth: 560, display: "grid", gap: 16, padding: 18, border: `1px solid ${C.border}`, borderRadius: 12, background: C.surface },
+      },
+        React.createElement("div", null,
+          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 8, textTransform: "uppercase" } }, "Accent color"),
+          React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" } },
+            ["#7c3aed", "#315df4", "#7259d9", "#1f8a78", "#db6a28", "#e8314a", "#202228"].map((c) =>
+              React.createElement("button", {
+                key: c, type: "button", onClick: () => patchTheme({ accent: c }),
+                style: {
+                  width: 30, height: 30, borderRadius: 8, background: c, cursor: "pointer",
+                  border: accent === c ? "2px solid #fff" : "2px solid transparent",
+                  boxShadow: accent === c ? `0 0 0 3px ${C.purpleDim}` : "inset 0 0 0 1px rgba(255,255,255,.2)",
+                },
+              })
+            ),
+            React.createElement("input", {
+              type: "text", value: accent, onChange: (e) => patchTheme({ accent: e.target.value }),
+              style: { width: 100, height: 32, padding: "0 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text, fontFamily: "var(--font-mono)", fontSize: 11 },
+            })
+          )
+        ),
+        React.createElement("div", null,
+          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 8, textTransform: "uppercase" } }, "Theme mode"),
+          React.createElement("div", { style: { display: "flex", gap: 8 } },
+            [["dark", "Dark modal"], ["light", "Light modal"]].map(([mode, label]) =>
+              React.createElement("button", {
+                key: mode, type: "button", onClick: () => patchTheme({ mode }),
+                style: {
+                  height: 34, padding: "0 14px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 650,
+                  border: `1px solid ${(theme.mode || "dark") === mode ? C.purple : C.border}`,
+                  background: (theme.mode || "dark") === mode ? C.purpleDim : C.bg2,
+                  color: (theme.mode || "dark") === mode ? C.purpleL : C.textSec,
+                  fontFamily: "var(--font-ui)",
+                },
+              }, label)
+            )
+          )
+        ),
+        React.createElement("label", {
+          style: { display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13, color: C.text },
+        },
+          "Show organization header",
+          React.createElement("input", {
+            type: "checkbox",
+            checked: theme.show_header !== false,
+            onChange: (e) => patchTheme({ show_header: e.target.checked }),
+          })
+        ),
+        React.createElement("div", null,
+          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 6, textTransform: "uppercase" } }, "Header org name"),
+          React.createElement("input", {
+            value: theme.org_name || "",
+            placeholder: "Companions of CPAS",
+            onChange: (e) => patchTheme({ org_name: e.target.value }),
+            style: { width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text },
+          })
+        ),
+        React.createElement("div", null,
+          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 6, textTransform: "uppercase" } }, "Logo"),
+          theme.logo_url && React.createElement("img", {
+            src: theme.logo_url, alt: "", style: { height: 40, marginBottom: 8, objectFit: "contain", display: "block" },
+          }),
+          React.createElement("input", {
+            type: "file", accept: "image/*",
+            onChange: (e) => uploadThemeLogo(e.target.files?.[0]),
+            style: { fontSize: 12, color: C.textSec },
+          }),
+          React.createElement("input", {
+            value: theme.logo_url || "",
+            placeholder: "Or paste image URL",
+            onChange: (e) => patchTheme({ logo_url: e.target.value }),
+            style: { width: "100%", marginTop: 8, height: 34, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text, fontSize: 12 },
+          })
+        ),
+        React.createElement("div", null,
+          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 6, textTransform: "uppercase" } },
+            `Corner radius (${theme.radius || 12}px)`),
+          React.createElement("input", {
+            type: "range", min: 4, max: 24, value: Number(theme.radius) || 12,
+            onChange: (e) => patchTheme({ radius: Number(e.target.value) }),
+            style: { width: "100%", accentColor: accent },
+          })
+        ),
+        React.createElement("div", {
+          style: { padding: 12, borderRadius: 10, background: C.bg2, color: C.textSec, fontSize: 12, lineHeight: 1.45 },
+        }, "Preview updates live in the Build tab. Publish to push this look to the public site modal.")
+      )
+    ),
+
     tab === "settings" && React.createElement("div", { style: { flex: 1, overflow: "auto", padding: "28px clamp(18px,4vw,48px)" } },
       React.createElement("h2", { style: { margin: "0 0 6px", fontSize: 20, color: C.text } }, "Form settings"),
       React.createElement("p", { style: { margin: "0 0 20px", color: C.textSec, fontSize: 13 } },
-        "Copy and publish state. Colors and logos come from Brand & Settings — not a separate form theme."),
+        "Copy, labels, and success messaging for this form."),
       React.createElement("div", {
         style: { maxWidth: 520, display: "grid", gap: 14, padding: 18, border: `1px solid ${C.border}`, borderRadius: 12, background: C.surface },
       },
@@ -765,6 +901,14 @@ function CmsFormEditorView({ formId, onNavigate }) {
                 style: { width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text },
               })
           )
+        ),
+        React.createElement("div", null,
+          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 6, textTransform: "uppercase" } }, "Eyebrow"),
+          React.createElement("input", {
+            value: intro.eyebrow || "",
+            onChange: (e) => { setForm((p) => ({ ...p, intro: { ...(p.intro || {}), eyebrow: e.target.value } })); markDirty(); },
+            style: { width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text },
+          })
         ),
         React.createElement("div", null,
           React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 6, textTransform: "uppercase" } }, "Intro heading"),
@@ -797,17 +941,6 @@ function CmsFormEditorView({ formId, onNavigate }) {
             onChange: (e) => { setForm((p) => ({ ...p, settings: { ...(p.settings || {}), success_message: e.target.value } })); markDirty(); },
             style: { width: "100%", minHeight: 70, boxSizing: "border-box", padding: 10, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text },
           })
-        ),
-        React.createElement("div", {
-          style: { padding: 12, borderRadius: 10, background: C.purpleDim, color: C.purpleL, fontSize: 12, lineHeight: 1.45 },
-        },
-          "Brand colors and logos are managed in ",
-          React.createElement("button", {
-            type: "button",
-            onClick: () => onNavigate("cms-brand"),
-            style: { border: 0, background: "transparent", color: C.purple, fontWeight: 700, cursor: "pointer", padding: 0, fontFamily: "var(--font-ui)" },
-          }, "Brand & Settings"),
-          "."
         )
       )
     ),

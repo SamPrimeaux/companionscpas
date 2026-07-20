@@ -129,7 +129,100 @@ async function countSubmissions(env, formKey) {
       .catch(() => ({ c: 0 }));
     return Number(row?.c || 0);
   }
+  if (formKey === "contact" || formKey === "contact_request") {
+    const row = await env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM contact_requests_v2`
+    )
+      .first()
+      .catch(() => ({ c: 0 }));
+    return Number(row?.c || 0);
+  }
   return 0;
+}
+
+/** Idempotent seed: Contact Us modal form so it is editable in Form Studio. */
+async function ensureContactForm(env) {
+  const existing = await env.DB.prepare(
+    `SELECT id FROM cpas_application_forms
+     WHERE tenant_id = ? AND (form_key = 'contact' OR form_key = 'contact_request')
+     LIMIT 1`
+  )
+    .bind(TENANT)
+    .first()
+    .catch(() => null);
+  if (existing?.id) return existing.id;
+
+  const formId = "form_contact_request";
+  const stepId = "step_contact_main";
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO cpas_application_forms
+     (id, tenant_id, form_key, title, description, status, intro_json, settings_json, created_at, updated_at)
+     VALUES (?, ?, 'contact', 'Contact Us', 'Get in touch with Companions of CPAS.', 'active', ?, ?, datetime('now'), datetime('now'))`
+  )
+    .bind(
+      formId,
+      TENANT,
+      JSON.stringify({
+        eyebrow: "Companions of CPAS",
+        heading: "Get in Touch",
+        subheading:
+          "Questions about fostering, transport, or how to help? Send us a note — we typically reply within 1–2 business days.",
+      }),
+      JSON.stringify({
+        submit_endpoint: "/api/contact/request",
+        submit_label: "Send Message",
+        success_message: "We'll get back to you as soon as we can.",
+        success_title: "Message sent!",
+        placement: "modal:contact",
+        theme: {
+          accent: "#7c3aed",
+          accent_2: "#a78bfa",
+          mode: "dark",
+          show_header: true,
+          org_name: "Companions of CPAS",
+          radius: 12,
+        },
+      })
+    )
+    .run()
+    .catch(() => {});
+
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO cpas_application_steps
+     (id, form_id, step_key, title, description, sort_order)
+     VALUES (?, ?, 'main', 'Your message', '', 10)`
+  )
+    .bind(stepId, formId)
+    .run()
+    .catch(() => {});
+
+  const fields = [
+    ["fld_c_first", "first_name", "First Name", "Jane", "text", 1, "[]", 10],
+    ["fld_c_last", "last_name", "Last Name", "Smith", "text", 0, "[]", 20],
+    ["fld_c_email", "email", "Email", "jane@email.com", "email", 1, "[]", 30],
+    [
+      "fld_c_subject",
+      "subject",
+      "Subject",
+      "Select a topic...",
+      "select",
+      0,
+      '["Fostering a dog","Adopting a dog","Volunteering","Donations / Fundraising","Press / Media inquiry","Something else"]',
+      40,
+    ],
+    ["fld_c_message", "message", "Message", "How can we help?", "textarea", 1, "[]", 50],
+  ];
+  for (const [id, key, label, ph, type, req, opts, order] of fields) {
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO cpas_application_fields
+       (id, form_id, step_id, field_key, label, placeholder, field_type, is_required, options_json, validation_json, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?)`
+    )
+      .bind(id, formId, stepId, key, label, ph, type, req, opts, order)
+      .run()
+      .catch(() => {});
+  }
+  return formId;
 }
 
 export async function formsRoutes(request, env, url) {
@@ -186,6 +279,7 @@ export async function formsRoutes(request, env, url) {
 
   // GET /api/cms/forms — list
   if (path === "/api/cms/forms" && method === "GET") {
+    await ensureContactForm(env);
     const { results } = await env.DB.prepare(
       `SELECT id, form_key, title, description, status, intro_json, settings_json, updated_at, created_at
        FROM cpas_application_forms

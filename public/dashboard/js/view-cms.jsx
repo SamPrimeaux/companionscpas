@@ -642,6 +642,10 @@ const CMS_SECTION_TYPES = [
   { type:'testimonial', label:'Testimonial', desc:'Quote, story, or social proof block' },
   { type:'cta_banner', label:'CTA Banner', desc:'High-emphasis call to action strip' },
   { type:'animal_grid', label:'Animal Grid', desc:'Adoptable or foster-needed animals' },
+  { type:'contact_hero', label:'Contact Hero', desc:'Contact page opener with social pills' },
+  { type:'contact_form', label:'Contact Form', desc:'Inline message form for contact pages' },
+  { type:'contact_socials', label:'Contact Info Cards', desc:'Email, location, org cards' },
+  { type:'contact_team', label:'Team', desc:'Group photo + member list' },
   { type:'content', label:'Content', desc:'Simple copy section for flexible text' },
 ];
 
@@ -837,6 +841,46 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   }, [route, bumpPreview]);
 
   React.useEffect(() => { loadPage(); }, [loadPage]);
+
+  // Templates → Add to Page sets this before navigating into the editor
+  React.useEffect(() => {
+    if (!pageData?.page) return;
+    let pending = null;
+    try { pending = sessionStorage.getItem("cpas.pendingSectionType"); } catch {}
+    if (!pending) return;
+    try { sessionStorage.removeItem("cpas.pendingSectionType"); } catch {}
+    const maxOrder = (pageData.sections || []).reduce((m, s) => Math.max(m, Number(s.sort_order) || 0), 0);
+    const newKey = `${pending}_${cmsSlugForKey(route)}_${Date.now()}`;
+    const section = {
+      section_key: newKey,
+      section_type: pending,
+      page_route: route,
+      heading: "New " + pending.replace(/_/g, " "),
+      subheading: "",
+      body: "",
+      sort_order: maxOrder + 10,
+      is_visible: 1,
+      tenant_id: "tenant_companionscpas",
+    };
+    (async () => {
+      try {
+        const res = await fetch("/api/cms/section/save", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ section }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!d.success && d.success !== true) throw new Error(d.error || "Section save failed");
+        await loadPage();
+        setSelectedKey(newKey);
+        setMobileTab("edit");
+        notify(`Added ${pending.replace(/_/g, " ")} section`);
+      } catch (e) {
+        notify(e.message || "Could not add section", "error");
+      }
+    })();
+  }, [pageData?.page?.route_path, route, loadPage]);
 
   const saveSectionObject = async (section, silent=false) => {
     const res = await fetch('/api/cms/section/save', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ section }) });
@@ -2721,22 +2765,27 @@ function CmsBrandView({ onNavigate }) {
 
 // ── /dashboard/cms/templates ──────────────────────────────────────────────────
 const SECTION_TEMPLATES_DATA = [
-  { type: "hero",          label: "Hero",             category: "structure", icon: "home",     desc: "Full-width headline, subheading, dual CTAs, hero image" },
-  { type: "text_image",    label: "Text + Image",     category: "content",   icon: "image",    desc: "Side-by-side text block with photo" },
-  { type: "card_grid",     label: "Card Grid",         category: "content",   icon: "layers",   desc: "3-up or 4-up feature/benefit cards" },
-  { type: "animal_grid",   label: "Animal Grid",       category: "animals",   icon: "paw",      desc: "Dynamic grid from animal_profiles" },
-  { type: "foster_grid",   label: "Foster CTA",        category: "animals",   icon: "heart",    desc: "Foster program info with application CTA" },
-  { type: "campaign_grid", label: "Fundraising",       category: "giving",    icon: "dollar",   desc: "Active campaigns with progress bars" },
-  { type: "testimonial",   label: "Testimonial",       category: "social",    icon: "people",   desc: "Quote + attribution from foster/adopter" },
-  { type: "stats_bar",     label: "Impact Stats",      category: "structure", icon: "chart",    desc: "Horizontal impact numbers" },
-  { type: "org_info",      label: "Org Info",          category: "content",   icon: "docs",     desc: "Mission, history, team info block" },
-  { type: "donation_block",label: "Donation Block",    category: "giving",    icon: "trending", desc: "Suggested amounts with Stripe integration" },
-  { type: "faq",           label: "FAQ",               category: "content",   icon: "docs",     desc: "Expandable question/answer pairs" },
-  { type: "map_embed",     label: "Location Map",      category: "content",   icon: "home",     desc: "Google Maps embed with address" },
+  { type: "hero",            label: "Hero",             category: "structure", kind: "section", icon: "home",     desc: "Full-width headline, subheading, dual CTAs, hero image" },
+  { type: "text_image",      label: "Text + Image",     category: "content",   kind: "section", icon: "image",    desc: "Side-by-side text block with photo" },
+  { type: "feature_cards",   label: "Card Grid",         category: "content",   kind: "section", icon: "layers",   desc: "3-up or 4-up feature/benefit cards" },
+  { type: "animal_grid",     label: "Animal Grid",       category: "animals",   kind: "section", icon: "paw",      desc: "Dynamic grid from animal_profiles" },
+  { type: "foster_grid",     label: "Foster CTA",        category: "animals",   kind: "section", icon: "heart",    desc: "Foster program info with application CTA" },
+  { type: "campaign_grid",   label: "Fundraising",       category: "giving",    kind: "section", icon: "dollar",   desc: "Active campaigns with progress bars" },
+  { type: "testimonial",     label: "Testimonial",       category: "social",    kind: "section", icon: "people",   desc: "Quote + attribution from foster/adopter" },
+  { type: "cta_banner",      label: "CTA Banner",        category: "structure", kind: "section", icon: "sparkles", desc: "High-emphasis call to action strip" },
+  { type: "contact_hero",    label: "Contact Hero",      category: "content",   kind: "section", icon: "mail",     desc: "Contact page opener with social pills" },
+  { type: "contact_form",    label: "Contact Form",      category: "content",   kind: "section", icon: "docs",     desc: "Inline contact page message form" },
+  { type: "contact_socials", label: "Contact Info Cards",category: "content",   kind: "section", icon: "home",     desc: "Email, location, org cards" },
+  { type: "contact_team",    label: "Team",              category: "content",   kind: "section", icon: "people",   desc: "Group photo + member list" },
+  { type: "contact",         label: "Contact Us Modal",  category: "forms",     kind: "form",    icon: "mail",     desc: "Reusable Get in Touch modal — edit fields in Forms", formId: "form_contact_request" },
+  { type: "foster_application", label: "Foster Application", category: "forms", kind: "form", icon: "heart", desc: "Multi-step foster apply modal — edit in Forms", formId: "form_foster_application" },
 ];
 
 function CmsTemplatesView({ onNavigate }) {
   const [filter, setFilter] = React.useState("all");
+  const [previewType, setPreviewType] = React.useState(null);
+  const [pickerType, setPickerType] = React.useState(null);
+  const [pages, setPages] = React.useState([]);
   const categories = ["all", ...Array.from(new Set(SECTION_TEMPLATES_DATA.map(t => t.category)))];
   const filtered = filter === "all" ? SECTION_TEMPLATES_DATA : SECTION_TEMPLATES_DATA.filter(t => t.category === filter);
   const catColors = {
@@ -2745,32 +2794,116 @@ function CmsTemplatesView({ onNavigate }) {
     animals:   { bg: C.greenDim,  color: C.green },
     giving:    { bg: C.yellowDim, color: C.yellow },
     social:    { bg: C.redDim,    color: C.red },
+    forms:     { bg: C.purpleDim, color: C.purpleL },
+  };
+
+  React.useEffect(() => {
+    fetch("/api/cms/bootstrap", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setPages(d.pages || []))
+      .catch(() => {});
+  }, []);
+
+  const openEditorWithSection = (page, sectionType) => {
+    try { sessionStorage.setItem("cpas.pendingSectionType", sectionType); } catch {}
+    const pageId = page.route_path === "/" ? "home" : String(page.route_path || "").replace(/^\//, "").replace(/\//g, "_");
+    setPickerType(null);
+    onNavigate("cms-page-editor", { pageId });
   };
 
   return React.createElement(CmsPageWrapper, null,
-    React.createElement(PageHeader, { title: "Section Templates", subtitle: "Browse available section types to add to your pages" }),
+    React.createElement(PageHeader, {
+      title: "Templates",
+      subtitle: "Preview section and form templates, then add them to a page or open Forms to edit.",
+    }),
     React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" } },
       categories.map(cat => React.createElement("button", { key: cat, onClick: () => setFilter(cat),
         style: { padding: "5px 14px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${filter === cat ? C.purple : C.border}`, background: filter === cat ? C.purpleDim : "transparent", color: filter === cat ? C.purpleL : C.textSec, fontFamily: "var(--font-ui)" }
       }, cat.charAt(0).toUpperCase() + cat.slice(1)))
     ),
-    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 12 } },
+    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 } },
       filtered.map(t => {
         const col = catColors[t.category] || catColors.content;
-        return React.createElement(Card, { key: t.type, hover: true, style: { padding: 20 } },
-          React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 } },
+        return React.createElement(Card, { key: t.type + t.kind, hover: true, style: { padding: 20, display: "flex", flexDirection: "column", gap: 12 } },
+          React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
             React.createElement("div", { style: { width: 40, height: 40, borderRadius: 10, background: col.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, React.createElement(Icon, { name: t.icon, size: 18, style: { color: col.color } })),
             React.createElement("div", null,
               React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 3 } }, t.label),
-              React.createElement("div", { style: { fontSize: 11, color: C.textSec } }, t.desc)
+              React.createElement("div", { style: { fontSize: 11, color: C.textSec, lineHeight: 1.45 } }, t.desc)
             )
           ),
-          React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } },
+          React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: "auto", flexWrap: "wrap" } },
             React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: col.color, background: col.bg, padding: "2px 8px", borderRadius: 99 } }, t.category),
-            React.createElement(Btn, { size: "sm", variant: "secondary", icon: "plus", onClick: () => onNavigate("cms-pages", { addSection: t.type }) }, "Add to Page")
+            React.createElement("div", { style: { display: "flex", gap: 6 } },
+              t.kind === "section"
+                ? React.createElement(Btn, { size: "sm", variant: "ghost", icon: "eye", onClick: () => setPreviewType(t.type) }, "Preview")
+                : React.createElement(Btn, { size: "sm", variant: "ghost", icon: "eye", onClick: () => onNavigate("cms-form-editor", { formId: t.formId || t.type }) }, "Open"),
+              t.kind === "section"
+                ? React.createElement(Btn, { size: "sm", variant: "secondary", icon: "plus", onClick: () => setPickerType(t.type) }, "Add to Page")
+                : React.createElement(Btn, { size: "sm", variant: "secondary", icon: "edit", onClick: () => onNavigate("cms-form-editor", { formId: t.formId || t.type }) }, "Edit form")
+            )
           )
         );
       })
+    ),
+
+    previewType && React.createElement("div", {
+      onClick: (e) => { if (e.target === e.currentTarget) setPreviewType(null); },
+      style: { position: "fixed", inset: 0, zIndex: 80, background: "rgba(8,10,16,.72)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 },
+    },
+      React.createElement("div", {
+        style: { width: "min(960px,100%)", height: "min(780px,90vh)", background: C.surface, borderRadius: 16, border: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 80px rgba(0,0,0,.35)" },
+      },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: `1px solid ${C.border}` } },
+          React.createElement("strong", { style: { fontSize: 13 } }, "Template preview"),
+          React.createElement("span", { style: { color: C.textMut, fontSize: 12 } }, previewType),
+          React.createElement("button", {
+            type: "button", onClick: () => setPreviewType(null),
+            style: { marginLeft: "auto", border: 0, background: "transparent", color: C.textMut, cursor: "pointer", fontSize: 18 },
+          }, "×")
+        ),
+        React.createElement("iframe", {
+          title: "Section preview",
+          src: `/api/cms/section/preview?type=${encodeURIComponent(previewType)}`,
+          style: { flex: 1, width: "100%", border: 0, background: "#fff" },
+        }),
+        React.createElement("div", { style: { padding: 12, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 8 } },
+          React.createElement(Btn, { size: "sm", variant: "secondary", onClick: () => setPreviewType(null) }, "Close"),
+          React.createElement(Btn, { size: "sm", variant: "primary", onClick: () => { setPreviewType(null); setPickerType(previewType); } }, "Add to a page")
+        )
+      )
+    ),
+
+    pickerType && React.createElement("div", {
+      onClick: (e) => { if (e.target === e.currentTarget) setPickerType(null); },
+      style: { position: "fixed", inset: 0, zIndex: 81, background: "rgba(8,10,16,.72)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 },
+    },
+      React.createElement("div", {
+        style: { width: "min(440px,100%)", background: C.surface, borderRadius: 16, border: `1px solid ${C.border}`, padding: 18, boxShadow: "0 24px 80px rgba(0,0,0,.35)" },
+      },
+        React.createElement("strong", { style: { display: "block", fontSize: 15, marginBottom: 6 } }, "Add to which page?"),
+        React.createElement("p", { style: { margin: "0 0 14px", color: C.textSec, fontSize: 12 } },
+          `Choose a page to insert “${pickerType.replace(/_/g, " ")}”, then edit and publish.`),
+        React.createElement("div", { style: { display: "grid", gap: 8, maxHeight: 360, overflow: "auto" } },
+          (pages.length ? pages : [{ route_path: "/", title: "Home" }]).map((p) =>
+            React.createElement("button", {
+              key: p.route_path || p.id,
+              type: "button",
+              onClick: () => openEditorWithSection(p, pickerType),
+              style: {
+                textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer",
+                border: `1px solid ${C.border}`, background: C.bg2, color: C.text, fontFamily: "var(--font-ui)",
+              },
+            },
+              React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, p.title || p.route_path),
+              React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 3 } }, p.route_path)
+            )
+          )
+        ),
+        React.createElement("div", { style: { marginTop: 12, display: "flex", justifyContent: "flex-end" } },
+          React.createElement(Btn, { size: "sm", variant: "ghost", onClick: () => setPickerType(null) }, "Cancel")
+        )
+      )
     )
   );
 }

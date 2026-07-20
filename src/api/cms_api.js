@@ -607,6 +607,48 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     }
   }
 
+  // GET /api/cms/section/preview?type=hero — isolated template preview HTML
+  if (path === "/api/cms/section/preview" && method === "GET") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+    const type = String(url.searchParams.get("type") || "").trim().toLowerCase();
+    if (!type) return json({ success: false, error: "type required" }, 400);
+
+    try {
+      const { getBrand } = await import("./render_page.js");
+      const { renderSectionByType } = await import("./cms_section_catalog.js");
+      const brand = await getBrand(env).catch(() => ({}));
+      const demo = {
+        section_key: `preview_${type}`,
+        section_type: type,
+        page_route: "/",
+        eyebrow: "Preview",
+        heading: type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        subheading: "This is a live render of the section template.",
+        body: "Edit this section after adding it to a page. Publish the page to make it public.",
+        image_url: brand.logo_light_url || brand.logo_url || "",
+        cta_label: "Primary action",
+        cta_href: "/adopt",
+        cta_secondary_label: "Secondary",
+        cta_secondary_href: "/donate",
+        is_visible: 1,
+        config_json: "{}",
+      };
+      const fragment = await renderSectionByType(demo, [], brand, env, { preview: true, includeHidden: true });
+      const html = `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="/static/global/cpas-shell.css"/>
+<link rel="stylesheet" href="/api/cms/brand/tokens.css"/>
+<style>body{margin:0;background:#f6f5f8;padding:24px} .tpl-frame{max-width:1100px;margin:0 auto}</style>
+</head><body><div class="tpl-frame">${fragment || "<p>No preview available for this type.</p>"}</div></body></html>`;
+      return new Response(html, {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+      });
+    } catch (err) {
+      return json({ success: false, error: err?.message || "Section preview failed" }, 500);
+    }
+  }
+
   if (path === "/api/cms/section/save" && method === "POST") {
     const cmsUser = await requireCmsUser(request, env, sessionUser);
     if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
