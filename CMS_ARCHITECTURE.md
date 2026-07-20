@@ -3,9 +3,24 @@
 > **SSOT for how the public CMS works.** Read this before changing publish, sections, soft-delete, or client #2 scaffolding.  
 > Repo: `companionscpas` · Worker: `companionscpas` · Domain: companionsofcaddo.org  
 > Last updated: 2026-07-20  
-> Related: `AGENTSAM.md` (ops / bindings), `src/api/cms_pipeline.js` (code SSOT)
+> **Architecture verified against commit `cf43417`** (soft-delete / Undo / trash: `69a200b`; `restore_count` / `last_restored_at`: `cf43417`). Re-verify before treating as golden if those files drift.  
+> Related: `AGENTSAM.md` (ops / bindings), `src/api/cms_pipeline.js` (code SSOT)  
+> **Retrieval tags:** `scope: platform` · `source_type: architecture` · `archive_tier: golden` · `verified_against_commit: cf43417`  
+> **R2 mirrors:** `cms/instructions/patterns/CMS_ARCHITECTURE.md` · `inneranimalmedia-autorag/knowledge/patterns/cms-d1-r2-kv/CMS_ARCHITECTURE.md` · `inneranimalmedia-autorag/docs/CMS_ARCHITECTURE.md`
 
 This document captures the **architecture**, not a changelog. Companions of CPAS is the proving ground; the reusable asset is the pipeline and lifecycle rules below.
+
+### Confidence (how this was checked)
+
+| Claim area | Confidence |
+|------------|------------|
+| Soft-delete → R2 trash → live fragment gone; Undo restores from D1; editor list exclusion; `restore_count` columns | **Verified live** (2026-07-20 session, e.g. `/contact` `contact_socials`) |
+| Publish/assemble SQL filters omit `deleted_at`; soft-delete must not reappear on Publish | **Verified live** (session) + code-aligned |
+| Hide vs soft-delete vs 3-day purge design; R2 lifecycle rule `cms-section-trash-3d` | **Verified live** (lifecycle listed on bucket; D1 cron wired) |
+| Exact `publishRoute` order (`syncRouteSectionsToR2` → bust KV → `assemblePage({ preferR2: false })` → artifact + KV put) | **Verified by code** (`cms_pipeline.js`) — not separately re-traced request-by-request this session |
+| Public `servePublicPage` KV → R2 artifact fallback chain | **Verified by code** (`src/index.js`) — not live-probed as part of the soft-delete QA |
+
+Agents: prefer **Verified live** over **Verified by code** when they conflict after drift; re-check against `verified_against_commit` before acting on golden retrieval.
 
 ---
 
@@ -163,7 +178,9 @@ Entry points: dashboard **Publish Live**, `POST /api/cms/publish`, or `publishRo
 | Side | Who | What |
 |------|-----|------|
 | **R2 trash** | Bucket lifecycle rule `cms-section-trash-3d` on prefix `cms/section-trash/` | Auto-expire archive HTML after 3 days |
-| **D1** | Worker cron `0 6 * * *` → `purgeExpiredSoftDeletedSections` | DELETE sections with `deleted_at < now - 3 days` + their content blocks; delete leftover **live** fragment keys only |
+| **D1** | Worker cron `0 6 * * *` → `purgeExpiredSoftDeletedSections` | DELETE soft-deleted sections with `deleted_at < now - 3 days` + their content blocks; also attempts to delete any leftover **live** fragment keys |
+
+**Live fragment key on purge — safety net only.** Normal soft-delete already removes the live fragment at delete time (step 3 above). The cron’s live-key delete is not the primary cleanup path; it only catches cases where that delete-time step did not complete. Agents must **not** assume live fragments routinely survive past soft-delete.
 
 **Important:** Restore never un-archives from R2. If lifecycle deletes the trash object while a soft-deleted D1 row still exists, that is harmless for Undo (Undo only uses D1). Media library assets are **not** deleted with a section.
 
@@ -266,6 +283,18 @@ npx wrangler d1 execute companionscpas --remote --command \
 
 ---
 
-## 8. Feeding Agent Sam later
+## 8. Platform storage and embedding
 
-This file is the durable SSOT. Chunking into `agentsam_memory_search` / Vectorize is a mechanical follow-up once memory ingest is scheduled — not required for the architecture to be correct or greppable today.
+**Repo file first, index second** (already done for R2):
+
+1. Git SSOT: `companionscpas/CMS_ARCHITECTURE.md`
+2. R2 platform mirrors (uploaded): CMS instructions + AutoRAG knowledge/docs paths listed in the header
+3. **Next:** chunk + embed into the AutoRAG / documents Vectorize lane (not `agentsam_memory_*`)
+
+**Lane rule:** Would client #2 need this? → **Yes** → platform AutoRAG/docs. Workspace-scoped private memory is for client-specific facts and decisions, not this pattern.
+
+**Chunking for ingest (when embedding):**
+
+- Split on `##` sections, not fixed token windows
+- Keep tables inside a single chunk with their header
+- Attach metadata per chunk: `section` (e.g. `3. Section lifecycle`), `scope: platform`, `source_type: architecture`, `archive_tier: golden`, `verified_against_commit: cf43417`
