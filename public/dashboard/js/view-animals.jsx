@@ -2167,8 +2167,11 @@
 
     return h('div', { className: 'dash-page' },
       h(PageHeader, { title: 'Fosters', subtitle: subtitle }),
-      loading ? h(LoadingBlock, null, 'Loading foster records...') :
-      h('div', { style:{ display:'flex', flexDirection:'column', gap:28 } },
+      loading
+        ? (typeof PageSkeleton === 'function'
+            ? h(PageSkeleton, { title: 'fosters', variant: 'cards', stats: 0, rows: 6 })
+            : h(LoadingBlock, null, 'Loading foster records...'))
+        : h('div', { style:{ display:'flex', flexDirection:'column', gap:28 } },
         h('section', null,
           h('div', { style:{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, marginBottom:12, flexWrap:'wrap' } },
             h('h3', { style:{ margin:0, color:u.text, fontSize:15, fontWeight:800 } }, 'Needs a foster home'),

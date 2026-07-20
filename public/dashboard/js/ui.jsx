@@ -37,7 +37,7 @@ const NAV_STRUCTURE = [
   ]},
   { group: "Animal Care", items: [
     { key: "animals",    label: "Animals",    icon: "paw",       path: "/dashboard/animals" },
-    { key: "intakes",    label: "Intakes",    icon: "intake",    path: "/dashboard/intakes" },
+    { key: "intakes",    label: "Intakes",    icon: "clipboard", path: "/dashboard/intakes" },
     { key: "medical",    label: "Medical",    icon: "medical",   path: "/dashboard/medical" },
     // daily-care hidden from nav — route /dashboard/daily-care still works if re-enabled
   ]},
@@ -236,6 +236,74 @@ function DashPage({ children, className = "" }) {
   return React.createElement("div", { className: "dash-page" + (className ? " " + className : "") }, children);
 }
 
+function SkeletonBlock({ height = 16, width = "100%", radius = 8, style: extra = {} }) {
+  return React.createElement("div", {
+    className: "cpas-skeleton",
+    "aria-hidden": "true",
+    style: {
+      height,
+      width,
+      borderRadius: radius,
+      ...extra,
+    },
+  });
+}
+
+/** Shared loading placeholder — keeps page chrome visible without flashing empty/zero stats. */
+function PageSkeleton({ variant = "list", stats = 4, rows = 5, title }) {
+  const statCount = Math.max(0, Number(stats) || 0);
+  const rowCount = Math.max(1, Number(rows) || 5);
+  return React.createElement("div", {
+    className: "cpas-page-skeleton",
+    role: "status",
+    "aria-live": "polite",
+    "aria-busy": "true",
+    "aria-label": title ? `Loading ${title}` : "Loading",
+  },
+    title && React.createElement("div", { className: "cpas-page-skeleton-label" }, `Loading ${title}…`),
+    statCount > 0 && React.createElement("div", {
+      className: "cpas-page-skeleton-stats",
+      style: { display: "grid", gridTemplateColumns: `repeat(${Math.min(statCount, 4)}, minmax(0, 1fr))`, gap: 12, marginBottom: 20 },
+    },
+      Array.from({ length: statCount }, (_, i) => React.createElement("div", {
+        key: "s" + i,
+        className: "cpas-page-skeleton-card",
+      },
+        React.createElement(SkeletonBlock, { height: 12, width: "42%" }),
+        React.createElement(SkeletonBlock, { height: 28, width: "55%", style: { marginTop: 14 } }),
+        React.createElement(SkeletonBlock, { height: 10, width: "70%", style: { marginTop: 12 } })
+      ))
+    ),
+    variant === "cards"
+      ? React.createElement("div", {
+          style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 },
+        },
+          Array.from({ length: rowCount }, (_, i) => React.createElement("div", {
+            key: "c" + i,
+            className: "cpas-page-skeleton-card",
+            style: { padding: 0, overflow: "hidden" },
+          },
+            React.createElement(SkeletonBlock, { height: 140, radius: 0 }),
+            React.createElement("div", { style: { padding: 14 } },
+              React.createElement(SkeletonBlock, { height: 14, width: "60%" }),
+              React.createElement(SkeletonBlock, { height: 10, width: "80%", style: { marginTop: 10 } })
+            )
+          ))
+        )
+      : React.createElement("div", { className: "cpas-page-skeleton-card", style: { padding: 0, overflow: "hidden" } },
+          Array.from({ length: rowCount }, (_, i) => React.createElement("div", {
+            key: "r" + i,
+            className: "cpas-page-skeleton-row",
+          },
+            React.createElement(SkeletonBlock, { height: 12, width: "18%" }),
+            React.createElement(SkeletonBlock, { height: 12, width: "28%" }),
+            React.createElement(SkeletonBlock, { height: 12, width: "16%" }),
+            React.createElement(SkeletonBlock, { height: 12, width: "14%" })
+          ))
+        )
+  );
+}
+
 function Btn({ children, onClick, variant="primary", size="md", icon, style:extra={}, disabled }) {
   const [hov, setHov] = useState(false);
   const pad = size==="sm"?"6px 12px":"9px 18px", fs = size==="sm"?12:13;
@@ -331,9 +399,21 @@ function Select({ value, onChange, options, style:extra={} }) {
 
 function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse }) {
   const [hovItem, setHovItem] = useState(null);
+  const [navTip, setNavTip] = useState(null);
   const [fundraisingBadge, setFundraisingBadge] = useState(0);
   const user = window.CPAS?.user || { name:"Admin", role:"Staff" };
   const logoUrl = window.CPAS_CONFIG?.logoUrl || LOGO_LIGHT;
+
+  const showNavTip = (label, el) => {
+    if (!collapsed || !el || !label) { setNavTip(null); return; }
+    const r = el.getBoundingClientRect();
+    setNavTip({ label, top: Math.round(r.top + r.height / 2), left: Math.round(r.right + 10) });
+  };
+  const hideNavTip = () => setNavTip(null);
+
+  React.useEffect(() => {
+    if (!collapsed) hideNavTip();
+  }, [collapsed]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -367,7 +447,8 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
         href: "/dashboard/overview",
         onClick: e => { e.preventDefault(); navigate("overview"); },
         className: "cpas-sidebar-brand-link",
-        title: "Overview"
+        title: "Overview",
+        "aria-label": "Overview"
       },
         React.createElement("img", {
           src: logoUrl,
@@ -385,16 +466,20 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
           const hasKids = item.children && item.children.length;
           const childOpen = hasKids && isActiveCMS(view) && !collapsed;
           const showBadge = item.key === "fundraising" && fundraisingBadge > 0;
+          const tipLabel = showBadge ? `${item.label} (${fundraisingBadge} awaiting review)` : item.label;
           return React.createElement("div", { key: item.key },
             React.createElement("button", {
-              onClick: () => navigate(item.key),
-              onMouseEnter: () => setHovItem(item.key),
-              onMouseLeave: () => setHovItem(null),
+              type: "button",
+              onClick: () => { hideNavTip(); navigate(item.key); },
+              onMouseEnter: (e) => { setHovItem(item.key); showNavTip(tipLabel, e.currentTarget); },
+              onMouseLeave: () => { setHovItem(null); hideNavTip(); },
+              onFocus: (e) => showNavTip(tipLabel, e.currentTarget),
+              onBlur: hideNavTip,
               className: `cpas-nav-item ${active && !hasKids ? "active" : ""} ${active && hasKids ? "active-parent" : ""}`,
               "aria-current": active ? "page" : undefined,
-              title: collapsed
-                ? (showBadge ? `${item.label} (${fundraisingBadge} awaiting review)` : item.label)
-                : undefined
+              "aria-label": tipLabel,
+              title: tipLabel,
+              "data-tooltip": tipLabel
             },
               React.createElement(Icon, { name: item.icon, size: 16 }),
               React.createElement("span", { className: "cpas-nav-label" }, item.label),
@@ -408,9 +493,12 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
             hasKids && React.createElement("div", { className: `cpas-nav-children ${childOpen ? "open" : ""}` },
               item.children.map(child => React.createElement("button", {
                 key: child.key,
+                type: "button",
                 onClick: () => navigate(child.key),
                 className: `cpas-nav-item cpas-nav-child ${view === child.key || (child.key === "cms-forms" && view === "cms-form-editor") ? "active" : ""}`,
-                "aria-current": view === child.key || (child.key === "cms-forms" && view === "cms-form-editor") ? "page" : undefined
+                "aria-current": view === child.key || (child.key === "cms-forms" && view === "cms-form-editor") ? "page" : undefined,
+                "aria-label": child.label,
+                title: child.label
               },
                 React.createElement("span", { className: "cpas-nav-label" }, child.label)
               ))
@@ -424,7 +512,12 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
         type: "button",
         className: "cpas-sidebar-user",
         onClick: () => navigate("settings"),
-        title: "Settings"
+        onMouseEnter: (e) => showNavTip("Settings", e.currentTarget),
+        onMouseLeave: hideNavTip,
+        onFocus: (e) => showNavTip("Settings", e.currentTarget),
+        onBlur: hideNavTip,
+        title: "Settings",
+        "aria-label": "Settings"
       },
         React.createElement(Avatar, { name: user.name, size: collapsed ? 28 : 30 }),
         React.createElement("div", { className: "cpas-sidebar-footer-meta" },
@@ -435,7 +528,7 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
       React.createElement("button", {
         type: "button",
         className: "cpas-sidebar-collapse-btn",
-        onClick: e => { e.stopPropagation(); if (typeof onToggleCollapse === "function") onToggleCollapse(); },
+        onClick: e => { e.stopPropagation(); hideNavTip(); if (typeof onToggleCollapse === "function") onToggleCollapse(); },
         "aria-label": collapsed ? "Expand sidebar" : "Collapse sidebar",
         "aria-pressed": collapsed ? "true" : "false",
         title: collapsed ? "Expand sidebar" : "Collapse sidebar"
@@ -446,7 +539,12 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
           style: { color: "var(--nav-text-muted)" }
         })
       )
-    )
+    ),
+    collapsed && navTip && React.createElement("div", {
+      className: "cpas-nav-flyout-tip",
+      role: "tooltip",
+      style: { top: navTip.top + "px", left: navTip.left + "px" },
+    }, navTip.label)
   );
 }
 
@@ -481,6 +579,7 @@ function TopBar({ view, isMobile, navOpen, onOpenNav, navigate }) {
       React.createElement("button", {
         onClick:()=>navigate("email"),
         "aria-label": "Email inbox",
+        title: "Email",
         style:{ background:"none", border:"none", color:"var(--nav-text-sec)", cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" },
         onMouseEnter:e=>e.currentTarget.style.background="rgba(255,255,255,0.08)",
         onMouseLeave:e=>e.currentTarget.style.background="none"
@@ -489,7 +588,8 @@ function TopBar({ view, isMobile, navOpen, onOpenNav, navigate }) {
       React.createElement("button", {
         className:"agentsam-launcher",
         onClick:()=>{ if(typeof window.__toggleAgentSam==="function") window.__toggleAgentSam(); else window.dispatchEvent(new Event("agentsam:toggle")); },
-        title:"Toggle Agent Sam"
+        title:"Toggle Agent Sam",
+        "aria-label":"Toggle Agent Sam"
       }, React.createElement(Icon, { name:"bot", size:20 }))
     )
   );
@@ -546,6 +646,7 @@ function MobileDrawer({ open, view, navigate, onClose, onLogout }) {
 Object.assign(window, {
   Icon, Avatar, Badge, ProgressBar, Sparkline, StatCard, PageHeader, DashPage, Btn,
   Modal, Table, EmptyState, Tabs, Card, Input, Select,
+  SkeletonBlock, PageSkeleton,
   Sidebar, TopBar, MobileDrawer,
   NAV_STRUCTURE, NAV_ITEMS,
   useIsMobile, useIsNarrow,

@@ -140,6 +140,9 @@ function CmsWebsiteView({ onNavigate }) {
       )
     }),
     React.createElement(CmsNotice, { n: notice }),
+    loading
+      ? React.createElement(PageSkeleton, { title: "website", stats: 4, rows: 4, variant: "cards" })
+      : React.createElement(React.Fragment, null,
     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 12, marginBottom: 28 } },
       React.createElement(StatCard, { icon: "globe", iconColor: C.green, label: "Site Status", value: "Live", sub: "companionsofcaddo.org", subPositive: true }),
       React.createElement(StatCard, { icon: "edit", iconColor: draftCount > 0 ? C.yellow : C.textMut, label: "Draft Changes", value: String(draftCount), sub: draftCount > 0 ? "Unpublished edits" : "All published" }),
@@ -198,6 +201,7 @@ function CmsWebsiteView({ onNavigate }) {
           )
         )
       )
+    )
     )
   );
 }
@@ -406,7 +410,7 @@ function CmsPagesView({ onNavigate }) {
     React.createElement(PageHeader, { title: "Pages", subtitle: "Add, edit, and publish your website pages", action: React.createElement(Btn, { icon: "plus", onClick: () => setShowAdd(true) }, "Add Page") }),
     React.createElement(CmsNotice, { n: notice }),
     loading
-      ? React.createElement("div", { style: { color: C.textSec, fontSize: 13, padding: 20 } }, "Loading pages…")
+      ? React.createElement(PageSkeleton, { title: "pages", stats: 0, rows: 6 })
       : React.createElement(Card, { style: { overflow: "hidden" } }, React.createElement(Table, { cols: PAGE_COLS, rows: pages, onRowClick: row => onNavigate("cms-page-editor", { pageId: row.route_path === "/" ? "home" : row.route_path.replace(/^\//, "").replace(/\//g, "_") || "home" }), emptyMsg: "No pages found" })),
     React.createElement(Modal, { open: showAdd, onClose: () => setShowAdd(false), title: "Add New Page", width: 520 },
       React.createElement("div", { style: { display: "grid", gap: 16 } },

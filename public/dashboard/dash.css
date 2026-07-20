@@ -566,6 +566,71 @@ body.cpas-nav-open { overflow: hidden !important; }
 }
 .cpas-loading-text { font-size: 13px; color: var(--nav-text-sec); font-family: var(--font-ui); letter-spacing: 0.02em; }
 
+/* Instant flyout label for collapsed sidebar (native title is too slow / easy to miss) */
+.cpas-nav-flyout-tip {
+  position: fixed;
+  z-index: 4000;
+  transform: translateY(-50%);
+  padding: 7px 11px;
+  border-radius: 8px;
+  background: #1a1622;
+  color: #faf7f3;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-ui);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+}
+.cpas-nav-flyout-tip::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-right-color: #1a1622;
+  border-left: 0;
+}
+
+@keyframes cpas-skeleton-shine {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+.cpas-skeleton {
+  background: linear-gradient(90deg,
+    rgba(26, 22, 34, 0.06) 0%,
+    rgba(26, 22, 34, 0.12) 45%,
+    rgba(26, 22, 34, 0.06) 90%);
+  background-size: 200% 100%;
+  animation: cpas-skeleton-shine 1.15s ease-in-out infinite;
+}
+.cpas-page-skeleton { width: 100%; }
+.cpas-page-skeleton-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dash-text-sec);
+  margin-bottom: 14px;
+  letter-spacing: 0.02em;
+}
+.cpas-page-skeleton-card {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 2px 10px rgba(26,22,34,0.05);
+}
+.cpas-page-skeleton-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.6fr 1fr 0.9fr;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--dash-border);
+}
+.cpas-page-skeleton-row:last-child { border-bottom: none; }
+
 .agentsam-launcher {
   width: 36px; height: 36px; border-radius: 9px; border: none;
   background: transparent; color: var(--nav-text-sec);

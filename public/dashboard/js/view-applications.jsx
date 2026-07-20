@@ -121,53 +121,54 @@ function ApplicationsView({ onNavigate }) {
       style: { marginBottom: 16, padding: "12px 14px", borderRadius: 10, background: "rgba(239,68,68,.12)", color: "#fca5a5", fontSize: 13 },
     }, error),
 
-    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 24 } },
-      React.createElement(StatCard, { icon: "📋", label: "Total", value: counts.All }),
-      React.createElement(StatCard, { icon: "⏳", label: "Pending", value: counts.Pending, sub: "Needs review", subPositive: false }),
-      React.createElement(StatCard, { icon: "✅", label: "Approved", value: counts.Approved, sub: "All time", subPositive: true }),
-      React.createElement(StatCard, { icon: "🔍", label: "Under Review", value: counts["Under Review"] }),
-    ),
-
-    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 4 } },
-      React.createElement(Tabs, {
-        tabs: Object.entries(counts).map(function(entry) { return { value: entry[0], label: entry[0], count: entry[1] }; }),
-        active: tab,
-        onChange: setTab,
-      }),
-      React.createElement(Input, { value: search, onChange: setSearch, placeholder: "Search…", icon: "search", style: { width: 220 } }),
-    ),
-
     apps === null
-      ? React.createElement(Card, { style: { padding: 40, textAlign: "center", marginTop: 16 } },
-          React.createElement("div", { style: { color: C.textSec, fontSize: 14 } }, "Loading applications…"))
-      : filtered.length === 0
-        ? React.createElement(Card, { style: { padding: 40, textAlign: "center", marginTop: 16 } },
-            React.createElement("div", { style: { fontSize: 32, marginBottom: 12 } }, "📋"),
-            React.createElement("div", { style: { fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 8 } }, "No applications yet"),
-            React.createElement("p", { style: { margin: 0, color: C.textSec, fontSize: 13, lineHeight: 1.6, maxWidth: 420, marginInline: "auto" } },
-              "Submissions from the public foster CTA (Apply to Foster modal → POST /api/foster/apply) appear here. Note: /services and /foster pages are not currently live — use the site CTA until that route is decided."),
-          )
-        : React.createElement(Card, { style: { overflow: "hidden", marginTop: 16 } },
-            React.createElement(Table, {
-              cols: [
-                { key: "id", label: "ID", render: function(v) { return React.createElement("span", { style: { color: C.textSec, fontFamily: "monospace", fontSize: 12 } }, v); } },
-                { key: "applicant", label: "Applicant", render: function(v) { return React.createElement("span", { style: { fontWeight: 600 } }, v); } },
-                { key: "type", label: "Type", render: function(v) { return React.createElement(Badge, { label: v }); } },
-                { key: "animalName", label: "Interest" },
-                { key: "status", label: "Status", render: function(v) { return React.createElement(Badge, { label: v, dot: true }); } },
-                { key: "date", label: "Submitted", render: function(v) { return React.createElement("span", { style: { color: C.textSec, fontSize: 12 } }, v); } },
-                { key: "homeType", label: "Home", render: function(v) { return React.createElement("span", { style: { color: C.textSec } }, v); } },
-                { key: "id", label: "", render: function(v, row) {
-                  return React.createElement(Btn, {
-                    size: "sm", variant: "ghost", icon: "eye",
-                    onClick: function(e) { e.stopPropagation(); onNavigate("application-detail", { appId: row.id }); },
-                  }, "Review");
-                } },
-              ],
-              rows: filtered,
-              onRowClick: function(row) { onNavigate("application-detail", { appId: row.id }); },
-            }),
+      ? React.createElement(PageSkeleton, { title: "applications", stats: 4, rows: 6 })
+      : React.createElement(React.Fragment, null,
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 24 } },
+            React.createElement(StatCard, { icon: "docs", label: "Total", value: counts.All }),
+            React.createElement(StatCard, { icon: "warning", label: "Pending", value: counts.Pending, sub: "Needs review", subPositive: false }),
+            React.createElement(StatCard, { icon: "check", label: "Approved", value: counts.Approved, sub: "All time", subPositive: true }),
+            React.createElement(StatCard, { icon: "search", label: "Under Review", value: counts["Under Review"] }),
           ),
+
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 4 } },
+            React.createElement(Tabs, {
+              tabs: Object.entries(counts).map(function(entry) { return { value: entry[0], label: entry[0], count: entry[1] }; }),
+              active: tab,
+              onChange: setTab,
+            }),
+            React.createElement(Input, { value: search, onChange: setSearch, placeholder: "Search…", icon: "search", style: { width: 220 } }),
+          ),
+
+          filtered.length === 0
+            ? React.createElement(Card, { style: { padding: 40, textAlign: "center", marginTop: 16 } },
+                React.createElement("div", { style: { fontSize: 32, marginBottom: 12 } }, "📋"),
+                React.createElement("div", { style: { fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 8 } }, "No applications yet"),
+                React.createElement("p", { style: { margin: 0, color: C.textSec, fontSize: 13, lineHeight: 1.6, maxWidth: 420, marginInline: "auto" } },
+                  "Submissions from the public foster CTA (Apply to Foster modal → POST /api/foster/apply) appear here. Note: /services and /foster pages are not currently live — use the site CTA until that route is decided."),
+              )
+            : React.createElement(Card, { style: { overflow: "hidden", marginTop: 16 } },
+                React.createElement(Table, {
+                  cols: [
+                    { key: "id", label: "ID", render: function(v) { return React.createElement("span", { style: { color: C.textSec, fontFamily: "monospace", fontSize: 12 } }, v); } },
+                    { key: "applicant", label: "Applicant", render: function(v) { return React.createElement("span", { style: { fontWeight: 600 } }, v); } },
+                    { key: "type", label: "Type", render: function(v) { return React.createElement(Badge, { label: v }); } },
+                    { key: "animalName", label: "Interest" },
+                    { key: "status", label: "Status", render: function(v) { return React.createElement(Badge, { label: v, dot: true }); } },
+                    { key: "date", label: "Submitted", render: function(v) { return React.createElement("span", { style: { color: C.textSec, fontSize: 12 } }, v); } },
+                    { key: "homeType", label: "Home", render: function(v) { return React.createElement("span", { style: { color: C.textSec } }, v); } },
+                    { key: "id", label: "", render: function(v, row) {
+                      return React.createElement(Btn, {
+                        size: "sm", variant: "ghost", icon: "eye",
+                        onClick: function(e) { e.stopPropagation(); onNavigate("application-detail", { appId: row.id }); },
+                      }, "Review");
+                    } },
+                  ],
+                  rows: filtered,
+                  onRowClick: function(row) { onNavigate("application-detail", { appId: row.id }); },
+                }),
+              ),
+        ),
   );
 }
 

@@ -527,6 +527,9 @@ function GivingView({ initialTab, onNavigate }) {
 
     error && React.createElement(FinanceNotice, null, error),
 
+    loading
+      ? React.createElement(PageSkeleton, { title: "fundraising", stats: 4, rows: 5 })
+      : React.createElement(React.Fragment, null,
     // Cross-cutting stat row
     React.createElement("div", { className: "camp-stats-grid", style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 } },
       React.createElement(StatCard, { label: "Total Raised", value: financeMoney(stripeTotal), sub: `${succeededDonations.length} Stripe payment${succeededDonations.length === 1 ? "" : "s"}`, subPositive: true }),
@@ -543,9 +546,7 @@ function GivingView({ initialTab, onNavigate }) {
 
     // ── Campaigns tab ──────────────────────────────────────────────────────
     tab === "campaigns" && (
-      loading
-        ? React.createElement(FinanceEmpty, { title: "Loading campaigns", body: "Reading fundraising_campaigns from D1." })
-        : campaigns.length
+      campaigns.length
           ? React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
               campaigns.map((campaign, idx) => React.createElement(CampaignListCard, {
                 key: campaign.id,
@@ -565,9 +566,7 @@ function GivingView({ initialTab, onNavigate }) {
         React.createElement(Input, { value: search, onChange: setSearch, placeholder: "Search donors, campaigns, records...", icon: "search", style: { width: 320 } }),
         React.createElement(Select, { value: methodFilter, onChange: setMethodFilter, options: methods.map(m => ({ value: m, label: m })), style: { minWidth: 150 } })
       ),
-      loading
-        ? React.createElement(FinanceEmpty, { title: "Loading donations", body: "Reading donations from D1." })
-        : React.createElement(Card, { style: { overflow: "hidden" } },
+      React.createElement(Card, { style: { overflow: "hidden" } },
             filtered.length
               ? React.createElement(React.Fragment, null,
                   React.createElement(Table, { cols: [
@@ -593,8 +592,9 @@ function GivingView({ initialTab, onNavigate }) {
                   ], rows: filtered }),
                   selectedDonor && React.createElement(DonorDrawer, { donor: selectedDonor, onClose: () => setSelectedDonor(null) })
                 )
-              : React.createElement(FinanceEmpty, { title: "No donation records yet", body: "Record manual donations or wait for Stripe webhooks to populate this table." })
+              : React.createElement(FinanceEmpty, { title: "No donations yet", body: "Stripe donations and manual gifts will appear here." })
           )
+    )
     ),
 
     React.createElement(DonationModal, { open: showDonationModal, onClose: () => setShowDonationModal(false), onSaved: reload, campaigns })

@@ -359,7 +359,7 @@ function SettingsView() {
 
     tab === "org" && React.createElement(Card, { style: { padding: 24, maxWidth: 600 } },
       loadingSettings
-        ? React.createElement("div", { style: { color: C.textSec, fontSize: 13 } }, "Loading organization…")
+        ? React.createElement(PageSkeleton, { title: "settings", stats: 0, rows: 6 })
         : React.createElement(React.Fragment, null,
             orgField("Organization Name", "name"),
             orgField("Legal name", "legal_name"),
@@ -385,7 +385,7 @@ function SettingsView() {
         React.createElement(Btn, { icon: "plus", size: "sm", onClick: function() { setShowInvite(true); setActionMsg(""); } }, "Invite User")
       ),
       membersLoading
-        ? React.createElement(Card, { style: { padding: 32, textAlign: "center", color: C.textSec } }, "Loading team members…")
+        ? React.createElement(PageSkeleton, { title: "team members", stats: 0, rows: 5 })
         : React.createElement(Card, { style: { overflow: "hidden" } },
             React.createElement(Table, {
               cols: [
