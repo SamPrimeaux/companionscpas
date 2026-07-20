@@ -26,12 +26,23 @@ const R2_MEDIA_FOLDERS = new Set([
   "media/videos",
 ]);
 
-function resolveUploadR2Key(r2Folder, safeName) {
+function resolveUploadR2Key(r2Folder, safeName, opts = {}) {
   const now = new Date();
   const yr = now.getUTCFullYear();
   const mo = String(now.getUTCMonth() + 1).padStart(2, "0");
   const stamp = Date.now();
-  const normalized = String(r2Folder || "").replace(/\/+$/, "");
+  let normalized = String(r2Folder || "").replace(/\/+$/, "");
+  const animalId = String(opts.animalId || "").trim();
+  const forceAnimal =
+    opts.forceAnimalFolder === true
+    || normalized === "media/animals"
+    || String(opts.category || "").toLowerCase() === "animal"
+    || String(opts.usageContext || "").toLowerCase() === "animal_profile";
+
+  if (forceAnimal) {
+    if (animalId) return `media/animals/${animalId}/${stamp}-${safeName}`;
+    return `media/animals/${stamp}-${safeName}`;
+  }
   if (R2_MEDIA_FOLDERS.has(normalized)) {
     return `${normalized}/${stamp}-${safeName}`;
   }
@@ -994,6 +1005,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     const r2Folder = formData.get("r2_folder")     || "";
     const context  = formData.get("usage_context") || "cms";
     const category = formData.get("category")      || "image";
+    const animalId = String(formData.get("animal_id") || formData.get("animalId") || "").trim();
 
     if (!file || typeof file.arrayBuffer !== "function") {
       return json({ success: false, error: "No file provided" }, 400);
@@ -1011,20 +1023,31 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       .normalize("NFC")
       .replace(/[^a-zA-Z0-9._-]/g, "_")
       .slice(0, 120);
-    const r2Key  = resolveUploadR2Key(r2Folder, safeName);
+    const r2Key  = resolveUploadR2Key(r2Folder, safeName, {
+      animalId,
+      category,
+      usageContext: context,
+      forceAnimalFolder: String(r2Folder || "").replace(/\/+$/, "") === "media/animals",
+    });
     const pubUrl = `${CDN_ORIGIN}/${r2Key}`;
-    const usageContext = R2_MEDIA_FOLDERS.has(String(r2Folder || "").replace(/\/+$/, ""))
-      ? String(r2Folder).replace(/^media\//, "")
-      : context;
+    const isAnimalPath = r2Key.startsWith("media/animals/");
+    const usageContext = isAnimalPath
+      ? "animals"
+      : (R2_MEDIA_FOLDERS.has(String(r2Folder || "").replace(/\/+$/, ""))
+        ? String(r2Folder).replace(/^media\//, "")
+        : context);
+    const resolvedCategory = isAnimalPath ? "animal" : category;
 
     // Write to R2
     try {
+      const meta = { tenant_id: TENANT_ID, uploaded_by: cmsUser.id || "unknown" };
+      if (animalId) meta.animal_id = animalId;
       await env.WEBSITE_ASSETS.put(r2Key, fileBytes, {
         httpMetadata: {
           contentType:  file.type,
           cacheControl: "public, max-age=31536000, immutable",
         },
-        customMetadata: { tenant_id: TENANT_ID, uploaded_by: cmsUser.id || "unknown" },
+        customMetadata: meta,
       });
     } catch (err) {
       console.error("[cms-upload] R2 put failed:", err?.message);
@@ -1033,7 +1056,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
     // Insert cms_assets row
     const assetId  = id("asset");
-    const assetKey = `upload_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,6)}`;
+    const assetKey = animalId
+      ? `animal_${animalId}_${Date.now().toString(36).slice(2, 8)}`
+      : `upload_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,6)}`;
     const assetType = file.type.startsWith("video/") ? "video"
       : file.type === "application/pdf" ? "document"
       : "image";
@@ -1051,7 +1076,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       assetId, TENANT_ID, assetKey,
       label || safeName, safeName, file.name,
       file.type, fileBytes.byteLength,
-      category, assetType,
+      resolvedCategory, assetType,
       r2Key,
       pubUrl, pubUrl, pubUrl,
       altText,
@@ -1068,6 +1093,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       mime_type: file.type,
       asset_type: assetType,
       filename: file.name,
+      category: resolvedCategory,
     });
   }
 

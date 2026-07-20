@@ -978,6 +978,7 @@
 
   function ProfilePhotoField(props) {
     var photoUrl = props.value, onChange = props.onChange, animalName = props.animalName || 'Animal', isMobile = props.isMobile;
+    var animalId = props.animalId || '';
     var u = ui();
     var uploadingState = useState(false), uploading = uploadingState[0], setUploading = uploadingState[1];
     var errorState = useState(''), error = errorState[0], setError = errorState[1];
@@ -985,16 +986,33 @@
 
     function uploadPhoto(file) {
       if (!file) return;
+      if (!/^image\/(jpeg|jpg|png|webp|gif|heic|heif)$/i.test(file.type) && !/\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name || '')) {
+        setError('Only JPG, PNG, WEBP, or HEIC images are allowed.');
+        return;
+      }
       setUploading(true);
       setError('');
       var fd = new FormData();
       fd.append('file', file);
-      fd.append('usage_context', 'animal_profile');
-      fd.append('category', 'animal');
       fd.append('label', animalName || file.name);
       fd.append('alt_text', (animalName || 'Animal') + ' photo');
 
-      fetch('/api/cms/asset/upload', { method:'POST', credentials:'include', body:fd })
+      var uploadPromise;
+      if (animalId) {
+        // Existing animal → canonical media/animals/<id>/...
+        fd.append('set_primary', '1');
+        uploadPromise = fetch('/api/dashboard/animals/' + encodeURIComponent(animalId) + '/attachments', {
+          method: 'POST', credentials: 'include', body: fd
+        });
+      } else {
+        // New animal (no id yet) → still force media/animals/...
+        fd.append('usage_context', 'animal_profile');
+        fd.append('category', 'animal');
+        fd.append('r2_folder', 'media/animals');
+        uploadPromise = fetch('/api/cms/asset/upload', { method: 'POST', credentials: 'include', body: fd });
+      }
+
+      uploadPromise
         .then(function(res){
           if (!res.ok) {
             return res.json().catch(function(){ return {}; }).then(function(d){
@@ -1029,7 +1047,7 @@
           h('div', { style:{ display:'flex', gap:8, flexWrap:'wrap' } },
             h('label', { style:{ height:34, border:'1px solid ' + u.purple, borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', padding:'0 12px', color:'#fff', background:u.purple, fontSize:12, fontWeight:800, cursor:uploading ? 'not-allowed' : 'pointer', opacity:uploading ? .6 : 1 } },
               uploading ? 'Uploading...' : 'Upload Photo',
-              h('input', { type:'file', accept:'image/*', disabled:uploading, style:{ display:'none' }, onChange:function(e){ if (e.target.files && e.target.files[0]) uploadPhoto(e.target.files[0]); } })
+              h('input', { type:'file', accept:'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif', disabled:uploading, style:{ display:'none' }, onChange:function(e){ if (e.target.files && e.target.files[0]) uploadPhoto(e.target.files[0]); } })
             ),
             h(Button, { variant:'secondary', size:'sm', onClick:function(){ setShowPicker(true); } }, 'Choose from Library')
           ),
@@ -1045,12 +1063,12 @@
         h(FieldLabel, null, 'Photo URL'),
         h(TextInput, {
           value: photoUrl,
-          placeholder: 'https://...',
+          placeholder: 'https://assets.companionsofcaddo.org/media/animals/...',
           onChange: onChange,
           style: { height:36, fontSize:12 }
         }),
         h('span', { style:{ fontSize:10, color:u.textMut, marginTop:4, display:'block' } },
-          'Upload a photo, choose an existing media asset, or paste an official image URL.'
+          'New uploads go to media/animals/. Library pick keeps the existing asset URL.'
         )
       ),
       error ? h('div', { style:{ color:u.red, fontSize:11, fontWeight:700 } }, error) : null,
@@ -1874,7 +1892,7 @@
         }
       },
         h('div', { style:{ display:'grid', gridTemplateColumns:'1fr', gap:12 } },
-          h('div', null, h(ProfilePhotoField, { value:form.photo_url || '', onChange:function(v){ set('photo_url', v); }, animalName:form.name, isMobile:isMobile })),
+          h('div', null, h(ProfilePhotoField, { value:form.photo_url || '', onChange:function(v){ set('photo_url', v); }, animalName:form.name, animalId:a.id, isMobile:isMobile })),
           h('div', null, h(FieldLabel, null, 'Name'), h(TextInput, { value:form.name, onChange:function(v){ set('name', v); } })),
           h('div', null, h(FieldLabel, null, 'Species'), h(SelectInput, { value:form.species, onChange:function(v){ set('species', v); }, options:['Dog','Cat','Other'] })),
           h('div', null, h(FieldLabel, null, 'Breed'), h(TextInput, { value:form.breed, onChange:function(v){ set('breed', v); } })),

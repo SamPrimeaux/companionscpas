@@ -571,11 +571,14 @@ export async function dashboardApiRoutes(request, env, url) {
 
     const animalKey = attachmentsMatch[1];
     const row = await env.DB.prepare(
-      `SELECT id, name, metadata_json FROM animal_profiles WHERE id = ? AND tenant_id = ? LIMIT 1`
+      `SELECT id, name, photo_url, metadata_json FROM animal_profiles WHERE id = ? AND tenant_id = ? LIMIT 1`
     ).bind(animalKey, TENANT).first().catch(() => null);
     if (!row) return json({ ok: false, error: 'Animal not found' }, 404);
 
-    const IMAGE_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+    const IMAGE_MIME = new Set([
+      'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+      'image/heic', 'image/heif', 'image/gif',
+    ]);
     const PDF_MIME = new Set(['application/pdf']);
     const MAX_SIZE = 15 * 1024 * 1024;
 
@@ -585,11 +588,16 @@ export async function dashboardApiRoutes(request, env, url) {
 
     const file = formData.get('file');
     const label = String(formData.get('label') || file?.name || '').trim();
+    const setPrimary = ['1', 'true', 'on', 'yes'].includes(
+      String(formData.get('set_primary') || formData.get('setPrimary') || '').toLowerCase()
+    );
     if (!file || typeof file.arrayBuffer !== 'function') {
       return json({ ok: false, error: 'No file provided' }, 400);
     }
 
-    const isImage = IMAGE_MIME.has(file.type);
+    const fileNameLower = String(file.name || '').toLowerCase();
+    const heicByExt = fileNameLower.endsWith('.heic') || fileNameLower.endsWith('.heif');
+    const isImage = IMAGE_MIME.has(file.type) || heicByExt;
     const isPdf = PDF_MIME.has(file.type);
     if (!isImage && !isPdf) {
       return json({ ok: false, error: `File type not allowed: ${file.type || 'unknown'}` }, 400);
@@ -654,9 +662,18 @@ export async function dashboardApiRoutes(request, env, url) {
       metadata.medical_files = medicalFiles;
     }
 
-    await env.DB.prepare(
-      `UPDATE animal_profiles SET metadata_json = ?, updated_at = ? WHERE id = ? AND tenant_id = ?`
-    ).bind(JSON.stringify(metadata), nowIso(), animalKey, TENANT).run();
+    const shouldSetPrimary = isImage && (setPrimary || !row.photo_url);
+    if (shouldSetPrimary) {
+      await env.DB.prepare(
+        `UPDATE animal_profiles
+         SET metadata_json = ?, photo_url = ?, updated_at = ?
+         WHERE id = ? AND tenant_id = ?`
+      ).bind(JSON.stringify(metadata), pubUrl, nowIso(), animalKey, TENANT).run();
+    } else {
+      await env.DB.prepare(
+        `UPDATE animal_profiles SET metadata_json = ?, updated_at = ? WHERE id = ? AND tenant_id = ?`
+      ).bind(JSON.stringify(metadata), nowIso(), animalKey, TENANT).run();
+    }
 
     if (isImage) {
       const animal = await env.DB.prepare(
@@ -669,8 +686,13 @@ export async function dashboardApiRoutes(request, env, url) {
       success: true,
       ok: true,
       url: pubUrl,
+      public_url: pubUrl,
+      cdn_url: pubUrl,
       mime_type: file.type,
       asset_type: assetType,
+      r2_key: r2Key,
+      asset_id: assetId,
+      set_primary: shouldSetPrimary,
       updated_metadata_json: metadata,
       metadata,
     });
