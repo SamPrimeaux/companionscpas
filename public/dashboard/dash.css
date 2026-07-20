@@ -2092,3 +2092,16 @@ html, body, #root, .cpas-shell, .cpas-main-col, #main-scroll {
   .media-folder-label { white-space: normal; font-size: 12px; }
   .media-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
+
+/* ── CMS image picker (page editor) ─────────────────────────── */
+.cms-image-picker-card:hover {
+  border-color: rgba(124, 58, 237, 0.55) !important;
+  box-shadow: 0 6px 18px rgba(15, 22, 35, 0.08);
+}
+.cms-image-picker-thumb {
+  background: #efeae4;
+}
+.cms-focal-preview:hover {
+  outline: 2px solid rgba(124, 58, 237, 0.35);
+  outline-offset: 1px;
+}

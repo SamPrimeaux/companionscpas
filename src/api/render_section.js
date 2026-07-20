@@ -231,12 +231,26 @@ function renderHero(section) {
   const imageUrl = pickText(section, ["image_url"]) || pickText(config, ["image_url"]);
   const imageAlt = pickText(section, ["image_alt", "heading"]) || pickText(config, ["image_alt"]) || "Hero image";
   const heroSub = subheading || body;
-  const focal = pickText(config, ["image_object_position"]) || "center";
-  const objectPos =
-    focal === "top" ? "center top" :
-    focal === "left" ? "left center" :
-    focal === "right" ? "right center" :
-    "center center";
+
+  const focalX = Number(config.image_focal_x);
+  const focalY = Number(config.image_focal_y);
+  const hasFocal = Number.isFinite(focalX) && Number.isFinite(focalY);
+  const focalPreset = pickText(config, ["image_object_position"]) || "center";
+  const objectPos = hasFocal
+    ? `${Math.min(100, Math.max(0, focalX))}% ${Math.min(100, Math.max(0, focalY))}%`
+    : (
+      focalPreset === "top" ? "center top" :
+      focalPreset === "left" ? "left center" :
+      focalPreset === "right" ? "right center" :
+      "center center"
+    );
+
+  let zoom = Number(config.image_zoom);
+  if (!Number.isFinite(zoom) || zoom < 1) zoom = 1;
+  if (zoom > 1.6) zoom = 1.6;
+  const imageSide = pickText(config, ["image_side"]).toLowerCase() === "left" ? "left" : "right";
+  const sideClass = imageSide === "left" ? " hero-split--image-left" : "";
+
   const ctaPrimary = renderActionCta(cta.label, cta.href, cta.action, "primary", "", { cmsField: "cta_label" });
   const ctaSecondary = renderActionCta(
     cta.secondaryLabel,
@@ -249,10 +263,17 @@ function renderHero(section) {
   const safeImage = imageUrl ? safeUrl(imageUrl, "") : "";
   const sectionKey = pickText(section, ["section_key"]);
   const sk = escapeAttribute(sectionKey);
+  const zoomCss = zoom !== 1 ? `transform:scale(${zoom});transform-origin:${objectPos};` : "";
 
   return `
-<style>[data-cpas-section="${sk}"] .hero-media-bg img{object-fit:cover;object-position:${objectPos};width:100%;height:100%}</style>
-<section class="hero-split" data-cpas-section="${sk}" data-section-key="${sk}">
+<style>
+[data-cpas-section="${sk}"] .hero-media-bg img{object-fit:cover;object-position:${objectPos};width:100%;height:100%;${zoomCss}}
+[data-cpas-section="${sk}"].hero-split--image-left .hero-media-bg img{left:0;right:auto;}
+[data-cpas-section="${sk}"].hero-split--image-left .hero-scrim{left:auto;right:0;background:linear-gradient(270deg,var(--bg) 0%,var(--bg) 82%,rgba(250,248,244,0.55) 94%,transparent 100%);}
+[data-cpas-section="${sk}"].hero-split--image-left .hero-content{margin-left:auto;}
+@media(max-width:768px){[data-cpas-section="${sk}"].hero-split--image-left .hero-media-bg img{left:0;right:0;width:100%}}
+</style>
+<section class="hero-split${sideClass}" data-cpas-section="${sk}" data-section-key="${sk}">
   ${safeImage ? `<div class="hero-media-bg" data-cms-field="image_url">
     <img src="${safeImage}" alt="${escapeAttribute(imageAlt)}" loading="eager" fetchpriority="high" decoding="async" />
     <div class="hero-scrim"></div>

@@ -103,6 +103,24 @@
   object-position: center 18%;
   z-index: 0;
 }
+.hero-split--image-left .hero-media-bg img {
+  left: 0;
+  right: auto;
+}
+.hero-split--image-left .hero-scrim {
+  left: auto;
+  right: 0;
+  background: linear-gradient(
+    270deg,
+    var(--bg) 0%,
+    var(--bg) 82%,
+    rgba(250, 248, 244, 0.55) 94%,
+    transparent 100%
+  );
+}
+.hero-split--image-left .hero-content {
+  margin-left: auto;
+}
 .theme-light .hero-scrim,
 .hero-scrim {
   position: absolute;

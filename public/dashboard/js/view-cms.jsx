@@ -4,6 +4,26 @@
 
 const R2_CDN_BASE = "https://assets.companionsofcaddo.org";
 
+const CMS_CTA_ACTIONS = [
+  { id: "modal_foster", label: "Open Foster Application", href: "modal:foster", formId: "form_foster_application" },
+  { id: "modal_volunteer", label: "Open Volunteer modal", href: "modal:volunteer" },
+  { id: "modal_contact", label: "Open Contact modal", href: "modal:contact" },
+  { id: "donate", label: "Open Donate flow", href: "data-action:donate" },
+  { id: "anchor_needs_foster", label: "Scroll to dogs needing foster", href: "#needs-foster" },
+  { id: "page_fosters", label: "Go to /fosters", href: "/fosters" },
+  { id: "page_adopt", label: "Go to /adopt", href: "/adopt" },
+  { id: "page_donate", label: "Go to /donate", href: "/donate" },
+  { id: "page_contact", label: "Go to /contact", href: "/contact" },
+  { id: "custom", label: "Custom URL…", href: null },
+];
+
+function cmsMatchCtaAction(href) {
+  const h = String(href || "").trim();
+  if (!h) return "custom";
+  const found = CMS_CTA_ACTIONS.find((a) => a.href && a.href === h);
+  return found ? found.id : "custom";
+}
+
 function cmsNotify(setter, text, type = "ok") {
   setter({ text, type });
   setTimeout(() => setter({ text: "", type: "" }), 4000);
@@ -1327,27 +1347,16 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         selectedField === 'eyebrow' && field('Eyebrow', 'eyebrow'),
         selectedField === 'subheading' && field('Subheading', 'subheading'),
         selectedField === 'body' && field('Body', 'body', 'textarea', { rows: 6 }),
-        selectedField === 'image_url' && React.createElement('div', { style:{ display:'grid', gap:12 } },
-          React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } }, React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)), React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick'))),
-          selected.image_url && React.createElement('div', { style:{ width:'100%', maxHeight:220, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center' } },
-            React.createElement('img', { src:selected.image_url, alt:'', style:{ width:'100%', height:'auto', maxHeight:220, objectFit:'contain', display:'block' } })
-          )
-        ),
-        selectedField === 'cta_label' && React.createElement(React.Fragment, null, field('Primary CTA label', 'cta_label'), field('Primary CTA href', 'cta_href', 'text', { placeholder:'/foster' })),
-        selectedField === 'cta_secondary_label' && React.createElement(React.Fragment, null, field('Secondary CTA label', 'cta_secondary_label'), field('Secondary CTA href', 'cta_secondary_href', 'text', { placeholder:'/donate' })),
+        selectedField === 'image_url' && renderMediaControls(),
+        selectedField === 'cta_label' && renderCtaFields('cta_label', 'cta_href', 'Primary CTA'),
+        selectedField === 'cta_secondary_label' && renderCtaFields('cta_secondary_label', 'cta_secondary_href', 'Secondary CTA'),
         styleTweaks
       )
     );
 
     const fullPanel = !showElementFocus && React.createElement(React.Fragment, null,
       React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Content'), field('Eyebrow','eyebrow'), field('Heading','heading'), field('Subheading','subheading'), field('Body','body','textarea',{ rows:5 })),
-      needsImage && React.createElement('div', { style:{ display:'grid', gap:12 } },
-        React.createElement('h4', { style:groupTitleStyle() }, 'Media'),
-        React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } }, React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)), React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick'))),
-        selected.image_url && React.createElement('div', { style:{ width:'100%', maxHeight:220, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center' } },
-          React.createElement('img', { src:selected.image_url, alt:'', style:{ width:'100%', height:'auto', maxHeight:220, objectFit:'contain', display:'block' } })
-        )
-      ),
+      needsImage && renderMediaControls(),
       usesCards && React.createElement('div', { style:{ display:'grid', gap:10 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Cards in this section'),
         sectionBlocks.length
@@ -1374,7 +1383,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             ))
           : React.createElement('div', { style:{ color:C.textMut, fontSize:12 } }, 'No cards yet — this section uses section fields only.')
       ),
-      React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Links'), field('Primary CTA label','cta_label'), field('Primary CTA href','cta_href','text',{ placeholder:'/foster' }), field('Secondary CTA label','cta_secondary_label'), field('Secondary CTA href','cta_secondary_href','text',{ placeholder:'/donate' })),
+      React.createElement('div', { style:{ display:'grid', gap:12 } },
+        React.createElement('h4', { style:groupTitleStyle() }, 'Links'),
+        renderCtaFields('cta_label', 'cta_href', 'Primary CTA'),
+        renderCtaFields('cta_secondary_label', 'cta_secondary_href', 'Secondary CTA')
+      ),
       React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Section style'),
         renderPresetRow('Text size', cfg.text_size || 'm', [
@@ -1423,17 +1436,184 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   function renderImagePicker() {
     if (!showImagePicker) return null;
-    const filtered = (assets || []).filter(a => !imageSearch || (a.filename || a.r2_key || a.public_url || '').toLowerCase().includes(imageSearch.toLowerCase()));
-    return React.createElement('div', { style:{ position:'fixed', inset:0, zIndex:260, background:'rgba(0,0,0,.52)', display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? 0 : 24 } },
-      React.createElement('div', { style:{ width:isMobile ? '100%' : 760, height:isMobile ? '100%' : '82vh', background:C.surface, border:`1px solid ${C.border}`, borderRadius:isMobile ? 0 : 18, overflow:'hidden', display:'flex', flexDirection:'column' } },
-        React.createElement('div', { style:{ padding:16, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:10 } }, React.createElement('div', { style:{ flex:1, color:C.text, fontWeight:900 } }, 'Pick from Library'), React.createElement(Btn, { size:'sm', variant:'secondary', onClick:()=>setShowImagePicker(false) }, 'Close')),
-        React.createElement('div', { style:{ padding:14, display:'grid', gridTemplateColumns:isMobile ? '1fr' : '1fr 180px', gap:10, borderBottom:`1px solid ${C.border}` } },
-          cmsTextInput(imageSearch, setImageSearch, null, 'Search filename...'),
-          React.createElement('label', { style:{ height:38, border:`1px dashed ${C.border}`, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', color:C.textSec, fontSize:12, fontWeight:800, cursor:'pointer' } }, uploadingAsset ? 'Uploading...' : 'Upload new', React.createElement('input', { type:'file', accept:'image/*', style:{ display:'none' }, onChange:e=>uploadAsset(e.target.files?.[0]) }))
+    const imageAssets = (assets || []).filter(mediaIsImageAsset);
+    const filtered = imageAssets.filter((a) => {
+      if (!imageSearch) return true;
+      const q = imageSearch.toLowerCase();
+      return [a.filename, a.label, a.r2_key, a.public_url, a.cdn_url].some((v) => String(v || "").toLowerCase().includes(q));
+    });
+    return React.createElement('div', { className: 'cms-image-picker-overlay', style:{ position:'fixed', inset:0, zIndex:260, background:'rgba(0,0,0,.52)', display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? 0 : 24 } },
+      React.createElement('div', { className: 'cms-image-picker', style:{ width:isMobile ? '100%' : 820, height:isMobile ? '100%' : '84vh', background:C.surface, border:`1px solid ${C.border}`, borderRadius:isMobile ? 0 : 18, overflow:'hidden', display:'flex', flexDirection:'column' } },
+        React.createElement('div', { style:{ padding:'14px 16px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:10 } },
+          React.createElement('div', { style:{ flex:1, color:C.text, fontWeight:900, fontSize:15 } }, 'Pick from Library'),
+          React.createElement(Btn, { size:'sm', variant:'secondary', onClick:()=>setShowImagePicker(false) }, 'Close')
         ),
-        React.createElement('div', { style:{ padding:14, overflowY:'auto', flex:1, display:'grid', gridTemplateColumns:isMobile ? 'repeat(2,minmax(0,1fr))' : 'repeat(4,minmax(0,1fr))', gap:10 } },
-          filtered.map(a => { const url = a.public_url || a.url || a.image_url || (a.r2_key ? `${R2_CDN_BASE}/${a.r2_key}` : ''); return React.createElement('button', { key:a.id || a.r2_key || url, onClick:()=>pickImage(url), style:{ border:`1px solid ${C.border}`, background:C.bg, borderRadius:12, overflow:'hidden', padding:0, textAlign:'left', cursor:'pointer' } }, React.createElement('img', { src:url, style:{ width:'100%', height:100, objectFit:'cover', display:'block' } }), React.createElement('div', { style:{ padding:8, color:C.textSec, fontSize:10, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, a.filename || a.r2_key || 'Asset')); })
+        React.createElement('div', { style:{ padding:14, display:'grid', gridTemplateColumns:isMobile ? '1fr' : '1fr 160px', gap:10, borderBottom:`1px solid ${C.border}` } },
+          cmsTextInput(imageSearch, setImageSearch, null, 'Search filename…'),
+          React.createElement('label', { className:'cms-image-picker-upload', style:{ height:38, border:`1px dashed ${C.border}`, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', color:C.textSec, fontSize:12, fontWeight:800, cursor:'pointer' } },
+            uploadingAsset ? 'Uploading…' : 'Upload new',
+            React.createElement('input', { type:'file', accept:'image/*', style:{ display:'none' }, onChange:e=>uploadAsset(e.target.files?.[0]) })
+          )
+        ),
+        React.createElement('div', { className:'cms-image-picker-scroll', style:{ flex:1, minHeight:0, overflowY:'auto', padding:14 } },
+          !assets.length
+            ? React.createElement('div', { style:{ color:C.textMut, fontSize:13, padding:24, textAlign:'center' } }, 'Loading library…')
+            : !filtered.length
+              ? React.createElement('div', { style:{ color:C.textMut, fontSize:13, padding:24, textAlign:'center' } }, imageSearch ? 'No images match your search.' : 'No images in the library yet. Upload one to get started.')
+              : React.createElement('div', { className:'cms-image-picker-grid', style:{ display:'grid', gridTemplateColumns:isMobile ? 'repeat(2,minmax(0,1fr))' : 'repeat(4,minmax(0,1fr))', gap:12 } },
+                  filtered.map((a) => {
+                    const url = mediaAssetUrl(a);
+                    return React.createElement('button', {
+                      key: a.id || a.r2_key || url,
+                      type: 'button',
+                      className: 'cms-image-picker-card',
+                      onClick: () => { if (url) pickImage(url); },
+                      disabled: !url,
+                      style: { border:`1px solid ${C.border}`, background:C.bg, borderRadius:12, overflow:'hidden', padding:0, textAlign:'left', cursor: url ? 'pointer' : 'not-allowed', display:'flex', flexDirection:'column' }
+                    },
+                      React.createElement('div', { className:'cms-image-picker-thumb', style:{ aspectRatio:'1 / 1', background:C.bg2 || C.bg, overflow:'hidden', position:'relative' } },
+                        url
+                          ? React.createElement('img', {
+                              src: url,
+                              alt: a.alt_text || a.filename || '',
+                              loading: 'lazy',
+                              style: { width:'100%', height:'100%', objectFit:'cover', display:'block' },
+                              onError: (e) => { e.target.style.display = 'none'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; }
+                            })
+                          : null,
+                        React.createElement('div', {
+                          className: 'cms-image-picker-fallback',
+                          style: { display: url ? 'none' : 'flex', position:'absolute', inset:0, alignItems:'center', justifyContent:'center', color:C.textMut, fontSize:11, background:C.bg2 || '#efeae4' }
+                        }, 'Unavailable')
+                      ),
+                      React.createElement('div', { style:{ padding:'8px 10px', color:C.textSec, fontSize:10, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', borderTop:`1px solid ${C.border}` } }, a.label || a.filename || a.r2_key || 'Asset')
+                    );
+                  })
+                )
         )
+      )
+    );
+  }
+
+  function renderCtaFields(labelKey, hrefKey, title) {
+    const hrefVal = selected[hrefKey] || '';
+    const actionId = cmsMatchCtaAction(hrefVal);
+    const action = CMS_CTA_ACTIONS.find((a) => a.id === actionId) || CMS_CTA_ACTIONS[CMS_CTA_ACTIONS.length - 1];
+    return React.createElement('div', { key: hrefKey, style:{ display:'grid', gap:10, padding:12, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg } },
+      React.createElement('div', { style:{ fontSize:11, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase', color:C.textMut } }, title),
+      React.createElement('div', null,
+        cmsFieldLabel('Label'),
+        cmsTextInput(selected[labelKey], (v) => { setField(labelKey, v); setHasUnsaved(true); }, () => saveSelected(true).then(() => setHasUnsaved(false)), 'Button text')
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Action'),
+        React.createElement('select', {
+          value: actionId,
+          onChange: (e) => {
+            const next = CMS_CTA_ACTIONS.find((a) => a.id === e.target.value);
+            if (!next) return;
+            if (next.id === 'custom') {
+              setField(hrefKey, hrefVal && !CMS_CTA_ACTIONS.some((a) => a.href === hrefVal) ? hrefVal : '');
+              setHasUnsaved(true);
+              return;
+            }
+            setFieldAndSave(hrefKey, next.href);
+          },
+          style: { width:'100%', height:38, borderRadius:10, border:`1px solid ${C.border}`, background:C.surface, color:C.text, padding:'0 10px', fontSize:13 }
+        }, CMS_CTA_ACTIONS.map((a) => React.createElement('option', { key: a.id, value: a.id }, a.label)))
+      ),
+      actionId === 'custom' && React.createElement('div', null,
+        cmsFieldLabel('Custom URL or modal:key'),
+        cmsTextInput(hrefVal, (v) => { setField(hrefKey, v); setHasUnsaved(true); }, () => saveSelected(true).then(() => setHasUnsaved(false)), 'modal:foster or /path or #anchor', true)
+      ),
+      React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap' } },
+        React.createElement('div', { style:{ fontSize:11, color:C.textMut } }, 'Publishes as: ', React.createElement('code', { style:{ color:C.purpleL, fontSize:11 } }, hrefVal || '—')),
+        action.formId
+          ? React.createElement('button', {
+              type: 'button',
+              onClick: () => onNavigate('cms-form-editor', { formId: action.formId }),
+              style: { border:'none', background:'transparent', color:C.purpleL, fontSize:12, fontWeight:800, cursor:'pointer', padding:0 }
+            }, 'Edit form →')
+          : null
+      )
+    );
+  }
+
+  function renderMediaControls() {
+    const cfg = cmsParseConfig(selected);
+    const focalX = Number.isFinite(Number(cfg.image_focal_x)) ? Number(cfg.image_focal_x) : 50;
+    const focalY = Number.isFinite(Number(cfg.image_focal_y)) ? Number(cfg.image_focal_y) : 50;
+    const zoom = Number.isFinite(Number(cfg.image_zoom)) ? Number(cfg.image_zoom) : 1;
+    const side = String(cfg.image_side || 'right').toLowerCase() === 'left' ? 'left' : 'right';
+    const imgUrl = selected.image_url || '';
+
+    const onFocalPointer = (e) => {
+      const el = e.currentTarget;
+      const rect = el.getBoundingClientRect();
+      const x = Math.round(((e.clientX - rect.left) / Math.max(1, rect.width)) * 100);
+      const y = Math.round(((e.clientY - rect.top) / Math.max(1, rect.height)) * 100);
+      setConfigPatch({
+        image_focal_x: Math.min(100, Math.max(0, x)),
+        image_focal_y: Math.min(100, Math.max(0, y)),
+        image_object_position: 'custom',
+      });
+    };
+
+    return React.createElement('div', { style:{ display:'grid', gap:12 } },
+      React.createElement('h4', { style:groupTitleStyle() }, 'Media'),
+      React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } },
+        React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)),
+        React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick')
+      )),
+      imgUrl && React.createElement('div', { style:{ display:'grid', gap:10 } },
+        React.createElement('div', {
+          className: 'cms-focal-preview',
+          onClick: onFocalPointer,
+          title: 'Click to set focal point',
+          style: {
+            position:'relative', width:'100%', aspectRatio:'4 / 3', borderRadius:12, border:`1px solid ${C.border}`,
+            overflow:'hidden', cursor:'crosshair', background:C.bg
+          }
+        },
+          React.createElement('img', {
+            src: imgUrl,
+            alt: '',
+            style: {
+              width:'100%', height:'100%', objectFit:'cover',
+              objectPosition: `${focalX}% ${focalY}%`,
+              transform: `scale(${zoom})`,
+              transformOrigin: `${focalX}% ${focalY}%`,
+              display:'block', pointerEvents:'none'
+            },
+            onError: (e) => { e.target.style.opacity = 0.2; }
+          }),
+          React.createElement('div', {
+            style: {
+              position:'absolute', left:`${focalX}%`, top:`${focalY}%`, width:14, height:14,
+              marginLeft:-7, marginTop:-7, borderRadius:'50%', border:'2px solid #fff',
+              boxShadow:'0 0 0 2px rgba(124,58,237,.85)', background:'rgba(124,58,237,.35)', pointerEvents:'none'
+            }
+          })
+        ),
+        React.createElement('div', { style:{ fontSize:11, color:C.textMut } }, 'Click the preview to set the focal point (crop center).'),
+        React.createElement('div', null,
+          cmsFieldLabel(`Zoom ${zoom.toFixed(2)}×`),
+          React.createElement('input', {
+            type: 'range', min: 1, max: 1.6, step: 0.05, value: zoom,
+            onChange: (e) => setConfigPatch({ image_zoom: Number(e.target.value) }),
+            style: { width:'100%' }
+          })
+        ),
+        renderPresetRow('Image side', side, [
+          { value:'left', label:'Left' }, { value:'right', label:'Right' }
+        ], (v) => setConfigPatch({ image_side: v })),
+        renderPresetRow('Quick focal', cfg.image_object_position === 'custom' ? 'center' : (cfg.image_object_position || 'center'), [
+          { value:'center', label:'Center' }, { value:'top', label:'Top' }, { value:'left', label:'Left' }, { value:'right', label:'Right' }
+        ], (v) => setConfigPatch({
+          image_object_position: v,
+          image_focal_x: v === 'left' ? 20 : v === 'right' ? 80 : 50,
+          image_focal_y: v === 'top' ? 20 : 50,
+        }))
       )
     );
   }
@@ -1512,7 +1692,19 @@ function mediaFormatBytes(n) {
 }
 
 function mediaAssetUrl(asset) {
-  return asset?.cdn_url || asset?.public_url || "";
+  if (!asset) return "";
+  const cdn = String(asset.cdn_url || "").trim();
+  const pub = String(asset.public_url || asset.pub_url || "").trim();
+  const key = String(asset.r2_key || "").replace(/^\/+/, "").trim();
+  const raw = cdn || pub || (key ? `${R2_CDN_BASE}/${key}` : "") || String(asset.url || asset.image_url || "").trim();
+  if (!raw) return "";
+  return raw
+    .replace(/^https?:\/\/companionscpas\.meauxbility\.workers\.dev\/static\//i, `${R2_CDN_BASE}/`)
+    .replace(/^https?:\/\/companionscpas\.meauxbility\.workers\.dev\//i, "https://companionsofcaddo.org/");
+}
+
+function mediaIsImageAsset(asset) {
+  return mediaAssetKind(asset) === "image";
 }
 
 function mediaPathPrefix(key) {
