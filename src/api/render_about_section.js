@@ -29,8 +29,8 @@ function resolveAboutHeroLayout(config) {
   if (raw === "true" || raw === "true_split" || raw === "split" || raw === "panel" || raw === "edge_bleed") return "true_split";
   if (raw === "overlay" || raw === "full_bleed" || raw === "fullbleed") return "overlay";
   if (raw === "soft" || raw === "soft_split" || raw === "fade") return "soft_split";
-  // About group portraits read poorly as soft-fade overlays — default to true split.
-  return "true_split";
+  // About heroes look best inset with gutters (not edge-bleed).
+  return "contained_split";
 }
 
 function resolveAboutOverlay(config, layout) {
@@ -215,7 +215,7 @@ function renderHero(section) {
   const overlayStrength = resolveAboutOverlay(c, layout);
   const imageSide = pick(c, ["image_side"]).toLowerCase() === "left" ? "left" : "right";
   let imageWidth = Number(c.image_width);
-  if (!Number.isFinite(imageWidth)) imageWidth = 55;
+  if (!Number.isFinite(imageWidth)) imageWidth = layout === "contained_split" ? 48 : 55;
   imageWidth = Math.min(70, Math.max(40, Math.round(imageWidth)));
   const imageFit = pick(c, ["image_fit"]).toLowerCase() === "contain" ? "contain" : "cover";
   const pos = objectPosition(c);
@@ -235,14 +235,15 @@ function renderHero(section) {
 
   return `<style>
 [data-cpas-section="hero"]{isolation:isolate;--hero-image-width:${imageWidth}%;--hero-text-width:${textPanelPct}%;}
+[data-cpas-section="hero"] .hero-media-bg{background:var(--bg2, #efeae3);}
 [data-cpas-section="hero"] .hero-media-bg img{object-fit:${imageFit};object-position:${pos};width:100%;height:100%;${zoomCss}}
+[data-cpas-section="hero"].hero-split--contained .hero-media-bg{aspect-ratio:4 / 3;min-height:0;height:auto;max-height:min(520px, 58vh);}
 [data-cpas-section="hero"] .hero-scrim{background:${scrimBg};}
 [data-cpas-section="hero"].hero-split--image-left .hero-media-bg img{left:0;right:auto;}
 [data-cpas-section="hero"].hero-split--image-left .hero-content{margin-left:auto;}
 @media(max-width:768px){
-  [data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(320px,62vw,520px)}
-  [data-cpas-section="hero"].hero-split--true .hero-media-bg,
-  [data-cpas-section="hero"].hero-split--contained .hero-media-bg{height:clamp(280px,58vw,480px)}
+  [data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(280px,58vw,440px)}
+  [data-cpas-section="hero"].hero-split--contained .hero-media-bg{aspect-ratio:4 / 3;height:auto;max-height:none;min-height:240px}
   [data-cpas-section="hero"] .hero-body{background:var(--bg)}
   [data-cpas-section="hero"].hero-split--image-left .hero-media-bg img{left:0;right:0;width:100%}
 }

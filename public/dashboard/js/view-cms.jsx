@@ -1785,15 +1785,15 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const focalY = Number.isFinite(Number(cfg.image_focal_y)) ? Number(cfg.image_focal_y) : 50;
     const zoom = Number.isFinite(Number(cfg.image_zoom)) ? Number(cfg.image_zoom) : 1;
     const side = String(cfg.image_side || 'right').toLowerCase() === 'left' ? 'left' : 'right';
-    const layout = String(cfg.hero_layout || 'soft_split').toLowerCase().replace(/-/g, '_');
+    const layout = String(cfg.hero_layout || (route === '/about' ? 'contained_split' : 'soft_split')).toLowerCase().replace(/-/g, '_');
     const layoutNorm = (layout === 'contained' || layout === 'contained_split' || layout === 'inset' || layout === 'guttered')
       ? 'contained_split'
       : (layout === 'true' || layout === 'true_split' || layout === 'split' || layout === 'panel' || layout === 'edge_bleed')
         ? 'true_split'
         : (layout === 'overlay' || layout === 'full_bleed' ? 'overlay' : 'soft_split');
     const overlay = String(cfg.overlay_strength || (layoutNorm === 'true_split' || layoutNorm === 'contained_split' ? 'none' : 'medium')).toLowerCase();
-    const fit = String(cfg.image_fit || 'cover').toLowerCase() === 'contain' ? 'contain' : 'cover';
-    const width = Number.isFinite(Number(cfg.image_width)) ? Number(cfg.image_width) : 55;
+    const fit = String(cfg.image_fit || (route === '/about' ? 'contain' : 'cover')).toLowerCase() === 'contain' ? 'contain' : 'cover';
+    const width = Number.isFinite(Number(cfg.image_width)) ? Number(cfg.image_width) : (layoutNorm === 'contained_split' ? 48 : 55);
     const imgUrl = selected.image_url || '';
     const isHero = String(selected.section_type || '').toLowerCase() === 'hero';
     const layoutLocked = cfg.layout_locked === true || cfg.layout_locked === 1 || cfg.layout_locked === '1';
@@ -1858,14 +1858,23 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           }
         }, 'Layout locked to Contained split (even side gutters). Edit copy, photo, and CTAs — theme is under Page theme in the top bar.'),
         isHero && !layoutLocked && renderPresetRow('Layout / scene', layoutNorm, [
-          { value:'contained_split', label:'Contained' },
+          { value:'contained_split', label:'Inset + gutters' },
           { value:'soft_split', label:'Soft fade' },
           { value:'overlay', label:'Overlay' },
-          { value:'true_split', label:'Split / side' },
+          { value:'true_split', label:'Edge to edge' },
         ], (v) => setConfigPatch({
           hero_layout: v,
           overlay_strength: (v === 'true_split' || v === 'contained_split') ? 'none' : (cfg.overlay_strength || 'medium'),
+          image_fit: v === 'contained_split' && route === '/about' ? (cfg.image_fit || 'contain') : (cfg.image_fit || 'cover'),
+          image_width: Number(cfg.image_width) || (v === 'contained_split' ? 48 : 55),
         })),
+        isHero && !layoutLocked && React.createElement('div', {
+          style: { fontSize: 11, color: C.textMut, lineHeight: 1.45, marginTop: -4 }
+        }, layoutNorm === 'contained_split'
+          ? 'Inset + gutters: photo sits in a rounded panel with page margins (not edge-bleed).'
+          : layoutNorm === 'true_split'
+            ? 'Edge to edge: photo fills half the viewport with no outer gutter. Use Inset + gutters for breathing room.'
+            : null),
         isHero && !layoutLocked && layoutNorm !== 'true_split' && layoutNorm !== 'contained_split' && renderPresetRow('Overlay', overlay, [
           { value:'none', label:'None' },
           { value:'soft', label:'Soft' },
