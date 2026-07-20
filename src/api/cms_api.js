@@ -1715,14 +1715,18 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
     await env.DB.prepare(
       `UPDATE cms_page_sections
-       SET deleted_at = NULL, updated_at = datetime('now')
+       SET deleted_at = NULL,
+           restore_count = COALESCE(restore_count, 0) + 1,
+           last_restored_at = datetime('now'),
+           updated_at = datetime('now')
        WHERE tenant_id = ? AND page_route = ? AND section_key = ?`
     ).bind(TENANT_ID, page_route, section_key).run();
 
     const brand = await getBrand(env);
     const { blocksBySection } = await loadRouteSections(env, page_route, { includeHidden: true });
     const sectionBlocks = blocksBySection.get(section_key) || [];
-    const restored = { ...row, deleted_at: null };
+    const nextCount = (Number(row.restore_count) || 0) + 1;
+    const restored = { ...row, deleted_at: null, restore_count: nextCount, last_restored_at: new Date().toISOString() };
     const sync = await syncSectionToR2(env, page_route, restored, sectionBlocks, brand, {});
 
     await bustCache(env,
@@ -1738,7 +1742,12 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
     return json({
       success: true,
-      restored: { page_route, section_key },
+      restored: {
+        page_route,
+        section_key,
+        restore_count: nextCount,
+        last_restored_at: restored.last_restored_at,
+      },
       sync,
       fragment_sync: fragmentSync,
     });
