@@ -256,6 +256,8 @@ async function handleCreateEntry(request, env) {
     photo_url: photoUrl,
     entry_fee_cents: entryFeeCents,
     payment_status: "pending",
+    resume_pay_token: resumeToken,
+    resume_pay_url: `https://companionsofcaddo.org/wet-dog/pay/${encodeURIComponent(resumeToken)}`,
   });
 }
 
@@ -275,6 +277,49 @@ async function voterFingerprint(request) {
 
 function voteId() {
   return `vote_${crypto.randomUUID().replace(/-/g, "")}`;
+}
+
+/**
+ * POST /api/public/competition-entries/:id/abandon
+ * Marks an unpaid draft abandoned when the entrant dismisses payment.
+ * Resume-pay links still work until archived.
+ */
+async function handleAbandonEntry(request, env, entryIdParam) {
+  const body = await request.json().catch(() => ({}));
+  const reason = String(body.reason || "user_dismissed_payment").slice(0, 120);
+  const entry = await env.DB.prepare(`
+    SELECT id, payment_status, submission_status, archived_at
+    FROM competition_entries
+    WHERE id = ? AND tenant_id = ?
+    LIMIT 1
+  `).bind(entryIdParam, TENANT_ID).first().catch(() => null);
+  if (!entry?.id) return json({ ok: false, error: "not_found" }, 404);
+  if (entry.payment_status === "paid") {
+    return json({ ok: true, skipped: true, reason: "already_paid" });
+  }
+  if (entry.archived_at) {
+    return json({ ok: true, skipped: true, reason: "archived" });
+  }
+
+  await env.DB.prepare(`
+    UPDATE competition_entries
+    SET submission_status = 'abandoned',
+        payment_status = 'abandoned',
+        abandoned_at = datetime('now'),
+        failure_stage = 'payment',
+        failure_code = 'payment_abandoned',
+        failure_message = ?,
+        updated_at = datetime('now')
+    WHERE id = ? AND tenant_id = ? AND payment_status != 'paid'
+  `).bind(
+    reason === "user_dismissed_payment"
+      ? "Entrant closed payment before completing the entry fee."
+      : reason,
+    entryIdParam,
+    TENANT_ID
+  ).run();
+
+  return json({ ok: true, entry_id: entryIdParam, payment_status: "abandoned" });
 }
 
 /**
@@ -356,6 +401,11 @@ async function handlePublicEntriesList(env, campaignId) {
 export async function competitionEntriesRoutes(request, env, url) {
   if (url.pathname === "/api/public/competition-entries" && request.method === "POST") {
     return handleCreateEntry(request, env);
+  }
+
+  const abandonMatch = url.pathname.match(/^\/api\/public\/competition-entries\/([^/]+)\/abandon$/);
+  if (abandonMatch && request.method === "POST") {
+    return handleAbandonEntry(request, env, decodeURIComponent(abandonMatch[1]));
   }
 
   const resumeMatch = url.pathname.match(/^\/api\/public\/competition-entries\/resume\/([^/]+)$/);

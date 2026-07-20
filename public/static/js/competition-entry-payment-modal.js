@@ -1,6 +1,7 @@
 /**
  * One-off Wet Dog competition payment modal.
  * Isolated from donate-modal.js: fixed one-time fee, no tiers, no monthly option.
+ * Entry is not complete until Stripe payment succeeds — dismiss requires confirm.
  */
 (function () {
   'use strict';
@@ -8,6 +9,7 @@
   const CONFIG_ENDPOINT = '/api/donations/config';
   const INTENT_ENDPOINT = '/api/donations/intent';
   const AFTER_PAYMENT_ENDPOINT = '/api/donations/after-payment';
+  const ABANDON_ENDPOINT = '/api/public/competition-entries';
   const LOGO_URL = 'https://assets.companionsofcaddo.org/companionsofcpa-newlogo.webp';
 
   const APPEARANCE = {
@@ -60,6 +62,7 @@
     .cepay-amount{font-family:'Fraunces',Georgia,serif;font-size:28px;font-weight:700;color:#6f2270}
     .cepay-contact{margin-bottom:15px;padding:13px 15px;border-radius:13px;background:#eee6f1;color:#55475b;font-size:13px;line-height:1.5}
     .cepay-contact b{color:#35283b}
+    .cepay-warn{margin:0 0 14px;padding:11px 13px;border-radius:12px;border:1px solid rgba(180,120,40,.28);background:#fff8eb;color:#8a5a12;font-size:12.5px;line-height:1.45;font-weight:650}
     .cepay-payment{min-height:142px;padding:15px;border:1px solid rgba(79,40,87,.12);border-radius:15px;background:#fff}
     .cepay-label{display:block;margin:0 0 11px;color:#5d5163;font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
     .cepay-skeleton{height:115px;border-radius:10px;background:linear-gradient(90deg,#f4eff5 20%,#e9e0eb 50%,#f4eff5 80%);background-size:200% 100%;animation:cepay-shimmer 1.3s infinite}
@@ -73,6 +76,7 @@
     .cepay-check{display:grid;place-items:center;width:58px;height:58px;margin:0 auto 15px;border-radius:50%;background:#e9f6ec;color:#237a3b;font-size:28px;font-weight:900}
     .cepay-success h3{margin:0 0 8px;font-family:'Fraunces',Georgia,serif;font-size:25px;color:#4e1a52}
     .cepay-success p{margin:0;color:#64586a;font-size:14px;line-height:1.6}
+    .cepay-success-btn{margin-top:18px;width:100%;min-height:44px;border:0;border-radius:12px;background:#6f2270;color:#fff;font:800 14px 'DM Sans',system-ui,sans-serif;cursor:pointer}
     @keyframes cepay-fade{from{opacity:0}to{opacity:1}}
     @keyframes cepay-up{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
     @keyframes cepay-shimmer{to{background-position:-200% 0}}
@@ -83,6 +87,9 @@
   let elements = null;
   let options = null;
   let submitting = false;
+  let paid = false;
+  let abandonInFlight = false;
+  let escapeHandler = null;
 
   function injectStyles() {
     if (document.getElementById('cepay-styles')) return;
@@ -128,29 +135,81 @@
     return message || 'Payment could not be completed. Please try again.';
   }
 
-  function close() {
+  function forceClose() {
+    if (escapeHandler) {
+      document.removeEventListener('keydown', escapeHandler);
+      escapeHandler = null;
+    }
     document.getElementById('cepay-overlay')?.remove();
     document.body.style.overflow = '';
     elements = null;
     stripe = null;
+    const cb = options?.onClose;
+    const wasPaid = paid;
+    const entryId = options?.entry_id;
     options = null;
     submitting = false;
+    paid = false;
+    abandonInFlight = false;
+    if (typeof cb === 'function') {
+      try { cb({ paid: wasPaid, entry_id: entryId }); } catch (_) {}
+    }
+  }
+
+  async function markAbandoned() {
+    if (!options?.entry_id || paid || abandonInFlight) return;
+    abandonInFlight = true;
+    try {
+      await fetch(
+        ABANDON_ENDPOINT + '/' + encodeURIComponent(options.entry_id) + '/abandon',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: 'user_dismissed_payment' }),
+        }
+      );
+    } catch (_) {}
+    if (typeof options.onAbandoned === 'function') {
+      try { options.onAbandoned({ entry_id: options.entry_id, pay_url: options.pay_url || null }); } catch (_) {}
+    }
+  }
+
+  async function requestClose() {
+    if (paid || submitting) {
+      if (paid) forceClose();
+      return;
+    }
+    const ok = window.confirm(
+      'Your entry is not submitted until payment is complete.\n\n' +
+      'Leave without paying? You can finish later with the pay link we can send you.'
+    );
+    if (!ok) return;
+    await markAbandoned();
+    forceClose();
   }
 
   function showSuccess() {
+    paid = true;
     const modal = document.getElementById('cepay-modal');
     if (!modal) return;
+    const dog = escapeHtml(options?.dog_name || 'Your pet');
+    const email = escapeHtml(options?.donor_email || '');
     modal.innerHTML = `
       <div class="cepay-success">
         <div class="cepay-check">✓</div>
-        <h3>Your entry payment is complete.</h3>
-        <p><strong>${escapeHtml(options?.dog_name || 'Your pet')}</strong> is in. Stripe is confirming the payment now, and your entry confirmation will be emailed to <strong>${escapeHtml(options?.donor_email || '')}</strong>.</p>
+        <h3>Entry complete</h3>
+        <p><strong>${dog}</strong> is entered. Confirmation is on the way to <strong>${email}</strong>.</p>
+        <button type="button" class="cepay-success-btn" id="cepay-done">Done</button>
       </div>`;
-    setTimeout(close, 7000);
+    document.getElementById('cepay-done')?.addEventListener('click', forceClose);
+    if (typeof options.onPaid === 'function') {
+      try { options.onPaid({ entry_id: options.entry_id }); } catch (_) {}
+    }
+    setTimeout(forceClose, 8000);
   }
 
   async function submit() {
-    if (submitting || !stripe || !elements || !options) return;
+    if (submitting || !stripe || !elements || !options || paid) return;
     submitting = true;
     setError('');
     const button = document.getElementById('cepay-submit');
@@ -193,7 +252,7 @@
       setError(friendlyError(error));
       if (button) {
         button.disabled = false;
-        button.textContent = `Pay ${money(options.amount_cents)} & Submit Entry`;
+        button.textContent = `Pay ${money(options.amount_cents)} to finish entry`;
       }
     }
   }
@@ -243,13 +302,21 @@
         const button = document.getElementById('cepay-submit');
         if (skeleton) skeleton.style.display = 'none';
         if (mount) mount.style.display = 'block';
-        if (button) button.disabled = false;
+        if (button) {
+          button.disabled = false;
+          button.textContent = `Pay ${money(options.amount_cents)} to finish entry`;
+        }
       });
       paymentElement.mount('#cepay-mount');
     } catch (error) {
       const skeleton = document.getElementById('cepay-skeleton');
       if (skeleton) skeleton.style.display = 'none';
       setError(friendlyError(error));
+      const button = document.getElementById('cepay-submit');
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Payment unavailable';
+      }
     }
   }
 
@@ -260,6 +327,9 @@
       console.error('[competition-payment] Missing required entry payment context.');
       return;
     }
+    paid = false;
+    submitting = false;
+    abandonInFlight = false;
     options = {
       entry_id: String(input.entry_id),
       campaign_id: String(input.campaign_id),
@@ -268,6 +338,10 @@
       donor_name: String(input.donor_name || ''),
       dog_name: String(input.dog_name || 'Your pet'),
       note: String(input.note || ''),
+      pay_url: input.pay_url ? String(input.pay_url) : null,
+      onPaid: typeof input.onPaid === 'function' ? input.onPaid : null,
+      onAbandoned: typeof input.onAbandoned === 'function' ? input.onAbandoned : null,
+      onClose: typeof input.onClose === 'function' ? input.onClose : null,
     };
     injectStyles();
 
@@ -279,14 +353,15 @@
     overlay.innerHTML = `
       <div id="cepay-modal">
         <header class="cepay-head">
-          <button type="button" class="cepay-close" id="cepay-close" aria-label="Close">×</button>
+          <button type="button" class="cepay-close" id="cepay-close" aria-label="Cancel payment">×</button>
           <img class="cepay-logo" src="${LOGO_URL}" alt="Companions of CPAS">
           <p class="cepay-kicker">Wet Dog Competition</p>
-          <h2 class="cepay-title" id="cepay-title">Complete ${escapeHtml(options.dog_name)}’s entry</h2>
+          <h2 class="cepay-title" id="cepay-title">Pay to finish ${escapeHtml(options.dog_name)}’s entry</h2>
         </header>
         <div class="cepay-body">
+          <p class="cepay-warn">Your photo is saved as a draft. The entry is <strong>not submitted</strong> until this ${money(options.amount_cents)} payment succeeds.</p>
           <div class="cepay-summary">
-            <div><strong>One-time competition entry</strong><span>Fixed fee · no recurring charge</span></div>
+            <div><strong>One-time competition entry</strong><span>Required to publish · no recurring charge</span></div>
             <div class="cepay-amount">${money(options.amount_cents)}</div>
           </div>
           <div class="cepay-contact">
@@ -302,24 +377,22 @@
         </div>
         <footer class="cepay-foot">
           <button type="button" class="cepay-submit" id="cepay-submit" disabled>Loading secure payment…</button>
-          <p class="cepay-secure">Secured by Stripe · ${money(options.amount_cents)} one-time charge</p>
+          <p class="cepay-secure">Secured by Stripe · ${money(options.amount_cents)} required to finish entry</p>
         </footer>
       </div>`;
     document.body.appendChild(overlay);
     document.body.style.overflow = 'hidden';
-    overlay.addEventListener('click', (event) => {
-      if (event.target === overlay) close();
-    });
-    document.getElementById('cepay-close')?.addEventListener('click', close);
+    // Backdrop click does not dismiss — payment required to complete.
+    document.getElementById('cepay-close')?.addEventListener('click', () => { requestClose(); });
     document.getElementById('cepay-submit')?.addEventListener('click', submit);
-    const escape = (event) => {
+    escapeHandler = (event) => {
       if (event.key !== 'Escape') return;
-      document.removeEventListener('keydown', escape);
-      close();
+      event.preventDefault();
+      requestClose();
     };
-    document.addEventListener('keydown', escape);
+    document.addEventListener('keydown', escapeHandler);
     initializePayment();
   }
 
-  window.CompetitionEntryPaymentModal = { open, close };
+  window.CompetitionEntryPaymentModal = { open, close: requestClose };
 })();

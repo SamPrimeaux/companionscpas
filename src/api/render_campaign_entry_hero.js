@@ -299,11 +299,11 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
                 <strong>Competition entry fee</strong>
                 <span class="ceh-handoff-amount">${esc(feeExact)}</span>
               </div>
-              <p>We’ll save your pending entry and photo, then open a dedicated ${esc(feeLabel)} Stripe checkout. This is a one-time competition fee with no donation tiers or recurring option.</p>
+              <p>Next we save your photo as a draft and open Stripe. Your entry is <strong>not submitted</strong> until the ${esc(feeLabel)} payment succeeds.</p>
             </div>
             <div class="ceh-footer">
               <button class="ceh-btn ceh-btn--quiet" type="button" data-ceh-back>Back to entry</button>
-              <button class="ceh-btn ceh-btn--primary" type="button" data-ceh-pay>Open Secure Stripe Checkout</button>
+              <button class="ceh-btn ceh-btn--primary" type="button" data-ceh-pay>Pay ${esc(feeExact)} to finish entry</button>
             </div>
           </section>
         </form>
@@ -372,6 +372,37 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
     modal.dataset.open = "false";
     document.body.style.overflow = "";
     setError("");
+  }
+
+  function resetFormAfterPaid() {
+    try { form.reset(); } catch (_) {}
+    if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+    if (photoPreview) {
+      photoPreview.removeAttribute("src");
+      photoPreview.style.display = "none";
+    }
+    if (photoPlaceholder) photoPlaceholder.style.display = "block";
+    setStep("entry");
+    setError("");
+  }
+
+  function waitForPaymentModal(tries) {
+    return new Promise(function(resolve, reject) {
+      let n = typeof tries === "number" ? tries : 40;
+      function tick() {
+        if (window.CompetitionEntryPaymentModal && window.CompetitionEntryPaymentModal.open) {
+          resolve(window.CompetitionEntryPaymentModal);
+          return;
+        }
+        n -= 1;
+        if (n <= 0) {
+          reject(new Error("The competition payment form is still loading. Please wait a moment and try again."));
+          return;
+        }
+        setTimeout(tick, 100);
+      }
+      tick();
+    });
   }
 
   function validateEntry() {
@@ -461,12 +492,14 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
     const payBtn = root.querySelector("[data-ceh-pay]");
     if (payBtn) {
       payBtn.disabled = true;
-      payBtn.textContent = "Saving entry…";
+      payBtn.textContent = "Preparing payment…";
     }
     setError("");
 
     try {
       if (!campaignId) throw new Error("This section is missing a campaign_id in CMS config.");
+      await waitForPaymentModal(50);
+
       const first = String(form.elements.namedItem("owner_first_name").value || "").trim();
       const last = String(form.elements.namedItem("owner_last_name").value || "").trim();
       const ownerName = ownerFullName();
@@ -488,6 +521,7 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
       payload.set("category", "general");
       payload.set("photo", photoInput.files[0]);
 
+      if (payBtn) payBtn.textContent = "Saving draft…";
       const res = await fetch("/api/public/competition-entries", { method: "POST", body: payload });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok || !data.entry_id) {
@@ -496,39 +530,52 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
 
       const note = "Wet Dog Competition entry — " + petName + " (" + data.entry_id + ")";
 
-      closeModal();
-
-      if (window.CompetitionEntryPaymentModal?.open) {
-        window.CompetitionEntryPaymentModal.open({
-          amount_cents: feeCents,
-          campaign_id: campaignId,
-          entry_id: data.entry_id,
-          donor_email: donorEmail,
-          donor_name: ownerName,
-          dog_name: petName,
-          note,
-        });
-      } else {
-        throw new Error("The competition payment form is still loading. Please wait a moment and try again.");
-      }
+      window.CompetitionEntryPaymentModal.open({
+        amount_cents: feeCents,
+        campaign_id: campaignId,
+        entry_id: data.entry_id,
+        donor_email: donorEmail,
+        donor_name: ownerName,
+        dog_name: petName,
+        note,
+        pay_url: data.resume_pay_url || null,
+        onPaid: function() {
+          resetFormAfterPaid();
+          closeModal();
+        },
+        onAbandoned: function() {
+          setError("Payment wasn’t finished — your entry is not submitted yet. Tap Pay again to finish, or ask staff for a resume-pay link.");
+          setStep("payment");
+        },
+      });
     } catch (err) {
       setError(err?.message || "Could not continue to payment.");
     } finally {
       paying = false;
       if (payBtn) {
         payBtn.disabled = false;
-        payBtn.textContent = "Open Secure Stripe Checkout";
+        payBtn.textContent = "Pay " + ${JSON.stringify(feeExact)} + " to finish entry";
       }
     }
   }
 
   root.querySelector("[data-ceh-open]")?.addEventListener("click", openModal);
-  root.querySelectorAll("[data-ceh-close]").forEach((btn) => btn.addEventListener("click", closeModal));
+  root.querySelectorAll("[data-ceh-close]").forEach((btn) => btn.addEventListener("click", () => {
+    if (document.getElementById("cepay-overlay")) {
+      window.CompetitionEntryPaymentModal?.close?.();
+      return;
+    }
+    closeModal();
+  }));
   modal.addEventListener("click", (event) => {
-    if (event.target === modal) closeModal();
+    if (event.target !== modal) return;
+    if (document.getElementById("cepay-overlay")) return;
+    closeModal();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && modal.dataset.open === "true") closeModal();
+    if (event.key !== "Escape" || modal.dataset.open !== "true") return;
+    if (document.getElementById("cepay-overlay")) return;
+    closeModal();
   });
   root.querySelector("[data-ceh-share]")?.addEventListener("click", () => {
     const btn = root.querySelector("[data-ceh-share]");
