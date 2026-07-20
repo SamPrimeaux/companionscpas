@@ -43,7 +43,7 @@ INSERT OR REPLACE INTO email_templates (
 </head>
 <body>
 <div class="wrap">
-  <img class="logo" src="https://companionscpas.meauxbility.workers.dev/static/global/companionsofcpa-newlogo.webp" alt="Companions of CPAS" />
+  <img class="logo" src="https://assets.companionsofcaddo.org/companionsofcpa-newlogo.webp" alt="Companions of CPAS" />
   <div class="card">
     <div class="eyebrow">Foster Application</div>
     <h1>We got your application, {{first_name}}.</h1>
@@ -52,13 +52,13 @@ INSERT OR REPLACE INTO email_templates (
     <hr class="divider" />
     <p style="font-size:13px;color:#6b7280;margin-bottom:4px;">Application reference</p>
     <p style="font-size:14px;font-weight:700;color:#a78bfa;margin-bottom:24px;">{{application_id}}</p>
-    <a class="btn" href="https://companionscpas.meauxbility.workers.dev/adopt">Meet dogs who need foster homes</a>
+    <a class="btn" href="https://companionsofcaddo.org/fosters">Meet dogs who need foster homes</a>
     <hr class="divider" />
     <p style="font-size:13px;color:#6b7280">Questions? Reply to this email or reach us at <a href="mailto:companionsCPAS@gmail.com" style="color:#7c3aed">companionsCPAS@gmail.com</a></p>
   </div>
   <div class="footer">
     Companions of CPAS &nbsp;·&nbsp; 501(c)(3) &nbsp;·&nbsp; EIN 88-4156327<br/>
-    Shreveport, LA &nbsp;·&nbsp; <a href="https://companionscpas.meauxbility.workers.dev">companionscpas.org</a>
+    Shreveport, LA &nbsp;·&nbsp; <a href="https://companionsofcaddo.org">companionscpas.org</a>
   </div>
 </div>
 </body>
@@ -108,7 +108,7 @@ INSERT OR REPLACE INTO email_templates (
 </head>
 <body>
 <div class="wrap">
-  <img class="logo" src="https://companionscpas.meauxbility.workers.dev/static/global/companionsofcpa-newlogo.webp" alt="Companions of CPAS" />
+  <img class="logo" src="https://assets.companionsofcaddo.org/companionsofcpa-newlogo.webp" alt="Companions of CPAS" />
   <div class="card">
     <div class="eyebrow">Application Update</div>
     <h1>Good news, {{first_name}} — next step is a home visit.</h1>
@@ -123,7 +123,7 @@ INSERT OR REPLACE INTO email_templates (
   </div>
   <div class="footer">
     Companions of CPAS &nbsp;·&nbsp; 501(c)(3) &nbsp;·&nbsp; EIN 88-4156327<br/>
-    Shreveport, LA &nbsp;·&nbsp; <a href="https://companionscpas.meauxbility.workers.dev">companionscpas.org</a>
+    Shreveport, LA &nbsp;·&nbsp; <a href="https://companionsofcaddo.org">companionscpas.org</a>
   </div>
 </div>
 </body>
@@ -174,7 +174,7 @@ INSERT OR IGNORE INTO email_templates (
 </head>
 <body>
 <div class="wrap">
-  <img class="logo" src="https://companionscpas.meauxbility.workers.dev/static/global/companionsofcpa-newlogo.webp" alt="Companions of CPAS" />
+  <img class="logo" src="https://assets.companionsofcaddo.org/companionsofcpa-newlogo.webp" alt="Companions of CPAS" />
   <div class="card">
     <div class="eyebrow">Donation Receipt</div>
     <h1>Thank you, {{first_name}}.</h1>
@@ -193,7 +193,7 @@ INSERT OR IGNORE INTO email_templates (
   </div>
   <div class="footer">
     Companions of CPAS &nbsp;·&nbsp; Shreveport, LA<br/>
-    <a href="https://companionscpas.meauxbility.workers.dev">companionscpas.org</a> &nbsp;·&nbsp;
+    <a href="https://companionsofcaddo.org">companionscpas.org</a> &nbsp;·&nbsp;
     <a href="mailto:companionsCPAS@gmail.com">companionsCPAS@gmail.com</a>
   </div>
 </div>

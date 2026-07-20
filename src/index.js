@@ -203,7 +203,7 @@ const LEGACY_VIEW_MAP = {
   "notifications":      "/dashboard/email?view=notifications",
 };
 
-const PUBLIC_ROUTES = ["/", "/about", "/community", "/adopt", "/contact", "/donate"];
+const PUBLIC_ROUTES = ["/", "/about", "/community", "/adopt", "/fosters", "/contact", "/donate"];
 
 const getSession = getAuthUser;
 

@@ -1408,7 +1408,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     ).bind(JSON.stringify(merged), TENANT_ID).run();
     await bustCache(env, 'brand:' + TENANT_ID, 'bootstrap:' + TENANT_ID);
     // Bust all page KV cache so re-render picks up new font
-    const PUBLIC_ROUTES = ['/', '/about', '/adopt', '/services', '/donate', '/community'];
+    const PUBLIC_ROUTES = ['/', '/about', '/adopt', '/fosters', '/contact', '/donate', '/community'];
     for (const r of PUBLIC_ROUTES) {
       await env.CMS_CACHE.delete('page:' + r).catch(() => {});
     }

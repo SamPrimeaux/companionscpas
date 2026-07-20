@@ -2114,39 +2114,85 @@
     );
   }
 
-  // ── FostersView — active foster placements from live API ────────────────
+  // ── FostersView — needs-foster roster + active placements ───────────────
   function FostersView(props) {
     var onNavigate = props.onNavigate;
     var itemsState = useState(null), items = itemsState[0], setItems = itemsState[1];
+    var needsState = useState(null), needs = needsState[0], setNeeds = needsState[1];
     var bp = useBreakpoint();
     var isMobile = bp === 'mobile';
     var u = ui();
 
     useEffect(function(){
       apiJSON('/api/dashboard/fosters?status=active')
-        .then(function(d){ setItems(d.fosters || []); })
-        .catch(function(){ setItems([]); });
+        .then(function(d){
+          setItems(d.fosters || []);
+          setNeeds(d.needs_foster || []);
+        })
+        .catch(function(){ setItems([]); setNeeds([]); });
     }, []);
 
-    return h('div', { className: 'dash-page' },
-      h(PageHeader, {
-        title: 'Fosters',
-        subtitle: items === null ? 'Loading...' : (items.length ? items.length + ' active placement' + (items.length === 1 ? '' : 's') : 'No active placements')
-      }),
-      items === null ? h(LoadingBlock, null, 'Loading foster records...') :
-      !items.length ? h('div', null,
-        h(EmptyPanel, { iconName:'heart', message:'No active foster placements. Assign a foster from an animal profile.' }),
-        h('div', { style:{ textAlign:'center', marginTop:12 } },
-          h('button', {
-            onClick:function(){ if (onNavigate) onNavigate('animals'); },
-            style:{ border:'none', background:'transparent', color:u.purpleL, fontSize:13, fontWeight:800, cursor:'pointer', padding:0 }
-          }, 'Go to Animals →')
+    var loading = items === null || needs === null;
+    var needCount = needs ? needs.length : 0;
+    var placeCount = items ? items.length : 0;
+    var subtitle = loading
+      ? 'Loading...'
+      : (needCount ? needCount + ' needing foster' : 'No dogs flagged for foster') +
+        ' · ' + (placeCount ? placeCount + ' active placement' + (placeCount === 1 ? '' : 's') : 'no active placements');
+
+    function NeedsCard(animal) {
+      var photo = animal.asset_cdn_url || animal.photo_url;
+      var title = animal.name || 'Animal';
+      var sub = [animal.breed || animal.species, animal.sex, animal.age_label].filter(Boolean).join(' · ');
+      return h(SoftCard, {
+        key: animal.id,
+        style: { padding:0, overflow:'hidden', cursor: onNavigate ? 'pointer' : 'default' },
+        onClick: function(){ if (onNavigate && animal.id) onNavigate('animal-profile', { animalId: animal.id }); },
+      },
+        h('div', { style:{ height:140, background:u.raised } },
+          photo
+            ? h('img', { src:photo, alt:title, style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' } })
+            : h('div', { style:{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:u.textMut, fontSize:12 } }, 'No photo')
+        ),
+        h('div', { style:{ padding:14 } },
+          h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:6 } },
+            h('div', { style:{ color:u.text, fontWeight:900, fontSize:15 } }, title),
+            h(StatusPill, { label:'Needs Foster', color:u.amber || '#f59e0b' })
+          ),
+          sub ? h('div', { style:{ color:u.textSec, fontSize:12, marginBottom:8 } }, sub) : null,
+          h('div', { style:{ color:u.textMut, fontSize:11 } }, 'Assign a foster from this animal profile')
         )
-      ) :
-      h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(2,minmax(0,1fr))', gap:16 } },
-        items.map(function(item, idx){
-          return h(FosterCard, { key:item.id || idx, item:item, onViewAnimal:function(animalId){ if (onNavigate) onNavigate('animal-profile', { animalId:animalId }); } });
-        })
+      );
+    }
+
+    return h('div', { className: 'dash-page' },
+      h(PageHeader, { title: 'Fosters', subtitle: subtitle }),
+      loading ? h(LoadingBlock, null, 'Loading foster records...') :
+      h('div', { style:{ display:'flex', flexDirection:'column', gap:28 } },
+        h('section', null,
+          h('div', { style:{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, marginBottom:12, flexWrap:'wrap' } },
+            h('h3', { style:{ margin:0, color:u.text, fontSize:15, fontWeight:800 } }, 'Needs a foster home'),
+            h('button', {
+              onClick:function(){ if (onNavigate) onNavigate('animals'); },
+              style:{ border:'none', background:'transparent', color:u.purpleL, fontSize:12, fontWeight:800, cursor:'pointer', padding:0 }
+            }, 'Go to Animals →')
+          ),
+          !needCount
+            ? h(EmptyPanel, { iconName:'heart', message:'No animals currently flagged Foster Needed. Toggle it on an animal profile to list them here.' })
+            : h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(auto-fill, minmax(240px, 1fr))', gap:14 } },
+                needs.map(NeedsCard)
+              )
+        ),
+        h('section', null,
+          h('h3', { style:{ margin:'0 0 12px', color:u.text, fontSize:15, fontWeight:800 } }, 'Active placements'),
+          !placeCount
+            ? h(EmptyPanel, { iconName:'check', message:'No active foster placements yet. Assign a foster from an animal profile when a home is matched.' })
+            : h('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(2,minmax(0,1fr))', gap:16 } },
+                items.map(function(item, idx){
+                  return h(FosterCard, { key:item.id || idx, item:item, onViewAnimal:function(animalId){ if (onNavigate) onNavigate('animal-profile', { animalId:animalId }); } });
+                })
+              )
+        )
       )
     );
   }

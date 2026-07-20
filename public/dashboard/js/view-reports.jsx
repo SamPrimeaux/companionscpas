@@ -89,7 +89,6 @@ const REPORT_TABS = [
   { key:"financial",   label:"Financial" },
   { key:"animals",     label:"Animals" },
   { key:"applications",label:"Applications" },
-  { key:"medical",     label:"Medical" },
   { key:"ai",          label:"AI Usage" },
 ];
 
@@ -103,14 +102,15 @@ function ReportsView({ onNavigate }) {
   useEffect(() => {
     async function load() {
       try {
-        const [animals, apps, donations, fundraising, aiRuns] = await Promise.all([
+        const [animals, apps, donations, fundraising, aiRuns, aiUsage] = await Promise.all([
           fetch("/api/dashboard/animals?limit=100").then(r=>r.json()).catch(()=>null),
           fetch("/api/dashboard/applications?limit=100").then(r=>r.json()).catch(()=>null),
           fetch("/api/dashboard/donations").then(r=>r.json()).catch(()=>null),
           fetch("/api/dashboard/fundraising").then(r=>r.json()).catch(()=>null),
           fetch("/api/agentsam/runs?limit=50").then(r=>r.json()).catch(()=>null),
+          fetch("/api/agentsam/usage?days=30").then(r=>r.json()).catch(()=>null),
         ]);
-        setData({ animals, apps, donations, fundraising, aiRuns });
+        setData({ animals, apps, donations, fundraising, aiRuns, aiUsage });
       } catch(e) {
         setData({});
       } finally {
@@ -398,7 +398,7 @@ function ReportsView({ onNavigate }) {
           </div>
           {!apps.total ? (
             <div style={{ ...card, color: RPT.muted, fontSize: 13 }}>
-              No foster applications in D1 yet. Public submissions land here after <code>POST /api/foster/apply</code> succeeds (site foster CTA modal). The dedicated <code>/services</code> and <code>/foster</code> pages are not live — flag for the product call.
+              No foster applications yet. When someone submits the foster form on the public site, they will show up here and under Applications.
             </div>
           ) : (
             <div style={grid2}>
@@ -435,44 +435,66 @@ function ReportsView({ onNavigate }) {
         </div>
       )}
 
-      {/* ── MEDICAL ── */}
-      {tab === "medical" && (
-        <div>
-          <div style={{ ...card, borderColor: RPT.amber, marginBottom: 14 }}>
-            <SectionHeader title="Not fully client-ready" sub="Vaccination / medication task tracking is not wired to D1 yet. Showing live medical-status roster count only." />
-          </div>
-          <div style={grid4}>
-            <StatCard label="Medical status" value={animals.medical} sub="animals with status = medical" subColor={animals.medical > 0 ? RPT.amber : RPT.green} />
-            <StatCard label="Foster needed"  value={animals.fosterNeeded} sub="open foster flags" subColor={RPT.muted} />
-            <StatCard label="Vaccinations due" value="—" sub="needs care-task module" subColor={RPT.muted} />
-            <StatCard label="Medications"      value="—" sub="needs care-task module" subColor={RPT.muted} />
-          </div>
-        </div>
-      )}
-
       {/* ── AI USAGE ── */}
       {tab === "ai" && (
         <div>
           {(() => {
             const runs = data?.aiRuns?.runs || data?.aiRuns?.results || [];
-            if (!runs.length) {
+            const usage = data?.aiUsage || {};
+            const summary = usage.summary || {};
+            const days = usage.days || [];
+            const hasRollups = days.length > 0 || Number(summary.ai_calls || 0) > 0;
+            const hasRuns = runs.length > 0;
+            if (!hasRollups && !hasRuns) {
               return (
                 <div style={{ ...card, color: RPT.muted, fontSize: 13 }}>
-                  No Agent Sam run history to report yet. This tab stays empty until live runs exist — no mock spend/latency figures.
+                  No Agent Sam usage logged yet. Chat activity will appear here after live runs.
                 </div>
               );
             }
-            const cost = runs.reduce((s, r) => s + Number(r.cost_usd || r.cost || 0), 0);
-            const tokensIn = runs.reduce((s, r) => s + Number(r.tokens_in || r.input_tokens || 0), 0);
-            const tokensOut = runs.reduce((s, r) => s + Number(r.tokens_out || r.output_tokens || 0), 0);
+            const cost = hasRollups
+              ? Number(summary.cost_usd || 0)
+              : runs.reduce((s, r) => s + Number(r.cost_usd || r.cost || 0), 0);
+            const tokensIn = hasRollups
+              ? Number(summary.tokens_in || 0)
+              : runs.reduce((s, r) => s + Number(r.tokens_in || r.input_tokens || 0), 0);
+            const tokensOut = hasRollups
+              ? Number(summary.tokens_out || 0)
+              : runs.reduce((s, r) => s + Number(r.tokens_out || r.output_tokens || 0), 0);
+            const calls = hasRollups ? Number(summary.ai_calls || 0) : runs.length;
             const failed = runs.filter((r) => String(r.status || "").toLowerCase().includes("fail")).length;
+            const models = new Set(runs.map((r) => r.model || r.model_key).filter(Boolean));
             return (
-              <div style={grid4}>
-                <StatCard label="Runs" value={runs.length} sub={failed ? failed + " failed" : "completed / logged"} subColor={RPT.muted} />
-                <StatCard label="Cost" value={fmt.usd(cost)} sub="from run logs" subColor={RPT.green} />
-                <StatCard label="Tokens" value={fmt.int(tokensIn + tokensOut)} sub={fmt.int(tokensIn) + " in / " + fmt.int(tokensOut) + " out"} subColor={RPT.muted} />
-                <StatCard label="Models" value={new Set(runs.map((r) => r.model || r.model_key).filter(Boolean)).size} sub="distinct in window" subColor={RPT.muted} />
-              </div>
+              <>
+                <div style={grid4}>
+                  <StatCard label="AI calls" value={fmt.int(calls)} sub={hasRollups ? "last 30 days" : "recent runs"} subColor={RPT.muted} />
+                  <StatCard label="Cost" value={fmt.usd(cost)} sub={hasRollups ? "rollups" : "from run logs"} subColor={RPT.green} />
+                  <StatCard label="Tokens" value={fmt.int(tokensIn + tokensOut)} sub={fmt.int(tokensIn) + " in / " + fmt.int(tokensOut) + " out"} subColor={RPT.muted} />
+                  <StatCard label="Runs" value={runs.length} sub={failed ? failed + " failed" : "logged"} subColor={RPT.muted} />
+                </div>
+                {runs.length > 0 ? (
+                  <div style={{ ...card, marginTop: 14 }}>
+                    <SectionHeader title="Recent runs" sub={`${runs.length} most recent`} />
+                    <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+                      {runs.slice(0, 12).map((r, i) => (
+                        <div key={r.id || i} style={{ display:"flex", justifyContent:"space-between", gap:12, padding:"10px 0", borderBottom: i < Math.min(runs.length, 12) - 1 ? `1px solid ${RPT.border}` : "none", fontSize:13 }}>
+                          <div>
+                            <div style={{ color:RPT.text, fontWeight:600 }}>{r.model_key || r.model || "—"}</div>
+                            <div style={{ color:RPT.muted, fontSize:12, marginTop:2 }}>{r.started_at || r.created_at || "—"} · {r.status || "—"}</div>
+                          </div>
+                          <div style={{ textAlign:"right", color:RPT.muted, fontSize:12 }}>
+                            <div>{fmt.usd(Number(r.cost_usd || 0))}</div>
+                            <div>{fmt.int(Number(r.input_tokens || 0) + Number(r.output_tokens || 0))} tok</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {models.size ? (
+                      <div style={{ marginTop:12, fontSize:12, color:RPT.muted }}>{models.size} distinct model{models.size === 1 ? "" : "s"} in this window</div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
             );
           })()}
         </div>

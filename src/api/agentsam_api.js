@@ -87,6 +87,46 @@ async function kvPutJson(env, key, value, ttl = 60) {
 export async function agentsamRoutes(request, env, url, sessionUser = null) {
   const path = url.pathname;
 
+  // GET /api/agentsam/runs — recent Agent Sam runs for Reports → AI Usage
+  if (path === "/api/agentsam/runs" && request.method === "GET") {
+    const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 50), 1), 200);
+    const rows = await env.DB.prepare(`
+      SELECT id, status, model_key, task_type, mode, latency_ms,
+             input_tokens, output_tokens, cost_usd, error_message,
+             started_at, completed_at, created_at
+      FROM agentsam_agent_run
+      WHERE tenant_id = 'tenant_companionscpas'
+      ORDER BY COALESCE(started_at, created_at) DESC
+      LIMIT ?
+    `).bind(limit).all().catch(() => ({ results: [] }));
+    return json({ runs: rows.results || [], count: (rows.results || []).length });
+  }
+
+  // GET /api/agentsam/usage — daily rollups for Reports → AI Usage
+  if (path === "/api/agentsam/usage" && request.method === "GET") {
+    const days = Math.min(Math.max(Number(url.searchParams.get("days") || 30), 1), 90);
+    const rows = await env.DB.prepare(`
+      SELECT day, ai_calls, tokens_in, tokens_out, cost_usd,
+             tool_calls, tool_successes, tool_failures, error_count,
+             provider_breakdown_json, top_models_json, rollup_source, rolled_up_at
+      FROM agentsam_usage_rollups_daily
+      WHERE tenant_id = 'tenant_companionscpas'
+      ORDER BY day DESC
+      LIMIT ?
+    `).bind(days).all().catch(() => ({ results: [] }));
+    const list = rows.results || [];
+    const summary = list.reduce((acc, r) => {
+      acc.ai_calls += Number(r.ai_calls || 0);
+      acc.tokens_in += Number(r.tokens_in || 0);
+      acc.tokens_out += Number(r.tokens_out || 0);
+      acc.cost_usd += Number(r.cost_usd || 0);
+      acc.tool_calls += Number(r.tool_calls || 0);
+      acc.error_count += Number(r.error_count || 0);
+      return acc;
+    }, { ai_calls: 0, tokens_in: 0, tokens_out: 0, cost_usd: 0, tool_calls: 0, error_count: 0 });
+    return json({ days: list, summary, count: list.length });
+  }
+
   // GET /api/agentsam/bootstrap
   if (path === "/api/agentsam/bootstrap" && request.method === "GET") {
     const cacheKey = "agentsam:bootstrap:tenant_companionscpas:v1";

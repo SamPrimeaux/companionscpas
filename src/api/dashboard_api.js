@@ -1416,16 +1416,33 @@ export async function dashboardApiRoutes(request, env, url) {
     let statusClause = '';
     if (statusFilter === 'active') statusClause = " AND f.status = 'active'";
     else if (statusFilter === 'ended') statusClause = " AND f.status != 'active'";
-    const rows = await env.DB.prepare(`
-      SELECT f.*, a.name AS animal_name, a.species, a.breed, a.sex, a.age_label,
-             a.status AS animal_status, ca.cdn_url AS asset_cdn_url
-      FROM foster_records f
-      LEFT JOIN animal_profiles a ON a.id = f.animal_id
-      LEFT JOIN cms_assets ca ON ca.asset_key = a.id AND ca.tenant_id = ?
-      WHERE f.tenant_id = ?${statusClause}
-      ORDER BY f.start_date DESC, f.created_at DESC LIMIT 100
-    `).bind(TENANT, TENANT).all().catch(() => ({ results: [] }));
-    return json({ fosters: rows.results || [] });
+    const [rows, needsRows] = await Promise.all([
+      env.DB.prepare(`
+        SELECT f.*, a.name AS animal_name, a.species, a.breed, a.sex, a.age_label,
+               a.status AS animal_status, a.photo_url, ca.cdn_url AS asset_cdn_url
+        FROM foster_records f
+        LEFT JOIN animal_profiles a ON a.id = f.animal_id
+        LEFT JOIN cms_assets ca ON ca.asset_key = a.id AND ca.tenant_id = ?
+        WHERE f.tenant_id = ?${statusClause}
+        ORDER BY f.start_date DESC, f.created_at DESC LIMIT 100
+      `).bind(TENANT, TENANT).all().catch(() => ({ results: [] })),
+      env.DB.prepare(`
+        SELECT a.id, a.name, a.species, a.breed, a.sex, a.age_label, a.status,
+               a.foster_needed, a.photo_url, a.intake_date, a.updated_at,
+               ca.cdn_url AS asset_cdn_url
+        FROM animal_profiles a
+        LEFT JOIN cms_assets ca ON ca.asset_key = a.id AND ca.tenant_id = ?
+        WHERE a.tenant_id = ?
+          AND a.foster_needed = 1
+          AND lower(COALESCE(a.status, '')) NOT IN ('adopted', 'deceased', 'transferred', 'foster')
+        ORDER BY a.featured DESC, a.updated_at DESC
+        LIMIT 100
+      `).bind(TENANT, TENANT).all().catch(() => ({ results: [] })),
+    ]);
+    return json({
+      fosters: rows.results || [],
+      needs_foster: needsRows.results || [],
+    });
   }
 
   if (path === '/api/dashboard/fosters' && method === 'POST') {

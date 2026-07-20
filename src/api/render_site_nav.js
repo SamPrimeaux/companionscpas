@@ -8,6 +8,7 @@ export const SITE_NAV_ITEMS = [
   { route: "/", label: "Home", sort: 10, inHeader: true, inFooter: true },
   { route: "/about", label: "About", sort: 20, inHeader: true, inFooter: true },
   { route: "/adopt", label: "Adopt", sort: 30, inHeader: true, inFooter: true },
+  { route: "/fosters", label: "Foster", sort: 35, inHeader: true, inFooter: true },
   { route: "/community", label: "Community", sort: 40, inHeader: true, inFooter: true },
   { route: "/contact", label: "Contact", sort: 50, inHeader: true, inFooter: true },
   { route: "/services", label: "Foster", sort: 60, inHeader: false, inFooter: false },

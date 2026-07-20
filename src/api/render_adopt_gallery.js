@@ -87,9 +87,22 @@ export async function renderAdoptAnimalGallery(section = {}, blocks = [], brand 
   const eyebrow = text(section.eyebrow || config.eyebrow) || "Available Now";
   const sectionKey = text(section.section_key) || "adopt_live_animals";
   const sectionId = `aag-${sectionKey.replace(/[^a-z0-9_-]+/gi, "-")}`;
+  const filterMode = text(config.filter_mode || config.default_filter || "all").toLowerCase();
+  const fosterOnly = filterMode === "foster_needed" || filterMode === "needs_foster";
+  const hideFilters = config.hide_filters === true || fosterOnly;
+  const anchorId = text(config.anchor_id || "");
+  const emptyHeading = text(config.empty_heading) || (fosterOnly ? "No dogs flagged for foster right now" : "No dogs available right now");
+  const emptyBody = text(config.empty_body) || (fosterOnly
+    ? "When a dog needs a foster home, they will appear here."
+    : "Check back soon — new arrivals happen regularly.");
 
-  const animals = await loadLiveAnimals(env);
-  const VISIBLE_COUNT = 4;
+  let animals = await loadLiveAnimals(env);
+  if (fosterOnly) {
+    animals = animals.filter((a) =>
+      Number(a.foster_needed) === 1 && String(a.status || "").toLowerCase() !== "foster"
+    );
+  }
+  const VISIBLE_COUNT = fosterOnly ? 12 : 4;
   const cards = animals.map((a, i) => {
     const hiddenClass = i >= VISIBLE_COUNT ? " aag-card--overflow" : "";
     return buildCard(a).replace('class="aag-card"', `class="aag-card${hiddenClass}"`);
@@ -98,11 +111,18 @@ export async function renderAdoptAnimalGallery(section = {}, blocks = [], brand 
   const showAllBtn = hasMore
     ? `<div class="aag-more-wrap"><button type="button" class="aag-more-btn" data-aag-show-all>Show all ${animals.length} dogs</button></div>`
     : "";
-  const emptyState = `<div class="aag-empty"><h3>No dogs available right now</h3><p>Check back soon — new arrivals happen regularly.</p></div>`;
+  const emptyState = `<div class="aag-empty"><h3>${esc(emptyHeading)}</h3><p>${esc(emptyBody)}</p></div>`;
+  const filtersHtml = hideFilters
+    ? ""
+    : `<div class="aag-filters" data-aag-filters>
+        <button type="button" class="aag-filter is-active" data-filter="all">All</button>
+        <button type="button" class="aag-filter" data-filter="available">Available</button>
+        <button type="button" class="aag-filter" data-filter="foster_needed">Needs Foster</button>
+      </div>`;
 
   return `
 <style>
-#${sectionId}{ background:#f5f2ee; padding:clamp(48px,7vw,80px) 20px; font-family:var(--font-body,'DM Sans',system-ui,sans-serif); }
+#${sectionId}{ background:#f5f2ee; padding:clamp(48px,7vw,80px) 20px; font-family:var(--font-body,'DM Sans',system-ui,sans-serif); scroll-margin-top:96px; }
 #${sectionId} *{ box-sizing:border-box; }
 #${sectionId} .aag-shell{ max-width:1180px; margin:0 auto; }
 #${sectionId} .aag-head{ display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:32px; gap:20px; flex-wrap:wrap; }
@@ -136,18 +156,15 @@ export async function renderAdoptAnimalGallery(section = {}, blocks = [], brand 
 #${sectionId} .aag-empty h3{ font-family:var(--font-display,'Fraunces',Georgia,serif); font-size:1.3rem; color:#0f1623; margin:0 0 8px; }
 @media(max-width:600px){ #${sectionId} .aag-head{ flex-direction:column; align-items:flex-start; } }
 </style>
-<section id="${sectionId}" class="adopt-live-gallery" data-section-key="${esc(sectionKey)}" aria-label="Available dogs">
+<section id="${sectionId}"${anchorId ? ` data-anchor="${esc(anchorId)}"` : ""} class="adopt-live-gallery" data-section-key="${esc(sectionKey)}" aria-label="${fosterOnly ? "Dogs needing foster" : "Available dogs"}">
+  ${anchorId ? `<div id="${esc(anchorId)}" style="position:relative;top:-80px;height:0;visibility:hidden" aria-hidden="true"></div>` : ""}
   <div class="aag-shell">
     <div class="aag-head">
       <div>
         <p class="aag-eyebrow">${esc(eyebrow)}</p>
         <h2 class="aag-heading">${esc(heading)}</h2>
       </div>
-      <div class="aag-filters" data-aag-filters>
-        <button type="button" class="aag-filter is-active" data-filter="all">All</button>
-        <button type="button" class="aag-filter" data-filter="available">Available</button>
-        <button type="button" class="aag-filter" data-filter="foster_needed">Needs Foster</button>
-      </div>
+      ${filtersHtml}
     </div>
     <div class="aag-grid" data-aag-grid>
       ${cards || emptyState}
