@@ -1008,7 +1008,7 @@ body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;h
     background: var(--purple);
     color: #fff !important;
     font-weight: 600;
-    border-radius: 12px;
+    border-radius: 999px;
   }
   .theme-plum-glass .mobile-menu-panel {
     background: linear-gradient(180deg, rgba(44, 10, 56, 0.98) 0%, rgba(58, 16, 72, 0.97) 100%);
