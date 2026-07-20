@@ -731,6 +731,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [imageSearch, setImageSearch] = React.useState('');
   const [assets, setAssets] = React.useState([]);
   const [showAddSection, setShowAddSection] = React.useState(false);
+  const [showCopyModal, setShowCopyModal] = React.useState(false);
+  const [copyTargetRoute, setCopyTargetRoute] = React.useState('/');
+  const [copyInsertAfter, setCopyInsertAfter] = React.useState('hero');
+  const [copyPages, setCopyPages] = React.useState([]);
+  const [copyTargetSections, setCopyTargetSections] = React.useState([]);
   const [addableSections, setAddableSections] = React.useState([]);
   const [addableSectionsErr, setAddableSectionsErr] = React.useState("");
   const [activeFont, setActiveFont] = React.useState('fraunces_dm');
@@ -858,7 +863,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   React.useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
-      if (showImagePicker || showAddSection || showFontPicker) return;
+      if (showImagePicker || showAddSection || showFontPicker || showCopyModal) return;
       // Esc: collapse inspector first (keep selection), then clear selection
       if (!inspectorCollapsed && selectedKey) {
         setInspectorCollapsed(true);
@@ -868,7 +873,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clearSelection, showImagePicker, showAddSection, showFontPicker, inspectorCollapsed, selectedKey]);
+  }, [clearSelection, showImagePicker, showAddSection, showFontPicker, showCopyModal, inspectorCollapsed, selectedKey]);
 
   React.useEffect(() => {
     if (selectedKey) postHighlight(selectedKey, selectedField);
@@ -1156,6 +1161,79 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setBusy(true);
     try { await saveSectionObject(section, true); setShowAddSection(false); await loadPage(); setSelectedKey(newKey); setMobileTab('edit'); notify('Section added'); }
     catch(e) { notify(e.message, 'error'); }
+    setBusy(false);
+  };
+
+  const openCopyModal = async () => {
+    if (!selected) return;
+    setShowCopyModal(true);
+    setCopyTargetRoute('/');
+    setCopyInsertAfter('hero');
+    try {
+      const res = await fetch('/api/cms/bootstrap', { credentials: 'include' });
+      const d = await res.json().catch(() => ({}));
+      const pages = (d.pages || []).filter((p) => p.route_path && p.route_path !== route);
+      setCopyPages(pages.length ? pages : [
+        { route_path: '/', title: 'Home' },
+        { route_path: '/donate', title: 'Donate' },
+        { route_path: '/adopt', title: 'Adopt' },
+        { route_path: '/fosters', title: 'Foster' },
+        { route_path: '/contact', title: 'Contact' },
+        { route_path: '/about', title: 'About' },
+      ].filter((p) => p.route_path !== route));
+    } catch {
+      setCopyPages([{ route_path: '/', title: 'Home' }, { route_path: '/donate', title: 'Donate' }].filter((p) => p.route_path !== route));
+    }
+  };
+
+  React.useEffect(() => {
+    if (!showCopyModal || !copyTargetRoute) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/cms/page?route=${encodeURIComponent(copyTargetRoute)}`, { credentials: 'include' });
+        const d = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        const secs = (d.sections || [])
+          .filter((s) => !s.deleted_at)
+          .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+        setCopyTargetSections(secs);
+        const hero = secs.find((s) => s.section_key === 'hero' || s.section_type === 'hero');
+        setCopyInsertAfter(hero?.section_key || (secs[0]?.section_key || ''));
+      } catch {
+        if (!cancelled) setCopyTargetSections([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showCopyModal, copyTargetRoute]);
+
+  const copySectionToPage = async () => {
+    if (!selected || !copyTargetRoute) return;
+    setBusy(true);
+    try {
+      const body = {
+        source_page_route: route,
+        source_section_key: selected.section_key,
+        target_page_route: copyTargetRoute,
+      };
+      if (copyInsertAfter) body.insert_after_section_key = copyInsertAfter;
+      const res = await fetch('/api/cms/section/copy', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.success) throw new Error(d.error || 'Copy failed');
+      setShowCopyModal(false);
+      notify(d.message || `Copied to ${copyTargetRoute}`);
+      const targetPageId = cmsPageIdFromPublicRoute(copyTargetRoute);
+      if (confirm(`Section copied to ${copyTargetRoute}. Open that page editor now?`)) {
+        onNavigate('cms-page-editor', { pageId: targetPageId });
+      }
+    } catch (e) {
+      notify(e.message || 'Copy failed', 'error');
+    }
     setBusy(false);
   };
 
@@ -1570,6 +1648,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           React.createElement(Btn, { onClick:publishPage, disabled:busy, icon:'publish' }, busy ? 'Publishing...' : 'Publish Live')
         ),
         React.createElement('button', { onClick:askAgent, style:{ padding:'10px 12px', borderRadius:10, border:`1px solid ${C.border}`, background:C.purpleDim, color:C.purpleL, fontWeight:800, cursor:'pointer', fontSize:12, fontFamily:'var(--font-ui)' } }, 'Ask Agent Sam to improve this section'),
+        React.createElement('button', { onClick:openCopyModal, disabled:busy || !selected, style:{ padding:'9px 12px', borderRadius:10, border:`1px solid ${C.border}`, background:C.bg, color:C.text, fontWeight:800, cursor:'pointer', fontSize:12, fontFamily:'var(--font-ui)' } }, 'Copy to another page…'),
         React.createElement('button', { onClick:deleteSection, style:{ padding:'9px 12px', borderRadius:10, border:`1px solid ${C.red}55`, background:'transparent', color:C.red, fontWeight:800, cursor:'pointer', fontSize:12, fontFamily:'var(--font-ui)' } }, 'Delete Section')
       )
     );
@@ -1836,6 +1915,50 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     );
   }
 
+  function renderCopyModal() {
+    if (!showCopyModal || !selected) return null;
+    return React.createElement('div', {
+      style: { position:'fixed', inset:0, zIndex:260, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? 0 : 24 }
+    },
+      React.createElement('div', {
+        style: { width:isMobile ? '100%' : 440, background:C.surface, border:`1px solid ${C.border}`, borderRadius:isMobile ? 0 : 18, padding:18, display:'grid', gap:14 }
+      },
+        React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 } },
+          React.createElement('h3', { style:{ margin:0, color:C.text, fontSize:16 } }, 'Copy section to page'),
+          React.createElement(Btn, { size:'sm', variant:'secondary', onClick:()=>setShowCopyModal(false) }, 'Close')
+        ),
+        React.createElement('div', { style:{ color:C.textSec, fontSize:13, lineHeight:1.5 } },
+          'Duplicates "', selected.heading || selected.section_key, '" onto another page. The original stays on ', route, '.'
+        ),
+        React.createElement('label', { style:{ display:'grid', gap:6, fontSize:11, fontWeight:900, color:C.textSec, letterSpacing:'.08em', textTransform:'uppercase' } },
+          'Target page',
+          React.createElement('select', {
+            value: copyTargetRoute,
+            onChange: (e) => setCopyTargetRoute(e.target.value),
+            style: { height:40, borderRadius:10, border:`1px solid ${C.border}`, background:C.bg, color:C.text, padding:'0 10px', fontFamily:'var(--font-ui)' }
+          }, copyPages.map((p) => React.createElement('option', { key:p.route_path, value:p.route_path }, (p.title || p.route_path) + ' (' + p.route_path + ')')))
+        ),
+        React.createElement('label', { style:{ display:'grid', gap:6, fontSize:11, fontWeight:900, color:C.textSec, letterSpacing:'.08em', textTransform:'uppercase' } },
+          'Place after',
+          React.createElement('select', {
+            value: copyInsertAfter,
+            onChange: (e) => setCopyInsertAfter(e.target.value),
+            style: { height:40, borderRadius:10, border:`1px solid ${C.border}`, background:C.bg, color:C.text, padding:'0 10px', fontFamily:'var(--font-ui)' }
+          },
+            React.createElement('option', { value:'' }, 'End of page'),
+            copyTargetSections.map((s) => React.createElement('option', { key:s.section_key, value:s.section_key },
+              (s.heading || s.section_key) + ' · ' + (s.section_type || '')
+            ))
+          )
+        ),
+        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 } },
+          React.createElement(Btn, { variant:'secondary', onClick:()=>setShowCopyModal(false) }, 'Cancel'),
+          React.createElement(Btn, { onClick:copySectionToPage, disabled:busy }, busy ? 'Copying…' : 'Copy section')
+        )
+      )
+    );
+  }
+
   return React.createElement('div', { className:'cms-editor-shell', style:{ display:'flex', flexDirection:'column', flex:1, height:'100%', overflow:'hidden' } },
     renderTopbar(),
     isMobile && renderMobileTabs(),
@@ -1883,7 +2006,8 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         ),
     showFontPicker && React.createElement('div', { style:{ position:'fixed', top:60, right:16, zIndex:240, width:260, background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:10, boxShadow:'0 20px 50px rgba(0,0,0,.2)' } }, FONT_PRESETS_CMS.map(p => React.createElement('button', { key:p.key, onClick:()=>saveFont(p.key), style:{ width:'100%', padding:10, marginBottom:6, borderRadius:10, border:`1px solid ${activeFont === p.key ? C.purple : C.border}`, background:activeFont === p.key ? C.purpleDim : C.bg, color:C.text, textAlign:'left', cursor:'pointer' } }, React.createElement('div', { style:{ fontWeight:900 } }, p.label), React.createElement('div', { style:{ color:C.textMut, fontSize:11 } }, p.sub)))) ,
     renderImagePicker(),
-    renderAddSectionModal()
+    renderAddSectionModal(),
+    renderCopyModal()
   );
 }
 

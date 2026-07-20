@@ -1650,6 +1650,191 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     return json({ success: true, message: "Brand updated. KV cache invalidated." });
   }
 
+  // POST /api/cms/section/copy — duplicate a section onto another page (content + blocks). Source stays put.
+  if (path === "/api/cms/section/copy" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const sourceRoute = normalizeRouteInput(data.source_page_route || data.page_route || "");
+    const sourceKey = String(data.source_section_key || data.section_key || "").trim();
+    const targetRoute = normalizeRouteInput(data.target_page_route || "");
+    const insertAfter = String(data.insert_after_section_key || "").trim();
+    if (!sourceRoute || !sourceKey) {
+      return json({ success: false, error: "source_page_route and source_section_key required" }, 400);
+    }
+    if (!targetRoute) {
+      return json({ success: false, error: "target_page_route required" }, 400);
+    }
+
+    const source = await env.DB.prepare(
+      `SELECT * FROM cms_page_sections
+       WHERE tenant_id = ? AND page_route = ? AND section_key = ?
+         AND (deleted_at IS NULL OR deleted_at = '')
+       LIMIT 1`
+    ).bind(TENANT_ID, sourceRoute, sourceKey).first().catch(() => null);
+    if (!source) return json({ success: false, error: "Source section not found" }, 404);
+
+    const slug = targetRoute === "/" ? "home" : targetRoute.replace(/^\//, "").replace(/\//g, "_");
+    let targetKey = String(data.target_section_key || "").trim();
+    if (!targetKey) {
+      targetKey = `${source.section_type || "section"}_${slug}_${Date.now()}`;
+    }
+
+    const clash = await env.DB.prepare(
+      `SELECT section_key FROM cms_page_sections
+       WHERE tenant_id = ? AND page_route = ? AND section_key = ?
+       LIMIT 1`
+    ).bind(TENANT_ID, targetRoute, targetKey).first().catch(() => null);
+    if (clash) {
+      return json({ success: false, error: `Section key already exists on ${targetRoute}: ${targetKey}` }, 409);
+    }
+
+    let sortOrder = Number(data.sort_order);
+    if (!Number.isFinite(sortOrder) || sortOrder <= 0) {
+      if (insertAfter) {
+        const after = await env.DB.prepare(
+          `SELECT sort_order FROM cms_page_sections
+           WHERE tenant_id = ? AND page_route = ? AND section_key = ?
+             AND (deleted_at IS NULL OR deleted_at = '')
+           LIMIT 1`
+        ).bind(TENANT_ID, targetRoute, insertAfter).first().catch(() => null);
+        const base = Number(after?.sort_order) || 0;
+        await env.DB.prepare(
+          `UPDATE cms_page_sections
+           SET sort_order = sort_order + 10, updated_at = datetime('now')
+           WHERE tenant_id = ? AND page_route = ? AND sort_order > ?
+             AND (deleted_at IS NULL OR deleted_at = '')`
+        ).bind(TENANT_ID, targetRoute, base).run();
+        sortOrder = base + 5;
+      } else {
+        const maxRow = await env.DB.prepare(
+          `SELECT MAX(sort_order) AS m FROM cms_page_sections
+           WHERE tenant_id = ? AND page_route = ?
+             AND (deleted_at IS NULL OR deleted_at = '')`
+        ).bind(TENANT_ID, targetRoute).first().catch(() => null);
+        sortOrder = (Number(maxRow?.m) || 0) + 10;
+      }
+    }
+
+    const newId = id("section");
+    let configJson = source.config_json || "{}";
+    try {
+      const cfg = typeof configJson === "string" ? JSON.parse(configJson || "{}") : { ...(configJson || {}) };
+      if (cfg.share_url && typeof cfg.share_url === "string") {
+        cfg.share_url = `https://companionsofcaddo.org${targetRoute === "/" ? "" : targetRoute}#campaign-entry-${targetKey}`;
+      }
+      configJson = JSON.stringify(cfg);
+    } catch {
+      configJson = typeof source.config_json === "string" ? source.config_json : JSON.stringify(source.config_json || {});
+    }
+
+    let secondaryHref = source.cta_secondary_href || "";
+    if (secondaryHref && String(secondaryHref).includes("#campaign-entry-")) {
+      secondaryHref = `https://companionsofcaddo.org${targetRoute === "/" ? "" : targetRoute}#campaign-entry-${targetKey}`;
+    }
+
+    await env.DB.prepare(`
+      INSERT INTO cms_page_sections
+      (id, tenant_id, page_route, section_key, section_type, eyebrow, heading, subheading, body,
+       primary_asset_id, secondary_asset_id, image_url, cta_label, cta_href,
+       cta_secondary_label, cta_secondary_href, sort_order, is_visible, config_json,
+       title, created_at, updated_at, deleted_at, restore_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, datetime('now'), datetime('now'), NULL, 0)
+    `).bind(
+      newId,
+      TENANT_ID,
+      targetRoute,
+      targetKey,
+      source.section_type || "content",
+      source.eyebrow || "",
+      source.heading || source.title || "",
+      source.subheading || "",
+      source.body || "",
+      source.primary_asset_id || null,
+      source.secondary_asset_id || null,
+      source.image_url || "",
+      source.cta_label || "",
+      source.cta_href || "",
+      source.cta_secondary_label || "",
+      secondaryHref,
+      sortOrder,
+      configJson,
+      source.title || null
+    ).run();
+
+    const blocks = await env.DB.prepare(
+      `SELECT * FROM cms_page_content_blocks
+       WHERE tenant_id = ? AND page_route = ? AND section_key = ?`
+    ).bind(TENANT_ID, sourceRoute, sourceKey).all().catch(() => ({ results: [] }));
+
+    let blocksCopied = 0;
+    for (const block of blocks.results || []) {
+      await env.DB.prepare(`
+        INSERT INTO cms_page_content_blocks
+        (id, tenant_id, page_route, section_key, block_key, block_type, eyebrow, title, subtitle, body,
+         image_url, alt_text, href, action_label, action_type, action_value, sort_order, is_visible,
+         config_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `).bind(
+        id("block"),
+        TENANT_ID,
+        targetRoute,
+        targetKey,
+        block.block_key,
+        block.block_type || "card",
+        block.eyebrow || "",
+        block.title || "",
+        block.subtitle || "",
+        block.body || "",
+        block.image_url || "",
+        block.alt_text || "",
+        block.href || "",
+        block.action_label || "",
+        block.action_type || "",
+        block.action_value || "",
+        Number(block.sort_order) || 0,
+        block.is_visible === 0 ? 0 : 1,
+        typeof block.config_json === "string" ? block.config_json : JSON.stringify(block.config_json || {})
+      ).run().catch(() => null);
+      blocksCopied += 1;
+    }
+
+    await env.DB.prepare(
+      "UPDATE cms_pages SET status = 'draft', updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?"
+    ).bind(TENANT_ID, targetRoute).run().catch(() => {});
+
+    await bustCache(env,
+      `sections:${TENANT_ID}:${targetRoute}`,
+      `bootstrap:${TENANT_ID}`,
+      `page:${targetRoute}`
+    );
+
+    let fragmentSync = null;
+    try {
+      if (isFragmentPageRoute(targetRoute)) {
+        fragmentSync = await syncFragmentCmsToR2(env, targetRoute);
+      }
+    } catch (err) {
+      console.warn("[cms/section/copy] R2 sync failed:", err?.message || err);
+      fragmentSync = { error: String(err?.message || err) };
+    }
+
+    return json({
+      success: true,
+      source: { page_route: sourceRoute, section_key: sourceKey },
+      copied: {
+        id: newId,
+        page_route: targetRoute,
+        section_key: targetKey,
+        sort_order: sortOrder,
+        blocks_copied: blocksCopied,
+      },
+      fragment_sync: fragmentSync,
+      message: `Copied to ${targetRoute}. Publish Live on that page to go public.`,
+    });
+  }
+
   // POST /api/cms/section/delete — soft-delete (D1 deleted_at + R2 archive). Undo restores from D1 only.
   if (path === "/api/cms/section/delete" && method === "POST") {
     const cmsUser = await requireCmsUser(request, env, sessionUser);
