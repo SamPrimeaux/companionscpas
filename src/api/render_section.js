@@ -94,7 +94,13 @@ function normalizeCtaIntent(href, action) {
   return null;
 }
 
-function heroCtaClass(variant = "primary") {
+function heroCtaClass(variant = "primary", styleKey = "") {
+  const style = text(styleKey).trim().toLowerCase();
+  if (style === "soft") return "hero-cta hero-cta-soft";
+  if (style === "outline") return "hero-cta hero-cta-outline";
+  if (style === "dark") return "hero-cta hero-cta-dark";
+  if (style === "light" || style === "white" || style === "ghost") return "hero-cta hero-cta-ghost";
+  if (style === "solid" || style === "primary") return "hero-cta hero-cta-primary";
   if (variant === "ghost") return "hero-cta hero-cta-ghost";
   if (variant === "btn btn-ghost") return "hero-cta hero-cta-ghost";
   if (variant === "btn btn-primary") return "hero-cta hero-cta-primary";
@@ -107,12 +113,14 @@ function renderActionCta(label, href, action = "", variant = "primary", sub = ""
   const intent = normalizeCtaIntent(href, action);
   if (!intent) return "";
 
-  const cls = heroCtaClass(variant);
+  const cls = opts.className || heroCtaClass(variant, opts.style);
   const subHtml = sub ? `<span class="hero-cta-sub">${escapeHtml(sub)}</span>` : "";
   const iconKey = opts.icon === false ? "" : intent.value;
   const icon = CTA_ICONS[iconKey] || "";
   const fieldAttr = opts.cmsField ? ` data-cms-field="${escapeAttribute(opts.cmsField)}"` : "";
-  const inner = `${icon}<span class="hero-cta-text"><span class="hero-cta-label">${escapeHtml(safeLabel)}</span>${subHtml}</span>`;
+  const inner = opts.band
+    ? `${escapeHtml(safeLabel)}`
+    : `${icon}<span class="hero-cta-text"><span class="hero-cta-label">${escapeHtml(safeLabel)}</span>${subHtml}</span>`;
 
   if (intent.type === "action") {
     return `<button class="${cls}" type="button" data-action="${escapeAttribute(intent.value)}"${fieldAttr}>${inner}</button>`;
@@ -121,6 +129,16 @@ function renderActionCta(label, href, action = "", variant = "primary", sub = ""
     return `<button class="${cls}" type="button" data-modal="${escapeAttribute(intent.value)}"${fieldAttr}>${inner}</button>`;
   }
   return `<a class="${cls}" href="${intent.value}"${fieldAttr}>${inner}</a>`;
+}
+
+/** About / CTA-band buttons — same intents, compact pill class. */
+function renderBandCta(label, href, action = "", cmsField = "") {
+  return renderActionCta(label, href, action, "primary", "", {
+    className: "cta-action-btn",
+    band: true,
+    icon: false,
+    cmsField,
+  });
 }
 
 function renderCta(label, url, variant = "primary", action = "") {
@@ -221,6 +239,51 @@ function renderSharedHeroCta(label, url, variant = "primary", sub = "", action =
   return renderActionCta(label, url, action, variant, sub);
 }
 
+function resolveHeroLayout(config) {
+  const raw = pickText(config, ["hero_layout", "layout"]).toLowerCase().replace(/-/g, "_");
+  if (raw === "true" || raw === "true_split" || raw === "split" || raw === "panel") return "true_split";
+  if (raw === "overlay" || raw === "full_bleed" || raw === "fullbleed") return "overlay";
+  return "soft_split";
+}
+
+function resolveOverlayStrength(config, layout) {
+  const raw = pickText(config, ["overlay_strength"]).toLowerCase();
+  if (raw === "none" || raw === "soft" || raw === "medium" || raw === "strong") return raw;
+  if (layout === "overlay") return "medium";
+  if (layout === "true_split") return "none";
+  return "medium";
+}
+
+function resolveImageWidthPct(config) {
+  let w = Number(config.image_width);
+  if (!Number.isFinite(w)) w = 55;
+  if (w < 40) w = 40;
+  if (w > 70) w = 70;
+  return Math.round(w);
+}
+
+function scrimGradientCss(layout, strength, imageSide) {
+  if (layout === "true_split" || strength === "none") return "transparent";
+  const dir = imageSide === "left" ? "270deg" : "90deg";
+  if (layout === "overlay") {
+    if (strength === "soft") {
+      return `linear-gradient(${dir}, rgba(28,20,32,0.72) 0%, rgba(28,20,32,0.45) 42%, rgba(28,20,32,0.12) 70%, transparent 100%)`;
+    }
+    if (strength === "strong") {
+      return `linear-gradient(${dir}, rgba(28,20,32,0.92) 0%, rgba(28,20,32,0.78) 48%, rgba(28,20,32,0.35) 78%, transparent 100%)`;
+    }
+    return `linear-gradient(${dir}, rgba(28,20,32,0.82) 0%, rgba(28,20,32,0.58) 46%, rgba(28,20,32,0.2) 74%, transparent 100%)`;
+  }
+  // soft_split — fade panel color into photo
+  if (strength === "soft") {
+    return `linear-gradient(${dir}, var(--bg) 0%, var(--bg) 58%, rgba(250,248,244,0.45) 82%, transparent 100%)`;
+  }
+  if (strength === "strong") {
+    return `linear-gradient(${dir}, var(--bg) 0%, var(--bg) 88%, rgba(250,248,244,0.65) 96%, transparent 100%)`;
+  }
+  return `linear-gradient(${dir}, var(--bg) 0%, var(--bg) 72%, rgba(250,248,244,0.55) 90%, transparent 100%)`;
+}
+
 function renderHero(section) {
   const config = safeJson(section.config_json, {});
   const cta = sectionCtaFields(section, config);
@@ -246,34 +309,54 @@ function renderHero(section) {
     );
 
   let zoom = Number(config.image_zoom);
-  if (!Number.isFinite(zoom) || zoom < 1) zoom = 1;
+  if (!Number.isFinite(zoom)) zoom = 1;
+  if (zoom < 0.85) zoom = 0.85;
   if (zoom > 1.6) zoom = 1.6;
+
   const imageSide = pickText(config, ["image_side"]).toLowerCase() === "left" ? "left" : "right";
+  const layout = resolveHeroLayout(config);
+  const overlayStrength = resolveOverlayStrength(config, layout);
+  const imageWidth = resolveImageWidthPct(config);
+  const imageFit = pickText(config, ["image_fit"]).toLowerCase() === "contain" ? "contain" : "cover";
+  const primaryStyle = pickText(config, ["cta_style"]) || "solid";
+  const secondaryStyle = pickText(config, ["cta_secondary_style"]) || "outline";
+
+  const layoutClass =
+    layout === "true_split" ? " hero-split--true" :
+    layout === "overlay" ? " hero-split--overlay" :
+    " hero-split--soft";
   const sideClass = imageSide === "left" ? " hero-split--image-left" : "";
 
-  const ctaPrimary = renderActionCta(cta.label, cta.href, cta.action, "primary", "", { cmsField: "cta_label" });
+  const ctaPrimary = renderActionCta(cta.label, cta.href, cta.action, "primary", "", {
+    cmsField: "cta_label",
+    style: primaryStyle,
+  });
   const ctaSecondary = renderActionCta(
     cta.secondaryLabel,
     cta.secondaryHref,
     cta.secondaryAction,
     "ghost",
     cta.secondarySub,
-    { cmsField: "cta_secondary_label" }
+    { cmsField: "cta_secondary_label", style: secondaryStyle }
   );
   const safeImage = imageUrl ? safeUrl(imageUrl, "") : "";
   const sectionKey = pickText(section, ["section_key"]);
   const sk = escapeAttribute(sectionKey);
   const zoomCss = zoom !== 1 ? `transform:scale(${zoom});transform-origin:${objectPos};` : "";
+  const scrimBg = scrimGradientCss(layout, overlayStrength, imageSide);
+  const textPanelPct = Math.max(30, 100 - imageWidth);
 
   return `
 <style>
-[data-cpas-section="${sk}"] .hero-media-bg img{object-fit:cover;object-position:${objectPos};width:100%;height:100%;${zoomCss}}
+[data-cpas-section="${sk}"]{--hero-image-width:${imageWidth}%;--hero-text-width:${textPanelPct}%;}
+[data-cpas-section="${sk}"] .hero-media-bg img{object-fit:${imageFit};object-position:${objectPos};width:100%;height:100%;${zoomCss}}
+[data-cpas-section="${sk}"] .hero-scrim{background:${scrimBg};}
+[data-cpas-section="${sk}"].hero-split--true{--hero-image-width:${imageWidth}%;}
 [data-cpas-section="${sk}"].hero-split--image-left .hero-media-bg img{left:0;right:auto;}
-[data-cpas-section="${sk}"].hero-split--image-left .hero-scrim{left:auto;right:0;background:linear-gradient(270deg,var(--bg) 0%,var(--bg) 82%,rgba(250,248,244,0.55) 94%,transparent 100%);}
 [data-cpas-section="${sk}"].hero-split--image-left .hero-content{margin-left:auto;}
 @media(max-width:768px){[data-cpas-section="${sk}"].hero-split--image-left .hero-media-bg img{left:0;right:0;width:100%}}
 </style>
-<section class="hero-split${sideClass}" data-cpas-section="${sk}" data-section-key="${sk}">
+<section class="hero-split${layoutClass}${sideClass}" data-cpas-section="${sk}" data-section-key="${sk}" data-hero-layout="${layout}">
   ${safeImage ? `<div class="hero-media-bg" data-cms-field="image_url">
     <img src="${safeImage}" alt="${escapeAttribute(imageAlt)}" loading="eager" fetchpriority="high" decoding="async" />
     <div class="hero-scrim"></div>
@@ -564,14 +647,19 @@ function renderCtaBanner(section) {
   const heading = pickText(section, ["heading", "title"]) || pickText(config, ["heading"]);
   const subheading = pickText(section, ["subheading"]) || pickText(config, ["subheading"]);
   const body = pickText(section, ["body"]) || pickText(config, ["body"]);
-  const primary = renderActionCta(cta.label, cta.href, cta.action, "primary", "", { cmsField: "cta_label" });
+  const primaryStyle = pickText(config, ["cta_style"]) || "solid";
+  const secondaryStyle = pickText(config, ["cta_secondary_style"]) || "outline";
+  const primary = renderActionCta(cta.label, cta.href, cta.action, "primary", "", {
+    cmsField: "cta_label",
+    style: primaryStyle,
+  });
   const secondary = renderActionCta(
     cta.secondaryLabel,
     cta.secondaryHref,
     cta.secondaryAction,
     "ghost",
     cta.secondarySub,
-    { cmsField: "cta_secondary_label" }
+    { cmsField: "cta_secondary_label", style: secondaryStyle }
   );
 
   const sectionKey = pickText(section, ["section_key"]);
@@ -923,6 +1011,8 @@ export function safeJson(value, fallback = {}) {
     return safeFallback;
   }
 }
+
+export { normalizeCtaIntent, renderActionCta, renderBandCta };
 
 export function renderSection(section, blocks = [], brand = {}, env = null) {
   const safeSection = toRecord(section);

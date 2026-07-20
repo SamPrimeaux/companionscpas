@@ -78,8 +78,10 @@ export const DEFAULT_ABOUT_SECTIONS = [
     eyebrow: "Give them a way out",
     heading: "Help fund medical care, transport, and second chances.",
     body: "Your gift helps dogs at Caddo Parish Animal Services receive the treatment, visibility, and rescue pathways they need.",
-    cta_label: "View Adoptable Dogs",
-    cta_href: "/adopt",
+    cta_label: "Donate Now",
+    cta_href: "data-action:donate",
+    cta_secondary_label: "View Adoptable Dogs",
+    cta_secondary_href: "/adopt",
     config_json: {},
   },
 ];

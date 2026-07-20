@@ -1,5 +1,5 @@
 /** Shared public-page asset versions and script tags. */
-export const SHELL_VERSION = "cms-hero-media-20260720a";
+export const SHELL_VERSION = "cms-hero-layout-20260720b";
 export const DONATE_MODAL_VERSION = "campaign-entry-20260719";
 export const COMPETITION_PAYMENT_MODAL_VERSION = "wet-dog-validation-20260719";
 export const CPAS_MODALS_VERSION = "modals-foster-cats-20260719";

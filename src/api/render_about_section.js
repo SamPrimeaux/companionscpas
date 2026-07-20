@@ -1,4 +1,4 @@
-import { escapeHtml, safeJson } from "./render_section.js";
+import { escapeHtml, safeJson, renderBandCta } from "./render_section.js";
 
 const CDN = "https://assets.companionsofcaddo.org";
 const SHELTER_MAP_EMBED =
@@ -316,9 +316,26 @@ function renderCta(section) {
   const heading = pick(section, ["heading"]) || "Help fund medical care, transport, and second chances.";
   const body = pick(section, ["body"]) || pick(section, ["subheading"]) || "";
   const eyebrow = pick(section, ["eyebrow"]) || "Give them a way out";
-  const ctaLabel = pick(section, ["cta_label"]) || pick(c, ["cta_label"]) || "View Adoptable Dogs";
-  const ctaHref = pick(section, ["cta_href"]) || pick(c, ["cta_href"]) || "/adopt";
-  const donateLabel = pick(c, ["donate_label"]) || pick(section, ["cta_secondary_label"]) || "Donate Now";
+  const ctaLabel = pick(section, ["cta_label"]) || pick(c, ["cta_label"]) || "Donate Now";
+  const ctaHref = pick(section, ["cta_href"]) || pick(c, ["cta_href"]) || "data-action:donate";
+  const secondaryLabel =
+    pick(section, ["cta_secondary_label"]) ||
+    pick(c, ["cta_secondary_label"]) ||
+    pick(c, ["donate_label"]) ||
+    "View Adoptable Dogs";
+  const secondaryHref =
+    pick(section, ["cta_secondary_href"]) ||
+    pick(c, ["cta_secondary_href"]) ||
+    pick(c, ["donate_href"]) ||
+    "/adopt";
+
+  const primaryBtn = renderBandCta(ctaLabel, ctaHref, pick(section, ["cta_action"]) || pick(c, ["cta_action"]), "cta_label");
+  const secondaryBtn = renderBandCta(
+    secondaryLabel,
+    secondaryHref,
+    pick(section, ["cta_secondary_action"]) || pick(c, ["cta_secondary_action"]),
+    "cta_secondary_label"
+  );
 
   return `<style>[data-cpas-section="cta"]{display:block}</style>
 <section class="cta-band s-purple" data-cpas-section="cta" data-section-key="cta" id="cta">
@@ -333,14 +350,8 @@ function renderCta(section) {
     </div>
     <div class="cta-band-right">
       <div class="cta-action-row">
-        <a class="cta-action-btn" href="${escAttr(ctaHref === "donate" ? "/donate" : ctaHref)}" data-cms-field="cta_label">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-          ${escapeHtml(ctaLabel)}
-        </a>
-        <a class="cta-action-btn" href="${escAttr(pick(c, ["donate_href"]) || "/donate")}" data-cms-field="cta_secondary_label">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
-          ${escapeHtml(donateLabel)}
-        </a>
+        ${primaryBtn}
+        ${secondaryBtn}
       </div>
     </div>
   </div>

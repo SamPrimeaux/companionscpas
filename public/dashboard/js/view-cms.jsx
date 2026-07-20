@@ -903,9 +903,19 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   }, [pageData?.page?.route_path, route, loadPage]);
 
   const saveSectionObject = async (section, silent=false) => {
-    const res = await fetch('/api/cms/section/save', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ section }) });
+    let res;
+    try {
+      res = await fetch('/api/cms/section/save', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ section }) });
+    } catch (e) {
+      const msg = String(e?.message || e || '');
+      throw new Error(msg.includes('Failed to fetch')
+        ? 'Network error while saving — request did not complete. Wait a moment and try again.'
+        : (msg || 'Section save failed'));
+    }
     const d = await res.json().catch(() => ({}));
-    if (!d.success && d.success !== true) throw new Error(d.error || 'Section save failed');
+    if (!res.ok || (!d.success && d.success !== true)) {
+      throw new Error(d.error || `Section save failed (${res.status})`);
+    }
     if (!silent) notify('Section saved as draft');
     return d;
   };
@@ -979,11 +989,20 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const publishPage = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/api/cms/publish', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ route_path:route }) });
+      let res;
+      try {
+        res = await fetch('/api/cms/publish', { method:'POST', credentials:'include', headers:{ 'content-type':'application/json' }, body:JSON.stringify({ route_path:route }) });
+      } catch (e) {
+        const msg = String(e?.message || e || '');
+        throw new Error(msg.includes('Failed to fetch')
+          ? 'Network error while publishing — page may still be a draft. Try Publish Live again.'
+          : (msg || 'Publish failed'));
+      }
       const d = await res.json().catch(() => ({}));
-      notify(d.success ? `Published ${route} — live in ~5s` : (d.error || 'Publish failed'), d.success ? 'ok' : 'error');
-      if (d.success) await loadPage();
-    } catch (e) { notify('Publish failed: ' + e.message, 'error'); }
+      if (!res.ok || !d.success) throw new Error(d.error || `Publish failed (${res.status})`);
+      notify(`Published ${route} — live in ~5s`, 'ok');
+      await loadPage();
+    } catch (e) { notify(String(e.message || e), 'error'); }
     setBusy(false);
   };
 
@@ -1499,6 +1518,9 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const hrefVal = selected[hrefKey] || '';
     const actionId = cmsMatchCtaAction(hrefVal);
     const action = CMS_CTA_ACTIONS.find((a) => a.id === actionId) || CMS_CTA_ACTIONS[CMS_CTA_ACTIONS.length - 1];
+    const cfg = cmsParseConfig(selected);
+    const styleKey = hrefKey === 'cta_secondary_href' ? 'cta_secondary_style' : 'cta_style';
+    const styleVal = cfg[styleKey] || (hrefKey === 'cta_secondary_href' ? 'outline' : 'solid');
     return React.createElement('div', { key: hrefKey, style:{ display:'grid', gap:10, padding:12, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg } },
       React.createElement('div', { style:{ fontSize:11, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase', color:C.textMut } }, title),
       React.createElement('div', null,
@@ -1526,6 +1548,13 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         cmsFieldLabel('Custom URL or modal:key'),
         cmsTextInput(hrefVal, (v) => { setField(hrefKey, v); setHasUnsaved(true); }, () => saveSelected(true).then(() => setHasUnsaved(false)), 'modal:foster or /path or #anchor', true)
       ),
+      renderPresetRow('Style', styleVal, [
+        { value:'solid', label:'Solid' },
+        { value:'soft', label:'Soft' },
+        { value:'outline', label:'Outline' },
+        { value:'light', label:'Light' },
+        { value:'dark', label:'Dark' },
+      ], (v) => setConfigPatch({ [styleKey]: v })),
       React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap' } },
         React.createElement('div', { style:{ fontSize:11, color:C.textMut } }, 'Publishes as: ', React.createElement('code', { style:{ color:C.purpleL, fontSize:11 } }, hrefVal || '—')),
         action.formId
@@ -1545,7 +1574,15 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const focalY = Number.isFinite(Number(cfg.image_focal_y)) ? Number(cfg.image_focal_y) : 50;
     const zoom = Number.isFinite(Number(cfg.image_zoom)) ? Number(cfg.image_zoom) : 1;
     const side = String(cfg.image_side || 'right').toLowerCase() === 'left' ? 'left' : 'right';
+    const layout = String(cfg.hero_layout || 'soft_split').toLowerCase().replace(/-/g, '_');
+    const layoutNorm = layout === 'true' || layout === 'true_split' || layout === 'split' || layout === 'panel'
+      ? 'true_split'
+      : (layout === 'overlay' || layout === 'full_bleed' ? 'overlay' : 'soft_split');
+    const overlay = String(cfg.overlay_strength || (layoutNorm === 'true_split' ? 'none' : 'medium')).toLowerCase();
+    const fit = String(cfg.image_fit || 'cover').toLowerCase() === 'contain' ? 'contain' : 'cover';
+    const width = Number.isFinite(Number(cfg.image_width)) ? Number(cfg.image_width) : 55;
     const imgUrl = selected.image_url || '';
+    const isHero = String(selected.section_type || '').toLowerCase() === 'hero';
 
     const onFocalPointer = (e) => {
       const el = e.currentTarget;
@@ -1579,7 +1616,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             src: imgUrl,
             alt: '',
             style: {
-              width:'100%', height:'100%', objectFit:'cover',
+              width:'100%', height:'100%', objectFit: fit,
               objectPosition: `${focalX}% ${focalY}%`,
               transform: `scale(${zoom})`,
               transformOrigin: `${focalX}% ${focalY}%`,
@@ -1596,10 +1633,33 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           })
         ),
         React.createElement('div', { style:{ fontSize:11, color:C.textMut } }, 'Click the preview to set the focal point (crop center).'),
+        isHero && renderPresetRow('Layout / scene', layoutNorm, [
+          { value:'soft_split', label:'Soft fade' },
+          { value:'true_split', label:'True split' },
+          { value:'overlay', label:'Overlay' },
+        ], (v) => setConfigPatch({
+          hero_layout: v,
+          overlay_strength: v === 'true_split' ? 'none' : (cfg.overlay_strength || 'medium'),
+        })),
+        isHero && layoutNorm !== 'true_split' && renderPresetRow('Overlay', overlay, [
+          { value:'none', label:'None' },
+          { value:'soft', label:'Soft' },
+          { value:'medium', label:'Med' },
+          { value:'strong', label:'Strong' },
+        ], (v) => setConfigPatch({ overlay_strength: v })),
+        isHero && layoutNorm === 'true_split' && renderPresetRow('Photo width', String(width), [
+          { value:'45', label:'45%' },
+          { value:'55', label:'55%' },
+          { value:'65', label:'65%' },
+        ], (v) => setConfigPatch({ image_width: Number(v) })),
+        isHero && renderPresetRow('Fit', fit, [
+          { value:'cover', label:'Cover' },
+          { value:'contain', label:'Contain' },
+        ], (v) => setConfigPatch({ image_fit: v })),
         React.createElement('div', null,
           cmsFieldLabel(`Zoom ${zoom.toFixed(2)}×`),
           React.createElement('input', {
-            type: 'range', min: 1, max: 1.6, step: 0.05, value: zoom,
+            type: 'range', min: 0.85, max: 1.6, step: 0.05, value: zoom,
             onChange: (e) => setConfigPatch({ image_zoom: Number(e.target.value) }),
             style: { width:'100%' }
           })
