@@ -145,7 +145,7 @@ function ApplicationsView({ onNavigate }) {
             React.createElement("div", { style: { fontSize: 32, marginBottom: 12 } }, "📋"),
             React.createElement("div", { style: { fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 8 } }, "No applications yet"),
             React.createElement("p", { style: { margin: 0, color: C.textSec, fontSize: 13, lineHeight: 1.6, maxWidth: 420, marginInline: "auto" } },
-              "Submissions from the public foster form (Apply to Foster on /services) appear here automatically after POST /api/foster/apply succeeds."),
+              "Submissions from the public foster CTA (Apply to Foster modal → POST /api/foster/apply) appear here. Note: /services and /foster pages are not currently live — use the site CTA until that route is decided."),
           )
         : React.createElement(Card, { style: { overflow: "hidden", marginTop: 16 } },
             React.createElement(Table, {

@@ -745,7 +745,7 @@
     var deletingState = useState(false), deleting = deletingState[0], setDeleting = deletingState[1];
     var u = ui();
     var completion = percentProfile(a);
-    var needsFosterBadge = Number(a.foster_needed) === 1 && a.status !== 'foster';
+    var needsFosterBadge = Number(a.foster_needed) === 1 && a.status !== 'foster' && a.status !== 'adopted' && a.status !== 'deceased' && a.status !== 'transferred';
     function handleDelete(e) {
       e.stopPropagation();
       if (deleting) return;
@@ -1266,7 +1266,7 @@
           h('div', { style:{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 } }, [a.age_label, a.sex, a.weight_label, a.energy_level].filter(Boolean).map(function(x){ return h(StatusPill, { key:x, label:x, color:u.textMut, dot:false, style:{ height:24 } }); })),
           a.intake_date ? h('div', { style:{ color:u.textMut, fontSize:12, marginBottom:12 } }, 'Intake date: ' + fmtDate(a.intake_date)) : null,
           (a.tags || []).length ? h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 } }, a.tags.map(function(t){ return h('span', { key:t, style:{ padding:'4px 8px', borderRadius:999, background:'rgba(255,255,255,.06)', color:u.textMut, fontSize:11, fontWeight:700 } }, labelize(t)); })) : null,
-          Number(a.foster_needed) === 1 && !foster ? h('div', { style:{ padding:12, borderRadius:12, border:'1px solid ' + u.yellow + '44', background:u.yellow + '14', color:u.yellow, fontSize:13, fontWeight:800, marginTop:12, display:'flex', gap:8, alignItems:'center' } }, appIcon('alert', 15, { color:u.yellow }), 'This dog needs a foster home.') : null,
+          Number(a.foster_needed) === 1 && !foster && a.status !== 'adopted' && a.status !== 'deceased' && a.status !== 'transferred' ? h('div', { style:{ padding:12, borderRadius:12, border:'1px solid ' + u.yellow + '44', background:u.yellow + '14', color:u.yellow, fontSize:13, fontWeight:800, marginTop:12, display:'flex', gap:8, alignItems:'center' } }, appIcon('alert', 15, { color:u.yellow }), 'This dog needs a foster home.') : null,
           foster ? h('div', { style:{ padding:14, borderRadius:14, border:'1px solid ' + u.purple + '44', background:u.purpleDim, color:u.textSec, fontSize:13, lineHeight:1.55, marginTop:12 } },
             h('div', { style:{ display:'flex', alignItems:'center', gap:8, color:u.purpleL, fontWeight:900, marginBottom:5 } }, appIcon('heart', 15, { color:u.purpleL }), 'In foster with ' + (foster.foster_name || 'current foster')),
             h('div', null, [foster.foster_phone, labelize(foster.foster_type), foster.start_date ? 'Since ' + fmtDate(foster.start_date) : null].filter(Boolean).join(' - ')),
@@ -2151,28 +2151,47 @@
     );
   }
 
-  // ── AdoptionsView — clean table (unchanged logic, kept minimal) ────────────
+  // ── AdoptionsView — animals marked Adopted on their profile ───────────────
   function AdoptionsView(props) {
+    var onNavigate = props.onNavigate;
     var itemsState = useState(null), items = itemsState[0], setItems = itemsState[1];
     var bp = useBreakpoint();
     var isMobile = bp === 'mobile';
     var u = ui();
     useEffect(function(){ apiJSON('/api/dashboard/adoptions').then(function(d){ setItems(d.adoptions || []); }).catch(function(){ setItems([]); }); }, []);
     return h('div', { className: 'dash-page' },
-      h(PageHeader, { title: 'Adoptions', subtitle: 'Approved adoption placements' }),
+      h(PageHeader, {
+        title: 'Adoptions',
+        subtitle: 'Animals marked Adopted on their profile (adopter details not collected yet)',
+      }),
       items === null ? h(LoadingBlock, null, 'Loading...') :
-      !items.length ? h(EmptyPanel, { iconName:'check', message:'No adoption records yet.' }) :
-      h('div', { style:{ display:'flex', flexDirection:'column', gap:12 } }, items.map(function(item, idx){
-        var name = [item.first_name, item.last_name].filter(Boolean).join(' ') || item.applicant_name || 'Applicant';
-        return h(SoftCard, { key:item.id || idx, style:{ padding:16 } },
-          h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' } },
-            h('div', null,
-              h('div', { style:{ color:u.text, fontWeight:900, fontSize:15 } }, name),
-              h('div', { style:{ color:u.textSec, fontSize:12, marginTop:2 } }, [item.email || item.applicant_email, item.phone].filter(Boolean).join(' - ') || '-')
+      !items.length ? h(EmptyPanel, {
+        iconName: 'check',
+        message: 'No adopted animals yet. Set status to Adopted on an animal profile to list them here.',
+      }) :
+      h('div', { style:{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))', gap:14 } }, items.map(function(item, idx){
+        var animalId = item.animal_id || item.id;
+        var title = item.animal_name || item.name || 'Animal';
+        var sub = [item.breed || item.species, item.sex, item.age_label].filter(Boolean).join(' · ');
+        return h(SoftCard, {
+          key: animalId || idx,
+          style: { padding:0, overflow:'hidden', cursor: onNavigate ? 'pointer' : 'default' },
+          onClick: function(){ if (onNavigate && animalId) onNavigate('animal-profile', { animalId: animalId }); },
+        },
+          h('div', { style:{ height:150, background:u.raised } },
+            item.photo_url
+              ? h('img', { src:item.photo_url, alt:title, style:{ width:'100%', height:'100%', objectFit:'cover', objectPosition:'top center', display:'block' } })
+              : h('div', { style:{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:u.textMut, fontSize:12 } }, 'No photo')
+          ),
+          h('div', { style:{ padding:14 } },
+            h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:6 } },
+              h('div', { style:{ color:u.text, fontWeight:900, fontSize:15 } }, title),
+              h(StatusPill, { label:'Adopted', color:u.green })
             ),
-            h('div', { style:{ display:'flex', gap:8, alignItems:'center' } },
-              h(StatusPill, { label:labelize(item.review_status || item.status || 'approved'), color:u.green }),
-              h('div', { style:{ color:u.textMut, fontSize:11 } }, fmtDate(item.submitted_at || item.created_at))
+            sub ? h('div', { style:{ color:u.textSec, fontSize:12, marginBottom:8 } }, sub) : null,
+            h('div', { style:{ color:u.textMut, fontSize:11, lineHeight:1.45 } },
+              (item.intake_date ? ('Intake ' + fmtDate(item.intake_date)) : 'Intake —') +
+              ' · Marked adopted ' + fmtDate(item.adopted_at)
             )
           )
         );

@@ -537,6 +537,11 @@ export async function dashboardApiRoutes(request, env, url) {
       'sort_order','tags_json','intake_date','photo_url', 'metadata_json'
     ];
     const sets = []; const vals = [];
+    const nextStatus = ('status' in b) ? String(b.status || '').toLowerCase() : null;
+    // Adopted / deceased / transferred animals should not keep a foster-needed flag.
+    if (nextStatus && ['adopted', 'deceased', 'transferred', 'returned'].includes(nextStatus)) {
+      b.foster_needed = 0;
+    }
     for (const k of allowed) {
       if (k in b) {
         sets.push(`${k} = ?`);
@@ -550,11 +555,35 @@ export async function dashboardApiRoutes(request, env, url) {
       }
     }
     if (!sets.length) return json({ ok: false, error: 'No updatable fields provided' }, 400);
+
+    // Stamp adopted_at into metadata when first marked adopted.
+    if (nextStatus === 'adopted') {
+      const existing = await env.DB.prepare(
+        `SELECT metadata_json FROM animal_profiles WHERE id = ? AND tenant_id = ? LIMIT 1`
+      ).bind(id, TENANT).first().catch(() => null);
+      const meta = safeJson(existing?.metadata_json, {});
+      if (!meta.adopted_at) {
+        meta.adopted_at = nowIso();
+        if (!('metadata_json' in b)) {
+          sets.push('metadata_json = ?');
+          vals.push(JSON.stringify(meta));
+        }
+      }
+    }
+
     sets.push('updated_at = ?'); vals.push(nowIso());
     vals.push(id); vals.push(TENANT);
     await env.DB.prepare(
       `UPDATE animal_profiles SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
     ).bind(...vals).run();
+
+    if (nextStatus === 'adopted') {
+      await env.DB.prepare(`
+        UPDATE foster_records
+        SET status = 'ended', end_date = date('now'), updated_at = datetime('now')
+        WHERE animal_id = ? AND tenant_id = ? AND lower(COALESCE(status,'')) = 'active'
+      `).bind(id, TENANT).run().catch(() => null);
+    }
 
     // Public /adopt gallery reads animal_profiles live but page HTML may be KV-cached
     const touchesPublic = ['public_visible', 'featured', 'status', 'name', 'bio', 'photo_url', 'breed', 'age_label'].some((k) => k in b);
@@ -1474,8 +1503,38 @@ export async function dashboardApiRoutes(request, env, url) {
   }
 
   if (path === '/api/dashboard/adoptions') {
-    const rows = await env.DB.prepare(`SELECT * FROM cpas_foster_applications WHERE tenant_id = ? AND review_status = 'approved' ORDER BY created_at DESC LIMIT 100`).bind(FOSTER_TENANT).all().catch(() => ({ results: [] }));
-    return json({ adoptions: rows.results || [] });
+    // Outcomes roster: animals marked Adopted on their profile.
+    // No separate adoptions table / adopter PII yet — do not invent applicants.
+    const rows = await env.DB.prepare(`
+      SELECT id, name, species, breed, sex, age_label, status, photo_url,
+             intake_date, foster_needed, public_visible, featured,
+             updated_at, created_at, metadata_json
+      FROM animal_profiles
+      WHERE tenant_id = ? AND lower(COALESCE(status, '')) = 'adopted'
+      ORDER BY COALESCE(updated_at, created_at) DESC
+      LIMIT 200
+    `).bind(TENANT).all().catch(() => ({ results: [] }));
+    const adoptions = (rows.results || []).map((a) => {
+      const meta = safeJson(a.metadata_json, {});
+      return {
+        id: a.id,
+        animal_id: a.id,
+        animal_name: a.name,
+        name: a.name,
+        species: a.species,
+        breed: a.breed,
+        sex: a.sex,
+        age_label: a.age_label,
+        status: a.status,
+        photo_url: a.photo_url,
+        intake_date: a.intake_date,
+        adopted_at: meta.adopted_at || a.updated_at || a.created_at || null,
+        public_visible: a.public_visible,
+        featured: a.featured,
+        notes: meta.adoption_notes || null,
+      };
+    });
+    return json({ adoptions, source: 'animal_profiles.status=adopted' });
   }
 
   if (path === '/api/dashboard/intakes') {

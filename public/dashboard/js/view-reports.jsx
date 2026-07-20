@@ -132,27 +132,73 @@ function ReportsView({ onNavigate }) {
 
   // ── Animals from live animal_profiles roster ──
   const animalRows = data?.animals?.animals || [];
+
+  function monthKeyFromDate(value) {
+    const s = String(value || "").trim();
+    if (/^\d{4}-\d{2}/.test(s)) return s.slice(0, 7);
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0");
+  }
+
+  function lastNMonthKeys(n) {
+    const out = [];
+    const now = new Date();
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      out.push(d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0"));
+    }
+    return out;
+  }
+
+  const MONTH_LABELS = { "01":"Jan","02":"Feb","03":"Mar","04":"Apr","05":"May","06":"Jun","07":"Jul","08":"Aug","09":"Sep","10":"Oct","11":"Nov","12":"Dec" };
+  const monthKeys = lastNMonthKeys(6);
+  const intakesByMonth = monthKeys.map((ym) => animalRows.filter((a) => monthKeyFromDate(a.intake_date) === ym).length);
+  const adoptionsByMonth = monthKeys.map((ym) => animalRows.filter((a) => {
+    if (String(a.status || "").toLowerCase() !== "adopted") return false;
+    const meta = a.metadata || (() => {
+      try { return typeof a.metadata_json === "string" ? JSON.parse(a.metadata_json || "{}") : (a.metadata_json || {}); } catch (_) { return {}; }
+    })();
+    const adoptedAt = meta.adopted_at || a.updated_at || a.created_at;
+    return monthKeyFromDate(adoptedAt) === ym;
+  }).length);
+  const months = monthKeys.map((ym) => MONTH_LABELS[ym.slice(5)] || ym.slice(5));
+  const intakesWithDate = animalRows.filter((a) => !!monthKeyFromDate(a.intake_date)).length;
+  const adoptedCount = animalRows.filter((a) => String(a.status || "").toLowerCase() === "adopted").length;
+
   const animals = {
     total:        animalRows.length,
     available:    animalRows.filter(a => String(a.status||"").toLowerCase() === "available").length,
     foster:       animalRows.filter(a => /foster/i.test(String(a.status||""))).length,
     medical:      animalRows.filter(a => String(a.status||"").toLowerCase() === "medical").length,
     pending:      animalRows.filter(a => String(a.status||"").toLowerCase() === "pending").length,
-    fosterNeeded: animalRows.filter(a => a.foster_needed).length,
+    fosterNeeded: animalRows.filter(a => a.foster_needed && !["adopted","deceased","transferred"].includes(String(a.status||"").toLowerCase())).length,
     featured:     animalRows.filter(a => a.featured).length,
     draft:        animalRows.filter(a => String(a.status||"").toLowerCase() === "draft").length,
-    // Monthly intake/adoption series not tracked in D1 yet — placeholder until wired.
-    intakesByMonth: [22,28,31,35,38,25],
-    adoptionsByMonth: [12,18,22,27,29,14],
-    months: ["Jan","Feb","Mar","Apr","May","Jun"],
+    adopted:      adoptedCount,
+    intakesByMonth,
+    adoptionsByMonth,
+    months,
+    chartNote: intakesWithDate
+      ? `From animal profiles · ${intakesWithDate} with intake dates · ${adoptedCount} adopted`
+      : "Add intake dates on animal profiles to populate this chart",
   };
+
+  const appRows = data?.apps?.applications || data?.apps?.results || [];
+  function appStatus(a) {
+    return String(a.review_status || a.status || "").toLowerCase();
+  }
   const apps = {
-    total: 4, new: 1, review: 2, approved: 1,
-    pipeline: [
-      { id:"App #3–4", status:"Under review",  badge:"review" },
-      { id:"App #2",   status:"New — unread",   badge:"new" },
-      { id:"App #1",   status:"Approved",        badge:"approved" },
-    ],
+    total: appRows.length,
+    new: appRows.filter((a) => ["new", "pending", "submitted", "unread"].includes(appStatus(a))).length,
+    review: appRows.filter((a) => ["review", "under_review", "in_review"].includes(appStatus(a))).length,
+    approved: appRows.filter((a) => appStatus(a) === "approved").length,
+    denied: appRows.filter((a) => ["denied", "rejected"].includes(appStatus(a))).length,
+    pipeline: appRows.slice(0, 12).map((a) => ({
+      id: a.applicant_name || [a.first_name, a.last_name].filter(Boolean).join(" ") || a.id,
+      status: a.review_status || a.status || "pending",
+      badge: appStatus(a) === "approved" ? "approved" : (["review", "under_review", "in_review"].includes(appStatus(a)) ? "review" : "new"),
+    })),
   };
   const financeCampaigns = (data?.fundraising?.campaigns || []).map((c, i) => {
     const raised = Number(c.raised_amount_cents ?? c.raised_cents ?? 0);
@@ -180,15 +226,6 @@ function ReportsView({ onNavigate }) {
     return Number(d.is_demo) === 1 || status === "demo" || String(d.payment_provider || "").toLowerCase() === "mock_settle" || (["completed", "received", "paid", "succeeded"].includes(status) && !String(d.stripe_payment_intent_id || "").startsWith("pi_"));
   });
   const reportDonations = paidDonations.concat(demoDonations);
-  const ai = {
-    runs: 17, cost: 0.0206, tokensIn: 42282, tokensOut: 2788,
-    failures: 2, avgLatency: 6392,
-    models: [
-      { key:"gpt-5.4-mini",         runs:5, cost:0.0193, tokens:41482 },
-      { key:"llama-4-scout-17b",     runs:5, cost:0.0013, tokens:3588 },
-      { key:"gemma-4-26b",           runs:5, cost:0,      tokens:0 },
-    ],
-  };
 
   const badgeStyle = {
     new:      { color:"#60a5fa", bg:"#1e3a5f" },
@@ -209,9 +246,6 @@ function ReportsView({ onNavigate }) {
           <h1 className="dash-page-title">Reports</h1>
           <p className="dash-page-subtitle">Live data from your roster and Stripe</p>
         </div>
-        <button type="button" style={{ background:RPT.red, color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", fontSize:13, fontWeight:500, cursor:"pointer" }}>
-          + Custom report
-        </button>
       </div>
 
       <div className="dash-tabs dash-tabs--on-dark">
@@ -233,8 +267,8 @@ function ReportsView({ onNavigate }) {
           </div>
           <div style={grid2}>
             <div style={card}>
-              <SectionHeader title="Intakes & adoptions" sub="Placeholder series · monthly tracking not wired yet" />
-              <ChartBox id="rpt_intake_chart" height={200} setup={canvas => {
+              <SectionHeader title="Intakes & adoptions" sub={animals.chartNote} />
+              <ChartBox key={"intake-"+monthKeys.join("-")+"-"+intakesByMonth.join(".")+"-"+adoptionsByMonth.join(".")} id="rpt_intake_chart" height={200} setup={canvas => {
                 new Chart(canvas, { type:"bar", data:{
                   labels: animals.months,
                   datasets:[
@@ -244,7 +278,7 @@ function ReportsView({ onNavigate }) {
                 }, options:{
                   responsive:true, maintainAspectRatio:false,
                   plugins:{ legend:{ display:false } },
-                  scales:{ x:{ ticks:{color:"#8888aa"}, grid:{color:"#1e1e35"} }, y:{ ticks:{color:"#8888aa"}, grid:{color:"#1e1e35"} } }
+                  scales:{ x:{ ticks:{color:"#8888aa"}, grid:{color:"#1e1e35"} }, y:{ ticks:{color:"#8888aa", precision:0}, grid:{color:"#1e1e35"}, beginAtZero:true } }
                 }});
               }} />
               <div style={{ display:"flex", gap:16, marginTop:10, fontSize:12 }}>
@@ -357,70 +391,61 @@ function ReportsView({ onNavigate }) {
       {tab === "applications" && (
         <div>
           <div style={grid4}>
-            <StatCard label="Total"        value={apps.total}    sub="all foster" />
-            <StatCard label="New / unread" value={apps.new}      sub="needs review"   subColor={RPT.amber} />
+            <StatCard label="Total"        value={apps.total}    sub="foster applications" />
+            <StatCard label="New / pending" value={apps.new}     sub="needs review"   subColor={RPT.amber} />
             <StatCard label="Under review" value={apps.review}   sub="in progress"    subColor={RPT.blue} />
-            <StatCard label="Approved"     value={apps.approved} sub={fmt.pct(apps.approved/apps.total*100)+" approval rate"} subColor={RPT.green} />
+            <StatCard label="Approved"     value={apps.approved} sub={apps.total ? fmt.pct(apps.approved/apps.total*100)+" approval rate" : "—"} subColor={RPT.green} />
           </div>
-          <div style={grid2}>
-            <div style={card}>
-              <SectionHeader title="Pipeline" sub="All applications" />
-              {apps.pipeline.map((a,i) => (
-                <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 0", borderBottom: i<apps.pipeline.length-1 ? `1px solid ${RPT.border}` : "none" }}>
-                  <div>
-                    <div style={{ fontSize:13, fontWeight:500, color:RPT.text }}>{a.id}</div>
-                    <div style={{ fontSize:12, color:RPT.muted, marginTop:2 }}>{a.status}</div>
-                  </div>
-                  <Badge label={a.badge==="new"?"New":a.badge==="review"?"Under review":"Approved"} {...(badgeStyle[a.badge]||{})} />
-                </div>
-              ))}
+          {!apps.total ? (
+            <div style={{ ...card, color: RPT.muted, fontSize: 13 }}>
+              No foster applications in D1 yet. Public submissions land here after <code>POST /api/foster/apply</code> succeeds (site foster CTA modal). The dedicated <code>/services</code> and <code>/foster</code> pages are not live — flag for the product call.
             </div>
-            <div style={card}>
-              <SectionHeader title="Status breakdown" sub="4 total applications" />
-              <ChartBox id="rpt_app_chart" height={180} setup={canvas => {
-                new Chart(canvas, { type:"doughnut", data:{
-                  labels:["Under review","New","Approved"],
-                  datasets:[{ data:[2,1,1], backgroundColor:[RPT.amber,"#378ADD",RPT.green], borderWidth:0, hoverOffset:4 }]
-                }, options:{ responsive:true, maintainAspectRatio:false, cutout:"65%", plugins:{ legend:{ display:false } } }});
-              }} />
-              <div style={{ display:"flex", gap:14, marginTop:10, fontSize:12, flexWrap:"wrap" }}>
-                {[["Under review",2,RPT.amber],["New",1,RPT.blue],["Approved",1,RPT.green]].map(([l,v,c])=>(
-                  <span key={l} style={{ display:"flex", alignItems:"center", gap:5, color:RPT.muted }}>
-                    <span style={{ width:10,height:10,borderRadius:2,background:c,display:"inline-block" }}/>{l} {v}
-                  </span>
+          ) : (
+            <div style={grid2}>
+              <div style={card}>
+                <SectionHeader title="Pipeline" sub={`${apps.total} applications`} />
+                {apps.pipeline.map((a,i) => (
+                  <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 0", borderBottom: i<apps.pipeline.length-1 ? `1px solid ${RPT.border}` : "none" }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:500, color:RPT.text }}>{a.id}</div>
+                      <div style={{ fontSize:12, color:RPT.muted, marginTop:2 }}>{a.status}</div>
+                    </div>
+                    <Badge label={a.badge==="new"?"New":a.badge==="review"?"Under review":"Approved"} {...(badgeStyle[a.badge]||{})} />
+                  </div>
                 ))}
               </div>
+              <div style={card}>
+                <SectionHeader title="Status breakdown" sub={`${apps.total} total`} />
+                <ChartBox key={"apps-"+apps.total+"-"+apps.review+"-"+apps.new+"-"+apps.approved} id="rpt_app_chart" height={180} setup={canvas => {
+                  new Chart(canvas, { type:"doughnut", data:{
+                    labels:["Under review","New","Approved"],
+                    datasets:[{ data:[apps.review, apps.new, apps.approved], backgroundColor:[RPT.amber,"#378ADD",RPT.green], borderWidth:0, hoverOffset:4 }]
+                  }, options:{ responsive:true, maintainAspectRatio:false, cutout:"65%", plugins:{ legend:{ display:false } } }});
+                }} />
+                <div style={{ display:"flex", gap:14, marginTop:10, fontSize:12, flexWrap:"wrap" }}>
+                  {[["Under review",apps.review,RPT.amber],["New",apps.new,RPT.blue],["Approved",apps.approved,RPT.green]].map(([l,v,c])=>(
+                    <span key={l} style={{ display:"flex", alignItems:"center", gap:5, color:RPT.muted }}>
+                      <span style={{ width:10,height:10,borderRadius:2,background:c,display:"inline-block" }}/>{l} {v}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
       {/* ── MEDICAL ── */}
       {tab === "medical" && (
         <div>
+          <div style={{ ...card, borderColor: RPT.amber, marginBottom: 14 }}>
+            <SectionHeader title="Not fully client-ready" sub="Vaccination / medication task tracking is not wired to D1 yet. Showing live medical-status roster count only." />
+          </div>
           <div style={grid4}>
-            <StatCard label="Medical watch"    value={3}   sub="active cases"      subColor={RPT.amber} />
-            <StatCard label="Vaccinations due" value={3}   sub="this month"         subColor={RPT.amber} />
-            <StatCard label="Medications"      value={8}   sub="active / 34 tasks"  subColor={RPT.muted} />
-            <StatCard label="Compliant"        value="73%" sub="of roster"          subColor={RPT.green} />
-          </div>
-          <div style={card}>
-            <SectionHeader title="Care task completion" sub="Daily care · current sprint" />
-            <ProgressBar label="Feed"          value={32}  max={128} color={RPT.purple} />
-            <ProgressBar label="Walk"          value={18}  max={128} color={RPT.blue} />
-            <ProgressBar label="Medications"   value={8}   max={34}  color={RPT.red} />
-            <ProgressBar label="Vaccinations"  value={3}   max={12}  color={RPT.amber} />
-          </div>
-          <div style={card}>
-            <SectionHeader title="Medical compliance overview" sub="Vaccination, medication, and treatment status" />
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginTop:8 }}>
-              {[["Up to date",11,RPT.green],["Due soon",3,RPT.amber],["Overdue",3,RPT.red]].map(([l,v,c])=>(
-                <div key={l} style={{ background:RPT.surface, borderRadius:8, padding:"12px 14px", border:`1px solid ${RPT.border}` }}>
-                  <div style={{ fontSize:24, fontWeight:600, color:c }}>{v}</div>
-                  <div style={{ fontSize:12, color:RPT.muted, marginTop:4 }}>{l}</div>
-                </div>
-              ))}
-            </div>
+            <StatCard label="Medical status" value={animals.medical} sub="animals with status = medical" subColor={animals.medical > 0 ? RPT.amber : RPT.green} />
+            <StatCard label="Foster needed"  value={animals.fosterNeeded} sub="open foster flags" subColor={RPT.muted} />
+            <StatCard label="Vaccinations due" value="—" sub="needs care-task module" subColor={RPT.muted} />
+            <StatCard label="Medications"      value="—" sub="needs care-task module" subColor={RPT.muted} />
           </div>
         </div>
       )}
@@ -428,59 +453,28 @@ function ReportsView({ onNavigate }) {
       {/* ── AI USAGE ── */}
       {tab === "ai" && (
         <div>
-          <div style={grid4}>
-            <StatCard label="Runs (30d)"     value={ai.runs}               sub="2 failed"          subColor={RPT.muted} />
-            <StatCard label="Cost (30d)"     value={fmt.usd(ai.cost)}      sub="MTD spend"         subColor={RPT.green} />
-            <StatCard label="Total tokens"   value={fmt.int(ai.tokensIn+ai.tokensOut)} sub={fmt.int(ai.tokensIn)+" in / "+fmt.int(ai.tokensOut)+" out"} subColor={RPT.muted} />
-            <StatCard label="Avg latency"    value={fmt.ms(ai.avgLatency)} sub="per run"           subColor={RPT.muted} />
-          </div>
-          <div style={grid2}>
-            <div style={card}>
-              <SectionHeader title="Cost by model" sub="30-day window" />
-              <ChartBox id="rpt_ai_cost" height={200} setup={canvas => {
-                new Chart(canvas, { type:"bar", data:{
-                  labels: ai.models.map(m=>m.key.split("/").pop().replace(/@cf\//,"")),
-                  datasets:[{ label:"Cost $", data: ai.models.map(m=>+m.cost.toFixed(4)), backgroundColor:[RPT.red,RPT.blue,RPT.purple], borderRadius:4 }]
-                }, options:{
-                  responsive:true, maintainAspectRatio:false,
-                  plugins:{ legend:{ display:false } },
-                  scales:{ x:{ ticks:{color:"#8888aa"}, grid:{display:false} }, y:{ ticks:{color:"#8888aa", callback:v=>"$"+v}, grid:{color:"#1e1e35"} } }
-                }});
-              }} />
-            </div>
-            <div style={card}>
-              <SectionHeader title="Runs by model" sub="15 completed" />
-              <ChartBox id="rpt_ai_runs" height={200} setup={canvas => {
-                new Chart(canvas, { type:"doughnut", data:{
-                  labels: ai.models.map(m=>m.key.split("/").pop()),
-                  datasets:[{ data: ai.models.map(m=>m.runs), backgroundColor:[RPT.red,RPT.blue,RPT.purple], borderWidth:0, hoverOffset:4 }]
-                }, options:{ responsive:true, maintainAspectRatio:false, cutout:"65%", plugins:{ legend:{ display:false } } }});
-              }} />
-            </div>
-          </div>
-          <div style={card}>
-            <SectionHeader title="Model breakdown" sub="Completed runs · all time" />
-            <table style={{ width:"100%", fontSize:13, borderCollapse:"collapse" }}>
-              <thead>
-                <tr style={{ color:RPT.hint, fontSize:11, textTransform:"uppercase", letterSpacing:"0.06em" }}>
-                  {["Model","Runs","Tokens","Cost","Avg cost/run"].map(h=>(
-                    <th key={h} style={{ padding:"8px 0", textAlign:h==="Model"?"left":"right", fontWeight:500, borderBottom:`1px solid ${RPT.border}` }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {ai.models.map((m,i) => (
-                  <tr key={i} style={{ borderBottom:`1px solid ${RPT.border}` }}>
-                    <td style={{ padding:"10px 0", color:RPT.text, fontFamily:"monospace", fontSize:12 }}>{m.key}</td>
-                    <td style={{ textAlign:"right", color:RPT.muted }}>{m.runs}</td>
-                    <td style={{ textAlign:"right", color:RPT.muted }}>{fmt.int(m.tokens)}</td>
-                    <td style={{ textAlign:"right", color: m.cost>0 ? RPT.amber : RPT.hint }}>{m.cost>0?fmt.usd(m.cost):"—"}</td>
-                    <td style={{ textAlign:"right", color:RPT.muted }}>{m.runs>0&&m.cost>0?fmt.usd(m.cost/m.runs):"—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {(() => {
+            const runs = data?.aiRuns?.runs || data?.aiRuns?.results || [];
+            if (!runs.length) {
+              return (
+                <div style={{ ...card, color: RPT.muted, fontSize: 13 }}>
+                  No Agent Sam run history to report yet. This tab stays empty until live runs exist — no mock spend/latency figures.
+                </div>
+              );
+            }
+            const cost = runs.reduce((s, r) => s + Number(r.cost_usd || r.cost || 0), 0);
+            const tokensIn = runs.reduce((s, r) => s + Number(r.tokens_in || r.input_tokens || 0), 0);
+            const tokensOut = runs.reduce((s, r) => s + Number(r.tokens_out || r.output_tokens || 0), 0);
+            const failed = runs.filter((r) => String(r.status || "").toLowerCase().includes("fail")).length;
+            return (
+              <div style={grid4}>
+                <StatCard label="Runs" value={runs.length} sub={failed ? failed + " failed" : "completed / logged"} subColor={RPT.muted} />
+                <StatCard label="Cost" value={fmt.usd(cost)} sub="from run logs" subColor={RPT.green} />
+                <StatCard label="Tokens" value={fmt.int(tokensIn + tokensOut)} sub={fmt.int(tokensIn) + " in / " + fmt.int(tokensOut) + " out"} subColor={RPT.muted} />
+                <StatCard label="Models" value={new Set(runs.map((r) => r.model || r.model_key).filter(Boolean)).size} sub="distinct in window" subColor={RPT.muted} />
+              </div>
+            );
+          })()}
         </div>
       )}
 
