@@ -732,6 +732,8 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [imageSearch, setImageSearch] = React.useState('');
   const [assets, setAssets] = React.useState([]);
   const [showAddSection, setShowAddSection] = React.useState(false);
+  const [addableSections, setAddableSections] = React.useState([]);
+  const [addableSectionsErr, setAddableSectionsErr] = React.useState("");
   const [activeFont, setActiveFont] = React.useState('fraunces_dm');
   const [showFontPicker, setShowFontPicker] = React.useState(false);
   const [uploadingAsset, setUploadingAsset] = React.useState(false);
@@ -898,6 +900,37 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   }, [route, bumpPreview]);
 
   React.useEffect(() => { loadPage(); }, [loadPage]);
+
+  React.useEffect(() => {
+    if (!showAddSection) return;
+    let cancelled = false;
+    (async () => {
+      setAddableSectionsErr("");
+      try {
+        const res = await fetch("/api/cms/section/templates", { credentials: "include" });
+        const data = await res.json().catch(() => ({}));
+        const list = (Array.isArray(data.templates) ? data.templates : [])
+          .filter((t) => !t.kind || t.kind === "section");
+        if (cancelled) return;
+        if (!list.length) {
+          setAddableSectionsErr(data.error || "No templates returned");
+          setAddableSections([]);
+          return;
+        }
+        setAddableSections(list.map((t) => ({
+          type: t.type,
+          label: t.label || String(t.type || "").replace(/_/g, " "),
+          desc: t.desc || t.description || "",
+        })));
+      } catch (e) {
+        if (!cancelled) {
+          setAddableSectionsErr(e?.message || "Failed to load templates");
+          setAddableSections([]);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showAddSection]);
 
   // Templates → Add to Page sets this before navigating into the editor
   React.useEffect(() => {
@@ -1780,10 +1813,16 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   function renderAddSectionModal() {
     if (!showAddSection) return null;
+    const types = addableSections.length
+      ? addableSections
+      : CMS_SECTION_TYPES;
     return React.createElement('div', { style:{ position:'fixed', inset:0, zIndex:250, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? 0 : 24 } },
       React.createElement('div', { style:{ width:isMobile ? '100%' : 720, maxHeight:isMobile ? '100%' : '82vh', overflowY:'auto', background:C.surface, border:`1px solid ${C.border}`, borderRadius:isMobile ? 0 : 18, padding:18 } },
         React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:16 } }, React.createElement('h3', { style:{ margin:0, color:C.text } }, 'Add Section'), React.createElement(Btn, { size:'sm', variant:'secondary', onClick:()=>setShowAddSection(false) }, 'Close')),
-        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(3,minmax(0,1fr))', gap:12 } }, CMS_SECTION_TYPES.map(t => { const color = CMS_TYPE_COLOR[t.type] || CMS_TYPE_COLOR.content; return React.createElement('button', { key:t.type, onClick:()=>addSection(t.type), style:{ textAlign:'left', padding:16, borderRadius:14, border:`1px solid ${color}55`, background:color + '12', cursor:'pointer' } }, React.createElement('div', { style:{ color, fontWeight:900, fontSize:14, marginBottom:6 } }, t.label), React.createElement('div', { style:{ color:C.textSec, fontSize:12, lineHeight:1.45 } }, t.desc)); }))
+        addableSectionsErr && !addableSections.length
+          ? React.createElement('div', { style:{ color:C.amber || '#b45309', fontSize:12, marginBottom:12 } }, 'Catalog load failed — showing local fallback. ', addableSectionsErr)
+          : null,
+        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(3,minmax(0,1fr))', gap:12 } }, types.map(t => { const color = CMS_TYPE_COLOR[t.type] || CMS_TYPE_COLOR.content; return React.createElement('button', { key:t.type, onClick:()=>addSection(t.type), style:{ textAlign:'left', padding:16, borderRadius:14, border:`1px solid ${color}55`, background:color + '12', cursor:'pointer' } }, React.createElement('div', { style:{ color, fontWeight:900, fontSize:14, marginBottom:6 } }, t.label), React.createElement('div', { style:{ color:C.textSec, fontSize:12, lineHeight:1.45 } }, t.desc)); }))
       )
     );
   }

@@ -180,8 +180,7 @@
       return;
     }
     const ok = window.confirm(
-      'Your entry is not submitted until payment is complete.\n\n' +
-      'Leave without paying? You can finish later with the pay link we can send you.'
+      "Leave without finishing payment? Your entry won't be published."
     );
     if (!ok) return;
     await markAbandoned();
@@ -359,7 +358,7 @@
           <h2 class="cepay-title" id="cepay-title">Pay to finish ${escapeHtml(options.dog_name)}’s entry</h2>
         </header>
         <div class="cepay-body">
-          <p class="cepay-warn">Your photo is saved as a draft. The entry is <strong>not submitted</strong> until this ${money(options.amount_cents)} payment succeeds.</p>
+          <p class="cepay-warn">One-time $10 competition entry.</p>
           <div class="cepay-summary">
             <div><strong>One-time competition entry</strong><span>Required to publish · no recurring charge</span></div>
             <div class="cepay-amount">${money(options.amount_cents)}</div>

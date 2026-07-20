@@ -134,7 +134,7 @@ export async function serveCompetitionResumePay(token, env) {
       </header>
       <div class="rp-body">
         ${entry.photo_url ? `<img class="rp-photo" src="${esc(entry.photo_url)}" alt="${esc(dog)}"/>` : ""}
-        <p class="rp-meta">Your photo is saved as a draft. Complete the secure $${(fee / 100).toFixed(2)} entry fee to <strong>finish and publish</strong> <strong>${esc(dog)}</strong>.</p>
+        <p class="rp-meta">Complete payment to publish <strong>${esc(dog)}</strong>.</p>
         <button type="button" class="rp-btn" id="rp-open">Pay $${(fee / 100).toFixed(2)} to finish entry</button>
         <p class="rp-hint">Confirmation email: ${esc(entry.owner_email)}</p>
       </div>

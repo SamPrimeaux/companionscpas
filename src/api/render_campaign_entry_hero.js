@@ -544,7 +544,7 @@ export async function renderCampaignEntryHero(section = {}, blocks = [], brand =
           closeModal();
         },
         onAbandoned: function() {
-          setError("Payment wasn’t finished — your entry is not submitted yet. Tap Pay again to finish, or ask staff for a resume-pay link.");
+          setError("Payment wasn't finished. Tap Pay again to continue.");
           setStep("payment");
         },
       });
