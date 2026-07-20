@@ -858,6 +858,35 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     }
   }
 
+  // GET /api/cms/section/templates — addable section + form catalog for Templates canvas
+  if (path === "/api/cms/section/templates" && method === "GET") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+    const { ADDABLE_SECTION_TYPES } = await import("./cms_section_catalog.js");
+    const {
+      SECTION_TEMPLATE_META,
+      FORM_TEMPLATE_ENTRIES,
+    } = await import("./cms_section_preview_fixtures.js");
+    const sections = (ADDABLE_SECTION_TYPES || []).map((row) => {
+      const meta = SECTION_TEMPLATE_META[row.type] || { category: "content", icon: "layers" };
+      return {
+        type: row.type,
+        label: row.label,
+        desc: row.desc,
+        kind: "section",
+        category: meta.category,
+        icon: meta.icon,
+        preview_url: `/api/cms/section/preview?type=${encodeURIComponent(row.type)}`,
+      };
+    });
+    return json({
+      success: true,
+      sections,
+      forms: FORM_TEMPLATE_ENTRIES,
+      templates: [...sections, ...FORM_TEMPLATE_ENTRIES],
+    });
+  }
+
   // GET /api/cms/section/preview?type=hero — isolated template preview HTML
   if (path === "/api/cms/section/preview" && method === "GET") {
     const cmsUser = await requireCmsUser(request, env, sessionUser);
@@ -868,29 +897,26 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     try {
       const { getBrand } = await import("./render_page.js");
       const { renderSectionByType } = await import("./cms_section_catalog.js");
+      const { buildSectionPreviewFixture } = await import("./cms_section_preview_fixtures.js");
       const brand = await getBrand(env).catch(() => ({}));
-      const demo = {
-        section_key: `preview_${type}`,
-        section_type: type,
-        page_route: "/",
-        eyebrow: "Preview",
-        heading: type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-        subheading: "This is a live render of the section template.",
-        body: "Edit this section after adding it to a page. Publish the page to make it public.",
-        image_url: brand.logo_light_url || brand.logo_url || "",
-        cta_label: "Primary action",
-        cta_href: "/adopt",
-        cta_secondary_label: "Secondary",
-        cta_secondary_href: "/donate",
-        is_visible: 1,
-        config_json: "{}",
-      };
-      const fragment = await renderSectionByType(demo, [], brand, env, { preview: true, includeHidden: true });
+      const { section: demo, blocks } = buildSectionPreviewFixture(type, brand);
+      if (!demo.image_url && demo._logo_fallback) demo.image_url = demo._logo_fallback;
+      delete demo._logo_fallback;
+      const fragment = await renderSectionByType(demo, blocks || [], brand, env, {
+        preview: true,
+        includeHidden: true,
+      });
       const html = `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Preview · ${type.replace(/</g, "")}</title>
 <link rel="stylesheet" href="/static/global/cpas-shell.css"/>
 <link rel="stylesheet" href="/api/cms/brand/tokens.css"/>
-<style>body{margin:0;background:#f6f5f8;padding:24px} .tpl-frame{max-width:1100px;margin:0 auto}</style>
-</head><body><div class="tpl-frame">${fragment || "<p>No preview available for this type.</p>"}</div></body></html>`;
+<style>
+  html,body{margin:0;background:#f4efe8}
+  body{padding:0}
+  .tpl-artboard{width:1200px;min-height:420px;margin:0;background:#f4efe8}
+  .tpl-artboard > *{max-width:100%}
+</style>
+</head><body><div class="tpl-artboard" data-preview-type="${type.replace(/"/g, "")}">${fragment || "<p style='padding:24px;font-family:system-ui'>No preview available for this type.</p>"}</div></body></html>`;
       return new Response(html, {
         status: 200,
         headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },

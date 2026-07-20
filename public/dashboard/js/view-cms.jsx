@@ -3168,46 +3168,132 @@ function CmsBrandView({ onNavigate }) {
   );
 }
 
-// ── /dashboard/cms/templates ──────────────────────────────────────────────────
-const SECTION_TEMPLATES_DATA = [
-  { type: "hero",            label: "Hero",             category: "structure", kind: "section", icon: "home",     desc: "Full-width headline, subheading, dual CTAs, hero image" },
-  { type: "text_image",      label: "Text + Image",     category: "content",   kind: "section", icon: "image",    desc: "Side-by-side text block with photo" },
-  { type: "feature_cards",   label: "Card Grid",         category: "content",   kind: "section", icon: "layers",   desc: "3-up or 4-up feature/benefit cards" },
-  { type: "animal_grid",     label: "Animal Grid",       category: "animals",   kind: "section", icon: "paw",      desc: "Dynamic grid from animal_profiles" },
-  { type: "foster_grid",     label: "Foster CTA",        category: "animals",   kind: "section", icon: "heart",    desc: "Foster program info with application CTA" },
-  { type: "campaign_grid",   label: "Fundraising",       category: "giving",    kind: "section", icon: "dollar",   desc: "Active campaigns with progress bars" },
-  { type: "testimonial",     label: "Testimonial",       category: "social",    kind: "section", icon: "people",   desc: "Quote + attribution from foster/adopter" },
-  { type: "cta_banner",      label: "CTA Banner",        category: "structure", kind: "section", icon: "sparkles", desc: "High-emphasis call to action strip" },
-  { type: "contact_hero",    label: "Contact Hero",      category: "content",   kind: "section", icon: "mail",     desc: "Contact page opener with social pills" },
-  { type: "contact_form",    label: "Contact Form",      category: "content",   kind: "section", icon: "docs",     desc: "Inline contact page message form" },
-  { type: "contact_socials", label: "Contact Info Cards",category: "content",   kind: "section", icon: "home",     desc: "Email, location, org cards" },
-  { type: "contact_team",    label: "Team",              category: "content",   kind: "section", icon: "people",   desc: "Group photo + member list" },
-  { type: "contact",         label: "Contact Us Modal",  category: "forms",     kind: "form",    icon: "mail",     desc: "Reusable Get in Touch modal — edit fields in Forms", formId: "form_contact_request" },
-  { type: "foster_application", label: "Foster Application", category: "forms", kind: "form", icon: "heart", desc: "Multi-step foster apply modal — edit in Forms", formId: "form_foster_application" },
-];
+// ── /dashboard/cms/templates — Figma-style artboard canvas ─────────────────
+function TemplateArtboard({ tpl, selected, scale, onSelect, onAdd }) {
+  const frameW = 1200;
+  const frameH = selected ? 720 : 520;
+  const s = selected ? Math.min(scale, 0.72) : scale;
+  const wrapH = Math.round(frameH * s) + 8;
+  return React.createElement("div", {
+    role: "button",
+    tabIndex: 0,
+    onClick: () => onSelect(tpl.type),
+    onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(tpl.type); } },
+    style: {
+      borderRadius: 16,
+      border: selected ? `2px solid ${C.purple}` : `1px solid ${C.border}`,
+      background: C.surface,
+      boxShadow: selected ? "0 12px 40px rgba(111,34,112,.18)" : "0 2px 12px rgba(26,22,34,.06)",
+      overflow: "hidden",
+      cursor: "pointer",
+      outline: "none",
+    },
+  },
+    React.createElement("div", {
+      style: {
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+        padding: "10px 14px", borderBottom: `1px solid ${C.border}`, background: C.bg2 || C.bg,
+      },
+    },
+      React.createElement("div", { style: { flex: 1, minWidth: 140 } },
+        React.createElement("div", { style: { fontWeight: 800, fontSize: 13, color: C.text } }, tpl.label),
+        React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2 } }, tpl.desc)
+      ),
+      React.createElement("span", {
+        style: {
+          fontSize: 10, fontWeight: 800, padding: "3px 9px", borderRadius: 99,
+          background: C.purpleDim, color: C.purpleL, textTransform: "uppercase", letterSpacing: ".04em",
+        },
+      }, tpl.category || "section"),
+      React.createElement(Btn, {
+        size: "sm", variant: "secondary", icon: "plus",
+        onClick: (e) => { e.stopPropagation(); onAdd(tpl.type); },
+      }, "Add to Page")
+    ),
+    React.createElement("div", {
+      style: {
+        height: wrapH, overflow: "hidden", background: "#e8e0d6",
+        position: "relative",
+      },
+    },
+      React.createElement("iframe", {
+        title: tpl.label + " preview",
+        src: tpl.preview_url || `/api/cms/section/preview?type=${encodeURIComponent(tpl.type)}`,
+        loading: "lazy",
+        style: {
+          width: frameW,
+          height: frameH,
+          border: 0,
+          background: "#f4efe8",
+          transform: `scale(${s})`,
+          transformOrigin: "top left",
+          pointerEvents: selected ? "auto" : "none",
+          display: "block",
+        },
+      }),
+      !selected && React.createElement("div", {
+        style: {
+          position: "absolute", inset: 0,
+          background: "linear-gradient(180deg, transparent 70%, rgba(20,14,24,.08))",
+          pointerEvents: "none",
+        },
+      })
+    )
+  );
+}
 
 function CmsTemplatesView({ onNavigate }) {
   const [filter, setFilter] = React.useState("all");
-  const [previewType, setPreviewType] = React.useState(null);
+  const [templates, setTemplates] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [loadErr, setLoadErr] = React.useState("");
+  const [selectedType, setSelectedType] = React.useState(null);
   const [pickerType, setPickerType] = React.useState(null);
   const [pages, setPages] = React.useState([]);
-  const categories = ["all", ...Array.from(new Set(SECTION_TEMPLATES_DATA.map(t => t.category)))];
-  const filtered = filter === "all" ? SECTION_TEMPLATES_DATA : SECTION_TEMPLATES_DATA.filter(t => t.category === filter);
-  const catColors = {
-    structure: { bg: C.purpleDim, color: C.purpleL },
-    content:   { bg: C.tealDim,   color: C.teal },
-    animals:   { bg: C.greenDim,  color: C.green },
-    giving:    { bg: C.yellowDim, color: C.yellow },
-    social:    { bg: C.redDim,    color: C.red },
-    forms:     { bg: C.purpleDim, color: C.purpleL },
-  };
+  const [narrow, setNarrow] = React.useState(() => typeof window !== "undefined" && window.innerWidth < 960);
 
   React.useEffect(() => {
-    fetch("/api/cms/bootstrap", { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => setPages(d.pages || []))
-      .catch(() => {});
+    const onResize = () => setNarrow(window.innerWidth < 960);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      fetch("/api/cms/section/templates", { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/cms/bootstrap", { credentials: "include" }).then((r) => r.json()),
+    ]).then(([tpl, boot]) => {
+      if (cancelled) return;
+      if (tpl?.success === false) throw new Error(tpl.error || "Could not load templates");
+      setTemplates(tpl.templates || []);
+      setPages(boot.pages || []);
+      const firstSection = (tpl.sections || tpl.templates || []).find((t) => t.kind === "section");
+      if (firstSection) setSelectedType(firstSection.type);
+      setLoadErr("");
+    }).catch((e) => {
+      if (!cancelled) setLoadErr(e.message || "Failed to load templates");
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const sections = templates.filter((t) => t.kind !== "form");
+  const forms = templates.filter((t) => t.kind === "form");
+  const categories = ["all", ...Array.from(new Set(sections.map((t) => t.category).filter(Boolean)))];
+  if (forms.length) categories.push("forms");
+
+  const filteredSections = filter === "all"
+    ? sections
+    : filter === "forms"
+      ? []
+      : sections.filter((t) => t.category === filter);
+  const showForms = filter === "all" || filter === "forms";
+
+  const selected = sections.find((t) => t.type === selectedType) || filteredSections[0] || null;
+  const thumbScale = 0.38;
 
   const openEditorWithSection = (page, sectionType) => {
     try { sessionStorage.setItem("cpas.pendingSectionType", sectionType); } catch {}
@@ -3219,76 +3305,150 @@ function CmsTemplatesView({ onNavigate }) {
   return React.createElement(CmsPageWrapper, null,
     React.createElement(PageHeader, {
       title: "Templates",
-      subtitle: "Preview section and form templates, then add them to a page or open Forms to edit.",
+      subtitle: "Artboard previews of live section renders. Click a frame to expand, then add it to a page.",
     }),
-    React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" } },
-      categories.map(cat => React.createElement("button", { key: cat, onClick: () => setFilter(cat),
-        style: { padding: "5px 14px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${filter === cat ? C.purple : C.border}`, background: filter === cat ? C.purpleDim : "transparent", color: filter === cat ? C.purpleL : C.textSec, fontFamily: "var(--font-ui)" }
+    React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" } },
+      categories.map((cat) => React.createElement("button", {
+        key: cat, type: "button", onClick: () => setFilter(cat),
+        style: {
+          padding: "5px 14px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer",
+          border: `1px solid ${filter === cat ? C.purple : C.border}`,
+          background: filter === cat ? C.purpleDim : "transparent",
+          color: filter === cat ? C.purpleL : C.textSec, fontFamily: "var(--font-ui)",
+        },
       }, cat.charAt(0).toUpperCase() + cat.slice(1)))
     ),
-    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 } },
-      filtered.map(t => {
-        const col = catColors[t.category] || catColors.content;
-        return React.createElement(Card, { key: t.type + t.kind, hover: true, style: { padding: 20, display: "flex", flexDirection: "column", gap: 12 } },
-          React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
-            React.createElement("div", { style: { width: 40, height: 40, borderRadius: 10, background: col.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, React.createElement(Icon, { name: t.icon, size: 18, style: { color: col.color } })),
-            React.createElement("div", null,
-              React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 3 } }, t.label),
-              React.createElement("div", { style: { fontSize: 11, color: C.textSec, lineHeight: 1.45 } }, t.desc)
-            )
+
+    loading && React.createElement("p", { style: { color: C.textMut, fontSize: 13 } }, "Loading template catalog…"),
+    loadErr && React.createElement("p", { style: { color: C.red || "#b91c1c", fontSize: 13 } }, loadErr),
+
+    !loading && !loadErr && React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: !narrow && selected && filter !== "forms" ? "minmax(240px, 320px) minmax(0, 1fr)" : "1fr",
+        gap: 16,
+        alignItems: "start",
+      },
+    },
+      // Thumbnail rail / full list
+      React.createElement("div", {
+        style: {
+          display: "flex", flexDirection: "column", gap: 14,
+          maxHeight: !narrow && selected && filter !== "forms" ? "calc(100vh - 220px)" : "none",
+          overflow: !narrow && selected && filter !== "forms" ? "auto" : "visible",
+          paddingRight: 4,
+        },
+      },
+        filteredSections.map((t) =>
+          React.createElement(TemplateArtboard, {
+            key: t.type,
+            tpl: t,
+            selected: selected && selected.type === t.type && filter !== "forms",
+            scale: !narrow && selected && filter !== "forms" ? 0.22 : thumbScale,
+            onSelect: setSelectedType,
+            onAdd: setPickerType,
+          })
+        ),
+        filteredSections.length === 0 && filter !== "forms" && React.createElement("p", {
+          style: { color: C.textMut, fontSize: 13 },
+        }, "No section templates in this category.")
+      ),
+
+      // Expanded artboard pane
+      selected && filter !== "forms" && !narrow && React.createElement("div", {
+        style: {
+          position: "sticky", top: 12,
+          borderRadius: 16, border: `1px solid ${C.border}`, background: C.surface,
+          overflow: "hidden", boxShadow: "0 8px 28px rgba(26,22,34,.08)",
+        },
+      },
+        React.createElement("div", {
+          style: {
+            display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+            padding: "12px 16px", borderBottom: `1px solid ${C.border}`,
+          },
+        },
+          React.createElement("div", { style: { flex: 1, minWidth: 160 } },
+            React.createElement("div", { style: { fontWeight: 900, fontSize: 15 } }, selected.label),
+            React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginTop: 3 } },
+              "Live server render with sample content — not a screenshot mock.")
           ),
-          React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: "auto", flexWrap: "wrap" } },
-            React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: col.color, background: col.bg, padding: "2px 8px", borderRadius: 99 } }, t.category),
-            React.createElement("div", { style: { display: "flex", gap: 6 } },
-              t.kind === "section"
-                ? React.createElement(Btn, { size: "sm", variant: "ghost", icon: "eye", onClick: () => setPreviewType(t.type) }, "Preview")
-                : React.createElement(Btn, { size: "sm", variant: "ghost", icon: "eye", onClick: () => onNavigate("cms-form-editor", { formId: t.formId || t.type }) }, "Open"),
-              t.kind === "section"
-                ? React.createElement(Btn, { size: "sm", variant: "secondary", icon: "plus", onClick: () => setPickerType(t.type) }, "Add to Page")
-                : React.createElement(Btn, { size: "sm", variant: "secondary", icon: "edit", onClick: () => onNavigate("cms-form-editor", { formId: t.formId || t.type }) }, "Edit form")
-            )
+          React.createElement(Btn, {
+            size: "sm", variant: "primary", icon: "plus",
+            onClick: () => setPickerType(selected.type),
+          }, "Add to Page")
+        ),
+        React.createElement("div", {
+          style: { height: "min(68vh, 640px)", overflow: "auto", background: "#ddd5cb", padding: 16 },
+        },
+          React.createElement("div", {
+            style: {
+              width: Math.round(1200 * 0.62),
+              height: Math.round(720 * 0.62),
+              margin: "0 auto",
+              overflow: "hidden",
+              borderRadius: 12,
+              boxShadow: "0 10px 40px rgba(0,0,0,.18)",
+              background: "#f4efe8",
+            },
+          },
+            React.createElement("iframe", {
+              title: selected.label + " expanded",
+              src: selected.preview_url || `/api/cms/section/preview?type=${encodeURIComponent(selected.type)}`,
+              style: {
+                width: 1200, height: 720, border: 0,
+                transform: "scale(0.62)", transformOrigin: "top left",
+                background: "#f4efe8", display: "block",
+              },
+            })
           )
-        );
-      })
+        )
+      )
     ),
 
-    previewType && React.createElement("div", {
-      onClick: (e) => { if (e.target === e.currentTarget) setPreviewType(null); },
-      style: { position: "fixed", inset: 0, zIndex: 80, background: "rgba(8,10,16,.72)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 },
-    },
+    showForms && forms.length > 0 && React.createElement("div", { style: { marginTop: 28 } },
+      React.createElement("h3", { style: { margin: "0 0 12px", fontSize: 14, fontWeight: 800 } }, "Forms"),
       React.createElement("div", {
-        style: { width: "min(960px,100%)", height: "min(780px,90vh)", background: C.surface, borderRadius: 16, border: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 80px rgba(0,0,0,.35)" },
+        style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 },
       },
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: `1px solid ${C.border}` } },
-          React.createElement("strong", { style: { fontSize: 13 } }, "Template preview"),
-          React.createElement("span", { style: { color: C.textMut, fontSize: 12 } }, previewType),
-          React.createElement("button", {
-            type: "button", onClick: () => setPreviewType(null),
-            style: { marginLeft: "auto", border: 0, background: "transparent", color: C.textMut, cursor: "pointer", fontSize: 18 },
-          }, "×")
-        ),
-        React.createElement("iframe", {
-          title: "Section preview",
-          src: `/api/cms/section/preview?type=${encodeURIComponent(previewType)}`,
-          style: { flex: 1, width: "100%", border: 0, background: "#fff" },
-        }),
-        React.createElement("div", { style: { padding: 12, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 8 } },
-          React.createElement(Btn, { size: "sm", variant: "secondary", onClick: () => setPreviewType(null) }, "Close"),
-          React.createElement(Btn, { size: "sm", variant: "primary", onClick: () => { setPreviewType(null); setPickerType(previewType); } }, "Add to a page")
+        forms.map((t) =>
+          React.createElement(Card, {
+            key: t.type, hover: true,
+            style: { padding: 18, display: "flex", flexDirection: "column", gap: 10 },
+          },
+            React.createElement("div", { style: { fontWeight: 800, fontSize: 14 } }, t.label),
+            React.createElement("div", { style: { fontSize: 12, color: C.textSec, lineHeight: 1.45 } }, t.desc),
+            React.createElement("div", { style: { display: "flex", gap: 8, marginTop: "auto" } },
+              React.createElement(Btn, {
+                size: "sm", variant: "ghost", icon: "eye",
+                onClick: () => onNavigate("cms-form-editor", { formId: t.formId || t.type }),
+              }, "Open"),
+              React.createElement(Btn, {
+                size: "sm", variant: "secondary", icon: "edit",
+                onClick: () => onNavigate("cms-form-editor", { formId: t.formId || t.type }),
+              }, "Edit form")
+            )
+          )
         )
       )
     ),
 
     pickerType && React.createElement("div", {
       onClick: (e) => { if (e.target === e.currentTarget) setPickerType(null); },
-      style: { position: "fixed", inset: 0, zIndex: 81, background: "rgba(8,10,16,.72)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 },
+      style: {
+        position: "fixed", inset: 0, zIndex: 81, background: "rgba(8,10,16,.72)",
+        backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+      },
     },
       React.createElement("div", {
-        style: { width: "min(440px,100%)", background: C.surface, borderRadius: 16, border: `1px solid ${C.border}`, padding: 18, boxShadow: "0 24px 80px rgba(0,0,0,.35)" },
+        style: {
+          width: "min(440px,100%)", background: C.surface, borderRadius: 16,
+          border: `1px solid ${C.border}`, padding: 18, boxShadow: "0 24px 80px rgba(0,0,0,.35)",
+        },
       },
         React.createElement("strong", { style: { display: "block", fontSize: 15, marginBottom: 6 } }, "Add to which page?"),
         React.createElement("p", { style: { margin: "0 0 14px", color: C.textSec, fontSize: 12 } },
-          `Choose a page to insert “${pickerType.replace(/_/g, " ")}”, then edit and publish.`),
+          `Choose a page to insert “${String(pickerType).replace(/_/g, " ")}”, then edit and publish.`),
         React.createElement("div", { style: { display: "grid", gap: 8, maxHeight: 360, overflow: "auto" } },
           (pages.length ? pages : [{ route_path: "/", title: "Home" }]).map((p) =>
             React.createElement("button", {
