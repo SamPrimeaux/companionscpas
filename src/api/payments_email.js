@@ -43,6 +43,16 @@ function safeJson(value, fallback = {}) {
   try { return JSON.parse(String(value)) || fallback; } catch { return fallback; }
 }
 
+async function invalidateDonatePageCache(env) {
+  try {
+    const { publishRoute } = await import("./cms_pipeline.js");
+    await publishRoute(env, "/donate", "competition_auto_approve");
+  } catch (err) {
+    console.warn("[competition] donate cache warm failed:", err?.message || err);
+    if (env?.CMS_CACHE) await env.CMS_CACHE.delete("page:/donate").catch(() => {});
+  }
+}
+
 async function settleCompetitionEntryPaid(env, {
   entryId, paymentIntentId, donationIntentId, amountCents, currency, campaignId,
 }) {
@@ -103,11 +113,16 @@ async function settleCompetitionEntryPaid(env, {
     console.warn("[competition] PI id changed on settle", entryId, entry.stripe_payment_intent_id, paymentIntentId);
   }
 
+  // Paid competition entries auto-publish to /donate (no manual approve step).
   await env.DB.prepare(`
     UPDATE competition_entries
     SET payment_status = 'paid',
         submission_status = 'paid',
-        moderation_status = COALESCE(NULLIF(moderation_status, ''), 'pending'),
+        moderation_status = 'approved',
+        is_approved = 1,
+        approved_by = 'system:auto_approve',
+        approved_at = datetime('now'),
+        rejection_reason = NULL,
         stripe_payment_intent_id = ?,
         donation_intent_id = COALESCE(donation_intent_id, ?),
         failure_stage = NULL,
@@ -117,14 +132,18 @@ async function settleCompetitionEntryPaid(env, {
     WHERE id = ? AND tenant_id = ? AND payment_status != 'paid'
   `).bind(paymentIntentId, donationIntentId || null, entryId, TENANT_ID).run();
 
-  const { upsertCampaignUpdateForPaidEntry } = await import("./competition_campaign_updates.js");
+  const { upsertCampaignUpdateForPaidEntry, setCampaignUpdatePublicForEntry } = await import("./competition_campaign_updates.js");
   await upsertCampaignUpdateForPaidEntry(env, entryId).catch((err) => {
     console.warn("[competition] campaign_updates upsert skipped:", err?.message || err);
   });
+  await setCampaignUpdatePublicForEntry(env, entryId, true).catch((err) => {
+    console.warn("[competition] campaign_updates public skipped:", err?.message || err);
+  });
+  await invalidateDonatePageCache(env);
 
   const { notifyCompetitionEntry } = await import("./competition_notifications.js");
   await notifyCompetitionEntry(env, entryId, "paid");
-  return { ok: true };
+  return { ok: true, auto_approved: true };
 }
 
 async function markCompetitionEntryFailed(env, { entryId, paymentIntentId, reason, code }) {
