@@ -271,6 +271,61 @@ function injectCmsInspector(html) {
   body.cms-preview [data-cms-field] { cursor: pointer; }
   body.cms-preview [data-cms-field].cms-field-hover { outline: 1.5px solid rgba(124,58,237,0.7); outline-offset: 2px; border-radius: 4px; }
   body.cms-preview [data-cms-field].cms-field-active { outline: 2px solid #7c3aed; outline-offset: 2px; border-radius: 4px; box-shadow: 0 0 0 3px rgba(124,58,237,0.18); }
+
+  /* Let clicks reach hero photos under the full-width text column */
+  body.cms-preview .hero-split > .hero-body { pointer-events: none; }
+  body.cms-preview .hero-split .hero-content { pointer-events: auto; }
+  body.cms-preview .hero-split .hero-media-bg[data-cms-field="image_url"] {
+    pointer-events: auto;
+    cursor: grab;
+    z-index: 1;
+  }
+  body.cms-preview .hero-split .hero-media-bg[data-cms-field="image_url"]:active { cursor: grabbing; }
+  body.cms-preview [data-cms-field="image_url"] { position: relative; }
+  body.cms-preview [data-cms-field="image_url"].cms-field-hover,
+  body.cms-preview [data-cms-field="image_url"].cms-field-active {
+    outline: none;
+  }
+  body.cms-preview [data-cms-field="image_url"].cms-field-hover::after,
+  body.cms-preview [data-cms-field="image_url"].cms-field-active::after {
+    content: "";
+    position: absolute;
+    inset: 10px;
+    border: 2px solid #7c3aed;
+    border-radius: 10px;
+    pointer-events: none;
+    z-index: 6;
+    box-shadow: 0 0 0 3px rgba(124,58,237,0.2);
+  }
+  body.cms-preview [data-cms-field="image_url"].cms-field-active::before {
+    content: "Image · drag to reposition";
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 7;
+    pointer-events: none;
+    background: #7c3aed;
+    color: #fff;
+    font: 700 11px/1.2 system-ui, sans-serif;
+    padding: 5px 10px;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(76,29,149,0.35);
+  }
+  body.cms-preview .cms-focal-dot {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: rgba(124,58,237,0.45);
+    box-shadow: 0 0 0 2px rgba(124,58,237,0.85);
+    pointer-events: none;
+    z-index: 8;
+    display: none;
+  }
+  body.cms-preview [data-cms-field="image_url"].cms-field-active .cms-focal-dot { display: block; }
+
   #cms-inspector-chip {
     position: fixed; z-index: 100000; pointer-events: none; display: none;
     background: #7c3aed; color: #fff; font-size: 11px; font-weight: 700;
@@ -286,6 +341,8 @@ function injectCmsInspector(html) {
   var activeField = null;
   var hoverSec = null;
   var chip = null;
+  var drag = null;
+  var suppressClick = false;
 
   function ensureChip() {
     if (chip) return chip;
@@ -336,6 +393,11 @@ function injectCmsInspector(html) {
     return document.querySelector('[data-section-key="' + snake + '"]');
   }
 
+  function fieldLabel(name) {
+    if (name === 'image_url') return 'Image';
+    return name || '';
+  }
+
   function placeChip(el, text) {
     var c = ensureChip();
     if (!el) { c.style.display = 'none'; return; }
@@ -358,8 +420,12 @@ function injectCmsInspector(html) {
       sec.classList.toggle('cms-sec-dim', !!(activeKey && !isActive));
     });
     var activeEl = activeKey ? resolveSection(activeKey) : null;
-    if (activeEl) placeChip(activeEl, activeField ? (activeKey + ' / ' + activeField) : activeKey);
-    else if (hoverSec) placeChip(hoverSec, sectionKey(hoverSec));
+    if (activeEl) {
+      var label = activeField
+        ? (activeKey + ' / ' + fieldLabel(activeField) + (activeField === 'image_url' ? ' · drag to pan' : ''))
+        : activeKey;
+      placeChip(activeEl, label);
+    } else if (hoverSec) placeChip(hoverSec, sectionKey(hoverSec));
     else { var c = ensureChip(); c.style.display = 'none'; }
   }
 
@@ -369,24 +435,191 @@ function injectCmsInspector(html) {
     });
   }
 
+  function clampPct(n) {
+    n = Math.round(n);
+    if (n < 0) return 0;
+    if (n > 100) return 100;
+    return n;
+  }
+
+  function readObjectPos(img) {
+    try {
+      var raw = (window.getComputedStyle(img).objectPosition || '50% 50%').trim().split(/\\s+/);
+      var x = parseFloat(raw[0]);
+      var y = parseFloat(raw[1] != null ? raw[1] : raw[0]);
+      if (!isFinite(x)) x = 50;
+      if (!isFinite(y)) y = 50;
+      return { x: x, y: y };
+    } catch (_) {
+      return { x: 50, y: 50 };
+    }
+  }
+
+  function ensureFocalDot(field) {
+    var dot = field.querySelector('.cms-focal-dot');
+    if (dot) return dot;
+    dot = document.createElement('div');
+    dot.className = 'cms-focal-dot';
+    field.appendChild(dot);
+    return dot;
+  }
+
+  function placeFocalDot(field, x, y) {
+    var dot = ensureFocalDot(field);
+    dot.style.left = x + '%';
+    dot.style.top = y + '%';
+  }
+
+  function applyLiveFocal(field, x, y) {
+    var img = field.tagName === 'IMG' ? field : field.querySelector('img');
+    if (img) {
+      img.style.objectPosition = x + '% ' + y + '%';
+      img.style.transformOrigin = x + '% ' + y + '%';
+    }
+    placeFocalDot(field, x, y);
+  }
+
+  function postFocal(secKey, x, y, live) {
+    window.parent.postMessage({
+      type: 'cms:image-focal',
+      sectionKey: secKey,
+      field: 'image_url',
+      focalX: x,
+      focalY: y,
+      live: !!live
+    }, '*');
+  }
+
+  function selectImageField(field, sec) {
+    var key = sectionKey(sec);
+    activeKey = key;
+    activeField = 'image_url';
+    clearFieldChrome();
+    field.classList.add('cms-field-active');
+    var img = field.tagName === 'IMG' ? field : field.querySelector('img');
+    if (img) {
+      var pos = readObjectPos(img);
+      placeFocalDot(field, pos.x, pos.y);
+    }
+    applySectionChrome();
+    window.parent.postMessage({
+      type: 'cms:element-selected',
+      sectionKey: key,
+      field: 'image_url',
+      blockKey: field.getAttribute('data-cms-block') || null,
+      tag: (field.tagName || '').toLowerCase()
+    }, '*');
+  }
+
   document.addEventListener('mouseover', function(e) {
+    if (drag) return;
     var field = findField(e.target);
     var sec = findSection(e.target);
     hoverSec = sec;
     clearFieldChrome();
-    if (field) field.classList.add('cms-field-hover');
+    if (field) {
+      field.classList.add('cms-field-hover');
+      if (activeField === 'image_url' && field.getAttribute('data-cms-field') === 'image_url') {
+        field.classList.add('cms-field-active');
+      }
+    } else if (activeKey && activeField) {
+      var activeSec = resolveSection(activeKey);
+      if (activeSec) {
+        var f = activeSec.querySelector('[data-cms-field="' + activeField + '"]');
+        if (f) f.classList.add('cms-field-active');
+      }
+    }
     applySectionChrome();
   }, true);
 
   document.addEventListener('mouseout', function(e) {
+    if (drag) return;
     if (!e.relatedTarget || e.relatedTarget === document.documentElement) {
       hoverSec = null;
       clearFieldChrome();
+      if (activeKey && activeField) {
+        var activeSec = resolveSection(activeKey);
+        if (activeSec) {
+          var f = activeSec.querySelector('[data-cms-field="' + activeField + '"]');
+          if (f) f.classList.add('cms-field-active');
+        }
+      }
       applySectionChrome();
     }
   }, true);
 
+  document.addEventListener('pointerdown', function(e) {
+    if (e.button != null && e.button !== 0) return;
+    var field = findField(e.target);
+    if (!field || field.getAttribute('data-cms-field') !== 'image_url') return;
+    var sec = findSection(field);
+    if (!sec) return;
+    e.preventDefault();
+    e.stopPropagation();
+    selectImageField(field, sec);
+    var img = field.tagName === 'IMG' ? field : field.querySelector('img');
+    var startPos = img ? readObjectPos(img) : { x: 50, y: 50 };
+    var rect = field.getBoundingClientRect();
+    drag = {
+      field: field,
+      secKey: sectionKey(sec),
+      startX: e.clientX,
+      startY: e.clientY,
+      startFocalX: startPos.x,
+      startFocalY: startPos.y,
+      width: Math.max(1, rect.width),
+      height: Math.max(1, rect.height),
+      moved: false,
+      pointerId: e.pointerId
+    };
+    try { field.setPointerCapture(e.pointerId); } catch (_) {}
+  }, true);
+
+  document.addEventListener('pointermove', function(e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.startX;
+    var dy = e.clientY - drag.startY;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+    drag.moved = true;
+    suppressClick = true;
+    // Drag image content with the pointer (pan): drag right → focal left
+    var x = clampPct(drag.startFocalX - (dx / drag.width) * 100);
+    var y = clampPct(drag.startFocalY - (dy / drag.height) * 100);
+    applyLiveFocal(drag.field, x, y);
+    postFocal(drag.secKey, x, y, true);
+  }, true);
+
+  function endDrag(e) {
+    if (!drag) return;
+    var d = drag;
+    drag = null;
+    try { d.field.releasePointerCapture(d.pointerId); } catch (_) {}
+    if (d.moved) {
+      var img = d.field.tagName === 'IMG' ? d.field : d.field.querySelector('img');
+      var pos = img ? readObjectPos(img) : { x: d.startFocalX, y: d.startFocalY };
+      postFocal(d.secKey, clampPct(pos.x), clampPct(pos.y), false);
+      setTimeout(function() { suppressClick = false; }, 0);
+    } else {
+      // Tap without drag: set focal to tap point (same as inspector preview)
+      var rect = d.field.getBoundingClientRect();
+      var x = clampPct(((e.clientX - rect.left) / Math.max(1, rect.width)) * 100);
+      var y = clampPct(((e.clientY - rect.top) / Math.max(1, rect.height)) * 100);
+      applyLiveFocal(d.field, x, y);
+      postFocal(d.secKey, x, y, false);
+      suppressClick = false;
+    }
+  }
+
+  document.addEventListener('pointerup', endDrag, true);
+  document.addEventListener('pointercancel', endDrag, true);
+
   document.addEventListener('click', function(e) {
+    if (suppressClick) {
+      e.preventDefault();
+      e.stopPropagation();
+      suppressClick = false;
+      return;
+    }
     var sec = findSection(e.target);
     if (!sec) return;
     e.preventDefault();
@@ -397,7 +630,16 @@ function injectCmsInspector(html) {
     activeField = fieldEl ? fieldEl.getAttribute('data-cms-field') : null;
     var blockKey = fieldEl ? (fieldEl.getAttribute('data-cms-block') || null) : null;
     clearFieldChrome();
-    if (fieldEl) fieldEl.classList.add('cms-field-active');
+    if (fieldEl) {
+      fieldEl.classList.add('cms-field-active');
+      if (activeField === 'image_url') {
+        var img = fieldEl.tagName === 'IMG' ? fieldEl : fieldEl.querySelector('img');
+        if (img) {
+          var pos = readObjectPos(img);
+          placeFocalDot(fieldEl, pos.x, pos.y);
+        }
+      }
+    }
     applySectionChrome();
     if (fieldEl && activeField) {
       window.parent.postMessage({
@@ -440,7 +682,16 @@ function injectCmsInspector(html) {
         var sec = resolveSection(activeKey);
         if (sec) {
           var f = sec.querySelector('[data-cms-field="' + activeField + '"]');
-          if (f) f.classList.add('cms-field-active');
+          if (f) {
+            f.classList.add('cms-field-active');
+            if (activeField === 'image_url') {
+              var img = f.tagName === 'IMG' ? f : f.querySelector('img');
+              if (img) {
+                var pos = readObjectPos(img);
+                placeFocalDot(f, pos.x, pos.y);
+              }
+            }
+          }
         }
       }
       applySectionChrome();

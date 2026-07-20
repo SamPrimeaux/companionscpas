@@ -802,10 +802,47 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     } catch (_) {}
   }, []);
 
-  // Listen for clicks from the inspector injected into the preview iframe
+  // Listen for clicks / image drag from the inspector injected into the preview iframe
   React.useEffect(() => {
     const handler = (e) => {
       if (!e.data) return;
+      if (e.data.type === 'cms:image-focal') {
+        const key = e.data.sectionKey;
+        if (!key) return;
+        const fx = Math.min(100, Math.max(0, Number(e.data.focalX)));
+        const fy = Math.min(100, Math.max(0, Number(e.data.focalY)));
+        const live = !!e.data.live;
+        const safeX = Number.isFinite(fx) ? fx : 50;
+        const safeY = Number.isFinite(fy) ? fy : 50;
+        setSelectedKey(key);
+        setSelectedField('image_url');
+        setSelectedBlockKey(null);
+        setInspectorCollapsed(false);
+        setHasUnsaved(true);
+        setPageData((prev) => {
+          const want = cmsNormalizeSectionKey(key);
+          let saved = null;
+          const sections = (prev.sections || []).map((s) => {
+            if (cmsNormalizeSectionKey(s.section_key) !== want) return s;
+            const cfg = {
+              ...cmsParseConfig(s),
+              image_focal_x: safeX,
+              image_focal_y: safeY,
+              image_object_position: 'custom',
+            };
+            const next = { ...s, config_json: JSON.stringify(cfg) };
+            saved = next;
+            return next;
+          });
+          if (!live && saved) {
+            queueMicrotask(() => {
+              saveSectionObject(saved, true).catch((err) => notify(err.message || 'Could not save image position', 'error'));
+            });
+          }
+          return { ...prev, sections };
+        });
+        return;
+      }
       if (e.data.type === 'cms:element-selected') {
         selectSection(e.data.sectionKey, { field: e.data.field || null, blockKey: e.data.blockKey || null });
         return;
@@ -1632,7 +1669,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             }
           })
         ),
-        React.createElement('div', { style:{ fontSize:11, color:C.textMut } }, 'Click the preview to set the focal point (crop center).'),
+        React.createElement('div', { style:{ fontSize:11, color:C.textMut } },
+          isHero
+            ? 'Hover the photo in the preview to select it, then drag to reposition. Or click the thumbnail below.'
+            : 'Click the preview to set the focal point (crop center).'
+        ),
         isHero && renderPresetRow('Layout / scene', layoutNorm, [
           { value:'soft_split', label:'Soft fade' },
           { value:'true_split', label:'True split' },
