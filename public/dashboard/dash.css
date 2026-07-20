@@ -1179,6 +1179,17 @@ body.cpas-nav-open { overflow: hidden !important; }
 .mail-body-html pre { white-space: pre-wrap; font-family: inherit; }
 .mail-body-html img { max-width: 100%; height: auto; border-radius: 8px; }
 
+.mail-body-frame {
+  display: block;
+  width: 100%;
+  min-height: 480px;
+  height: min(70vh, 720px);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  background: #ffffff;
+  margin-top: 8px;
+}
+
 /* Compose sheet */
 .mail-compose-backdrop {
   position: fixed;

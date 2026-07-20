@@ -140,6 +140,22 @@ function ReportsView() {
 function SettingsView() {
   const [tab, setTab] = useState("org");
   const [saved, setSaved] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [orgForm, setOrgForm] = useState({
+    name: "", legal_name: "", website_url: "", email: "", phone: "",
+    city: "", state: "", postal_code: "", mission: "", about: "", ein: "",
+  });
+  const [notifPrefs, setNotifPrefs] = useState({
+    new_application: true,
+    application_status_changed: true,
+    new_donation: true,
+    medical_overdue: true,
+    daily_care_incomplete: false,
+    new_intake: true,
+    campaign_goal_reached: true,
+    weekly_digest: false,
+  });
   const [members, setMembers] = useState([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [membersError, setMembersError] = useState("");
@@ -151,7 +167,75 @@ function SettingsView() {
   const [saving, setSaving] = useState(false);
   const currentUserId = (window.CPAS_USER && (window.CPAS_USER.id || window.CPAS_USER.user_id)) || null;
 
-  const save = () => { setSaved(true); setTimeout(()=>setSaved(false), 2000); };
+  const NOTIF_TOGGLES = [
+    { key: "new_application", label: "New application submitted" },
+    { key: "application_status_changed", label: "Application status changed" },
+    { key: "new_donation", label: "New donation received" },
+    { key: "medical_overdue", label: "Medical record overdue" },
+    { key: "daily_care_incomplete", label: "Daily care tasks incomplete at EOD" },
+    { key: "new_intake", label: "New intake logged" },
+    { key: "campaign_goal_reached", label: "Campaign goal reached" },
+    { key: "weekly_digest", label: "Weekly summary digest" },
+  ];
+
+  function settingsApi(url, options) {
+    return fetch(url, Object.assign({ credentials: "include", headers: { "Content-Type": "application/json" } }, options || {}))
+      .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || "Request failed"); return d; }); });
+  }
+
+  function loadSettings() {
+    setLoadingSettings(true);
+    setLoadError("");
+    settingsApi("/api/dashboard/settings")
+      .then(function(d) {
+        const o = d.organization || {};
+        setOrgForm({
+          name: o.name || "",
+          legal_name: o.legal_name || "",
+          website_url: o.website_url || "",
+          email: o.email || "",
+          phone: o.phone || "",
+          city: o.city || "",
+          state: o.state || "",
+          postal_code: o.postal_code || "",
+          mission: o.mission || "",
+          about: o.about || "",
+          ein: o.ein || "",
+        });
+        if (d.notification_prefs) {
+          setNotifPrefs(function(prev) { return Object.assign({}, prev, d.notification_prefs); });
+        }
+      })
+      .catch(function(e) { setLoadError(e.message || "Failed to load settings."); })
+      .finally(function() { setLoadingSettings(false); });
+  }
+
+  useEffect(function() { loadSettings(); }, []);
+
+  function setOrgField(key, value) {
+    setOrgForm(function(prev) { return Object.assign({}, prev, { [key]: value }); });
+  }
+
+  function save() {
+    setSaving(true);
+    setLoadError("");
+    setActionMsg("");
+    const orgPayload = Object.assign({}, orgForm);
+    Promise.all([
+      settingsApi("/api/dashboard/settings/org", { method: "PATCH", body: JSON.stringify(orgPayload) }),
+      settingsApi("/api/dashboard/settings/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ notification_prefs: notifPrefs }),
+      }),
+    ])
+      .then(function() {
+        setSaved(true);
+        setTimeout(function() { setSaved(false); }, 2000);
+        setActionMsg("Settings saved.");
+      })
+      .catch(function(e) { setLoadError(e.message || "Save failed."); })
+      .finally(function() { setSaving(false); });
+  }
 
   function membersApi(url, options) {
     return fetch(url, Object.assign({ credentials: "include", headers: { "Content-Type": "application/json" } }, options || {}))
@@ -231,12 +315,19 @@ function SettingsView() {
       .finally(function() { setSaving(false); });
   }
 
-  const field = (label, defaultVal, type="text") => React.createElement("div", { key:label, style:{ marginBottom:16 } },
-    React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, label),
-    type === "textarea"
-      ? React.createElement("textarea", { defaultValue:defaultVal, style:{ width:"100%", background:C.raised, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 12px", color:C.text, fontSize:13, resize:"vertical", minHeight:72, outline:"none", boxSizing:"border-box" } })
-      : React.createElement(Input, { value:defaultVal, onChange:()=>{} })
-  );
+  function orgField(label, key, opts) {
+    const type = (opts && opts.type) || "text";
+    return React.createElement("div", { key: key, style: { marginBottom: 16 } },
+      React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: C.textSec, display: "block", marginBottom: 6 } }, label),
+      type === "textarea"
+        ? React.createElement("textarea", {
+            value: orgForm[key] || "",
+            onChange: function(e) { setOrgField(key, e.target.value); },
+            style: { width: "100%", background: C.raised, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontSize: 13, resize: "vertical", minHeight: 72, outline: "none", boxSizing: "border-box" },
+          })
+        : React.createElement(Input, { value: orgForm[key] || "", onChange: function(v) { setOrgField(key, v); } })
+    );
+  }
 
   const roleOptions = [
     { value: "admin", label: "Admin" },
@@ -251,122 +342,139 @@ function SettingsView() {
 
   return React.createElement("div", { className: "dash-page" },
     React.createElement(PageHeader, {
-      title:"Settings",
-      subtitle:"Organization, team members, and notifications",
+      title: "Settings",
+      subtitle: "Organization, team members, and notifications",
       action: saved
-        ? React.createElement(Btn, { variant:"success", icon:"check2" }, "Saved!")
-        : React.createElement(Btn, { icon:"check2", onClick:save }, "Save Changes")
+        ? React.createElement(Btn, { variant: "success", icon: "check2" }, "Saved!")
+        : React.createElement(Btn, { icon: "check2", onClick: save, disabled: saving || loadingSettings }, saving ? "Saving…" : "Save Changes")
     }),
+
+    loadError && React.createElement("div", { style: { marginBottom: 12, fontSize: 13, color: C.red } }, loadError),
+    actionMsg && React.createElement("div", { style: { marginBottom: 12, fontSize: 13, color: C.teal } }, actionMsg),
 
     React.createElement(Tabs, {
-      tabs:[{value:"org",label:"Organization"},{value:"users",label:"Users"},{value:"notifications",label:"Notifications"}],
-      active:tab, onChange:setTab
+      tabs: [{ value: "org", label: "Organization" }, { value: "users", label: "Users" }, { value: "notifications", label: "Notifications" }],
+      active: tab, onChange: setTab
     }),
 
-    tab === "org" && React.createElement(Card, { style:{ padding:24, maxWidth:600 } },
-      field("Organization Name", "Companions of CPAS"),
-      field("Website URL", "https://companionscpas.org"),
-      field("Email Address", "info@companionscpas.org"),
-      field("Phone Number", "(555) 000-1234"),
-      field("Mailing Address", "123 Rescue Lane, Austin, TX 78701"),
-      field("Mission Statement", "To rescue, rehabilitate, and rehome animals in need.", "textarea"),
-      field("EIN / Tax ID", "12-3456789"),
-      React.createElement("p", { style:{ marginTop:8, fontSize:12, color:C.textSec, lineHeight:1.5 } },
-        "Google Drive and CMS assets are managed under ",
-        React.createElement("a", { href:"/dashboard/cms/images", style:{ color:C.purpleL } }, "CMS → Images"),
-        "."
-      )
+    tab === "org" && React.createElement(Card, { style: { padding: 24, maxWidth: 600 } },
+      loadingSettings
+        ? React.createElement("div", { style: { color: C.textSec, fontSize: 13 } }, "Loading organization…")
+        : React.createElement(React.Fragment, null,
+            orgField("Organization Name", "name"),
+            orgField("Legal name", "legal_name"),
+            orgField("Website URL", "website_url"),
+            orgField("Email Address", "email"),
+            orgField("Phone Number", "phone"),
+            orgField("City", "city"),
+            orgField("State", "state"),
+            orgField("Postal code", "postal_code"),
+            orgField("Mission Statement", "mission", { type: "textarea" }),
+            orgField("About", "about", { type: "textarea" }),
+            orgField("EIN / Tax ID", "ein"),
+            React.createElement("p", { style: { marginTop: 8, fontSize: 12, color: C.textSec, lineHeight: 1.5 } },
+              "Saved to the organizations record (EIN ", orgForm.ein || "—", "). Google Drive and CMS assets are managed under ",
+              React.createElement("a", { href: "/dashboard/cms/images", style: { color: C.purpleL } }, "CMS → Images"),
+              "."
+            )
+          )
     ),
 
     tab === "users" && React.createElement("div", null,
-      actionMsg && React.createElement("div", { style:{ marginBottom:12, fontSize:13, color:C.teal } }, actionMsg),
-      membersError && React.createElement("div", { style:{ marginBottom:12, fontSize:13, color:C.red } }, membersError),
-      React.createElement("div", { style:{ display:"flex", justifyContent:"flex-end", marginBottom:14 } },
-        React.createElement(Btn, { icon:"plus", size:"sm", onClick:function(){ setShowInvite(true); setActionMsg(""); } }, "Invite User")
+      React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 14 } },
+        React.createElement(Btn, { icon: "plus", size: "sm", onClick: function() { setShowInvite(true); setActionMsg(""); } }, "Invite User")
       ),
       membersLoading
-        ? React.createElement(Card, { style:{ padding:32, textAlign:"center", color:C.textSec } }, "Loading team members…")
-        : React.createElement(Card, { style:{ overflow:"hidden" } },
+        ? React.createElement(Card, { style: { padding: 32, textAlign: "center", color: C.textSec } }, "Loading team members…")
+        : React.createElement(Card, { style: { overflow: "hidden" } },
             React.createElement(Table, {
-              cols:[
-                { key:"full_name", label:"Name", render:function(v,row){ return React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}}, React.createElement(Avatar,{name:v||row.email,size:30}), React.createElement("div",null, React.createElement("div",{style:{fontWeight:600,fontSize:13}},v||row.email), React.createElement("div",{style:{fontSize:11,color:C.textSec}},row.email))); } },
-                { key:"role", label:"Role", render:function(v){ return React.createElement(Badge,{label:roleLabel(v)}); } },
-                { key:"status", label:"Status", render:function(v){ return React.createElement(Badge,{label:statusLabel(v),dot:true}); } },
-                { key:"membership_id", label:"", render:function(v,row){
+              cols: [
+                { key: "full_name", label: "Name", render: function(v, row) { return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } }, React.createElement(Avatar, { name: v || row.email, size: 30 }), React.createElement("div", null, React.createElement("div", { style: { fontWeight: 600, fontSize: 13 } }, v || row.email), React.createElement("div", { style: { fontSize: 11, color: C.textSec } }, row.email))); } },
+                { key: "role", label: "Role", render: function(v) { return React.createElement(Badge, { label: roleLabel(v) }); } },
+                { key: "status", label: "Status", render: function(v) { return React.createElement(Badge, { label: statusLabel(v), dot: true }); } },
+                { key: "membership_id", label: "", render: function(v, row) {
                   const isSelf = currentUserId && row.user_id === currentUserId;
-                  return React.createElement("div",{style:{display:"flex",gap:6}},
-                    React.createElement(Btn,{size:"sm",variant:"ghost",icon:"edit",onClick:function(){ openEdit(row); }}, ""),
-                    !isSelf && row.status !== "inactive" && React.createElement(Btn,{size:"sm",variant:"ghost",icon:"trash",style:{color:C.red},onClick:function(){ deactivateMember(row); }}, "")
+                  return React.createElement("div", { style: { display: "flex", gap: 6 } },
+                    React.createElement(Btn, { size: "sm", variant: "ghost", icon: "edit", onClick: function() { openEdit(row); } }, ""),
+                    !isSelf && row.status !== "inactive" && React.createElement(Btn, { size: "sm", variant: "ghost", icon: "trash", style: { color: C.red }, onClick: function() { deactivateMember(row); } }, "")
                   );
                 } },
               ],
               rows: members
             })
           ),
-      React.createElement(Modal, { open:showInvite, onClose:function(){ setShowInvite(false); }, title:"Invite team member", width:480 },
-        React.createElement("div", { style:{ display:"flex", flexDirection:"column", gap:14 } },
+      membersError && React.createElement("div", { style: { marginTop: 12, fontSize: 13, color: C.red } }, membersError),
+      React.createElement(Modal, { open: showInvite, onClose: function() { setShowInvite(false); }, title: "Invite team member", width: 480 },
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
           React.createElement("div", null,
-            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Email"),
-            React.createElement(Input, { value:inviteForm.email, onChange:function(v){ setInviteForm(function(f){ return Object.assign({}, f, { email:v }); }); }, placeholder:"name@example.com" })
+            React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: C.textSec, display: "block", marginBottom: 6 } }, "Email"),
+            React.createElement(Input, { value: inviteForm.email, onChange: function(v) { setInviteForm(function(f) { return Object.assign({}, f, { email: v }); }); }, placeholder: "name@example.com" })
           ),
           React.createElement("div", null,
-            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Full name"),
-            React.createElement(Input, { value:inviteForm.full_name, onChange:function(v){ setInviteForm(function(f){ return Object.assign({}, f, { full_name:v }); }); }, placeholder:"Jane Doe" })
+            React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: C.textSec, display: "block", marginBottom: 6 } }, "Full name"),
+            React.createElement(Input, { value: inviteForm.full_name, onChange: function(v) { setInviteForm(function(f) { return Object.assign({}, f, { full_name: v }); }); }, placeholder: "Jane Doe" })
           ),
           React.createElement("div", null,
-            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Role"),
-            React.createElement(Select, { value:inviteForm.role, onChange:function(v){ setInviteForm(function(f){ return Object.assign({}, f, { role:v }); }); }, options:roleOptions })
+            React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: C.textSec, display: "block", marginBottom: 6 } }, "Role"),
+            React.createElement(Select, { value: inviteForm.role, onChange: function(v) { setInviteForm(function(f) { return Object.assign({}, f, { role: v }); }); }, options: roleOptions })
           ),
-          React.createElement("div", { style:{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8 } },
-            React.createElement(Btn, { variant:"secondary", onClick:function(){ setShowInvite(false); } }, "Cancel"),
-            React.createElement(Btn, { onClick:submitInvite, disabled:saving || !inviteForm.email.trim() }, saving ? "Sending…" : "Send invite")
+          React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 } },
+            React.createElement(Btn, { variant: "secondary", onClick: function() { setShowInvite(false); } }, "Cancel"),
+            React.createElement(Btn, { onClick: submitInvite, disabled: saving || !inviteForm.email.trim() }, saving ? "Sending…" : "Send invite")
           )
         )
       ),
-      React.createElement(Modal, { open:!!editing, onClose:function(){ setEditing(null); }, title:"Edit team member", width:480 },
-        editing && React.createElement("div", { style:{ display:"flex", flexDirection:"column", gap:14 } },
-          React.createElement("div", { style:{ fontSize:12, color:C.textSec, marginBottom:4 } }, editing.email),
+      React.createElement(Modal, { open: !!editing, onClose: function() { setEditing(null); }, title: "Edit team member", width: 480 },
+        editing && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
+          React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginBottom: 4 } }, editing.email),
           React.createElement("div", null,
-            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Full name"),
-            React.createElement(Input, { value:editForm.full_name, onChange:function(v){ setEditForm(function(f){ return Object.assign({}, f, { full_name:v }); }); } })
+            React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: C.textSec, display: "block", marginBottom: 6 } }, "Full name"),
+            React.createElement(Input, { value: editForm.full_name, onChange: function(v) { setEditForm(function(f) { return Object.assign({}, f, { full_name: v }); }); } })
           ),
           React.createElement("div", null,
-            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Role"),
-            React.createElement(Select, { value:editForm.role, onChange:function(v){ setEditForm(function(f){ return Object.assign({}, f, { role:v }); }); }, options:roleOptions, style: editing.user_id === currentUserId ? { opacity:0.6, pointerEvents:"none" } : {} })
+            React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: C.textSec, display: "block", marginBottom: 6 } }, "Role"),
+            React.createElement(Select, { value: editForm.role, onChange: function(v) { setEditForm(function(f) { return Object.assign({}, f, { role: v }); }); }, options: roleOptions, style: editing.user_id === currentUserId ? { opacity: 0.6, pointerEvents: "none" } : {} })
           ),
           React.createElement("div", null,
-            React.createElement("label", { style:{ fontSize:12, fontWeight:600, color:C.textSec, display:"block", marginBottom:6 } }, "Status"),
-            React.createElement(Select, { value:editForm.status, onChange:function(v){ setEditForm(function(f){ return Object.assign({}, f, { status:v }); }); }, options:statusOptions, style: editing.user_id === currentUserId ? { opacity:0.6, pointerEvents:"none" } : {} })
+            React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: C.textSec, display: "block", marginBottom: 6 } }, "Status"),
+            React.createElement(Select, { value: editForm.status, onChange: function(v) { setEditForm(function(f) { return Object.assign({}, f, { status: v }); }); }, options: statusOptions, style: editing.user_id === currentUserId ? { opacity: 0.6, pointerEvents: "none" } : {} })
           ),
-          React.createElement("div", { style:{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8 } },
-            React.createElement(Btn, { variant:"secondary", onClick:function(){ setEditing(null); } }, "Cancel"),
-            React.createElement(Btn, { onClick:submitEdit, disabled:saving }, saving ? "Saving…" : "Save changes")
+          React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 } },
+            React.createElement(Btn, { variant: "secondary", onClick: function() { setEditing(null); } }, "Cancel"),
+            React.createElement(Btn, { onClick: submitEdit, disabled: saving }, saving ? "Saving…" : "Save changes")
           )
         )
       )
     ),
 
-    tab === "notifications" && React.createElement(Card, { style:{ padding:24, maxWidth:560 } },
-      React.createElement("h3", { style:{ margin:"0 0 16px", fontSize:14, fontWeight:600, color:C.text } }, "Email Notifications"),
-      [
-        ["New application submitted",           true],
-        ["Application status changed",           true],
-        ["New donation received",                true],
-        ["Medical record overdue",               true],
-        ["Daily care tasks incomplete at EOD",   false],
-        ["New intake logged",                    true],
-        ["Campaign goal reached",                true],
-        ["Weekly summary digest",                false],
-      ].map(([label, defaultOn]) =>
-        React.createElement("div", { key:label, style:{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 0", borderBottom:`1px solid ${C.border}` } },
-          React.createElement("span", { style:{ fontSize:13, color:C.text } }, label),
+    tab === "notifications" && React.createElement(Card, { style: { padding: 24, maxWidth: 560 } },
+      React.createElement("h3", { style: { margin: "0 0 8px", fontSize: 14, fontWeight: 600, color: C.text } }, "Email Notifications"),
+      React.createElement("p", { style: { margin: "0 0 16px", fontSize: 12, color: C.textSec, lineHeight: 1.45 } },
+        "Controls which events create items in Email → Notifications. Save Changes writes these preferences to your organization record."
+      ),
+      NOTIF_TOGGLES.map(function(item) {
+        const on = !!notifPrefs[item.key];
+        return React.createElement("div", {
+          key: item.key,
+          style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: `1px solid ${C.border}` },
+        },
+          React.createElement("span", { style: { fontSize: 13, color: C.text } }, item.label),
           React.createElement("button", {
-            style:{ width:40, height:22, borderRadius:99, background: defaultOn ? C.purple : C.border, border:"none", cursor:"pointer", position:"relative", transition:"background .2s", flexShrink:0 }
+            type: "button",
+            "aria-pressed": on,
+            onClick: function() {
+              setNotifPrefs(function(prev) {
+                const next = Object.assign({}, prev);
+                next[item.key] = !on;
+                return next;
+              });
+            },
+            style: { width: 40, height: 22, borderRadius: 99, background: on ? C.purple : C.border, border: "none", cursor: "pointer", position: "relative", transition: "background .2s", flexShrink: 0 },
           },
-            React.createElement("span", { style:{ position:"absolute", top:3, left: defaultOn ? 20 : 3, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left .2s" } })
+            React.createElement("span", { style: { position: "absolute", top: 3, left: on ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .2s" } })
           )
-        )
-      )
+        );
+      })
     )
   );
 }

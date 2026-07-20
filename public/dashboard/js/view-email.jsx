@@ -73,6 +73,9 @@ function notificationLabels(n) {
 
 const SENT_TYPE_LABELS = {
   donation_receipt: "Donation receipt",
+  competition_entry_thank_you: "Competition thank you",
+  competition_entry_paid_admin: "Competition paid alert",
+  admin_donation_alert: "Donation alert",
   dashboard_send: "Manual send",
   manual: "Manual",
   foster_application: "Foster app",
@@ -103,6 +106,30 @@ function plainToHtml(text) {
   return raw.split(/\n\n+/).map(function(p) {
     return "<p>" + p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>") + "</p>";
   }).join("");
+}
+
+function mailHtmlDocument(html, textFallback) {
+  const raw = String(html || "").trim();
+  const text = String(textFallback || "").trim();
+  if (!raw && !text) {
+    return "<!DOCTYPE html><html><body style=\"margin:16px;font-family:Arial,sans-serif;color:#64748b;\">No message content.</body></html>";
+  }
+  if (!raw) {
+    const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"/></head><body style=\"margin:16px;font-family:Arial,sans-serif;white-space:pre-wrap;color:#1c1420;\">" + esc + "</body></html>";
+  }
+  if (/<!DOCTYPE|<html[\s>]/i.test(raw)) return raw;
+  return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"/><base target=\"_blank\" rel=\"noopener\"/></head><body style=\"margin:0;font-family:Arial,Helvetica,sans-serif;color:#1c1420;\">" + raw + "</body></html>";
+}
+
+function MailHtmlBody({ html, text }) {
+  return React.createElement("iframe", {
+    className: "mail-body-frame",
+    title: "Email content",
+    sandbox: "allow-popups allow-popups-to-escape-sandbox allow-same-origin",
+    referrerPolicy: "no-referrer",
+    srcDoc: mailHtmlDocument(html, text),
+  });
 }
 
 function messageLabels(m, view) {
@@ -378,16 +405,36 @@ function EmailView() {
     if (view === "sent") {
       setSelected(msg.id);
       const fromAddr = msg.from_email || config?.from_addresses?.noreply;
+      const metaBits =
+        "<p><strong>From:</strong> " + shortAddr(fromAddr) +
+        "</p><p><strong>To:</strong> " + (msg.recipient_email || "") +
+        "</p><p><strong>Type:</strong> " + sentTypeLabel(msg.email_type) +
+        "</p><p><strong>Status:</strong> " + (msg.status || "sent") + "</p>";
       setDetail({
         id: msg.id,
         subject: msg.subject || "(no subject)",
         from_email: fromAddr,
         received_at: msg.sent_at || msg.created_at,
-        body_html: "<p><strong>From:</strong> " + shortAddr(fromAddr) + "</p><p><strong>To:</strong> " + (msg.recipient_email || "") + "</p><p><strong>Type:</strong> " + sentTypeLabel(msg.email_type) + "</p><p><strong>Status:</strong> " + (msg.status || "sent") + "</p>",
+        body_html: metaBits,
         source: "resend",
         email_type: msg.email_type,
       });
       setMobilePanel("reader");
+      // Outbound logs do not store HTML — load matching template when available.
+      if (msg.email_type) {
+        emailApi("/api/email/templates").then(function(d) {
+          const tpl = (d.templates || []).find(function(t) { return t.template_key === msg.email_type; });
+          if (!tpl || !tpl.body_html) return;
+          setDetail(function(prev) {
+            if (!prev || prev.id !== msg.id) return prev;
+            return Object.assign({}, prev, {
+              body_html: tpl.body_html,
+              body_text: tpl.body_text || null,
+              template_preview: true,
+            });
+          });
+        }).catch(function() {});
+      }
       return;
     }
     setSelected(msg.id);
@@ -1025,9 +1072,9 @@ function EmailView() {
                   )
                 )
               ),
-              React.createElement("div", {
-                className: "mail-body-html",
-                dangerouslySetInnerHTML: { __html: detail.body_html || ("<pre>" + (detail.body_text || detail.preview_text || "") + "</pre>") },
+              React.createElement(MailHtmlBody, {
+                html: detail.body_html,
+                text: detail.body_text || detail.preview_text || "",
               })
             )
           )

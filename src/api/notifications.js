@@ -20,6 +20,25 @@ function money(cents) {
 
 export async function createDashboardNotification(env, payload) {
   if (!env?.DB) return null;
+
+  // Honor Settings → Notifications prefs when a known type maps to a toggle.
+  const prefByType = {
+    donation: "new_donation",
+    foster: "new_application",
+    application: "new_application",
+    intake: "new_intake",
+    medical: "medical_overdue",
+    campaign: "campaign_goal_reached",
+  };
+  const prefKey = prefByType[String(payload.type || "").toLowerCase()];
+  if (prefKey) {
+    const org = await env.DB.prepare(
+      `SELECT notification_prefs_json FROM organizations WHERE id = 'org_companionscpas' LIMIT 1`
+    ).first().catch(() => null);
+    const prefs = safeJson(org?.notification_prefs_json, {});
+    if (prefs[prefKey] === false) return null;
+  }
+
   const relatedType = payload.related_type || null;
   const relatedId = payload.related_id || null;
   if (relatedType && relatedId) {
