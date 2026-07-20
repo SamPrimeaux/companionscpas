@@ -152,12 +152,23 @@ async function fetchReceivedEmail(env, emailId) {
   return parsed;
 }
 
+function outboundPreviewText(html, text) {
+  const raw = String(text || html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return raw.slice(0, 240) || null;
+}
+
 async function logOutbound(env, row) {
   const emailId = id("email");
+  const html = row.html != null ? String(row.html) : null;
+  const text = row.text != null ? String(row.text) : null;
   await env.DB.prepare(
     `INSERT INTO email_logs
-     (id, tenant_id, recipient_email, recipient_name, subject, email_type, from_email, provider_message_id, status, related_type, related_id, error_message, sent_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     (id, tenant_id, recipient_email, recipient_name, subject, email_type, from_email, provider_message_id, status, related_type, related_id, error_message, sent_at, body_html, body_text, preview_text)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     emailId,
     TENANT_ID,
@@ -171,15 +182,55 @@ async function logOutbound(env, row) {
     row.related_type || null,
     row.related_id || null,
     row.error_message || null,
-    row.sent_at || null
+    row.sent_at || null,
+    html,
+    text,
+    outboundPreviewText(html, text)
   ).run();
   return emailId;
 }
 
+async function fetchSentEmailFromResend(env, providerMessageId) {
+  const key = resendKey(env);
+  if (!key || !providerMessageId) return null;
+  const res = await fetch(`https://api.resend.com/emails/${encodeURIComponent(providerMessageId)}`, {
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  const raw = await res.text();
+  let parsed = {};
+  try { parsed = JSON.parse(raw); } catch {}
+  if (!res.ok) return null;
+  return parsed;
+}
+
+async function hydrateOutboundBody(env, row) {
+  if (!row?.id) return row;
+  if (row.body_html || row.body_text) return row;
+  if (!row.provider_message_id) return row;
+  const remote = await fetchSentEmailFromResend(env, row.provider_message_id);
+  if (!remote) return row;
+  const html = remote.html != null ? String(remote.html) : null;
+  const text = remote.text != null ? String(remote.text) : null;
+  if (!html && !text) return row;
+  const preview = outboundPreviewText(html, text);
+  await env.DB.prepare(`
+    UPDATE email_logs
+    SET body_html = COALESCE(?, body_html),
+        body_text = COALESCE(?, body_text),
+        preview_text = COALESCE(?, preview_text)
+    WHERE id = ? AND tenant_id = ?
+  `).bind(html, text, preview, row.id, TENANT_ID).run().catch(() => null);
+  return { ...row, body_html: html || row.body_html, body_text: text || row.body_text, preview_text: preview || row.preview_text };
+}
+
 async function sendResendEmail(env, { from, to, subject, html, text, replyTo, type, related_type, related_id }) {
+  const plain = text || String(html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   const key = resendKey(env);
   if (!key) {
-    await logOutbound(env, { to, subject, type, related_type, related_id, status: "skipped", error_message: "Missing RESEND_API_KEY" });
+    await logOutbound(env, {
+      to, subject, type, related_type, related_id,
+      html, text: plain, status: "skipped", error_message: "Missing RESEND_API_KEY",
+    });
     return { ok: false, error: "Missing RESEND_API_KEY" };
   }
 
@@ -188,7 +239,7 @@ async function sendResendEmail(env, { from, to, subject, html, text, replyTo, ty
     to: Array.isArray(to) ? to : [to],
     subject,
     html,
-    text: text || String(html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+    text: plain,
   };
   if (replyTo) payload.reply_to = replyTo;
 
@@ -203,7 +254,10 @@ async function sendResendEmail(env, { from, to, subject, html, text, replyTo, ty
   try { parsed = JSON.parse(raw); } catch {}
 
   if (!res.ok) {
-    await logOutbound(env, { to: Array.isArray(to) ? to[0] : to, subject, type, related_type, related_id, from, status: "failed", error_message: raw });
+    await logOutbound(env, {
+      to: Array.isArray(to) ? to[0] : to, subject, type, related_type, related_id, from,
+      html, text: plain, status: "failed", error_message: raw,
+    });
     return { ok: false, status: res.status, error: raw };
   }
 
@@ -214,6 +268,8 @@ async function sendResendEmail(env, { from, to, subject, html, text, replyTo, ty
     from,
     related_type,
     related_id,
+    html,
+    text: plain,
     provider_message_id: parsed.id || null,
     status: "sent",
     sent_at: new Date().toISOString(),
@@ -606,7 +662,8 @@ export async function emailApiRoutes(request, env, url) {
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") || 80)));
     const rows = await env.DB.prepare(
       `SELECT id, recipient_email, subject, email_type, from_email, status, provider_message_id,
-              related_type, related_id, sent_at, created_at, error_message
+              related_type, related_id, sent_at, created_at, error_message,
+              body_html, body_text, preview_text
        FROM email_logs WHERE tenant_id = ?
        ORDER BY COALESCE(sent_at, created_at) DESC LIMIT ?`
     ).bind(TENANT_ID, limit).all().catch(() => ({ results: [] }));
@@ -614,8 +671,33 @@ export async function emailApiRoutes(request, env, url) {
     const messages = (rows?.results || []).map((m) => ({
       ...m,
       from_email: m.from_email || defaultFrom,
+      // Keep list payloads light — full HTML loads via /outbound/:id
+      has_body: Boolean(m.body_html || m.body_text || m.provider_message_id),
+      body_html: undefined,
+      body_text: undefined,
     }));
     return json({ messages });
+  }
+
+  const outboundGetMatch = path.match(/^\/api\/email\/outbound\/([^/]+)$/);
+  if (outboundGetMatch && method === "GET") {
+    const logId = decodeURIComponent(outboundGetMatch[1]);
+    const row = await env.DB.prepare(
+      `SELECT id, recipient_email, recipient_name, subject, email_type, from_email, status,
+              provider_message_id, related_type, related_id, sent_at, created_at, error_message,
+              body_html, body_text, preview_text
+       FROM email_logs WHERE id = ? AND tenant_id = ? LIMIT 1`
+    ).bind(logId, TENANT_ID).first().catch(() => null);
+    if (!row?.id) return json({ error: "Not found" }, 404);
+    const hydrated = await hydrateOutboundBody(env, row);
+    const defaultFrom = env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionsofcaddo.org>";
+    return json({
+      message: {
+        ...hydrated,
+        from_email: hydrated.from_email || defaultFrom,
+        source: "resend",
+      },
+    });
   }
 
   if (path === "/api/email/outbound" && method === "DELETE") {

@@ -214,19 +214,31 @@ async function verifyStripeWebhook(request, env) {
   try { return { ok: true, event: JSON.parse(rawBody) }; } catch { return { ok: false, status: 400, error: "Invalid Stripe event JSON" }; }
 }
 
+function emailPreviewText(html, text) {
+  const raw = String(text || html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return raw.slice(0, 240) || null;
+}
+
 async function logEmail(env, row) {
   try {
+    const html = row.html != null ? String(row.html) : null;
+    const text = row.text != null ? String(row.text) : null;
     await env.DB.prepare(
       `INSERT INTO email_logs
-       (id, tenant_id, recipient_email, recipient_name, subject, email_type, from_email, provider_message_id, status, related_type, related_id, error_message, sent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, tenant_id, recipient_email, recipient_name, subject, email_type, from_email, provider_message_id, status, related_type, related_id, error_message, sent_at, body_html, body_text, preview_text)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       id("email"), TENANT_ID, row.to, row.name || null, row.subject,
       row.type || "manual",
       row.from || env.RESEND_FROM_EMAIL || "Companions of CPAS <no-reply@companionsofcaddo.org>",
       row.provider_message_id || null, row.status || "queued",
       row.related_type || null, row.related_id || null,
-      row.error_message || null, row.sent_at || null
+      row.error_message || null, row.sent_at || null,
+      html, text, emailPreviewText(html, text)
     ).run();
   } catch (err) {
     console.warn("Email log skipped:", err?.message || err);
@@ -235,8 +247,12 @@ async function logEmail(env, row) {
 
 export async function sendResend(env, { to, name, subject, html, text, attachments = [], type, related_type, related_id }) {
   if (!to) return { skipped: true, error: "No recipient" };
+  const plain = text || String(html || "").replace(/<[^>]*>/g, " ");
   if (!env.RESEND_API_KEY && !env.RESEND_API_TOKEN) {
-    await logEmail(env, { to, name, subject, type, related_type, related_id, status: "skipped", error_message: "Missing RESEND_API_KEY" });
+    await logEmail(env, {
+      to, name, subject, type, related_type, related_id,
+      html, text: plain, status: "skipped", error_message: "Missing RESEND_API_KEY",
+    });
     return { skipped: true, error: "Missing RESEND_API_KEY" };
   }
   const key = env.RESEND_API_KEY || env.RESEND_API_TOKEN;
@@ -249,7 +265,7 @@ export async function sendResend(env, { to, name, subject, html, text, attachmen
       to: [to],
       subject,
       html,
-      text: text || html.replace(/<[^>]*>/g, " "),
+      text: plain,
       ...(attachments.length ? { attachments } : {}),
     })
   });
@@ -257,10 +273,17 @@ export async function sendResend(env, { to, name, subject, html, text, attachmen
   let parsed = {};
   try { parsed = JSON.parse(raw); } catch {}
   if (!res.ok) {
-    await logEmail(env, { to, name, subject, type, related_type, related_id, status: "failed", error_message: raw });
+    await logEmail(env, {
+      to, name, subject, type, related_type, related_id,
+      html, text: plain, status: "failed", error_message: raw,
+    });
     return { ok: false, status: res.status, error: raw };
   }
-  await logEmail(env, { to, name, subject, type, related_type, related_id, provider_message_id: parsed.id || null, status: "sent", sent_at: new Date().toISOString() });
+  await logEmail(env, {
+    to, name, subject, type, related_type, related_id,
+    html, text: plain,
+    provider_message_id: parsed.id || null, status: "sent", sent_at: new Date().toISOString(),
+  });
   return { ok: true, id: parsed.id || null };
 }
 

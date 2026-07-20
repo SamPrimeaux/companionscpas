@@ -1107,7 +1107,7 @@ export async function dashboardApiRoutes(request, env, url) {
   const fundraisingDetailMatch = path.match(/^\/api\/dashboard\/fundraising\/([^/]+)$/);
   const fundraisingEntriesMatch = path.match(/^\/api\/dashboard\/fundraising\/([^/]+)\/entries$/);
   const fundraisingEntryActionMatch = path.match(
-    /^\/api\/dashboard\/fundraising\/([^/]+)\/entries\/([^/]+)\/(approve|reject|archive|resend|set-votes)$/
+    /^\/api\/dashboard\/fundraising\/([^/]+)\/entries\/([^/]+)\/(approve|reject|archive|resend|set-votes|send-pay-link)$/
   );
 
   if (fundraisingDetailMatch && method === 'GET') {
@@ -1140,6 +1140,7 @@ export async function dashboardApiRoutes(request, env, url) {
              ce.moderation_status, ce.is_approved, ce.expected_amount_cents,
              ce.vote_count, ce.stripe_payment_intent_id, ce.metadata_json,
              ce.admin_notified_at, ce.failure_message, ce.created_at, ce.archived_at,
+             ce.resume_pay_token,
              cu.id AS campaign_update_id, cu.milestone_amount_cents, cu.is_public AS update_is_public
       FROM competition_entries ce
       LEFT JOIN campaign_updates cu
@@ -1161,7 +1162,12 @@ export async function dashboardApiRoutes(request, env, url) {
       ok: true,
       campaign: { ...campaign, raised_cents: liveRaised, raised_amount_cents: liveRaised },
       donations: donationRows.results || [],
-      entries: entryRows.results || [],
+      entries: (entryRows.results || []).map((e) => ({
+        ...e,
+        resume_pay_url: e.resume_pay_token
+          ? `https://companionsofcaddo.org/wet-dog/pay/${encodeURIComponent(e.resume_pay_token)}`
+          : null,
+      })),
       campaign_updates: updateRows.results || [],
     });
   }
@@ -1297,6 +1303,53 @@ export async function dashboardApiRoutes(request, env, url) {
       const { notifyCompetitionEntry } = await import('./competition_notifications.js');
       const mail = await notifyCompetitionEntry(env, entryId, 'paid');
       return json({ ok: true, entry_id: entryId, email: mail });
+    }
+
+    if (action === 'send-pay-link') {
+      if (entry.payment_status === 'paid') {
+        return json({ ok: false, error: 'Entry is already paid' }, 400);
+      }
+      const full = await env.DB.prepare(`
+        SELECT id, dog_name, owner_name, owner_email, expected_amount_cents, campaign_id
+        FROM competition_entries
+        WHERE id = ? AND tenant_id = ? LIMIT 1
+      `).bind(entryId, TENANT).first();
+      if (!full?.owner_email) return json({ ok: false, error: 'Entrant email missing' }, 400);
+      const {
+        ensureResumePayToken,
+        competitionResumePayUrl,
+      } = await import('./render_competition_resume_pay.js');
+      const token = await ensureResumePayToken(env, entryId);
+      if (!token) return json({ ok: false, error: 'Could not create pay link' }, 500);
+      const payUrl = competitionResumePayUrl(token);
+      const amount = ((Number(full.expected_amount_cents) || 1000) / 100).toFixed(2);
+      const dog = full.dog_name || 'your pet';
+      const first = String(full.owner_name || 'friend').trim().split(/\s+/)[0] || 'friend';
+      const { sendResend } = await import('./payments_email.js');
+      const mail = await sendResend(env, {
+        to: String(full.owner_email).trim().toLowerCase(),
+        name: full.owner_name || null,
+        subject: `Finish ${dog}'s Wet Dog Competition entry`,
+        html: `<p>Hi ${first},</p>
+<p>Your photo for <strong>${dog}</strong> is saved. Complete the $${amount} entry fee to publish the entry:</p>
+<p><a href="${payUrl}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#6f2270;color:#fff;text-decoration:none;font-weight:700">Pay $${amount} &amp; submit entry</a></p>
+<p style="color:#64586a;font-size:13px">Or open this link:<br>${payUrl}</p>
+<p>— Companions of CPAS</p>`,
+        text: `Hi ${first},\n\nFinish ${dog}'s Wet Dog Competition entry ($${amount}):\n${payUrl}\n\n— Companions of CPAS`,
+        type: 'competition_entry_resume_pay',
+        related_type: 'competition_entry',
+        related_id: entryId,
+      });
+      if (!mail.ok && !mail.skipped) {
+        return json({ ok: false, error: mail.error || 'Email failed', pay_url: payUrl }, 500);
+      }
+      return json({
+        ok: true,
+        entry_id: entryId,
+        pay_url: payUrl,
+        resume_pay_token: token,
+        email: mail,
+      });
     }
   }
 

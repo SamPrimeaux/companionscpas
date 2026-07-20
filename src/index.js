@@ -426,6 +426,11 @@ export default {
       if (animalProfileMatch) {
         return servePublicAnimalProfile(decodeURIComponent(animalProfileMatch[1]), env);
       }
+      const wetDogPayMatch = url.pathname.match(/^\/wet-dog\/pay\/([^/]+)$/);
+      if (wetDogPayMatch) {
+        const { serveCompetitionResumePay } = await import("./api/render_competition_resume_pay.js");
+        return serveCompetitionResumePay(decodeURIComponent(wetDogPayMatch[1]), env);
+      }
       const wetDogEntryMatch = url.pathname.match(/^\/wet-dog\/([^/]+)$/);
       if (wetDogEntryMatch) {
         return serveCompetitionEntryShare(decodeURIComponent(wetDogEntryMatch[1]), env);

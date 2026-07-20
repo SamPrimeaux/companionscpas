@@ -125,6 +125,7 @@ async function handleCreateEntry(request, env) {
 
   const id = entryId();
   const asset = assetId();
+  const resumeToken = (await import("./render_competition_resume_pay.js")).newResumePayToken();
   const filename = safeFilename(file.name || `${dogName}.jpg`);
   const r2Key = `media/campaign/${campaignId}/entries/${id}/${filename}`;
   const photoUrl = `${CDN}/${r2Key}`;
@@ -141,14 +142,14 @@ async function handleCreateEntry(request, env) {
       (id, tenant_id, campaign_id, owner_name, owner_email, owner_phone,
        dog_name, category, caption, expected_amount_cents,
        payment_status, submission_status, moderation_status, is_approved,
-       ip_address, metadata_json, created_at, updated_at)
+       ip_address, metadata_json, resume_pay_token, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             'pending', 'pending_upload', 'pending', 0,
-            ?, ?, datetime('now'), datetime('now'))
+            ?, ?, ?, datetime('now'), datetime('now'))
   `).bind(
     id, TENANT_ID, campaignId, ownerName, ownerEmail, ownerPhoneDigits,
     dogName, category, caption || null, entryFeeCents,
-    ip, JSON.stringify(metadata)
+    ip, JSON.stringify(metadata), resumeToken
   ).run();
 
   const contentType = mime
@@ -355,6 +356,33 @@ async function handlePublicEntriesList(env, campaignId) {
 export async function competitionEntriesRoutes(request, env, url) {
   if (url.pathname === "/api/public/competition-entries" && request.method === "POST") {
     return handleCreateEntry(request, env);
+  }
+
+  const resumeMatch = url.pathname.match(/^\/api\/public\/competition-entries\/resume\/([^/]+)$/);
+  if (resumeMatch && request.method === "GET") {
+    const { loadEntryByResumeToken, competitionResumePayUrl } = await import("./render_competition_resume_pay.js");
+    const entry = await loadEntryByResumeToken(env, decodeURIComponent(resumeMatch[1]));
+    if (!entry?.id) return json({ ok: false, error: "not_found" }, 404);
+    if (entry.archived_at) return json({ ok: false, error: "archived" }, 410);
+    if (entry.payment_status === "paid") {
+      return json({
+        ok: true,
+        paid: true,
+        entry_id: entry.id,
+        redirect: `https://companionsofcaddo.org/wet-dog/${encodeURIComponent(entry.id)}`,
+      });
+    }
+    return json({
+      ok: true,
+      paid: false,
+      entry_id: entry.id,
+      campaign_id: entry.campaign_id,
+      dog_name: entry.dog_name,
+      donor_name: entry.owner_name,
+      donor_email: entry.owner_email,
+      amount_cents: Number(entry.expected_amount_cents) || 1000,
+      pay_url: competitionResumePayUrl(entry.resume_pay_token),
+    });
   }
 
   const voteMatch = url.pathname.match(/^\/api\/public\/competition-entries\/([^/]+)\/vote$/);

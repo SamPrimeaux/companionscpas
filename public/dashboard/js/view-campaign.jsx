@@ -229,8 +229,8 @@ function EntryCard({ entry, busy, votes, onOpen, onAction, campaignTitle }) {
       ),
       React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap" } },
         isDemo ? React.createElement("span", { style: demoChip }, "Demo / test") : null,
-        React.createElement("span", { style: payChip }, isDemo ? "not paid" : (entry.payment_status || "pending")),
-        React.createElement("span", { style: modChip }, isDemo ? "demo" : (isApproved ? "approved" : isRejected ? "rejected" : entry.moderation_status || "pending")),
+        React.createElement("span", { style: payChip }, isDemo ? "not paid" : (isPaid ? "paid" : (entry.payment_status === "failed" || entry.payment_status === "abandoned" ? entry.payment_status : "awaiting payment"))),
+        React.createElement("span", { style: modChip }, isDemo ? "demo" : (isApproved ? "approved" : isRejected ? "rejected" : (isPaid ? (entry.moderation_status || "pending") : "unpaid"))),
         !isDemo && entry.payment_status === "paid" && React.createElement("span", { style: dollarChip }, money(entry.expected_amount_cents ?? 1000))
       )
     ),
@@ -274,16 +274,34 @@ function EntryCard({ entry, busy, votes, onOpen, onAction, campaignTitle }) {
   );
 }
 
+function entryStatusLine(entry) {
+  if (!entry) return "—";
+  if (entry.archived_at) return "Archived";
+  if (entry.payment_status === "demo" || entry.moderation_status === "demo") return "Demo / test";
+  if (entry.payment_status === "paid") {
+    if (Number(entry.is_approved) === 1) return "Paid · Live in gallery";
+    if (entry.moderation_status === "rejected") return "Paid · Rejected";
+    return "Paid · Awaiting review";
+  }
+  if (entry.payment_status === "failed") return "Payment failed";
+  if (entry.payment_status === "abandoned") return "Abandoned checkout";
+  if (entry.payment_status === "pending" || entry.submission_status === "pending_payment") {
+    return "Awaiting payment";
+  }
+  return (entry.payment_status || "pending") + (entry.moderation_status && entry.moderation_status !== "pending" ? " · " + entry.moderation_status : "");
+}
+
 function EntryDetailModal({ entry, open, onClose, campaignId, campaignTitle, voteCount, onSavedVotes, onAction, busy }) {
   const [votesDraft, setVotesDraft] = React.useState(String(voteCount || 0));
   const [savingVotes, setSavingVotes] = React.useState(false);
   const [msg, setMsg] = React.useState("");
   const [err, setErr] = React.useState("");
+  const [payBusy, setPayBusy] = React.useState(false);
 
   React.useEffect(() => {
     if (!open || !entry) return;
     setVotesDraft(String(Number(voteCount || entry.vote_count || 0)));
-    setMsg(""); setErr("");
+    setMsg(""); setErr(""); setPayBusy(false);
   }, [open, entry && entry.id, voteCount]);
 
   if (!entry) return null;
@@ -294,6 +312,10 @@ function EntryDetailModal({ entry, open, onClose, campaignId, campaignTitle, vot
   const shareUrl = entry.id
     ? ("https://companionsofcaddo.org/wet-dog/" + encodeURIComponent(entry.id))
     : "";
+  const isUnpaid = entry.payment_status !== "paid" && !entry.archived_at && !entryIsDemo(entry);
+  const payUrl = entry.resume_pay_url || (entry.resume_pay_token
+    ? ("https://companionsofcaddo.org/wet-dog/pay/" + encodeURIComponent(entry.resume_pay_token))
+    : "");
 
   async function saveVotes() {
     const n = Math.max(0, Math.floor(Number(votesDraft)));
@@ -320,6 +342,30 @@ function EntryDetailModal({ entry, open, onClose, campaignId, campaignTitle, vot
     }
   }
 
+  async function sendPayLink() {
+    if (!onAction) return;
+    setPayBusy(true); setErr(""); setMsg("");
+    const d = await onAction(entry.id, "send-pay-link");
+    setPayBusy(false);
+    if (d?.pay_url) {
+      setMsg("Payment link emailed" + (email ? " to " + email : "") + ".");
+      try { await navigator.clipboard.writeText(d.pay_url); setMsg(function(m) { return m + " Link also copied."; }); } catch (_) {}
+    }
+  }
+
+  function copyPayLink() {
+    if (!payUrl) {
+      sendPayLink();
+      return;
+    }
+    try {
+      navigator.clipboard.writeText(payUrl);
+      setMsg("Payment link copied.");
+    } catch (_) {
+      window.prompt("Copy payment link:", payUrl);
+    }
+  }
+
   return React.createElement(Modal, { open, onClose, title: dogName, width: 640 },
     React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
       entry.photo_url && React.createElement("div", {
@@ -340,7 +386,7 @@ function EntryDetailModal({ entry, open, onClose, campaignId, campaignTitle, vot
         ),
         React.createElement("div", null,
           React.createElement("div", { style: { fontSize: 11, color: "var(--dash-text-muted)", fontWeight: 700, marginBottom: 4 } }, "Status"),
-          React.createElement("div", null, (entry.payment_status || "—") + " · " + (entry.moderation_status || "—"))
+          React.createElement("div", { style: { fontWeight: 600 } }, entryStatusLine(entry))
         ),
         React.createElement("div", null,
           React.createElement("div", { style: { fontSize: 11, color: "var(--dash-text-muted)", fontWeight: 700, marginBottom: 4 } }, "Email"),
@@ -353,6 +399,25 @@ function EntryDetailModal({ entry, open, onClose, campaignId, campaignTitle, vot
           phone
             ? React.createElement("a", { href: "tel:" + phone.replace(/[^\d+]/g, ""), style: { color: "#7c3aed" } }, phone)
             : "—"
+        )
+      ),
+      isUnpaid && React.createElement("div", {
+        style: { padding: 12, borderRadius: 12, background: "#fff7ed", border: "1px solid #fed7aa" },
+      },
+        React.createElement("div", { style: { fontSize: 12, fontWeight: 800, marginBottom: 6, color: "#9a3412" } }, "Payment not completed"),
+        React.createElement("p", { style: { margin: "0 0 10px", fontSize: 12, color: "#9a3412", lineHeight: 1.45 } },
+          "Photo is saved. Send a resume-pay link so the entrant can finish the $" +
+          ((Number(entry.expected_amount_cents) || 1000) / 100).toFixed(2) + " fee."
+        ),
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+          React.createElement(Btn, {
+            size: "sm", disabled: busy || payBusy || !email,
+            onClick: sendPayLink,
+          }, payBusy ? "Sending…" : "Email pay link"),
+          React.createElement(Btn, {
+            size: "sm", variant: "secondary", disabled: busy || payBusy,
+            onClick: copyPayLink,
+          }, payUrl ? "Copy pay link" : "Create & copy pay link")
         )
       ),
       React.createElement("div", {
@@ -559,9 +624,20 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       );
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.ok === false) throw new Error(d.error || "Action failed");
+      if (action === "send-pay-link" && d.pay_url) {
+        setDetailEntry(function(prev) {
+          if (!prev || prev.id !== entryId) return prev;
+          return Object.assign({}, prev, {
+            resume_pay_url: d.pay_url,
+            resume_pay_token: d.resume_pay_token || prev.resume_pay_token,
+          });
+        });
+        setSaveMsg("Payment link emailed to entrant.");
+      }
       await loadCampaign();
       try { window.dispatchEvent(new CustomEvent("cpas:fundraising-review-changed")); } catch (_) {}
-    } catch (e) { setError(e.message || "Entry action failed"); }
+      return d;
+    } catch (e) { setError(e.message || "Entry action failed"); return null; }
     finally { setEntryBusy(""); }
   }
 

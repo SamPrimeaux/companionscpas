@@ -75,6 +75,12 @@ const SENT_TYPE_LABELS = {
   donation_receipt: "Donation receipt",
   competition_entry_thank_you: "Competition thank you",
   competition_entry_paid_admin: "Competition paid alert",
+  competition_entry_paid: "Competition paid alert",
+  competition_entry_started: "Competition entry started",
+  competition_entry_followup_admin: "Competition follow-up",
+  competition_entry_resume_pay: "Competition pay link",
+  competition_entry_failed: "Competition payment failed",
+  competition_entry_abandoned: "Competition abandoned",
   admin_donation_alert: "Donation alert",
   dashboard_send: "Manual send",
   manual: "Manual",
@@ -405,36 +411,45 @@ function EmailView() {
     if (view === "sent") {
       setSelected(msg.id);
       const fromAddr = msg.from_email || config?.from_addresses?.noreply;
-      const metaBits =
-        "<p><strong>From:</strong> " + shortAddr(fromAddr) +
-        "</p><p><strong>To:</strong> " + (msg.recipient_email || "") +
-        "</p><p><strong>Type:</strong> " + sentTypeLabel(msg.email_type) +
-        "</p><p><strong>Status:</strong> " + (msg.status || "sent") + "</p>";
       setDetail({
         id: msg.id,
         subject: msg.subject || "(no subject)",
         from_email: fromAddr,
         received_at: msg.sent_at || msg.created_at,
-        body_html: metaBits,
+        body_html: "<p style=\"color:#64748b\">Loading sent message…</p>",
+        body_text: msg.preview_text || "",
         source: "resend",
         email_type: msg.email_type,
+        recipient_email: msg.recipient_email,
       });
       setMobilePanel("reader");
-      // Outbound logs do not store HTML — load matching template when available.
-      if (msg.email_type) {
-        emailApi("/api/email/templates").then(function(d) {
-          const tpl = (d.templates || []).find(function(t) { return t.template_key === msg.email_type; });
-          if (!tpl || !tpl.body_html) return;
-          setDetail(function(prev) {
-            if (!prev || prev.id !== msg.id) return prev;
-            return Object.assign({}, prev, {
-              body_html: tpl.body_html,
-              body_text: tpl.body_text || null,
-              template_preview: true,
-            });
+      emailApi("/api/email/outbound/" + encodeURIComponent(msg.id)).then(function(d) {
+        const m = d.message || {};
+        setDetail(function(prev) {
+          if (!prev || prev.id !== msg.id) return prev;
+          const html = m.body_html || "";
+          const text = m.body_text || m.preview_text || "";
+          return Object.assign({}, prev, {
+            subject: m.subject || prev.subject,
+            from_email: m.from_email || prev.from_email,
+            received_at: m.sent_at || m.created_at || prev.received_at,
+            body_html: html || (text ? null : "<p style=\"color:#64748b\">No message body was stored for this send. Newer messages will include the full email.</p>"),
+            body_text: text || null,
+            recipient_email: m.recipient_email || prev.recipient_email,
+            email_type: m.email_type || prev.email_type,
+            status: m.status,
+            hydrated_from_resend: Boolean(m.body_html || m.body_text),
           });
-        }).catch(function() {});
-      }
+        });
+      }).catch(function(e) {
+        setDetail(function(prev) {
+          if (!prev || prev.id !== msg.id) return prev;
+          return Object.assign({}, prev, {
+            body_html: "<p style=\"color:#b91c1c\">Could not load sent message: " +
+              String(e.message || "error").replace(/</g, "&lt;") + "</p>",
+          });
+        });
+      });
       return;
     }
     setSelected(msg.id);
@@ -1056,6 +1071,7 @@ function EmailView() {
                   detail.mailbox && React.createElement("div", { className: "mail-meta-item" }, React.createElement("b", null, "Mailbox"), React.createElement("span", null, detail.mailbox)),
                   detail.source && React.createElement("div", { className: "mail-meta-item" }, React.createElement("b", null, "Source"), React.createElement("span", null, detail.source)),
                   view === "sent" && detail.email_type && React.createElement("div", { className: "mail-meta-item" }, React.createElement("b", null, "Type"), React.createElement("span", null, sentTypeLabel(detail.email_type))),
+                  view === "sent" && detail.recipient_email && React.createElement("div", { className: "mail-meta-item" }, React.createElement("b", null, "To"), React.createElement("span", null, detail.recipient_email)),
                   view === "notifications" && detail.type && React.createElement("div", { className: "mail-meta-item" }, React.createElement("b", null, "Type"), React.createElement("span", null, notifTypeLabel(detail.type))),
                   view === "notifications" && detail.reply_to_email && React.createElement("div", { className: "mail-meta-item" }, React.createElement("b", null, "Reply to"), React.createElement("span", null, detail.reply_to_email))
                 ),
