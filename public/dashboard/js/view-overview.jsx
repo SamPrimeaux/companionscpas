@@ -21,9 +21,22 @@ function DonutChart({ labels, values, colors }) {
   return React.createElement("canvas", { ref, style:{ width:"100%", height:"100%" } });
 }
 
+/** Parse D1/SQLite times: "YYYY-MM-DD HH:MM:SS" is UTC (datetime('now')), not local. */
+function parseActivityTime(raw) {
+  if (!raw) return NaN;
+  const s = String(raw).trim();
+  if (!s) return NaN;
+  // Already has timezone (Z or ±offset)
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) return Date.parse(s);
+  // ISO without zone → treat as UTC
+  if (/T/.test(s)) return Date.parse(s.endsWith("Z") ? s : s + "Z");
+  // "2026-07-20 17:27:01" — SQLite UTC without Z; browsers otherwise treat as local → "just now"
+  return Date.parse(s.replace(" ", "T") + "Z");
+}
+
 function relativeTime(iso) {
   if (!iso) return "";
-  const t = Date.parse(iso);
+  const t = parseActivityTime(iso);
   if (!Number.isFinite(t)) return String(iso).slice(0, 10);
   const diff = Math.max(0, Date.now() - t);
   const mins = Math.floor(diff / 60000);

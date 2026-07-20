@@ -157,13 +157,28 @@ function donorLabel(raw) {
   return s;
 }
 
-/** Parse D1 timestamps that mix "YYYY-MM-DD HH:MM:SS" and ISO "…T…Z". */
+/** Parse D1 timestamps that mix "YYYY-MM-DD HH:MM:SS" (UTC) and ISO "…T…Z". */
 function activityEpochMs(raw) {
   if (!raw) return 0;
   const s = String(raw).trim();
-  const normalized = /T/.test(s) ? s : s.replace(' ', 'T') + (s.endsWith('Z') ? '' : 'Z');
+  if (!s) return 0;
+  let normalized = s;
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) {
+    normalized = s;
+  } else if (/T/.test(s)) {
+    normalized = s.endsWith('Z') ? s : s + 'Z';
+  } else {
+    // SQLite datetime('now') → UTC without zone
+    normalized = s.replace(' ', 'T') + 'Z';
+  }
   const t = Date.parse(normalized);
   return Number.isFinite(t) ? t : 0;
+}
+
+/** Emit ISO UTC so the dashboard never parses SQLite space-times as local. */
+function toActivityIso(raw) {
+  const ms = activityEpochMs(raw);
+  return ms ? new Date(ms).toISOString() : (raw || null);
 }
 
 function isSameMonthPrefix(raw, monthPrefix) {
@@ -207,7 +222,7 @@ function buildOverviewActivity({ animals, apps, donations }) {
       id: `don_${d.stripe_payment_intent_id || d.id || when}_${dollars}`,
       type: 'donation',
       text: `Donation received — $${dollars.toLocaleString()} from ${donorLabel(d.donor_name)}${campaign}`,
-      at: when,
+      at: toActivityIso(when),
       link: 'fundraising',
       priority: 3,
       _ts: activityEpochMs(when),
@@ -223,7 +238,7 @@ function buildOverviewActivity({ animals, apps, donations }) {
       id: `app_${a.id}`,
       type: 'application',
       text: `Foster application — ${name} (${status})`,
-      at: when,
+      at: toActivityIso(when),
       link: 'applications',
       priority: 2,
       _ts: activityEpochMs(when),
@@ -241,7 +256,7 @@ function buildOverviewActivity({ animals, apps, donations }) {
       id: `animal_add_${a.id}`,
       type: 'animal',
       text: `Animal added — ${a.name}`,
-      at: a.created_at,
+      at: toActivityIso(a.created_at),
       link: 'animals',
       priority: 1,
       _ts: activityEpochMs(a.created_at),
