@@ -105,6 +105,18 @@
     },
   };
 
+  const CONTACT_STEPS = [
+    { id: 'main', title: 'Your message', fields: [
+      { key: 'first_name', label: 'First Name', type: 'text', required: true, placeholder: 'Jane' },
+      { key: 'last_name', label: 'Last Name', type: 'text', required: false, placeholder: 'Smith' },
+      { key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'jane@email.com' },
+      { key: 'subject', label: 'Subject', type: 'select', required: false, options: [
+        'Fostering a dog', 'Adopting a dog', 'Volunteering', 'Donations / Fundraising', 'Press / Media inquiry', 'Something else',
+      ]},
+      { key: 'message', label: 'Message', type: 'textarea', required: true, placeholder: 'How can we help?' },
+    ]},
+  ];
+
   const FOSTER_STEPS = [
     { id: 'contact', title: 'Contact Info', fields: [
       { key: 'first_name', label: 'First Name', type: 'text', required: true, placeholder: 'Jane' },
@@ -679,8 +691,27 @@
     } else if (activeFormKey === 'foster_application') {
       activeSteps = FOSTER_STEPS;
       activeSchema = null;
+    } else if (activeFormKey === 'contact' || activeFormKey === 'contact_request') {
+      activeSteps = CONTACT_STEPS;
+      activeSchema = {
+        form: {
+          form_key: 'contact',
+          title: 'Contact Us',
+          settings: {
+            submit_endpoint: '/api/contact/request',
+            submit_label: 'Send Message',
+            success_message: "We'll get back to you as soon as we can.",
+            success_title: 'Message sent!',
+          },
+          intro: {
+            heading: 'Get in Touch',
+            subheading: FORM_MODALS.contact?.sub || '',
+          },
+        },
+      };
     } else {
-      activeSteps = FOSTER_STEPS;
+      activeSteps = [{ id: 'main', title: 'Form unavailable', fields: [] }];
+      activeSchema = null;
     }
 
     let backdrop = document.getElementById('fa-backdrop');

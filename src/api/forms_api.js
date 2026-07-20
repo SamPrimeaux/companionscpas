@@ -119,6 +119,23 @@ async function loadFormBundle(env, formIdOrKey) {
   };
 }
 
+async function ensureSubmissionsTable(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS cpas_form_submissions (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      form_id TEXT NOT NULL,
+      form_key TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'new',
+      source TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+    .run()
+    .catch(() => {});
+}
+
 async function countSubmissions(env, formKey) {
   if (formKey === "foster_application" || formKey === "form_foster_application") {
     const row = await env.DB.prepare(
@@ -137,7 +154,95 @@ async function countSubmissions(env, formKey) {
       .catch(() => ({ c: 0 }));
     return Number(row?.c || 0);
   }
-  return 0;
+  await ensureSubmissionsTable(env);
+  const row = await env.DB.prepare(
+    `SELECT COUNT(*) AS c FROM cpas_form_submissions
+     WHERE tenant_id = ? AND form_key = ?`
+  )
+    .bind(TENANT, formKey)
+    .first()
+    .catch(() => ({ c: 0 }));
+  return Number(row?.c || 0);
+}
+
+/** Validate required fields from published schema; return error strings. */
+function validateSubmission(fields, data) {
+  const errors = [];
+  for (const f of fields || []) {
+    if (!f.is_required && Number(f.is_required) !== 1) continue;
+    const key = f.field_key;
+    if (!key) continue;
+    const raw = data[key];
+    const empty =
+      raw == null ||
+      (typeof raw === "string" && !raw.trim()) ||
+      (Array.isArray(raw) && raw.length === 0);
+    if (empty) errors.push(`${f.label || key} is required`);
+  }
+  return errors;
+}
+
+async function handleGenericFormSubmit(request, env, formKey) {
+  const bundle = await loadFormBundle(env, formKey);
+  if (!bundle) return json({ success: false, error: "Form not found" }, 404);
+  if (normalizeStatus(bundle.form.status) !== "active") {
+    return json({ success: false, error: "Form is not open" }, 403);
+  }
+
+  // Known specialty forms should use their dedicated receivers.
+  const settings = bundle.form.settings || {};
+  const dedicated = String(settings.submit_endpoint || "");
+  if (
+    dedicated.includes("/foster/apply") ||
+    formKey === "foster_application" ||
+    formKey === "form_foster_application"
+  ) {
+    return json(
+      {
+        success: false,
+        error: "Use /api/foster/apply for foster applications",
+        redirect: "/api/foster/apply",
+      },
+      400
+    );
+  }
+  if (dedicated.includes("/contact/request") || formKey === "contact" || formKey === "contact_request") {
+    return json(
+      {
+        success: false,
+        error: "Use /api/contact/request for contact messages",
+        redirect: "/api/contact/request",
+      },
+      400
+    );
+  }
+
+  const data = await request.json().catch(() => ({}));
+  const errors = validateSubmission(bundle.fields, data);
+  if (errors.length) return json({ success: false, error: "Validation failed", errors }, 400);
+
+  await ensureSubmissionsTable(env);
+  const id = uid("sub");
+  await env.DB.prepare(
+    `INSERT INTO cpas_form_submissions
+     (id, tenant_id, form_id, form_key, payload_json, status, source, created_at)
+     VALUES (?, ?, ?, ?, ?, 'new', ?, datetime('now'))`
+  )
+    .bind(
+      id,
+      TENANT,
+      bundle.form.id,
+      bundle.form.form_key,
+      JSON.stringify(data),
+      String(data.source || settings.placement || "public:form")
+    )
+    .run();
+
+  return json({
+    success: true,
+    id,
+    message: settings.success_message || "Thanks — we received your submission.",
+  });
 }
 
 /** Idempotent seed: Contact Us modal form so it is editable in Form Studio. */
@@ -229,10 +334,19 @@ export async function formsRoutes(request, env, url) {
   const path = url.pathname;
   const method = request.method;
 
+  // POST /api/forms/:key/submit — generic receiver for Forms Studio forms
+  const submitMatch = path.match(/^\/api\/forms\/([^/]+)\/submit$/);
+  if (submitMatch && method === "POST") {
+    return handleGenericFormSubmit(request, env, decodeURIComponent(submitMatch[1]));
+  }
+
   // GET /api/public/forms/:key — published schema for public modal
   const publicMatch = path.match(/^\/api\/public\/forms\/([^/]+)$/);
   if (publicMatch && method === "GET") {
     const key = decodeURIComponent(publicMatch[1]);
+    if (key === "contact" || key === "contact_request") {
+      await ensureContactForm(env);
+    }
     const bundle = await loadFormBundle(env, key);
     if (!bundle) return json({ success: false, error: "Form not found" }, 404);
     if (normalizeStatus(bundle.form.status) !== "active") {
