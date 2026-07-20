@@ -225,6 +225,16 @@ export async function syncAnimalPhotoUsage(env, animal) {
       is_live: 1,
     });
   }
+
+  // Keep library label useful when a generic CMS upload becomes a profile photo
+  if (animal.name) {
+    await env.DB.prepare(
+      `UPDATE cms_assets
+       SET label = ?, category = 'animal', updated_at = datetime('now')
+       WHERE id = ? AND tenant_id = ?
+         AND (label IS NULL OR trim(label) = '' OR lower(label) IN ('animal', 'image', 'untitled', 'photo'))`
+    ).bind(animal.name, assetId, TENANT_ID).run().catch(() => {});
+  }
 }
 
 export async function loadUsagesByAssetIds(env, assetIds) {

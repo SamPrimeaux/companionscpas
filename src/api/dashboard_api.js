@@ -658,6 +658,13 @@ export async function dashboardApiRoutes(request, env, url) {
       `UPDATE animal_profiles SET metadata_json = ?, updated_at = ? WHERE id = ? AND tenant_id = ?`
     ).bind(JSON.stringify(metadata), nowIso(), animalKey, TENANT).run();
 
+    if (isImage) {
+      const animal = await env.DB.prepare(
+        `SELECT id, name, photo_url, public_visible, status FROM animal_profiles WHERE id = ? AND tenant_id = ? LIMIT 1`
+      ).bind(animalKey, TENANT).first().catch(() => null);
+      if (animal) await syncAnimalPhotoUsage(env, animal);
+    }
+
     return json({
       success: true,
       ok: true,

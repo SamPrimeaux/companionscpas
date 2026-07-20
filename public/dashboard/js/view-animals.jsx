@@ -72,6 +72,7 @@
 
   var STATUS_COLOR = {
     available: '#4ade80',
+    pending: '#fcd34d',
     foster: '#a78bfa',
     medical: '#f87171',
     'medical watch': '#f87171',
@@ -81,6 +82,7 @@
   };
   var STATUS_LABEL = {
     available: 'Available',
+    pending: 'Pending',
     foster: 'Foster',
     medical: 'Medical',
     'medical watch': 'Medical Watch',
@@ -88,6 +90,14 @@
     hidden: 'Hidden',
     draft: 'Draft'
   };
+  var ANIMAL_STATUS_OPTIONS = [
+    { value: 'available', label: 'Available' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'foster', label: 'Foster' },
+    { value: 'medical', label: 'Medical' },
+    { value: 'adopted', label: 'Adopted' },
+    { value: 'draft', label: 'Draft' }
+  ];
 
   function labelize(value) {
     if (value === null || value === undefined || value === '') return '-';
@@ -1091,7 +1101,7 @@
           h(AgeFieldGroup, { value:form.age_value, unit:form.age_unit, error:fieldErrors.age, onValueChange:function(v){ set('age_value', v); }, onUnitChange:function(v){ set('age_unit', v); } }),
           h('div', null, h(FieldLabel, null, 'Sex'), h(SelectInput, { value:form.sex, onChange:function(v){ set('sex', v); }, options:['Male','Female','Unknown'] })),
           h(WeightFieldGroup, { value:form.weight_value, unit:form.weight_unit, error:fieldErrors.weight, onValueChange:function(v){ set('weight_value', v); }, onUnitChange:function(v){ set('weight_unit', v); } }),
-          h('div', null, h(FieldLabel, null, 'Status'), h(SelectInput, { value:form.status, onChange:function(v){ set('status', v); }, options:[{value:'available', label:'Available'}, {value:'foster', label:'Foster'}, {value:'medical', label:'Medical'}, {value:'adopted', label:'Adopted'}] }))
+          h('div', null, h(FieldLabel, null, 'Status'), h(SelectInput, { value:form.status, onChange:function(v){ set('status', v); }, options:ANIMAL_STATUS_OPTIONS }))
         ),
         error ? h('div', { style:{ color:u.red, fontSize:12, marginTop:12 } }, error) : null,
         h('div', { style:{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:20 } }, h(Button, { variant:'secondary', onClick:props.onClose }, 'Cancel'), h(Button, { disabled:saving, onClick:submit }, saving ? 'Saving...' : 'Add Animal'))
@@ -1127,14 +1137,16 @@
       if (f === 'Dogs') return a.species === 'Dog';
       if (f === 'Cats') return a.species === 'Cat';
       if (f === 'Available') return a.status === 'available';
+      if (f === 'Pending') return a.status === 'pending';
       if (f === 'Foster') return a.status === 'foster' || Number(a.foster_needed) === 1;
       if (f === 'Medical') return a.status === 'medical' || a.status === 'medical watch';
       if (f === 'Adopted') return a.status === 'adopted';
+      if (f === 'Draft') return a.status === 'draft' || a.status === 'hidden';
       return true;
     }
     var q = search.toLowerCase().trim();
     var filtered = animals.filter(function(a){ return filterMatch(a, filter) && (!q || [a.name, a.breed, a.age_label, a.id, a.species].some(function(v){ return v && String(v).toLowerCase().indexOf(q) !== -1; })); });
-    var tabs = ['All','Dogs','Cats','Available','Foster','Medical','Adopted'].map(function(f){ return { value:f, label:f, count:animals.filter(function(a){ return filterMatch(a, f); }).length }; });
+    var tabs = ['All','Dogs','Cats','Available','Pending','Foster','Medical','Adopted','Draft'].map(function(f){ return { value:f, label:f, count:animals.filter(function(a){ return filterMatch(a, f); }).length }; });
     var columns = isMobile ? 'repeat(2, minmax(0,1fr))' : bp === 'tablet' ? 'repeat(3, minmax(0,1fr))' : 'repeat(4, minmax(0,1fr))';
     return h('div', { className: 'dash-page' },
       h(PageHeader, {
@@ -1721,7 +1733,7 @@
     var canSubmit = !!(postDraft.content_text || '').trim() && (postDraft.platforms || []).length;
     return h('div', { style:{ width:isCompact ? '100%' : 340 } },
       section('Publishing', h('div', null,
-        h('div', { style:{ marginBottom:10 } }, h(FieldLabel, null, 'Status'), h(SelectInput, { value:a.status || 'available', onChange:function(v){ patchAnimal({ status:v }); }, options:[{value:'available', label:'Available'}, {value:'foster', label:'Foster'}, {value:'medical', label:'Medical'}, {value:'adopted', label:'Adopted'}] })),
+        h('div', { style:{ marginBottom:10 } }, h(FieldLabel, null, 'Status'), h(SelectInput, { value:a.status || 'available', onChange:function(v){ patchAnimal({ status:v }); }, options:ANIMAL_STATUS_OPTIONS })),
         h(ToggleRow, { label:'Visible', help:'Show on /adopt (and live animal gallery)', checked:Number(a.public_visible) === 1, onClick:function(){ patchAnimal({ public_visible:Number(a.public_visible) === 1 ? 0 : 1 }); } }),
         h(ToggleRow, { label:'Featured', help:'Pin near the top of /adopt grids', checked:Number(a.featured) === 1, onClick:function(){ patchAnimal({ featured:Number(a.featured) === 1 ? 0 : 1 }); } }),
         h('div', { style:{ marginTop:12 } }, h(FieldLabel, null, 'Profile completeness'), h('div', { style:{ display:'flex', alignItems:'center', gap:8 } }, h('div', { style:{ flex:1, height:7, borderRadius:99, background:'rgba(255,255,255,.08)', overflow:'hidden' } }, h('div', { style:{ width:percentProfile(a) + '%', height:'100%', background:u.purple } })), h('span', { style:{ color:u.textMut, fontSize:12, fontWeight:800 } }, percentProfile(a) + '%')))
@@ -1870,7 +1882,7 @@
           h('div', null, h(FieldLabel, null, 'Sex'), h(SelectInput, { value:form.sex, onChange:function(v){ set('sex', v); }, options:['Male','Female','Unknown'] })),
           h(WeightFieldGroup, { value:form.weight_value, unit:form.weight_unit, hint:form.weight_hint, error:fieldErrors.weight, onValueChange:function(v){ set('weight_value', v); }, onUnitChange:function(v){ set('weight_unit', v); } }),
           h('div', null, h(FieldLabel, null, 'Energy Level'), h(SelectInput, { value:form.energy_level, onChange:function(v){ set('energy_level', v); }, options:['Low','Medium','High','Unknown'] })),
-          h('div', null, h(FieldLabel, null, 'Status'), h(SelectInput, { value:form.status, onChange:function(v){ set('status', v); }, options:[{value:'available', label:'Available'}, {value:'foster', label:'Foster'}, {value:'medical', label:'Medical'}, {value:'adopted', label:'Adopted'}] })),
+          h('div', null, h(FieldLabel, null, 'Status'), h(SelectInput, { value:form.status, onChange:function(v){ set('status', v); }, options:ANIMAL_STATUS_OPTIONS })),
           h('div', null, h(FieldLabel, null, 'Intake Date'), h(TextInput, { type:'date', value:form.intake_date || '', onChange:function(v){ set('intake_date', v); } })),
           h('div', null, h(FieldLabel, null, 'Good w/ Dogs'), h(SelectInput, { value:form.good_with_dogs, onChange:function(v){ set('good_with_dogs', v); }, options:['Yes','No','Unknown'] })),
           h('div', null, h(FieldLabel, null, 'Good w/ Cats'), h(SelectInput, { value:form.good_with_cats, onChange:function(v){ set('good_with_cats', v); }, options:['Yes','No','Unknown'] })),
