@@ -300,6 +300,7 @@ export function buildSectionPreviewFixture(type, brand = {}) {
 
 /** Category + icon metadata for Templates canvas (server SSOT alongside ADDABLE_SECTION_TYPES). */
 export const SECTION_TEMPLATE_META = {
+  donate_payment_hero: { category: "giving", icon: "dollar" },
   campaign_entry_hero: { category: "giving", icon: "sparkles" },
   wet_dog_competition: { category: "giving", icon: "heart" },
   adopt_live_gallery: { category: "animals", icon: "paw" },

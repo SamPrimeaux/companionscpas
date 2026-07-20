@@ -208,6 +208,7 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
 
 /** Types shown in dashboard Add Section (safe generic + contact + common). */
 export const ADDABLE_SECTION_TYPES = [
+  { type: "donate_payment_hero", label: "Donate Payment Hero", desc: "Split give hero — D1 payment methods (Zeffy, PayPal, Venmo, Amazon, Stripe)" },
   { type: "campaign_entry_hero", label: "Campaign Entry Hero", desc: "Split campaign hero with entry and sharing actions" },
   { type: "wet_dog_competition", label: "Competition Vote Gallery", desc: "Side-by-side entry gallery with public voting and sharing" },
   { type: "adopt_live_gallery", label: "Live Animal Gallery", desc: "Adoptable dogs pulled live from the Animals dashboard" },
