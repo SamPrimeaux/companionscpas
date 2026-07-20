@@ -49,6 +49,8 @@ function validateField(field, value) {
   return null;
 }
 
+import { sanitizePublicAssetUrls } from "./asset_urls.js";
+
 // ── Resend ───────────────────────────────────────────────────────────────────
 
 async function sendResend(env, { to, templateKey, vars }) {
@@ -70,8 +72,8 @@ async function sendResend(env, { to, templateKey, vars }) {
 
   // Replace {{variable}} placeholders
   let subject  = tpl.subject  || "";
-  let bodyHtml = tpl.body_html || "";
-  let bodyText = tpl.body_text || "";
+  let bodyHtml = sanitizePublicAssetUrls(tpl.body_html || "");
+  let bodyText = sanitizePublicAssetUrls(tpl.body_text || "");
 
   for (const [k, v] of Object.entries(vars)) {
     const token = `{{${k}}}`;
@@ -79,6 +81,9 @@ async function sendResend(env, { to, templateKey, vars }) {
     bodyHtml = bodyHtml.replaceAll(token, v);
     bodyText = bodyText.replaceAll(token, v);
   }
+
+  bodyHtml = sanitizePublicAssetUrls(bodyHtml);
+  bodyText = sanitizePublicAssetUrls(bodyText);
 
   try {
     const res = await fetch("https://api.resend.com/emails", {

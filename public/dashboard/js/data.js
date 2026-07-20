@@ -111,7 +111,7 @@ const MOCK = {
     intakesAdoptions: { labels:["Jan","Feb","Mar","Apr","May","Jun"], intakes:[28,35,42,38,45,30], adoptions:[18,22,28,25,32,18] },
     financialBreakdown: { labels:["Donations","Grants","Events","Other"], values:[8432,2450,1236,282], colors:["#7c3aed","#10b981","#06b6d4","#f59e0b"] },
     donationsMonthly: { labels:["Jan","Feb","Mar","Apr","May","Jun"], values:[4200,5800,6100,7200,9800,8432] },
-    applicationStatus: { pending:21, approved:12, underReview:6, denied:3 }
+    applicationStatus: { pending:0, approved:0, underReview:0, denied:0 }
   }
 };
 
@@ -290,19 +290,32 @@ window.__loadDashboardData = async function() {
     // Applications — always replace mock (empty until real submissions exist)
     window.CPAS.applications = (overview.applications || []).map(transformApp);
     {
-      const apps = window.CPAS.applications;
-      const status = { pending: 0, approved: 0, underReview: 0, denied: 0 };
-      for (const a of apps) {
-        const s = String(a.status || "").toLowerCase();
-        if (s.includes("approved")) status.approved += 1;
-        else if (s.includes("denied")) status.denied += 1;
-        else if (s.includes("review")) status.underReview += 1;
-        else status.pending += 1;
+      const fromServer = overview.application_status || overview.kpis?.application_status;
+      if (fromServer && typeof fromServer === "object") {
+        window.CPAS.chartData = {
+          ...window.CPAS.chartData,
+          applicationStatus: {
+            pending: Number(fromServer.pending || 0),
+            approved: Number(fromServer.approved || 0),
+            underReview: Number(fromServer.underReview || fromServer.under_review || 0),
+            denied: Number(fromServer.denied || 0),
+          },
+        };
+      } else {
+        const apps = window.CPAS.applications;
+        const status = { pending: 0, approved: 0, underReview: 0, denied: 0 };
+        for (const a of apps) {
+          const s = String(a.status || "").toLowerCase();
+          if (s.includes("approved")) status.approved += 1;
+          else if (s.includes("denied")) status.denied += 1;
+          else if (s.includes("review") || s.includes("home visit")) status.underReview += 1;
+          else status.pending += 1;
+        }
+        window.CPAS.chartData = {
+          ...window.CPAS.chartData,
+          applicationStatus: status,
+        };
       }
-      window.CPAS.chartData = {
-        ...window.CPAS.chartData,
-        applicationStatus: status,
-      };
     }
 
     // Donations — hydrate KPIs + financial donut from succeeded Stripe rows

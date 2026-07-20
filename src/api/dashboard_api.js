@@ -309,10 +309,12 @@ export async function dashboardApiRoutes(request, env, url) {
       env.DB.prepare(`
         SELECT id, first_name, last_name,
                first_name || ' ' || last_name AS applicant_name,
-               email, phone, review_status, submitted_at, created_at, answers_json, internal_notes
+               email AS applicant_email, phone AS applicant_phone,
+               email, phone, review_status, review_status AS status,
+               submitted_at, created_at, answers_json, internal_notes
         FROM cpas_foster_applications
         WHERE tenant_id = ?
-        ORDER BY COALESCE(submitted_at, created_at) DESC LIMIT 20
+        ORDER BY COALESCE(submitted_at, created_at) DESC LIMIT 200
       `).bind(FOSTER_TENANT).all().catch(() => ({ results: [] })),
       env.DB.prepare(`SELECT *, goal_amount_cents AS goal_cents, raised_amount_cents AS raised_cents FROM fundraising_campaigns WHERE is_public = 1 ORDER BY updated_at DESC`).all().catch(() => ({ results: [] })),
       env.DB.prepare(`SELECT * FROM volunteer_records ORDER BY hours_month DESC`).all().catch(() => ({ results: [] })),
@@ -355,6 +357,17 @@ export async function dashboardApiRoutes(request, env, url) {
     ]);
     const animals = animalRows.results || [];
     const apps = appRows.results || [];
+    function appBucket(reviewStatus) {
+      const s = String(reviewStatus || "new").toLowerCase();
+      if (s === "approved") return "approved";
+      if (s === "denied" || s === "rejected") return "denied";
+      if (s === "under_review" || s === "in_review" || s === "review" || s === "home_visit") return "underReview";
+      return "pending";
+    }
+    const applicationStatus = { pending: 0, approved: 0, underReview: 0, denied: 0 };
+    for (const a of apps) {
+      applicationStatus[appBucket(a.review_status)] += 1;
+    }
     const competitionReviewCount = Number(competitionReviewRow?.n || 0);
     const paidDonations = (donationRows.results || []).filter((row) => {
       const status = String(row.status || '').toLowerCase();
@@ -388,6 +401,7 @@ export async function dashboardApiRoutes(request, env, url) {
         in_foster:    inFoster,
         applications: apps.length,
         applications_mtd: applicationsMtd,
+        application_status: applicationStatus,
         volunteers:   volunteerRows.results?.length || 0,
         raised_cents: raisedFromDonations,
         donations_mtd_cents: mtdCents,
@@ -404,6 +418,7 @@ export async function dashboardApiRoutes(request, env, url) {
       recent_activity: recentActivity,
       animals:      animals.map(normalizeAnimal),
       applications: apps,
+      application_status: applicationStatus,
       campaigns:    campaignRows.results || [],
       volunteers:   volunteerRows.results || [],
       donations:    paidDonations,

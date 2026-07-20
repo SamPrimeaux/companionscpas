@@ -262,8 +262,8 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   const brandScript = `<script>window.__BRAND=${JSON.stringify({
     brand_name: safeBrand.brand_name || "Companions of CPAS",
     logo_dark_url: safeBrand.logo_dark_url || darkLogo,
-    logo_light_url: safeBrand.logo_light_url || "/static/global/companionsofcpa-newlogo.webp",
-    footer_logo_dark_url: safeBrand.footer_logo_dark_url || "/static/global/companionsofcpa-newlogo.webp",
+    logo_light_url: safeBrand.logo_light_url || "https://assets.companionsofcaddo.org/companionsofcpa-newlogo.webp",
+    footer_logo_dark_url: safeBrand.footer_logo_dark_url || "https://assets.companionsofcaddo.org/companionsofcpa-newlogo.webp",
     footer_logo_light_url: safeBrand.footer_logo_light_url || darkLogo,
     developer_logo_dark_url: safeBrand.developer_logo_dark_url || "",
     developer_logo_light_url: safeBrand.developer_logo_light_url || "",

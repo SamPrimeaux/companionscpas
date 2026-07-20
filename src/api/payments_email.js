@@ -1,5 +1,6 @@
 import { notifyDonationReceived } from "./notifications.js";
 import { resolveDonationAmounts } from "./donation_fees.js";
+import { sanitizePublicAssetUrls } from "./asset_urls.js";
 
 const TENANT_ID = "tenant_companionscpas";
 
@@ -249,14 +250,24 @@ export async function sendTemplateEmail(env, { templateKey, to, name, vars = {},
     "SELECT subject, body_html, body_text FROM email_templates WHERE template_key = ? AND status = 'active' LIMIT 1"
   ).bind(templateKey).first().catch(() => null);
   if (!tpl) return { ok: false, error: "template_not_found" };
-  let subject = tpl.subject || "", html = tpl.body_html || "", text = tpl.body_text || "";
+  let subject = tpl.subject || "", html = sanitizePublicAssetUrls(tpl.body_html || ""), text = sanitizePublicAssetUrls(tpl.body_text || "");
   for (const [k, v] of Object.entries(vars)) {
     const token = `{{${k}}}`, val = String(v ?? "");
     subject = subject.replaceAll(token, val);
     html = html.replaceAll(token, val);
     text = text.replaceAll(token, val);
   }
-  return sendResend(env, { to, name, subject, html, text, attachments, type, related_type, related_id });
+  return sendResend(env, {
+    to,
+    name,
+    subject,
+    html: sanitizePublicAssetUrls(html),
+    text: sanitizePublicAssetUrls(text),
+    attachments,
+    type,
+    related_type,
+    related_id,
+  });
 }
 
 function isValidEmail(email) {

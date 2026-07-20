@@ -108,7 +108,38 @@ function OverviewView({ onNavigate }) {
   const bottomGrid = isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))";
   const userName = (window.CPAS?.user?.name || window.CPAS_USER?.full_name || "Team").split(" ")[0];
 
-  const appStatus = chartData?.applicationStatus || { pending:0, approved:0, underReview:0, denied:0 };
+  const emptyAppStatus = { pending:0, approved:0, underReview:0, denied:0 };
+  const [appStatus, setAppStatus] = React.useState(
+    () => chartData?.applicationStatus || emptyAppStatus
+  );
+
+  React.useEffect(() => {
+    let cancelled = false;
+    function bucket(reviewStatus) {
+      const s = String(reviewStatus || "new").toLowerCase();
+      if (s === "approved") return "approved";
+      if (s === "denied" || s === "rejected") return "denied";
+      if (s === "under_review" || s === "in_review" || s === "review" || s === "home_visit") return "underReview";
+      return "pending";
+    }
+    fetch("/api/dashboard/applications?limit=200", { credentials: "include", headers: { Accept: "application/json" } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        const rows = data.applications || data.results || [];
+        const next = { pending: 0, approved: 0, underReview: 0, denied: 0 };
+        for (const row of rows) {
+          next[bucket(row.review_status || row.status)] += 1;
+        }
+        setAppStatus(next);
+        if (window.CPAS?.chartData) {
+          window.CPAS.chartData = { ...window.CPAS.chartData, applicationStatus: next };
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const appTotal = (appStatus.pending || 0) + (appStatus.approved || 0) + (appStatus.underReview || 0) + (appStatus.denied || 0);
   const financial = chartData?.financialBreakdown || { labels:[], values:[], colors:[] };
 
