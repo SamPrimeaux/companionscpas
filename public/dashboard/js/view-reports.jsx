@@ -86,16 +86,15 @@ function ChartBox({ id, height = 220, setup }) {
 }
 
 const REPORT_TABS = [
-  { key:"animals",     label:"Animals" },
   { key:"financial",   label:"Financial" },
+  { key:"animals",     label:"Animals" },
   { key:"applications",label:"Applications" },
-  { key:"volunteers",  label:"Volunteers" },
   { key:"medical",     label:"Medical" },
   { key:"ai",          label:"AI Usage" },
 ];
 
 function ReportsView({ onNavigate }) {
-  const [tab, setTab] = useState("animals");
+  const [tab, setTab] = useState("financial");
   const [data, setData] = useState(null);
   const [financial, setFinancial] = useState(null);
   const [financialLoading, setFinancialLoading] = useState(false);
@@ -104,15 +103,14 @@ function ReportsView({ onNavigate }) {
   useEffect(() => {
     async function load() {
       try {
-        const [animals, apps, donations, fundraising, volunteers, aiRuns] = await Promise.all([
+        const [animals, apps, donations, fundraising, aiRuns] = await Promise.all([
           fetch("/api/dashboard/animals?limit=100").then(r=>r.json()).catch(()=>null),
           fetch("/api/dashboard/applications?limit=100").then(r=>r.json()).catch(()=>null),
           fetch("/api/dashboard/donations").then(r=>r.json()).catch(()=>null),
           fetch("/api/dashboard/fundraising").then(r=>r.json()).catch(()=>null),
-          fetch("/api/dashboard/volunteers").then(r=>r.json()).catch(()=>null),
           fetch("/api/agentsam/runs?limit=50").then(r=>r.json()).catch(()=>null),
         ]);
-        setData({ animals, apps, donations, fundraising, volunteers, aiRuns });
+        setData({ animals, apps, donations, fundraising, aiRuns });
       } catch(e) {
         setData({});
       } finally {
@@ -132,10 +130,18 @@ function ReportsView({ onNavigate }) {
       .finally(() => setFinancialLoading(false));
   }, [tab]);
 
-  // ── Seed values from D1 (real, always current as fallback) ──
+  // ── Animals from live animal_profiles roster ──
+  const animalRows = data?.animals?.animals || [];
   const animals = {
-    total: 17, available: 9, foster: 5, medical: 3,
-    fosterNeeded: 15, featured: 6,
+    total:        animalRows.length,
+    available:    animalRows.filter(a => String(a.status||"").toLowerCase() === "available").length,
+    foster:       animalRows.filter(a => /foster/i.test(String(a.status||""))).length,
+    medical:      animalRows.filter(a => String(a.status||"").toLowerCase() === "medical").length,
+    pending:      animalRows.filter(a => String(a.status||"").toLowerCase() === "pending").length,
+    fosterNeeded: animalRows.filter(a => a.foster_needed).length,
+    featured:     animalRows.filter(a => a.featured).length,
+    draft:        animalRows.filter(a => String(a.status||"").toLowerCase() === "draft").length,
+    // Monthly intake/adoption series not tracked in D1 yet — placeholder until wired.
     intakesByMonth: [22,28,31,35,38,25],
     adoptionsByMonth: [12,18,22,27,29,14],
     months: ["Jan","Feb","Mar","Apr","May","Jun"],
@@ -174,14 +180,6 @@ function ReportsView({ onNavigate }) {
     return Number(d.is_demo) === 1 || status === "demo" || String(d.payment_provider || "").toLowerCase() === "mock_settle" || (["completed", "received", "paid", "succeeded"].includes(status) && !String(d.stripe_payment_intent_id || "").startsWith("pi_"));
   });
   const reportDonations = paidDonations.concat(demoDonations);
-  const vols = {
-    total: 3, active: 3, totalHours: 54,
-    rows: [
-      { role:"Developer", hours:24, color: RPT.red },
-      { role:"Owner",     hours:18, color: RPT.blue },
-      { role:"Admin",     hours:12, color: RPT.green },
-    ],
-  };
   const ai = {
     runs: 17, cost: 0.0206, tokensIn: 42282, tokensOut: 2788,
     failures: 2, avgLatency: 6392,
@@ -209,7 +207,7 @@ function ReportsView({ onNavigate }) {
       <div className="dash-page-header">
         <div>
           <h1 className="dash-page-title">Reports</h1>
-          <p className="dash-page-subtitle">Live data · May 2026</p>
+          <p className="dash-page-subtitle">Live data from your roster and Stripe</p>
         </div>
         <button type="button" style={{ background:RPT.red, color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", fontSize:13, fontWeight:500, cursor:"pointer" }}>
           + Custom report
@@ -228,14 +226,14 @@ function ReportsView({ onNavigate }) {
       {tab === "animals" && (
         <div>
           <div style={grid4}>
-            <StatCard label="Total animals"   value={animals.total}        sub="+2 this month"      subColor={RPT.green} />
-            <StatCard label="Available"       value={animals.available}    sub="53% of roster"      subColor={RPT.muted} />
-            <StatCard label="In foster care"  value={animals.foster}       sub="29% placed"         subColor={RPT.green} />
-            <StatCard label="Medical watch"   value={animals.medical}      sub="needs attention"    subColor={RPT.amber} />
+            <StatCard label="Total animals"   value={animals.total}        sub={`${animals.available} available · ${animals.pending} pending`} subColor={RPT.muted} />
+            <StatCard label="Available"       value={animals.available}    sub={animals.total ? Math.round(animals.available/animals.total*100)+"% of roster" : "—"} subColor={RPT.green} />
+            <StatCard label="In foster care"  value={animals.foster}       sub={animals.total ? Math.round(animals.foster/animals.total*100)+"% placed" : "—"} subColor={RPT.green} />
+            <StatCard label="Medical watch"   value={animals.medical}      sub={animals.medical > 0 ? "needs attention" : "all clear"} subColor={animals.medical > 0 ? RPT.amber : RPT.green} />
           </div>
           <div style={grid2}>
             <div style={card}>
-              <SectionHeader title="Intakes & adoptions" sub="Jan – Jun 2026" />
+              <SectionHeader title="Intakes & adoptions" sub="Placeholder series · monthly tracking not wired yet" />
               <ChartBox id="rpt_intake_chart" height={200} setup={canvas => {
                 new Chart(canvas, { type:"bar", data:{
                   labels: animals.months,
@@ -255,18 +253,18 @@ function ReportsView({ onNavigate }) {
               </div>
             </div>
             <div style={card}>
-              <SectionHeader title="Roster status" sub="17 animals · current" />
-              <ChartBox id="rpt_roster_chart" height={200} setup={canvas => {
+              <SectionHeader title="Roster status" sub={`${animals.total} animals · current`} />
+              <ChartBox key={"roster-"+animals.available+"-"+animals.foster+"-"+animals.medical} id="rpt_roster_chart" height={200} setup={canvas => {
                 new Chart(canvas, { type:"doughnut", data:{
                   labels:["Available","Foster","Medical watch"],
-                  datasets:[{ data:[9,5,3], backgroundColor:[RPT.red, RPT.green, RPT.amber], borderWidth:0, hoverOffset:4 }]
+                  datasets:[{ data:[animals.available, animals.foster, animals.medical], backgroundColor:[RPT.red, RPT.green, RPT.amber], borderWidth:0, hoverOffset:4 }]
                 }, options:{
                   responsive:true, maintainAspectRatio:false, cutout:"68%",
                   plugins:{ legend:{ display:false } }
                 }});
               }} />
               <div style={{ display:"flex", gap:14, marginTop:10, fontSize:12, flexWrap:"wrap" }}>
-                {[["Available",9,RPT.red],["Foster",5,RPT.green],["Medical",3,RPT.amber]].map(([l,v,c])=>(
+                {[["Available",animals.available,RPT.red],["Foster",animals.foster,RPT.green],["Medical",animals.medical,RPT.amber]].map(([l,v,c])=>(
                   <span key={l} style={{ display:"flex", alignItems:"center", gap:5, color:RPT.muted }}>
                     <span style={{ width:10,height:10,borderRadius:2,background:c,display:"inline-block" }}/>{l} {v}
                   </span>
@@ -275,10 +273,10 @@ function ReportsView({ onNavigate }) {
             </div>
           </div>
           <div style={card}>
-            <SectionHeader title="Foster pipeline" sub={`${animals.fosterNeeded} animals need foster placement`} />
-            <ProgressBar label="Foster needed"    value={animals.fosterNeeded} max={animals.total}    color={RPT.red}    formatVal={v=>v+" dogs"} />
-            <ProgressBar label="Currently fostered" value={animals.foster}      max={animals.total}    color={RPT.green}  formatVal={v=>v+" dogs"} />
-            <ProgressBar label="Featured profiles"  value={animals.featured}    max={animals.total}    color={RPT.purple} formatVal={v=>v+" dogs"} />
+            <SectionHeader title="Foster pipeline" sub={animals.fosterNeeded ? `${animals.fosterNeeded} animals need foster placement` : "Foster placement up to date"} />
+            <ProgressBar label="Foster needed"      value={animals.fosterNeeded} max={animals.total || 1} color={RPT.red}    formatVal={v=>v+" animals"} />
+            <ProgressBar label="Currently fostered" value={animals.foster}       max={animals.total || 1} color={RPT.green}  formatVal={v=>v+" animals"} />
+            <ProgressBar label="Featured profiles"  value={animals.featured}     max={animals.total || 1} color={RPT.purple} formatVal={v=>v+" animals"} />
           </div>
         </div>
       )}
@@ -392,41 +390,6 @@ function ReportsView({ onNavigate }) {
                   </span>
                 ))}
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── VOLUNTEERS ── */}
-      {tab === "volunteers" && (
-        <div>
-          <div style={grid4}>
-            <StatCard label="Active volunteers" value={vols.active}                   sub="all roles" />
-            <StatCard label="Hours this month"  value={vols.totalHours}               sub="combined" subColor={RPT.green} />
-            <StatCard label="Top contributor"   value="Developer"                     sub="24 hrs" subColor={RPT.green} />
-            <StatCard label="Avg hrs / person"  value={Math.round(vols.totalHours/vols.active)} sub="per month" />
-          </div>
-          <div style={grid2}>
-            <div style={card}>
-              <SectionHeader title="Hours by role" sub="May 2026 · 54 total" />
-              {vols.rows.map(v => (
-                <div key={v.role} style={{ display:"grid", gridTemplateColumns:"1fr 100px 60px", alignItems:"center", gap:16, padding:"9px 0", borderBottom:`1px solid ${RPT.border}` }}>
-                  <span style={{ fontSize:13, color:RPT.text }}>{v.role}</span>
-                  <div style={{ height:6, background:RPT.border, borderRadius:3, overflow:"hidden" }}>
-                    <div style={{ height:"100%", width:(v.hours/24*100)+"%", background:v.color, borderRadius:3 }} />
-                  </div>
-                  <span style={{ fontSize:13, fontWeight:500, color:RPT.text, textAlign:"right" }}>{v.hours} hrs</span>
-                </div>
-              ))}
-            </div>
-            <div style={card}>
-              <SectionHeader title="Hours distribution" sub="3 active volunteers" />
-              <ChartBox id="rpt_vol_chart" height={200} setup={canvas => {
-                new Chart(canvas, { type:"doughnut", data:{
-                  labels: vols.rows.map(v=>v.role),
-                  datasets:[{ data: vols.rows.map(v=>v.hours), backgroundColor: vols.rows.map(v=>v.color), borderWidth:0, hoverOffset:4 }]
-                }, options:{ responsive:true, maintainAspectRatio:false, cutout:"65%", plugins:{ legend:{ display:false } } }});
-              }} />
             </div>
           </div>
         </div>
