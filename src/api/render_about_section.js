@@ -26,13 +26,34 @@ function sortBlocks(blocks) {
 }
 function blockCfg(block) { return safeJson(block?.config_json, {}); }
 
-function heroModalBtn(label, sub, action, variant = "primary") {
+/** Allow only <em>/<strong>/<br> in mission copy so approved design can keep italics. */
+function softHtml(value) {
+  const raw = t(value);
+  if (!raw) return "";
+  if (/[<>]/.test(raw)) {
+    return raw
+      .replace(/<(?!\/?(?:em|strong|br)\b)[^>]*>/gi, "")
+      .replace(/on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  }
+  return escapeHtml(raw);
+}
+
+function objectPosition(config) {
+  const focal = pick(config, ["image_object_position"]) || "center";
+  if (focal === "top") return "center top";
+  if (focal === "left") return "left center";
+  if (focal === "right") return "right center";
+  return "center 20%";
+}
+
+function heroModalBtn(label, sub, action, variant = "primary", cmsField = "") {
   if (!label) return "";
   const cls = variant === "ghost" ? "hero-cta hero-cta-ghost" : "hero-cta hero-cta-primary";
+  const fieldAttr = cmsField ? ` data-cms-field="${escAttr(cmsField)}"` : "";
   const icon = variant === "ghost"
     ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>`
     : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`;
-  return `<button class="${cls}" type="button" data-action="${escAttr(action)}">
+  return `<button class="${cls}" type="button" data-action="${escAttr(action)}"${fieldAttr}>
             <span class="hero-cta-icon">${icon}</span>
             <span class="hero-cta-text">
               <span class="hero-cta-label">${escapeHtml(label)}</span>
@@ -41,20 +62,18 @@ function heroModalBtn(label, sub, action, variant = "primary") {
           </button>`;
 }
 
-// Renders a real navigational link (not a modal trigger) unless the configured
-// destination is actually /donate, in which case it opens the shared donate modal
-// like every other donate CTA on the site.
-function heroCtaButton(label, sub, href, variant = "primary") {
+function heroCtaButton(label, sub, href, variant = "primary", cmsField = "") {
   if (!label) return "";
   const dest = t(href).trim() || "/adopt";
   if (dest === "/donate" || dest === "donate") {
-    return heroModalBtn(label, sub, "donate", variant);
+    return heroModalBtn(label, sub, "donate", variant, cmsField);
   }
   const cls = variant === "ghost" ? "hero-cta hero-cta-ghost" : "hero-cta hero-cta-primary";
+  const fieldAttr = cmsField ? ` data-cms-field="${escAttr(cmsField)}"` : "";
   const icon = variant === "ghost"
     ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>`
     : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`;
-  return `<a class="${cls}" href="${escAttr(escUrl(dest, "/adopt"))}">
+  return `<a class="${cls}" href="${escAttr(escUrl(dest, "/adopt"))}"${fieldAttr}>
             <span class="hero-cta-icon">${icon}</span>
             <span class="hero-cta-text">
               <span class="hero-cta-label">${escapeHtml(label)}</span>
@@ -65,7 +84,12 @@ function heroCtaButton(label, sub, href, variant = "primary") {
 
 function renderMissionStatement(section) {
   const c = safeJson(section.config_json, {});
-  const heading = pick(section, ["heading"]) || "To promote, educate, and advocate for <em>every animal</em> at Caddo Parish Animal Services.";
+  const eyebrow = pick(section, ["eyebrow"]) || "Our Mission";
+  let heading = pick(section, ["heading"]) || "To promote, educate, and advocate for <em>every animal</em> at Caddo Parish Animal Services.";
+  // Restore approved italic when D1 has plain "every animal"
+  if (heading && !/[<>]/.test(heading) && /every animal/i.test(heading)) {
+    heading = heading.replace(/every animal/i, "<em>every animal</em>");
+  }
   const body = pick(section, ["body"]) || "Companions of CPAS works to achieve a positive outcome for all animals at the CPAS open-intake shelter. We do this by <strong>heavily networking the animals</strong>, providing <strong>medical care for emergency cases</strong>, raising donations, educating the public, assisting in transports conducted by shelter staff, enrichment, and other needs where the shelter needs assistance.";
   const pillars = [
     pick(c, ["pillar_1"]) || "Network animals",
@@ -75,7 +99,9 @@ function renderMissionStatement(section) {
     pick(c, ["pillar_5"]) || "Transport support",
     pick(c, ["pillar_6"]) || "Enrichment",
   ];
-  const pillarHtml = pillars.map(p => `<div class="ms-pillar"><div class="ms-pillar-dot"></div><span class="ms-pillar-text">${escapeHtml(p)}</span></div>`).join("\n    ");
+  const pillarHtml = pillars.map((p, i) =>
+    `<div class="ms-pillar" data-cms-field="config.pillar_${i + 1}"><div class="ms-pillar-dot"></div><span class="ms-pillar-text">${escapeHtml(p)}</span></div>`
+  ).join("\n    ");
 
   return `<style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap');
@@ -100,16 +126,16 @@ function renderMissionStatement(section) {
 .ms-meta span{color:#3d2a4a;font-weight:500}
 @media(max-width:768px){.ms-wrap{padding:36px 24px}}
 </style>
-<section class="section s-light" data-section-key="mission_statement" style="padding-top:3rem;padding-bottom:3rem;">
+<section class="section s-light" data-section-key="mission_statement" data-cpas-section="mission_statement" style="padding-top:3rem;padding-bottom:3rem;">
   <div class="container">
     <div class="ms-wrap">
       <div class="ms-eyebrow">
         <div class="ms-eyebrow-line"></div>
-        <span class="ms-eyebrow-text">Our Mission</span>
+        <span class="ms-eyebrow-text" data-cms-field="eyebrow">${escapeHtml(eyebrow)}</span>
       </div>
-      <h2 class="ms-heading">${heading}</h2>
+      <h2 class="ms-heading" data-cms-field="heading">${softHtml(heading)}</h2>
       <div class="ms-divider"></div>
-      <p class="ms-body">${body}</p>
+      <p class="ms-body" data-cms-field="body">${softHtml(body)}</p>
       <div class="ms-pillars">
     ${pillarHtml}
       </div>
@@ -131,32 +157,31 @@ function renderHero(section) {
   const body = pick(section, ["body"]) || pick(section, ["subheading"]) || "";
   const img = escUrl(pick(section, ["image_url"]) || pick(c, ["image_url"]), `${CDN}/static/pages/about/theteam.webp`);
   const alt = pick(c, ["image_alt"]) || heading || "Companions of CPAS volunteer team";
-  const ctaLabel = pick(section, ["cta_label"]) || pick(c, ["cta_label"]) || "Meet Adoptable Dogs";
-  const ctaHref = pick(section, ["cta_href"]) || pick(c, ["cta_href"]) || "/adopt";
   const cta2Label = pick(section, ["cta_secondary_label"]) || pick(c, ["cta_secondary_label"]) || "Support Our Mission";
   const cta2Href = pick(section, ["cta_secondary_href"]) || pick(c, ["cta_secondary_href"]) || "/donate";
-  const cta2Sub = pick(c, ["cta_secondary_sub"]) || (cta2Href === "/donate" ? "Donate or give supplies" : "See who needs a home");
+  const cta2Sub = pick(c, ["cta_secondary_sub"]) || (cta2Href === "/donate" || cta2Href === "donate" ? "Donate or give supplies" : "See who needs a home");
+  const pos = objectPosition(c);
 
   return `<style>
 [data-cpas-section="hero"]{isolation:isolate}
-[data-cpas-section="hero"] .hero-media-bg img{object-position:center 20%}
+[data-cpas-section="hero"] .hero-media-bg img{object-fit:cover;object-position:${pos};width:100%;height:100%}
 @media(max-width:768px){[data-cpas-section="hero"] .hero-media-bg{position:relative;height:clamp(320px,62vw,520px)}[data-cpas-section="hero"] .hero-body{background:linear-gradient(180deg,#faf8f4 0%,#f2ede4 100%)}}
 </style>
 <section class="hero-split" data-cpas-section="hero" data-section-key="hero">
-  <div class="hero-media-bg">
+  <div class="hero-media-bg" data-cms-field="image_url">
     <img src="${escAttr(img)}" alt="${escAttr(alt)}" loading="eager" fetchpriority="high" decoding="async" />
     <div class="hero-scrim"></div>
   </div>
   <div class="hero-body">
     <div class="container">
       <div class="hero-content">
-        <div class="hero-badge">
+        <div class="hero-badge" data-cms-field="eyebrow">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
           ${escapeHtml(eyebrow)}
         </div>
-        <h1 class="hero-heading">${escapeHtml(heading)}</h1>
-        <p class="hero-sub">${escapeHtml(body)}</p>
-        <div class="hero-actions">${heroModalBtn("Contact Us", "Let's work together", "contact", "primary")}${heroCtaButton(cta2Label, cta2Sub, cta2Href, "ghost")}</div>
+        <h1 class="hero-heading" data-cms-field="heading">${escapeHtml(heading)}</h1>
+        <p class="hero-sub" data-cms-field="body">${escapeHtml(body)}</p>
+        <div class="hero-actions">${heroModalBtn("Contact Us", "Let's work together", "contact", "primary")}${heroCtaButton(cta2Label, cta2Sub, cta2Href, "ghost", "cta_secondary_label")}</div>
       </div>
     </div>
   </div>
@@ -174,7 +199,7 @@ function renderWhyWeExist(section) {
   const mapEmbed = escUrl(pick(c, ["map_embed_url"]), SHELTER_MAP_EMBED);
 
   const mediaCol = mediaType === "shelter_map"
-    ? `<div class="story-block-img story-block-img--map">
+    ? `<div class="story-block-img story-block-img--map" data-cms-field="image_url">
         <iframe
           title="${escAttr(shelterName)} location"
           src="${escAttr(mapEmbed)}"
@@ -190,7 +215,7 @@ function renderWhyWeExist(section) {
           <span>${escapeHtml(shelterAddress)}</span>
         </div>
       </div>`
-    : `<div class="story-block-img">
+    : `<div class="story-block-img" data-cms-field="image_url">
         <img src="${escAttr(escUrl(pick(section, ["image_url"]) || pick(c, ["image_url"]), `${CDN}/media/animals/thefounders.webp`))}" alt="${escAttr(pick(c, ["image_alt"]) || heading || "Why Companions Exists")}" loading="lazy" />
       </div>`;
 
@@ -200,9 +225,9 @@ function renderWhyWeExist(section) {
     <div class="story-block">
       ${mediaCol}
       <div class="story-block-body">
-        <div class="ey-purple">${escapeHtml(eyebrow)}</div>
-        <h2 class="story-heading">${escapeHtml(heading)}</h2>
-        <p class="story-body">${escapeHtml(body)}</p>
+        <div class="ey-purple" data-cms-field="eyebrow">${escapeHtml(eyebrow)}</div>
+        <h2 class="story-heading" data-cms-field="heading">${escapeHtml(heading)}</h2>
+        <p class="story-body" data-cms-field="body">${escapeHtml(body)}</p>
       </div>
     </div>
   </div>
@@ -221,10 +246,11 @@ function renderPaths(section, blocks) {
     const cfg = blockCfg(b);
     const icon = pick(cfg, ["icon_svg"]) || PATH_ICONS[i % PATH_ICONS.length];
     const href = escUrl(pick(b, ["href"]) || pick(cfg, ["href"]), "/donate");
-    return `<div class="pillar">
+    const bk = escAttr(pick(b, ["block_key"]) || `path_${i}`);
+    return `<div class="pillar" data-cms-field="block_title" data-cms-block="${bk}">
         <div class="pillar-icon-wrap">${icon}</div>
-        <h3>${escapeHtml(pick(b, ["title"]) || "")}</h3>
-        <p>${escapeHtml(pick(b, ["body"]) || "")}</p>
+        <h3 data-cms-field="block_title" data-cms-block="${bk}">${escapeHtml(pick(b, ["title"]) || "")}</h3>
+        <p data-cms-field="block_body" data-cms-block="${bk}">${escapeHtml(pick(b, ["body"]) || "")}</p>
         <a href="${escAttr(href)}">Learn more →</a>
       </div>`;
   }).join("\n      ");
@@ -235,7 +261,7 @@ function renderPaths(section, blocks) {
 </style>
 <section class="section s-light" data-cpas-section="paths" data-section-key="paths">
   <div class="container">
-    <h2 class="paths-heading">${escapeHtml(heading)}</h2>
+    <h2 class="paths-heading" data-cms-field="heading">${escapeHtml(heading)}</h2>
     <div class="pillars-row" style="grid-template-columns:repeat(${Math.min(cards.length || 2, 2)},1fr);max-width:880px;margin-left:auto;margin-right:auto">${cardHtml}</div>
   </div>
 </section>`;
@@ -266,16 +292,16 @@ function renderCampaigns(section) {
 </style>
 <section class="section s-light" data-cpas-section="campaigns" data-section-key="campaigns">
   <div class="container">
-    <div class="ey-purple">${escapeHtml(eyebrow)}</div>
+    <div class="ey-purple" data-cms-field="eyebrow">${escapeHtml(eyebrow)}</div>
     <div class="about-camp-featured">
-      <img src="${escAttr(image)}" alt="${escAttr(campTitle)}" loading="lazy" />
+      <img src="${escAttr(image)}" alt="${escAttr(campTitle)}" loading="lazy" data-cms-field="image_url" />
       <div class="about-camp-body">
-        <h2 class="about-camp-heading">${escapeHtml(campTitle)}</h2>
+        <h2 class="about-camp-heading" data-cms-field="heading">${escapeHtml(campTitle)}</h2>
         <p class="about-camp-meta">$${raised.toLocaleString()} raised by ${donors} donor${donors === 1 ? "" : "s"}. Every gift fuels medical support, transport, and second chances.</p>
-        <p class="story-body">${escapeHtml(campDesc)}</p>
+        <p class="story-body" data-cms-field="body">${escapeHtml(campDesc)}</p>
         <div class="progress-bar" style="margin:1rem 0 0.35rem"><div class="progress-fill" style="width:${pct}%"></div></div>
         <p class="progress-label">$${raised.toLocaleString()} of $${goal.toLocaleString()} · ${pct}%</p>
-        <a class="story-cta" href="${escAttr(donateHref)}" style="margin-top:1.25rem">
+        <a class="story-cta" href="${escAttr(donateHref)}" style="margin-top:1.25rem" data-cms-field="cta_label">
           Give now
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </a>
@@ -292,7 +318,7 @@ function renderCta(section) {
   const eyebrow = pick(section, ["eyebrow"]) || "Give them a way out";
   const ctaLabel = pick(section, ["cta_label"]) || pick(c, ["cta_label"]) || "View Adoptable Dogs";
   const ctaHref = pick(section, ["cta_href"]) || pick(c, ["cta_href"]) || "/adopt";
-  const donateLabel = pick(c, ["donate_label"]) || "Donate Now";
+  const donateLabel = pick(c, ["donate_label"]) || pick(section, ["cta_secondary_label"]) || "Donate Now";
 
   return `<style>[data-cpas-section="cta"]{display:block}</style>
 <section class="cta-band s-purple" data-cpas-section="cta" data-section-key="cta" id="cta">
@@ -300,18 +326,18 @@ function renderCta(section) {
     <div class="cta-band-left">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
       <div>
-        <p class="ey-white" style="margin-bottom:0.35rem">${escapeHtml(eyebrow)}</p>
-        <p class="cta-band-heading">${escapeHtml(heading)}</p>
-        <p class="cta-band-sub">${escapeHtml(body)}</p>
+        <p class="ey-white" style="margin-bottom:0.35rem" data-cms-field="eyebrow">${escapeHtml(eyebrow)}</p>
+        <p class="cta-band-heading" data-cms-field="heading">${escapeHtml(heading)}</p>
+        <p class="cta-band-sub" data-cms-field="body">${escapeHtml(body)}</p>
       </div>
     </div>
     <div class="cta-band-right">
       <div class="cta-action-row">
-        <a class="cta-action-btn" href="${escAttr(ctaHref)}">
+        <a class="cta-action-btn" href="${escAttr(ctaHref === "donate" ? "/donate" : ctaHref)}" data-cms-field="cta_label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
           ${escapeHtml(ctaLabel)}
         </a>
-        <a class="cta-action-btn" href="${escAttr(pick(c, ["donate_href"]) || "/donate")}">
+        <a class="cta-action-btn" href="${escAttr(pick(c, ["donate_href"]) || "/donate")}" data-cms-field="cta_secondary_label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
           ${escapeHtml(donateLabel)}
         </a>

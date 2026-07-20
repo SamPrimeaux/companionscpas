@@ -1,10 +1,11 @@
 /**
  * Single section-type catalog for the CMS pipeline.
- * Prefer shared type renderers (hero, text_image, feature_cards, cta_banner, …).
- * Home still uses section_key overrides for branded fragments; About uses shared types.
+ * Shared types are the default; Home and About keep approved branded HTML
+ * via section_key overrides, with data-cms-field hooks for editor isolation.
  */
 import { renderSection } from "./render_section.js";
 import { renderHomeFragment } from "./render_home_section.js";
+import { renderAboutFragment } from "./render_about_section.js";
 import { renderDonateV2Section, isDonateV2SectionType } from "./render_donate_v2.js";
 import { renderCampaignTransportHero } from "./render_campaign_transport_hero.js";
 import { renderCampaignEntryHero } from "./render_campaign_entry_hero.js";
@@ -90,6 +91,10 @@ async function renderViaHomeKey(section, blocks, env) {
   return html || null;
 }
 
+function renderViaAboutKey(section, blocks) {
+  return renderAboutFragment(section, blocks);
+}
+
 async function renderGeneric(section, blocks, brand, env) {
   return String(renderSection(section, blocks, brand, env) || "");
 }
@@ -97,8 +102,7 @@ async function renderGeneric(section, blocks, brand, env) {
 /**
  * Resolve renderer for a section row.
  * Order: contact → donate v2 → campaign specials → home key overrides →
- * typed home_* → generic SECTION_RENDERERS → stub.
- * About uses shared types only (no section_key overrides).
+ * about key overrides (approved HTML) → typed home_* → generic → stub.
  */
 export async function renderSectionByType(section, blocks = [], brand = {}, env = null, opts = {}) {
   const preview = opts.preview === true;
@@ -118,8 +122,8 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
   }
 
   try {
-    // Plain content + legacy mission_statement alias
-    if (type === "content" || type === "mission_statement") {
+    // Plain content (non-About). About mission_statement uses branded fragment below.
+    if (type === "content" && !(route === "/about" && key === "mission_statement")) {
       const eyebrow = String(section?.eyebrow || "").trim();
       const heading = String(section?.heading || "").trim().replace(/<[^>]+>/g, "");
       const body = String(section?.body || section?.subheading || "").trim().replace(/<[^>]+>/g, "");
@@ -153,7 +157,7 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
       return String(await renderAdoptAnimalGallery(section, blocks, brand, env) || "");
     }
 
-    // Home: custom fragments keyed by section_key (D1 types are often generic aliases)
+    // Home: custom fragments keyed by section_key
     if (route === "/") {
       const homeKeys = new Set([
         "hero", "mission", "how_it_helps", "transport_win",
@@ -165,6 +169,17 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
       }
       if (type === "home_pillars" || type === "home_story" || type === "home_stats" || type === "home_newsletter") {
         const html = await renderViaHomeKey(section, blocks, env);
+        if (html) return html;
+      }
+    }
+
+    // About: approved branded HTML by section_key (editable via data-cms-field)
+    if (route === "/about") {
+      const aboutKeys = new Set([
+        "mission_statement", "hero", "why_we_exist", "paths", "campaigns", "cta",
+      ]);
+      if (aboutKeys.has(key)) {
+        const html = renderViaAboutKey(section, blocks);
         if (html) return html;
       }
     }

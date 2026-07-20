@@ -1268,7 +1268,6 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const isImageEl = CMS_IMAGE_FIELDS.has(selectedField) && !isBlockField;
 
     const styleTweaks = (isTextEl || isImageEl) && React.createElement('div', { style:{ display:'grid', gap:12 } },
-      React.createElement('h4', { style:groupTitleStyle() }, 'Style tweaks'),
       isTextEl && renderPresetRow('Size', cfg.text_size || 'm', [
         { value:'s', label:'S' }, { value:'m', label:'M' }, { value:'l', label:'L' }
       ], v => setConfigPatch({ text_size: v })),
