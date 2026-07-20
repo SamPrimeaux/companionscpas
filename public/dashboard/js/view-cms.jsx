@@ -994,10 +994,27 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const [moved] = list.splice(from, 1);
     list.splice(to, 0, moved);
     const reordered = list.map((s,i) => ({ ...s, sort_order:(i+1)*10 }));
+    const prevSections = pageData.sections;
     setPageData(prev => ({ ...prev, sections:reordered }));
     setDragKey(null); setDragOverKey(null);
-    try { await Promise.all(reordered.map(s => saveSectionObject(s, true))); bumpPreview(); notify('Section order saved'); }
-    catch(e) { notify('Reorder failed: ' + e.message, 'error'); }
+    try {
+      const res = await fetch('/api/cms/sections/reorder', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          page_route: route,
+          section_keys: reordered.map((s) => s.section_key),
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.success) throw new Error(d.error || 'Section save failed');
+      bumpPreview();
+      notify('Section order saved');
+    } catch (e) {
+      setPageData(prev => ({ ...prev, sections: prevSections }));
+      notify('Reorder failed: ' + e.message, 'error');
+    }
   };
 
   const addSection = async (type) => {
@@ -1235,7 +1252,12 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   function renderInspector(compact=false) {
     if (!selected) return React.createElement('div', { style:{ padding:18, color:C.textMut, fontSize:13 } }, 'Select a section to edit.');
-    const needsImage = ['hero','text_image','text_image_split'].includes(selected.section_type);
+    const needsImage = ['hero','text_image','text_image_split','contact_hero','contact_team','campaign_grid'].includes(selected.section_type)
+      || !!(selected.image_url && String(selected.image_url).trim());
+    const sectionBlocks = (pageData.blocks || []).filter(
+      (b) => cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(selected.section_key)
+    );
+    const usesCards = ['feature_cards', 'card_grid', 'home_pillars'].includes(selected.section_type) || sectionBlocks.length > 0;
     const cfg = cmsParseConfig(selected);
     const field = (label, key, type='text', opts={}) => React.createElement('div', { key, id: 'cms-field-' + key }, cmsFieldLabel(label), type === 'textarea' ? cmsTextArea(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.rows || 5) : cmsTextInput(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.placeholder, opts.mono));
 
@@ -1326,6 +1348,32 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         selected.image_url && React.createElement('div', { style:{ width:'100%', maxHeight:220, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center' } },
           React.createElement('img', { src:selected.image_url, alt:'', style:{ width:'100%', height:'auto', maxHeight:220, objectFit:'contain', display:'block' } })
         )
+      ),
+      usesCards && React.createElement('div', { style:{ display:'grid', gap:10 } },
+        React.createElement('h4', { style:groupTitleStyle() }, 'Cards in this section'),
+        sectionBlocks.length
+          ? sectionBlocks.map((b) => React.createElement('button', {
+              key: b.id || b.block_key,
+              type: 'button',
+              onClick: () => {
+                setSelectedBlockKey(b.block_key);
+                setSelectedField('block_title');
+                postHighlight(selected.section_key, 'block_title');
+                setMobileTab('edit');
+              },
+              style: {
+                textAlign: 'left',
+                padding: '10px 12px',
+                borderRadius: 10,
+                border: `1px solid ${selectedBlockKey === b.block_key ? C.purple : C.border}`,
+                background: selectedBlockKey === b.block_key ? 'rgba(124,58,237,0.08)' : C.bg,
+                cursor: 'pointer',
+              },
+            },
+              React.createElement('div', { style:{ fontWeight:800, color:C.text, fontSize:13 } }, b.title || b.block_key || 'Card'),
+              React.createElement('div', { style:{ color:C.textMut, fontSize:11, marginTop:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, b.body || 'Edit card copy')
+            ))
+          : React.createElement('div', { style:{ color:C.textMut, fontSize:12 } }, 'No cards yet — this section uses section fields only.')
       ),
       React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Links'), field('Primary CTA label','cta_label'), field('Primary CTA href','cta_href','text',{ placeholder:'/foster' }), field('Secondary CTA label','cta_secondary_label'), field('Secondary CTA href','cta_secondary_href','text',{ placeholder:'/donate' })),
       React.createElement('div', { style:{ display:'grid', gap:12 } },

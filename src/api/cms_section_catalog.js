@@ -1,12 +1,10 @@
 /**
  * Single section-type catalog for the CMS pipeline.
- * Types are sourced from D1 DISTINCT section_type (tenant_companionscpas).
- * Ambiguous types (hero, text_image, campaign_grid, …) resolve via page_route + section_key
- * so home/about keep their custom HTML without separate page assemblers.
+ * Prefer shared type renderers (hero, text_image, feature_cards, cta_banner, …).
+ * Home still uses section_key overrides for branded fragments; About uses shared types.
  */
 import { renderSection } from "./render_section.js";
 import { renderHomeFragment } from "./render_home_section.js";
-import { renderAboutFragment } from "./render_about_section.js";
 import { renderDonateV2Section, isDonateV2SectionType } from "./render_donate_v2.js";
 import { renderCampaignTransportHero } from "./render_campaign_transport_hero.js";
 import { renderCampaignEntryHero } from "./render_campaign_entry_hero.js";
@@ -92,19 +90,15 @@ async function renderViaHomeKey(section, blocks, env) {
   return html || null;
 }
 
-function renderViaAboutKey(section, blocks) {
-  return renderAboutFragment(section, blocks);
-}
-
 async function renderGeneric(section, blocks, brand, env) {
   return String(renderSection(section, blocks, brand, env) || "");
 }
 
 /**
  * Resolve renderer for a section row.
- * Order: contact types → donate v2 → campaign transport → campaign entry hero →
- * wet dog gallery → home key overrides → about key overrides → typed home_* →
- * generic SECTION_RENDERERS → stub.
+ * Order: contact → donate v2 → campaign specials → home key overrides →
+ * typed home_* → generic SECTION_RENDERERS → stub.
+ * About uses shared types only (no section_key overrides).
  */
 export async function renderSectionByType(section, blocks = [], brand = {}, env = null, opts = {}) {
   const preview = opts.preview === true;
@@ -124,14 +118,17 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
   }
 
   try {
-    if (type === "content") {
-      const heading = String(section?.heading || "").trim();
-      const body = String(section?.body || section?.subheading || "").trim();
-      const key = escapeHtml(String(section?.section_key || "content"));
-      return `<section class="section s-light" data-section-key="${key}" data-cpas-section="${key}">
+    // Plain content + legacy mission_statement alias
+    if (type === "content" || type === "mission_statement") {
+      const eyebrow = String(section?.eyebrow || "").trim();
+      const heading = String(section?.heading || "").trim().replace(/<[^>]+>/g, "");
+      const body = String(section?.body || section?.subheading || "").trim().replace(/<[^>]+>/g, "");
+      const sk = escapeHtml(String(section?.section_key || "content"));
+      return `<section class="section s-light" data-section-key="${sk}" data-cpas-section="${sk}">
   <div class="container" style="max-width:42rem">
-    ${heading ? `<h2 data-cms-field="heading">${escapeHtml(heading)}</h2>` : ""}
-    ${body ? `<p data-cms-field="body" style="line-height:1.7;color:var(--text-2)">${escapeHtml(body)}</p>` : ""}
+    ${eyebrow ? `<div class="ey-purple" data-cms-field="eyebrow">${escapeHtml(eyebrow)}</div>` : ""}
+    ${heading ? `<h2 class="mission-heading" data-cms-field="heading">${escapeHtml(heading)}</h2>` : ""}
+    ${body ? `<p class="mission-body" data-cms-field="body" style="line-height:1.7;color:var(--text-2)">${escapeHtml(body)}</p>` : ""}
   </div>
 </section>`;
     }
@@ -168,17 +165,6 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
       }
       if (type === "home_pillars" || type === "home_story" || type === "home_stats" || type === "home_newsletter") {
         const html = await renderViaHomeKey(section, blocks, env);
-        if (html) return html;
-      }
-    }
-
-    // About: custom fragments by section_key
-    if (route === "/about") {
-      const aboutKeys = new Set([
-        "mission_statement", "hero", "why_we_exist", "paths", "campaigns", "cta",
-      ]);
-      if (aboutKeys.has(key)) {
-        const html = renderViaAboutKey(section, blocks);
         if (html) return html;
       }
     }

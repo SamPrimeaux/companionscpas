@@ -85,6 +85,9 @@ function normalizeCtaIntent(href, action) {
   if (rawHref === "#donate-form" || rawHref === "#donate" || rawHref === "/donate#donate-form") {
     return { type: "action", value: "donate" };
   }
+  if (rawHref === "donate" || rawHref === "/donate") {
+    return { type: "action", value: "donate" };
+  }
 
   const safeHref = safeUrl(rawHref, "");
   if (safeHref) return { type: "href", value: safeHref };
@@ -108,15 +111,16 @@ function renderActionCta(label, href, action = "", variant = "primary", sub = ""
   const subHtml = sub ? `<span class="hero-cta-sub">${escapeHtml(sub)}</span>` : "";
   const iconKey = opts.icon === false ? "" : intent.value;
   const icon = CTA_ICONS[iconKey] || "";
+  const fieldAttr = opts.cmsField ? ` data-cms-field="${escapeAttribute(opts.cmsField)}"` : "";
   const inner = `${icon}<span class="hero-cta-text"><span class="hero-cta-label">${escapeHtml(safeLabel)}</span>${subHtml}</span>`;
 
   if (intent.type === "action") {
-    return `<button class="${cls}" type="button" data-action="${escapeAttribute(intent.value)}">${inner}</button>`;
+    return `<button class="${cls}" type="button" data-action="${escapeAttribute(intent.value)}"${fieldAttr}>${inner}</button>`;
   }
   if (intent.type === "modal") {
-    return `<button class="${cls}" type="button" data-modal="${escapeAttribute(intent.value)}">${inner}</button>`;
+    return `<button class="${cls}" type="button" data-modal="${escapeAttribute(intent.value)}"${fieldAttr}>${inner}</button>`;
   }
-  return `<a class="${cls}" href="${intent.value}">${inner}</a>`;
+  return `<a class="${cls}" href="${intent.value}"${fieldAttr}>${inner}</a>`;
 }
 
 function renderCta(label, url, variant = "primary", action = "") {
@@ -148,10 +152,10 @@ function renderSectionHeader(section, opts = {}) {
   const bodyEnabled = options.includeBody !== false;
 
   return [
-    eyebrow ? `<div class="ey-purple">${escapeHtml(eyebrow)}</div>` : "",
-    heading ? `<${headingTag} class="${headingClass}">${escapeHtml(heading)}</${headingTag}>` : "",
-    subheading ? `<p class="${bodyClass}">${escapeHtml(subheading)}</p>` : "",
-    bodyEnabled && body ? `<p class="${bodyClass}">${escapeHtml(body)}</p>` : "",
+    eyebrow ? `<div class="ey-purple" data-cms-field="eyebrow">${escapeHtml(eyebrow)}</div>` : "",
+    heading ? `<${headingTag} class="${headingClass}" data-cms-field="heading">${escapeHtml(heading)}</${headingTag}>` : "",
+    subheading ? `<p class="${bodyClass}" data-cms-field="subheading">${escapeHtml(subheading)}</p>` : "",
+    bodyEnabled && body ? `<p class="${bodyClass}" data-cms-field="body">${escapeHtml(body)}</p>` : "",
   ].join("");
 }
 
@@ -227,28 +231,38 @@ function renderHero(section) {
   const imageUrl = pickText(section, ["image_url"]) || pickText(config, ["image_url"]);
   const imageAlt = pickText(section, ["image_alt", "heading"]) || pickText(config, ["image_alt"]) || "Hero image";
   const heroSub = subheading || body;
-  const ctaPrimary = renderActionCta(cta.label, cta.href, cta.action, "primary");
+  const focal = pickText(config, ["image_object_position"]) || "center";
+  const objectPos =
+    focal === "top" ? "center top" :
+    focal === "left" ? "left center" :
+    focal === "right" ? "right center" :
+    "center center";
+  const ctaPrimary = renderActionCta(cta.label, cta.href, cta.action, "primary", "", { cmsField: "cta_label" });
   const ctaSecondary = renderActionCta(
     cta.secondaryLabel,
     cta.secondaryHref,
     cta.secondaryAction,
     "ghost",
-    cta.secondarySub
+    cta.secondarySub,
+    { cmsField: "cta_secondary_label" }
   );
   const safeImage = imageUrl ? safeUrl(imageUrl, "") : "";
+  const sectionKey = pickText(section, ["section_key"]);
+  const sk = escapeAttribute(sectionKey);
 
   return `
-<section class="hero-split" data-section-key="${escapeAttribute(pickText(section, ["section_key"]))}">
-  ${safeImage ? `<div class="hero-media-bg">
+<style>[data-cpas-section="${sk}"] .hero-media-bg img{object-fit:cover;object-position:${objectPos};width:100%;height:100%}</style>
+<section class="hero-split" data-cpas-section="${sk}" data-section-key="${sk}">
+  ${safeImage ? `<div class="hero-media-bg" data-cms-field="image_url">
     <img src="${safeImage}" alt="${escapeAttribute(imageAlt)}" loading="eager" fetchpriority="high" decoding="async" />
     <div class="hero-scrim"></div>
   </div>` : ""}
   <div class="hero-body">
     <div class="container">
       <div class="hero-content">
-        ${eyebrow ? `<div class="hero-badge">${escapeHtml(eyebrow)}</div>` : ""}
-        ${heading ? `<h1 class="hero-heading">${escapeHtml(heading)}</h1>` : ""}
-        ${heroSub ? `<p class="hero-sub">${escapeHtml(heroSub)}</p>` : ""}
+        ${eyebrow ? `<div class="hero-badge" data-cms-field="eyebrow">${escapeHtml(eyebrow)}</div>` : ""}
+        ${heading ? `<h1 class="hero-heading" data-cms-field="heading">${escapeHtml(heading)}</h1>` : ""}
+        ${heroSub ? `<p class="hero-sub" data-cms-field="${subheading ? "subheading" : "body"}">${escapeHtml(heroSub)}</p>` : ""}
         ${ctaPrimary || ctaSecondary ? `<div class="hero-actions">${ctaPrimary}${ctaSecondary}</div>` : ""}
       </div>
     </div>
@@ -268,16 +282,22 @@ function renderTextImage(section) {
   const ctaHref = pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]);
   const sectionKey = pickText(section, ["section_key"]);
   const imgFirst = imagePosition === "left";
+  const mediaType = pickText(config, ["media_type"]).toLowerCase();
+  const mapEmbed = pickText(config, ["map_embed_url"]);
+  const shelterName = pickText(config, ["shelter_name"]) || "Shelter location";
 
   const bodyCol = `
       <div class="story-block-body">
-        ${eyebrow ? `<div class="ey-purple">${escapeHtml(eyebrow)}</div>` : ""}
-        ${heading ? `<h2 class="story-heading">${escapeHtml(heading)}</h2>` : ""}
-        ${body ? `<p class="story-body">${escapeHtml(body)}</p>` : ""}
-        ${ctaLabel ? `<a class="btn btn-primary" href="${safeUrl(ctaHref, "/adopt")}">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>` : ""}
+        ${eyebrow ? `<div class="ey-purple" data-cms-field="eyebrow">${escapeHtml(eyebrow)}</div>` : ""}
+        ${heading ? `<h2 class="story-heading" data-cms-field="heading">${escapeHtml(heading)}</h2>` : ""}
+        ${body ? `<p class="story-body" data-cms-field="body">${escapeHtml(body)}</p>` : ""}
+        ${ctaLabel ? `<a class="btn btn-primary" href="${safeUrl(ctaHref, "/adopt")}" data-cms-field="cta_label">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>` : ""}
       </div>`;
-  const imgCol = `
-      <div class="story-block-img">
+  const imgCol = mediaType === "shelter_map" && mapEmbed
+    ? `<div class="story-block-img story-block-img--map" data-cms-field="image_url">
+        <iframe title="${escapeAttribute(shelterName)}" src="${escapeAttribute(mapEmbed)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="border:0;width:100%;min-height:280px;border-radius:16px"></iframe>
+      </div>`
+    : `<div class="story-block-img" data-cms-field="image_url">
         ${renderImage(imageUrl, imageAlt, "")}
       </div>`;
 
@@ -397,12 +417,13 @@ function renderFeatureCards(section, blocks) {
   const cards = sortBlocks(blocks).map((block) => {
     const parts = cardParts(block);
     const imageSrc = parts.imageUrl ? safeUrl(parts.imageUrl, "") : "";
+    const bk = escapeAttribute(pickText(block, ["block_key"]));
     return `
-    <article class="ways-card">
-      ${imageSrc ? `<div class="ways-card-img-wrap"><img src="${imageSrc}" alt="${escapeAttribute(parts.imageAlt || parts.title || "")}" loading="lazy"></div>` : ""}
+    <article class="ways-card" data-cms-field="block_title" data-cms-block="${bk}">
+      ${imageSrc ? `<div class="ways-card-img-wrap" data-cms-field="block_image" data-cms-block="${bk}"><img src="${imageSrc}" alt="${escapeAttribute(parts.imageAlt || parts.title || "")}" loading="lazy"></div>` : ""}
       <div class="ways-card-body">
-        ${parts.title ? `<h3>${escapeHtml(parts.title)}</h3>` : ""}
-        ${parts.body ? `<p>${escapeHtml(parts.body)}</p>` : ""}
+        ${parts.title ? `<h3 data-cms-field="block_title" data-cms-block="${bk}">${escapeHtml(parts.title)}</h3>` : ""}
+        ${parts.body ? `<p data-cms-field="block_body" data-cms-block="${bk}">${escapeHtml(parts.body)}</p>` : ""}
         ${renderCardLink(parts.ctaLabel, parts.ctaUrl, parts.ctaAction)}
       </div>
     </article>`.trim();
@@ -522,13 +543,14 @@ function renderCtaBanner(section) {
   const heading = pickText(section, ["heading", "title"]) || pickText(config, ["heading"]);
   const subheading = pickText(section, ["subheading"]) || pickText(config, ["subheading"]);
   const body = pickText(section, ["body"]) || pickText(config, ["body"]);
-  const primary = renderActionCta(cta.label, cta.href, cta.action, "primary");
+  const primary = renderActionCta(cta.label, cta.href, cta.action, "primary", "", { cmsField: "cta_label" });
   const secondary = renderActionCta(
     cta.secondaryLabel,
     cta.secondaryHref,
     cta.secondaryAction,
     "ghost",
-    cta.secondarySub
+    cta.secondarySub,
+    { cmsField: "cta_secondary_label" }
   );
 
   const sectionKey = pickText(section, ["section_key"]);
@@ -539,9 +561,9 @@ function renderCtaBanner(section) {
 <style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}</style>
 <section class="section s-light"${idAttr} data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container section-intro-center">
-    ${pickText(section, ["eyebrow"]) ? `<div class="ey-purple">${escapeHtml(pickText(section, ["eyebrow"]))}</div>` : ""}
-    ${heading ? `<h2 class="mission-heading">${escapeHtml(heading)}</h2>` : ""}
-    ${intro ? `<p class="mission-body">${escapeHtml(intro)}</p>` : ""}
+    ${pickText(section, ["eyebrow"]) ? `<div class="ey-purple" data-cms-field="eyebrow">${escapeHtml(pickText(section, ["eyebrow"]))}</div>` : ""}
+    ${heading ? `<h2 class="mission-heading" data-cms-field="heading">${escapeHtml(heading)}</h2>` : ""}
+    ${intro ? `<p class="mission-body" data-cms-field="${subheading ? "subheading" : "body"}">${escapeHtml(intro)}</p>` : ""}
     ${primary || secondary ? `<div class="hero-actions" style="justify-content:center;margin-top:2rem">${primary}${secondary}</div>` : ""}
   </div>
 </section>`.trim();
@@ -806,15 +828,16 @@ function renderFosterGrid(section, blocks) {
 function renderCampaignGridV2(section, blocks) {
   const cards = sortBlocks(blocks).map((block) => {
     const parts = cardParts(block);
+    const bk = escapeAttribute(pickText(block, ["block_key"]));
     return [
-      '<article class="campaign-card">',
-      '<div class="campaign-img-wrap">',
+      '<article class="campaign-card" data-cms-field="block_title" data-cms-block="' + bk + '">',
+      '<div class="campaign-img-wrap" data-cms-field="block_image" data-cms-block="' + bk + '">',
       renderImage(parts.imageUrl, parts.imageAlt || parts.title || 'Campaign image', 'campaign-img'),
       '<div class="campaign-img-overlay"></div>',
       '</div>',
       '<div class="campaign-body">',
-      parts.title ? '<h3 class="campaign-title">' + escapeHtml(parts.title) + '</h3>' : '',
-      parts.body  ? '<p class="campaign-text">'  + escapeHtml(parts.body)  + '</p>'  : '',
+      parts.title ? '<h3 class="campaign-title" data-cms-field="block_title" data-cms-block="' + bk + '">' + escapeHtml(parts.title) + '</h3>' : '',
+      parts.body  ? '<p class="campaign-text" data-cms-field="block_body" data-cms-block="' + bk + '">'  + escapeHtml(parts.body)  + '</p>'  : '',
       renderCardLink(parts.ctaLabel, parts.ctaUrl, parts.ctaAction),
       '</div></article>',
     ].join('');

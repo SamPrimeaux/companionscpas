@@ -706,11 +706,66 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`);
 
     let fragmentSync = null;
-    if (isFragmentPageRoute(page_route)) {
-      fragmentSync = await syncFragmentCmsToR2(env, page_route);
+    try {
+      if (isFragmentPageRoute(page_route)) {
+        fragmentSync = await syncFragmentCmsToR2(env, page_route);
+      }
+    } catch (err) {
+      console.warn("[cms/section/save] R2 sync failed:", err?.message || err);
+      fragmentSync = { error: String(err?.message || err) };
     }
 
     return json({ success: true, page_route, section_key, fragment_sync: fragmentSync });
+  }
+
+  // POST /api/cms/sections/reorder — batch sort_order only, one R2 sync
+  if (path === "/api/cms/sections/reorder" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const page_route = normalizeRouteInput(data.page_route || "/");
+    const keys = Array.isArray(data.section_keys)
+      ? data.section_keys.map((k) => String(k || "").trim()).filter(Boolean)
+      : [];
+    if (!page_route) return json({ success: false, error: "page_route required" }, 400);
+    if (!keys.length) return json({ success: false, error: "section_keys required" }, 400);
+
+    for (let i = 0; i < keys.length; i++) {
+      await env.DB.prepare(
+        `UPDATE cms_page_sections
+         SET sort_order = ?, updated_at = datetime('now')
+         WHERE tenant_id = ? AND page_route = ? AND section_key = ?`
+      )
+        .bind((i + 1) * 10, TENANT_ID, page_route, keys[i])
+        .run();
+    }
+
+    await env.DB.prepare(
+      "UPDATE cms_pages SET status = 'draft', updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?"
+    )
+      .bind(TENANT_ID, page_route)
+      .run()
+      .catch(() => {});
+
+    await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`);
+
+    let fragmentSync = null;
+    try {
+      if (isFragmentPageRoute(page_route)) {
+        fragmentSync = await syncFragmentCmsToR2(env, page_route);
+      }
+    } catch (err) {
+      console.warn("[cms/sections/reorder] R2 sync failed:", err?.message || err);
+      fragmentSync = { error: String(err?.message || err) };
+    }
+
+    return json({
+      success: true,
+      page_route,
+      section_keys: keys,
+      fragment_sync: fragmentSync,
+    });
   }
 
   if (path === "/api/cms/block/save" && method === "POST") {
@@ -774,8 +829,13 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`);
 
     let fragmentSync = null;
-    if (isFragmentPageRoute(page_route)) {
-      fragmentSync = await syncFragmentCmsToR2(env, page_route);
+    try {
+      if (isFragmentPageRoute(page_route)) {
+        fragmentSync = await syncFragmentCmsToR2(env, page_route);
+      }
+    } catch (err) {
+      console.warn("[cms/block/save] R2 sync failed:", err?.message || err);
+      fragmentSync = { error: String(err?.message || err) };
     }
 
     return json({ success: true, page_route, section_key, block_key, fragment_sync: fragmentSync });
