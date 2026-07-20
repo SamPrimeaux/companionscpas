@@ -1073,6 +1073,8 @@ export async function dashboardApiRoutes(request, env, url) {
       `).bind(session.email || session.user_id || 'dashboard', entryId, TENANT).run();
       const { setCampaignUpdatePublicForEntry } = await import('./competition_campaign_updates.js');
       await setCampaignUpdatePublicForEntry(env, entryId, true);
+      // Gallery HTML is baked into KV page:/donate — bust so approved entries appear immediately.
+      await invalidateDonatePageCache(env);
       return json({ ok: true, entry_id: entryId, moderation_status: 'approved' });
     }
 
@@ -1088,6 +1090,7 @@ export async function dashboardApiRoutes(request, env, url) {
       `).bind(reason, entryId, TENANT).run();
       const { setCampaignUpdatePublicForEntry } = await import('./competition_campaign_updates.js');
       await setCampaignUpdatePublicForEntry(env, entryId, false);
+      await invalidateDonatePageCache(env);
       return json({ ok: true, entry_id: entryId, moderation_status: 'rejected' });
     }
 
@@ -1101,6 +1104,7 @@ export async function dashboardApiRoutes(request, env, url) {
       `).bind(entryId, TENANT).run();
       const { setCampaignUpdatePublicForEntry } = await import('./competition_campaign_updates.js');
       await setCampaignUpdatePublicForEntry(env, entryId, false);
+      await invalidateDonatePageCache(env);
       return json({ ok: true, entry_id: entryId, archived: true });
     }
 
