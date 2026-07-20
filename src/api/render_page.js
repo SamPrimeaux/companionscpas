@@ -236,6 +236,18 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   const theme = normalizePageTheme(safePage.theme, "plum_glass");
   const themeClass = themeClassName(theme);
   const route = escapeHtml(safePage.route_path || "/");
+  const canonicalPath = text(safePage.canonical_path || safePage.route_path || "/").trim() || "/";
+  const siteOrigin = "https://companionsofcaddo.org";
+  const canonicalUrl = escapeHtml(
+    text(safePage.canonical_url).trim() || `${siteOrigin}${canonicalPath === "/" ? "/" : canonicalPath}`
+  );
+  const darkLogo =
+    text(safeBrand.logo_dark_url).trim() ||
+    "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar";
+  const ogImage = escapeHtml(
+    text(safePage.og_image_url || opts?.og_image_url).trim() || darkLogo
+  );
+  const ogType = escapeHtml(text(safePage.og_type || opts?.og_type || "website").trim() || "website");
   // Font preset from brand config
   const fontPresets = Array.isArray(safeBrand?.config?.font_presets) ? safeBrand.config.font_presets : [];
   const activeFontKey = safeBrand?.config?.active_font_preset || 'fraunces_dm';
@@ -249,10 +261,10 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   const sectionsMarkup = Array.isArray(sectionHtmls) ? sectionHtmls.join("\n") : "";
   const brandScript = `<script>window.__BRAND=${JSON.stringify({
     brand_name: safeBrand.brand_name || "Companions of CPAS",
-    logo_dark_url: safeBrand.logo_dark_url || "/static/global/logo-dark.webp",
+    logo_dark_url: safeBrand.logo_dark_url || darkLogo,
     logo_light_url: safeBrand.logo_light_url || "/static/global/companionsofcpa-newlogo.webp",
     footer_logo_dark_url: safeBrand.footer_logo_dark_url || "/static/global/companionsofcpa-newlogo.webp",
-    footer_logo_light_url: safeBrand.footer_logo_light_url || "/static/global/logo-dark.webp",
+    footer_logo_light_url: safeBrand.footer_logo_light_url || darkLogo,
     developer_logo_dark_url: safeBrand.developer_logo_dark_url || "",
     developer_logo_light_url: safeBrand.developer_logo_light_url || "",
     logo_width: safeBrand.logo_width || 140,
@@ -266,6 +278,18 @@ export function assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHt
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
   <meta name="description" content="${description}">
+  <link rel="canonical" href="${canonicalUrl}">
+  <meta property="og:type" content="${ogType}">
+  <meta property="og:site_name" content="Companions of CPAS">
+  <meta property="og:url" content="${canonicalUrl}">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${description}">
+  <meta property="og:image" content="${ogImage}">
+  <meta property="og:image:alt" content="${title}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${title}">
+  <meta name="twitter:description" content="${description}">
+  <meta name="twitter:image" content="${ogImage}">
   <link rel="stylesheet" href="${shellCssHref}">
 ${brandTokensStylesheetTag()}
 ${fontImportTag}

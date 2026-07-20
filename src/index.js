@@ -19,6 +19,12 @@ import { driveRoutes } from './api/drive_api.js';
 import { renderPage, getBrand, getGlobalPartial, assembleFullPage } from "./api/render_page.js";
 import { assemblePage, isCmsPageRoute, publishRoute } from "./api/cms_pipeline.js";
 import { renderAnimalProfileSection } from "./api/render_animal_profile_page.js";
+import {
+  buildEntrySharePageMeta,
+  isEntryShareable,
+  loadApprovedCompetitionEntry,
+  renderCompetitionEntryShareSection,
+} from "./api/render_competition_entry_share.js";
 import { emailApiRoutes } from './api/email_api.js';
 import { gmailRoutes } from './api/gmail_api.js';
 import { handleFosterApply, handleFosterList, handleFosterUpdate } from './api/foster_api.js';
@@ -91,6 +97,35 @@ async function servePublicAnimalProfile(animalId, env) {
     meta_description: (animal.bio || `Meet ${animal.name || "this dog"}, available for adoption through Companions of CPAS.`).slice(0, 200),
   };
 
+  const html = assembleFullPage(page, brand, headerHtml, [sectionHtml], footerHtml, {});
+  return new Response(html, { headers });
+}
+
+async function serveCompetitionEntryShare(entryId, env) {
+  const headers = {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "public, max-age=120",
+  };
+
+  const entry = await loadApprovedCompetitionEntry(env, entryId);
+  if (!isEntryShareable(entry)) {
+    return Response.redirect("https://companionsofcaddo.org/donate#wdg-donate_wetdog", 302);
+  }
+
+  const brand = await getBrand(env).catch(() => ({}));
+  const [headerHtml, footerHtml] = await Promise.all([
+    getGlobalPartial("header", brand, env),
+    getGlobalPartial("footer", brand, env),
+  ]);
+
+  const page = buildEntrySharePageMeta(entry);
+  if (!page.og_image_url) {
+    page.og_image_url =
+      brand.logo_dark_url ||
+      "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar";
+  }
+
+  const sectionHtml = renderCompetitionEntryShareSection(entry);
   const html = assembleFullPage(page, brand, headerHtml, [sectionHtml], footerHtml, {});
   return new Response(html, { headers });
 }
@@ -390,6 +425,10 @@ export default {
       const animalProfileMatch = url.pathname.match(/^\/adopt\/dog\/([^/]+)$/);
       if (animalProfileMatch) {
         return servePublicAnimalProfile(decodeURIComponent(animalProfileMatch[1]), env);
+      }
+      const wetDogEntryMatch = url.pathname.match(/^\/wet-dog\/([^/]+)$/);
+      if (wetDogEntryMatch) {
+        return serveCompetitionEntryShare(decodeURIComponent(wetDogEntryMatch[1]), env);
       }
     }
 

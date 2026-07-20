@@ -64,6 +64,7 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
   const description = text(section.subheading || section.body || config.public_description)
     || "Every approved entry is here. Tap a photo for a larger preview, then vote or share.";
   const shareBase = safeUrl(config.share_url, "https://companionsofcaddo.org/donate");
+  const entryShareBase = "https://companionsofcaddo.org/wet-dog/";
   const sectionKey = text(section.section_key) || "wet_dog_gallery";
   const sectionId = `wdg-${sectionKey.replace(/[^a-z0-9_-]+/gi, "-")}`;
 
@@ -75,12 +76,14 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
     const caption = text(entry.caption);
     const captionHtml = caption ? `<p class="wdg-caption">"${esc(caption)}"</p>` : "";
     const votes = Number(entry.vote_count) || 0;
+    const entryShareUrl = entryShareBase + encodeURIComponent(entry.id);
     return `
     <article class="wdg-card" data-entry-id="${esc(entry.id)}"
       data-dog-name="${esc(dogName)}"
       data-caption="${esc(caption)}"
       data-photo-url="${esc(photo)}"
-      data-vote-count="${votes}">
+      data-vote-count="${votes}"
+      data-share-url="${esc(entryShareUrl)}">
       <button type="button" class="wdg-photo" data-wdg-open aria-label="Preview ${esc(dogName)}">
         ${photo
           ? `<img src="${esc(photo)}" alt="${esc(dogName)}" loading="lazy" decoding="async">`
@@ -209,6 +212,7 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
   root.dataset.wdgReady = "1";
 
   const SHARE_BASE = ${JSON.stringify(shareBase)};
+  const ENTRY_SHARE_BASE = ${JSON.stringify(entryShareBase)};
   const SECTION_ID = ${JSON.stringify(sectionId)};
   const EYEBROW = ${JSON.stringify(eyebrow)};
   const STORAGE_KEY = "wdg_voted_" + (root.dataset.campaignId || "");
@@ -231,8 +235,11 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
       localStorage.setItem(STORAGE_KEY, JSON.stringify(voted));
     } catch {}
   }
+  function entryShareUrl(entryId) {
+    return ENTRY_SHARE_BASE + encodeURIComponent(entryId);
+  }
   function shareEntry(entryId, dogName) {
-    const shareUrl = SHARE_BASE + "?entry=" + encodeURIComponent(entryId) + "#" + SECTION_ID;
+    const shareUrl = entryShareUrl(entryId);
     const quote = "Vote for " + (dogName || "this pup") + " in the " + EYEBROW + "! " + shareUrl;
     const fbUrl = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(shareUrl) + "&quote=" + encodeURIComponent(quote);
     window.open(fbUrl, "wdg-share", "width=620,height=460,resizable=yes,scrollbars=yes,noopener");
