@@ -18,8 +18,10 @@ function attachmentsFromCampaign(c, cfg) {
 function fbShareEntry(entry, campaignTitle) {
   const name = entry.dog_name || "this pup";
   const title = campaignTitle || "Wet Dog Competition";
-  const caption = "Vote for " + name + " in the " + title + "! Every vote supports rescue dogs at Companions of CPAS. Cast your vote at companionsofcaddo.org/donate";
-  const url = "https://companionsofcaddo.org/donate";
+  const url = entry?.id
+    ? ("https://companionsofcaddo.org/wet-dog/" + encodeURIComponent(entry.id))
+    : "https://companionsofcaddo.org/donate#wdg-donate_wetdog";
+  const caption = "Vote for " + name + " in the " + title + "! " + url;
   const shareUrl = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(url) + "&quote=" + encodeURIComponent(caption);
   window.open(shareUrl, "fb-share", "width=620,height=460,resizable=yes,scrollbars=yes,noopener");
 }
