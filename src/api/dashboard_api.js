@@ -1003,7 +1003,7 @@ export async function dashboardApiRoutes(request, env, url) {
   const fundraisingDetailMatch = path.match(/^\/api\/dashboard\/fundraising\/([^/]+)$/);
   const fundraisingEntriesMatch = path.match(/^\/api\/dashboard\/fundraising\/([^/]+)\/entries$/);
   const fundraisingEntryActionMatch = path.match(
-    /^\/api\/dashboard\/fundraising\/([^/]+)\/entries\/([^/]+)\/(approve|reject|archive|resend)$/
+    /^\/api\/dashboard\/fundraising\/([^/]+)\/entries\/([^/]+)\/(approve|reject|archive|resend|set-votes)$/
   );
 
   if (fundraisingDetailMatch && method === 'GET') {
@@ -1151,6 +1151,21 @@ export async function dashboardApiRoutes(request, env, url) {
       await setCampaignUpdatePublicForEntry(env, entryId, false);
       await invalidateDonatePageCache(env);
       return json({ ok: true, entry_id: entryId, archived: true });
+    }
+
+    if (action === 'set-votes') {
+      const voteCount = Math.max(0, Math.min(1000000, Math.floor(Number(b.vote_count))));
+      if (!Number.isFinite(voteCount)) {
+        return json({ ok: false, error: 'vote_count must be a non-negative number' }, 400);
+      }
+      await env.DB.prepare(`
+        UPDATE competition_entries
+        SET vote_count = ?, updated_at = datetime('now')
+        WHERE id = ? AND tenant_id = ?
+      `).bind(voteCount, entryId, TENANT).run();
+      // Keep public gallery in sync when staff mirrors Facebook reactions.
+      await invalidateDonatePageCache(env);
+      return json({ ok: true, entry_id: entryId, vote_count: voteCount });
     }
 
     if (action === 'resend') {

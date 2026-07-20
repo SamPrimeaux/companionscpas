@@ -179,9 +179,8 @@ function entryIsDemo(entry) {
   } catch (_) { return false; }
 }
 
-function EntryCard({ entry, busy, votes, onVote, onAction, campaignTitle }) {
-  const voteCount = votes[entry.id] || 0;
-  const hasVoted = votes["__voted_" + entry.id] || false;
+function EntryCard({ entry, busy, votes, onOpen, onAction, campaignTitle }) {
+  const voteCount = Number(votes[entry.id] ?? entry.vote_count ?? 0);
   const isDemo = entryIsDemo(entry);
   const isPaid = !isDemo && entry.payment_status === "paid";
   const isApproved = !isDemo && Number(entry.is_approved) === 1;
@@ -201,27 +200,22 @@ function EntryCard({ entry, busy, votes, onVote, onAction, campaignTitle }) {
     background: "#334155", color: "#f8fafc" };
 
   return React.createElement("div", {
+    role: "button",
+    tabIndex: 0,
+    onClick: () => onOpen && onOpen(entry),
+    onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen && onOpen(entry); } },
     style: { borderRadius: 12, border: "1px solid rgba(0,0,0,0.09)",
       background: "var(--dash-surface, #faf7f3)", overflow: "hidden",
-      display: "flex", flexDirection: "column",
+      display: "flex", flexDirection: "column", cursor: "pointer",
       boxShadow: "0 1px 4px rgba(26,22,34,0.06)" },
   },
-    // Photo
     React.createElement("div", { style: { aspectRatio: "4/3", background: "#e8e4de", overflow: "hidden", flexShrink: 0 } },
       entry.photo_url
         ? React.createElement("img", { src: entry.photo_url, alt: entry.dog_name || "Entry",
-            style: { width: "100%", height: "100%", objectFit: "cover", display: "block" } })
+            style: { width: "100%", height: "100%", objectFit: "contain", background: "#efeae4", display: "block" } })
         : React.createElement("div", { style: { width: "100%", height: "100%", display: "flex", alignItems: "center",
-            justifyContent: "center", color: "#bbb", fontSize: 12, flexDirection: "column", gap: 6 } },
-            React.createElement("svg", { width: 28, height: 28, viewBox: "0 0 24 24", fill: "none", stroke: "#ddd", strokeWidth: 1.5 },
-              React.createElement("rect", { x: 3, y: 3, width: 18, height: 18, rx: 2 }),
-              React.createElement("circle", { cx: 8.5, cy: 8.5, r: 1.5 }),
-              React.createElement("polyline", { points: "21,15 16,10 5,21" })
-            ), "No photo"
-          )
+            justifyContent: "center", color: "#bbb", fontSize: 12 } }, "No photo")
     ),
-
-    // Info
     React.createElement("div", { style: { padding: "11px 13px", flex: 1 } },
       React.createElement("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 1 } }, entry.dog_name || "Untitled"),
       React.createElement("div", { style: { fontSize: 11, color: "var(--dash-text-muted)", marginBottom: 7,
@@ -234,44 +228,37 @@ function EntryCard({ entry, busy, votes, onVote, onAction, campaignTitle }) {
         "\"" + entry.caption + "\""
       ),
       React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap" } },
-        isDemo ? React.createElement("span", { style: demoChip, title: "Trial/QA — not a real Stripe payment" }, "Demo / test") : null,
+        isDemo ? React.createElement("span", { style: demoChip }, "Demo / test") : null,
         React.createElement("span", { style: payChip }, isDemo ? "not paid" : (entry.payment_status || "pending")),
         React.createElement("span", { style: modChip }, isDemo ? "demo" : (isApproved ? "approved" : isRejected ? "rejected" : entry.moderation_status || "pending")),
-        !isDemo && entry.payment_status === "paid" && React.createElement("span", { style: dollarChip, title: "Entry gift amount" }, money(entry.expected_amount_cents ?? 1000))
+        !isDemo && entry.payment_status === "paid" && React.createElement("span", { style: dollarChip }, money(entry.expected_amount_cents ?? 1000))
       )
     ),
-
-    // Footer — row 1: votes + share
     React.createElement("div", { style: { padding: "9px 13px", borderTop: "1px solid rgba(0,0,0,0.06)",
-      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 } },
-      // Vote button
-      React.createElement("button", { type: "button", onClick: () => onVote(entry.id),
-        title: hasVoted ? "Remove vote" : "Cast internal vote",
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 },
+      onClick: (e) => e.stopPropagation() },
+      React.createElement("div", { title: "Public vote total (editable in entry details)",
         style: { display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 999,
-          border: hasVoted ? "1.5px solid #7c3aed" : "1.5px solid rgba(0,0,0,0.12)",
-          background: hasVoted ? "rgba(124,58,237,0.08)" : "transparent",
-          color: hasVoted ? "#7c3aed" : "var(--dash-text-sec)",
-          fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-ui)",
-          transition: "all 0.15s" } },
-        React.createElement(HeartIcon, { filled: hasVoted, size: 13 }),
+          border: "1.5px solid rgba(124,58,237,0.25)", background: "rgba(124,58,237,0.06)",
+          color: "#7c3aed", fontSize: 12, fontWeight: 700 } },
+        React.createElement(HeartIcon, { filled: true, size: 13 }),
         React.createElement("span", null, voteCount)
       ),
-      // FB share
       React.createElement("button", { type: "button", onClick: () => fbShareEntry(entry, campaignTitle),
-        title: "Share to Facebook",
+        title: "Share entry link to Facebook",
         style: { display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 999,
           border: "1.5px solid rgba(24,119,242,0.3)", background: "rgba(24,119,242,0.06)",
           color: "#1877f2", fontSize: 12, fontWeight: 700, cursor: "pointer",
-          fontFamily: "var(--font-ui)", transition: "all 0.12s" } },
+          fontFamily: "var(--font-ui)" } },
         React.createElement(FbIcon, { size: 12 }),
         React.createElement("span", null, "Share")
       )
     ),
-
-    // Footer — row 2: admin actions (only when needed)
     (isPaid || !isArchived) && React.createElement("div", {
       style: { padding: "0 13px 11px", display: "flex", gap: 6, flexWrap: "wrap" },
+      onClick: (e) => e.stopPropagation(),
     },
+      React.createElement(Btn, { size: "sm", variant: "secondary", onClick: () => onOpen && onOpen(entry) }, "Open"),
       isPaid && !isApproved && !isRejected && React.createElement(Btn, {
         size: "sm", disabled: busy, onClick: () => onAction(entry.id, "approve"),
       }, "Approve"),
@@ -287,35 +274,181 @@ function EntryCard({ entry, busy, votes, onVote, onAction, campaignTitle }) {
   );
 }
 
+function EntryDetailModal({ entry, open, onClose, campaignId, campaignTitle, voteCount, onSavedVotes, onAction, busy }) {
+  const [votesDraft, setVotesDraft] = React.useState(String(voteCount || 0));
+  const [savingVotes, setSavingVotes] = React.useState(false);
+  const [msg, setMsg] = React.useState("");
+  const [err, setErr] = React.useState("");
+
+  React.useEffect(() => {
+    if (!open || !entry) return;
+    setVotesDraft(String(Number(voteCount || entry.vote_count || 0)));
+    setMsg(""); setErr("");
+  }, [open, entry && entry.id, voteCount]);
+
+  if (!entry) return null;
+
+  const email = String(entry.owner_email || "").trim();
+  const phone = String(entry.owner_phone || "").trim();
+  const dogName = entry.dog_name || "Untitled";
+  const shareUrl = entry.id
+    ? ("https://companionsofcaddo.org/wet-dog/" + encodeURIComponent(entry.id))
+    : "";
+
+  async function saveVotes() {
+    const n = Math.max(0, Math.floor(Number(votesDraft)));
+    if (!Number.isFinite(n)) { setErr("Enter a whole number of votes."); return; }
+    setSavingVotes(true); setErr(""); setMsg("");
+    try {
+      const res = await fetch(
+        "/api/dashboard/fundraising/" + encodeURIComponent(campaignId) +
+        "/entries/" + encodeURIComponent(entry.id) + "/set-votes",
+        {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vote_count: n }),
+        }
+      );
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.ok === false) throw new Error(d.error || "Could not update votes");
+      setMsg("Votes updated to " + n + ". Public gallery refreshed.");
+      if (onSavedVotes) onSavedVotes(entry.id, n);
+    } catch (e) {
+      setErr(e.message || "Could not update votes");
+    } finally {
+      setSavingVotes(false);
+    }
+  }
+
+  return React.createElement(Modal, { open, onClose, title: dogName, width: 640 },
+    React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
+      entry.photo_url && React.createElement("div", {
+        style: { borderRadius: 12, overflow: "hidden", background: "#efeae4", maxHeight: 320 },
+      }, React.createElement("img", {
+        src: entry.photo_url, alt: dogName,
+        style: { width: "100%", height: "auto", maxHeight: 320, objectFit: "contain", display: "block" },
+      })),
+      entry.caption && React.createElement("p", {
+        style: { margin: 0, fontStyle: "italic", color: "var(--dash-text-sec)", lineHeight: 1.5 },
+      }, "\"" + entry.caption + "\""),
+      React.createElement("div", {
+        style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 },
+      },
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontSize: 11, color: "var(--dash-text-muted)", fontWeight: 700, marginBottom: 4 } }, "Entered by"),
+          React.createElement("div", { style: { fontWeight: 600 } }, entry.owner_name || "—")
+        ),
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontSize: 11, color: "var(--dash-text-muted)", fontWeight: 700, marginBottom: 4 } }, "Status"),
+          React.createElement("div", null, (entry.payment_status || "—") + " · " + (entry.moderation_status || "—"))
+        ),
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontSize: 11, color: "var(--dash-text-muted)", fontWeight: 700, marginBottom: 4 } }, "Email"),
+          email
+            ? React.createElement("a", { href: "mailto:" + email + "?subject=" + encodeURIComponent("Your Wet Dog Competition entry — " + dogName), style: { color: "#7c3aed", wordBreak: "break-all" } }, email)
+            : "—"
+        ),
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontSize: 11, color: "var(--dash-text-muted)", fontWeight: 700, marginBottom: 4 } }, "Phone"),
+          phone
+            ? React.createElement("a", { href: "tel:" + phone.replace(/[^\d+]/g, ""), style: { color: "#7c3aed" } }, phone)
+            : "—"
+        )
+      ),
+      React.createElement("div", {
+        style: { display: "flex", flexWrap: "wrap", gap: 8 },
+      },
+        email && React.createElement(Btn, {
+          size: "sm",
+          onClick: () => { window.location.href = "mailto:" + email + "?subject=" + encodeURIComponent("Your Wet Dog Competition entry — " + dogName); },
+        }, "Email entrant"),
+        phone && React.createElement(Btn, {
+          size: "sm", variant: "secondary",
+          onClick: () => { window.location.href = "tel:" + phone.replace(/[^\d+]/g, ""); },
+        }, "Call"),
+        React.createElement(Btn, {
+          size: "sm", variant: "secondary",
+          onClick: () => fbShareEntry(entry, campaignTitle),
+        }, "Share on Facebook"),
+        shareUrl && React.createElement(Btn, {
+          size: "sm", variant: "secondary",
+          onClick: () => { try { navigator.clipboard.writeText(shareUrl); setMsg("Entry link copied."); } catch (_) { window.prompt("Copy entry link:", shareUrl); } },
+        }, "Copy entry link")
+      ),
+      React.createElement("div", {
+        style: { borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 14 },
+      },
+        React.createElement("div", { style: { fontSize: 12, fontWeight: 800, marginBottom: 6 } }, "Votes (manual)"),
+        React.createElement("p", { style: { margin: "0 0 10px", fontSize: 12, color: "var(--dash-text-muted)", lineHeight: 1.45 } },
+          "Set this to match Facebook reactions for this entry. Saving updates the public gallery total."
+        ),
+        React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+          React.createElement("input", {
+            type: "number", min: 0, step: 1, value: votesDraft,
+            onChange: (e) => setVotesDraft(e.target.value),
+            style: { width: 100, height: 36, borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", padding: "0 10px", fontSize: 14 },
+          }),
+          React.createElement(Btn, { size: "sm", disabled: savingVotes, onClick: saveVotes }, savingVotes ? "Saving…" : "Save votes"),
+          React.createElement("button", {
+            type: "button",
+            onClick: () => setVotesDraft(String(Math.max(0, Number(votesDraft || 0) + 1))),
+            style: { height: 36, padding: "0 12px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)", background: "#fff", cursor: "pointer", fontWeight: 700 },
+          }, "+1"),
+          React.createElement("button", {
+            type: "button",
+            onClick: () => setVotesDraft(String(Math.max(0, Number(votesDraft || 0) - 1))),
+            style: { height: 36, padding: "0 12px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)", background: "#fff", cursor: "pointer", fontWeight: 700 },
+          }, "−1")
+        ),
+        msg && React.createElement("p", { style: { margin: "8px 0 0", color: "#15803d", fontSize: 12 } }, msg),
+        err && React.createElement("p", { style: { margin: "8px 0 0", color: "#b91c1c", fontSize: 12 } }, err)
+      ),
+      React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 14 } },
+        entry.payment_status === "paid" && Number(entry.is_approved) !== 1 && entry.moderation_status !== "rejected" && React.createElement(Btn, {
+          size: "sm", disabled: busy, onClick: () => onAction(entry.id, "approve"),
+        }, "Approve"),
+        entry.payment_status === "paid" && entry.moderation_status !== "rejected" && React.createElement(Btn, {
+          size: "sm", variant: "secondary", disabled: busy,
+          onClick: () => onAction(entry.id, "reject", { reason: "Needs a clearer photo or details." }),
+        }, "Reject"),
+        !entry.archived_at && React.createElement(Btn, {
+          size: "sm", variant: "secondary", disabled: busy,
+          onClick: () => onAction(entry.id, "archive"),
+        }, "Archive"),
+        React.createElement(Btn, { size: "sm", variant: "secondary", onClick: onClose }, "Close")
+      )
+    )
+  );
+}
+
 // ── Gallery card: staggered vote leaderboard view ─────────────────────────
-function GalleryCard({ entry, rank, votes, onVote, campaignTitle }) {
-  const voteCount = votes[entry.id] || 0;
-  const hasVoted = votes["__voted_" + entry.id] || false;
-  const isApproved = Number(entry.is_approved) === 1;
+function GalleryCard({ entry, rank, votes, onOpen, campaignTitle }) {
+  const voteCount = Number(votes[entry.id] ?? entry.vote_count ?? 0);
   const rankColors = ["#f59e0b", "#94a3b8", "#b45309"];
   const rankBg = rank <= 3 ? rankColors[rank - 1] : "rgba(0,0,0,0.45)";
 
   return React.createElement("div", {
+    role: "button",
+    tabIndex: 0,
+    onClick: () => onOpen && onOpen(entry),
+    onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen && onOpen(entry); } },
     style: { borderRadius: 12, overflow: "hidden", background: "var(--dash-surface)",
       border: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 2px 10px rgba(26,22,34,0.06)",
       display: "inline-block", width: "100%", breakInside: "avoid",
-      marginBottom: 16, verticalAlign: "top" },
+      marginBottom: 16, verticalAlign: "top", cursor: "pointer" },
   },
-    // Photo — natural height
     React.createElement("div", { style: { position: "relative", background: "#e8e4de", overflow: "hidden" } },
       entry.photo_url
         ? React.createElement("img", { src: entry.photo_url, alt: entry.dog_name || "Entry",
             style: { width: "100%", height: "auto", display: "block", minHeight: 120 } })
         : React.createElement("div", { style: { height: 160, display: "flex", alignItems: "center",
             justifyContent: "center", color: "#bbb", fontSize: 12 } }, "No photo"),
-      // Rank badge — top left
       React.createElement("div", { style: { position: "absolute", top: 8, left: 8,
         background: rankBg, color: "#fff",
         fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 999,
         letterSpacing: "0.06em", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" } },
-        rank <= 3 ? "#" + rank : "#" + rank
+        "#" + rank
       ),
-      // Vote count overlay — top right
       React.createElement("div", { style: { position: "absolute", top: 8, right: 8,
         background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)",
         fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 999,
@@ -324,7 +457,6 @@ function GalleryCard({ entry, rank, votes, onVote, campaignTitle }) {
         voteCount
       )
     ),
-    // Info
     React.createElement("div", { style: { padding: "10px 12px 12px" } },
       React.createElement("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 3 } },
         entry.dog_name || "Untitled"),
@@ -334,17 +466,19 @@ function GalleryCard({ entry, rank, votes, onVote, campaignTitle }) {
         "\"" + entry.caption + "\""
       ),
       !entry.caption && React.createElement("div", { style: { marginBottom: 8 } }),
-      // Footer actions
-      React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } },
-        React.createElement("button", { type: "button", onClick: () => onVote(entry.id),
+      React.createElement("div", {
+        style: { display: "flex", gap: 6, alignItems: "center" },
+        onClick: (e) => e.stopPropagation(),
+      },
+        React.createElement("button", { type: "button", onClick: () => onOpen && onOpen(entry),
           style: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
             padding: "7px 12px", borderRadius: 8,
-            border: hasVoted ? "1.5px solid #7c3aed" : "1.5px solid rgba(0,0,0,0.12)",
-            background: hasVoted ? "rgba(124,58,237,0.1)" : "transparent",
-            color: hasVoted ? "#7c3aed" : "var(--dash-text-sec)",
+            border: "1.5px solid rgba(124,58,237,0.3)",
+            background: "rgba(124,58,237,0.08)",
+            color: "#7c3aed",
             fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-ui)" } },
-          React.createElement(HeartIcon, { filled: hasVoted, size: 13 }),
-          React.createElement("span", null, hasVoted ? "Voted" : "Vote")
+          React.createElement(HeartIcon, { filled: true, size: 13 }),
+          React.createElement("span", null, voteCount + " · Edit votes")
         ),
         React.createElement("button", { type: "button", onClick: () => fbShareEntry(entry, campaignTitle),
           style: { width: 34, height: 34, borderRadius: 8, border: "1.5px solid rgba(24,119,242,0.25)",
@@ -368,6 +502,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   const [entries, setEntries] = React.useState([]);
   const [entryBusy, setEntryBusy] = React.useState("");
   const [votes, setVotes] = React.useState({});
+  const [detailEntry, setDetailEntry] = React.useState(null);
   const [entryFilter, setEntryFilter] = React.useState("all");
   const [entryView, setEntryView] = React.useState("grid"); // 'grid' | 'gallery'
   const [form, setForm] = React.useState({
@@ -399,10 +534,14 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       });
       const rawEntries = Array.isArray(d.entries) ? d.entries : [];
       setEntries(rawEntries);
-      setVotes(prev => {
-        const next = Object.assign({}, prev);
-        rawEntries.forEach(e => { if (next[e.id] == null) next[e.id] = Number(e.vote_count || e.internal_votes || 0); });
-        return next;
+      // Always sync from server — do not keep stale local vote state.
+      const nextVotes = {};
+      rawEntries.forEach(e => { nextVotes[e.id] = Number(e.vote_count || 0); });
+      setVotes(nextVotes);
+      setDetailEntry(prev => {
+        if (!prev) return null;
+        const fresh = rawEntries.find(e => e.id === prev.id);
+        return fresh || null;
       });
     } catch (e) { setError(e.message || "Failed to load campaign"); }
     finally { setLoading(false); }
@@ -426,20 +565,10 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     finally { setEntryBusy(""); }
   }
 
-  function handleVote(entryId) {
-    setVotes(prev => {
-      const alreadyVoted = prev["__voted_" + entryId];
-      const current = prev[entryId] || 0;
-      return Object.assign({}, prev, {
-        [entryId]: alreadyVoted ? Math.max(0, current - 1) : current + 1,
-        ["__voted_" + entryId]: !alreadyVoted,
-      });
-    });
-    fetch(
-      "/api/dashboard/fundraising/" + encodeURIComponent(campaignId) +
-      "/entries/" + encodeURIComponent(entryId) + "/vote",
-      { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" } }
-    ).catch(() => {});
+  function onSavedVotes(entryId, n) {
+    setVotes(prev => Object.assign({}, prev, { [entryId]: n }));
+    setEntries(prev => prev.map(e => e.id === entryId ? Object.assign({}, e, { vote_count: n }) : e));
+    setDetailEntry(prev => prev && prev.id === entryId ? Object.assign({}, prev, { vote_count: n }) : prev);
   }
 
   async function save() {
@@ -501,7 +630,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     .slice()
     .sort((a, b) => (votes[b.id] || 0) - (votes[a.id] || 0));
 
-  const totalVotes = Object.keys(votes).filter(k => !k.startsWith("__")).reduce((s, k) => s + (votes[k] || 0), 0);
+  const totalVotes = Object.keys(votes).reduce((s, k) => s + (Number(votes[k]) || 0), 0);
 
   const filterBtn = (label, key, count) => React.createElement("button", {
     type: "button", onClick: () => setEntryFilter(key),
@@ -521,7 +650,8 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
   }, React.createElement(Icon));
 
-  const entriesPanel = !isNew && React.createElement(Card, { className: "camp-form-card", style: { marginTop: 16 } },
+  const entriesPanel = !isNew && React.createElement(React.Fragment, null,
+    React.createElement(Card, { className: "camp-form-card", style: { marginTop: 16 } },
     // Header
     React.createElement("div", { style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between",
       gap: 12, flexWrap: "wrap", marginBottom: 14 } },
@@ -530,7 +660,10 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         React.createElement("p", { style: { margin: "3px 0 0", fontSize: 12, color: "var(--dash-text-muted)" } },
           entryCounts.paid + " paid · " + entryCounts.unreviewed + " awaiting review · " + entryCounts.pending + " pending" +
           (entryCounts.demo ? " · " + entryCounts.demo + " demo/test" : "") +
-          (totalVotes > 0 ? " · " + totalVotes + " votes cast" : "")
+          (totalVotes > 0 ? " · " + totalVotes + " total votes" : "")
+        ),
+        React.createElement("p", { style: { margin: "4px 0 0", fontSize: 11, color: "var(--dash-text-muted)" } },
+          "Click an entry to view details, contact the entrant, or set votes to match Facebook reactions."
         )
       ),
       React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } },
@@ -553,7 +686,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     // Gallery header
     entryView === "gallery" && React.createElement("div", { style: { marginBottom: 14, padding: "10px 14px", borderRadius: 8,
       background: "var(--dash-bg2)", fontSize: 12, color: "var(--dash-text-sec)" } },
-      "Showing " + galleryEntries.length + " approved entries, ranked by internal votes. Use this view to preview the public gallery before it goes live."
+      "Showing " + galleryEntries.length + " approved entries, ranked by vote count. Open an entry to edit votes or contact the owner."
     ),
 
     // Content
@@ -572,7 +705,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
                 React.createElement(EntryCard, {
                   key: entry.id, entry,
                   busy: entryBusy.indexOf(entry.id) === 0,
-                  votes, onVote: handleVote, onAction: entryAction,
+                  votes, onOpen: setDetailEntry, onAction: entryAction,
                   campaignTitle: form.title,
                 })
               )
@@ -588,11 +721,23 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
               galleryEntries.map((entry, i) =>
                 React.createElement(GalleryCard, {
                   key: entry.id, entry, rank: i + 1,
-                  votes, onVote: handleVote,
+                  votes, onOpen: setDetailEntry,
                   campaignTitle: form.title,
                 })
               )
             )
+    ),
+    React.createElement(EntryDetailModal, {
+      entry: detailEntry,
+      open: !!detailEntry,
+      onClose: () => setDetailEntry(null),
+      campaignId: form.id || campaignId,
+      campaignTitle: form.title,
+      voteCount: detailEntry ? Number(votes[detailEntry.id] ?? detailEntry.vote_count ?? 0) : 0,
+      onSavedVotes,
+      onAction: entryAction,
+      busy: detailEntry ? entryBusy.indexOf(detailEntry.id) === 0 : false,
+    })
   );
 
   const publishPanel = React.createElement("aside", { className: "camp-sidebar" },
