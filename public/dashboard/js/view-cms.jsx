@@ -1096,6 +1096,8 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           page_route: route,
           section_key: section.section_key,
           label: section.heading || section.section_key,
+          started_at: Date.now(),
+          duration_ms: 30000,
           expires_at: Date.now() + 30000,
         }));
         window.dispatchEvent(new CustomEvent('cpas:section-undo'));
@@ -3214,11 +3216,10 @@ function CmsBrandView({ onNavigate }) {
   );
 }
 
-/** Session-scoped 30s undo toast — restores from D1 only (never R2 trash). */
+/** Session-scoped 30s undo toast — progress bar (no ticking digits); restores from D1 only. */
 function CmsSectionUndoToast() {
   const [pending, setPending] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
-  const [tick, setTick] = React.useState(0);
 
   const readPending = React.useCallback(() => {
     try {
@@ -3233,6 +3234,8 @@ function CmsSectionUndoToast() {
         sessionStorage.removeItem("cpas.sectionUndo");
         return null;
       }
+      if (!data.duration_ms) data.duration_ms = 30000;
+      if (!data.started_at) data.started_at = Number(data.expires_at) - Number(data.duration_ms);
       return data;
     } catch {
       return null;
@@ -3240,14 +3243,24 @@ function CmsSectionUndoToast() {
   }, []);
 
   React.useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (document.getElementById("cpas-undo-toast-css")) return;
+    const style = document.createElement("style");
+    style.id = "cpas-undo-toast-css";
+    style.textContent = `
+      @keyframes cpasUndoDrain {
+        to { transform: scaleX(0); }
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
+
+  React.useEffect(() => {
     setPending(readPending());
     const onEvt = () => setPending(readPending());
     window.addEventListener("cpas:section-undo", onEvt);
     window.addEventListener("storage", onEvt);
-    const id = setInterval(() => {
-      setTick((t) => t + 1);
-      setPending(readPending());
-    }, 1000);
+    const id = setInterval(() => setPending(readPending()), 500);
     return () => {
       window.removeEventListener("cpas:section-undo", onEvt);
       window.removeEventListener("storage", onEvt);
@@ -3255,9 +3268,20 @@ function CmsSectionUndoToast() {
     };
   }, [readPending]);
 
-  if (!pending) return null;
-  const secsLeft = Math.max(0, Math.ceil((Number(pending.expires_at) - Date.now()) / 1000));
-  if (secsLeft <= 0) return null;
+  // Freeze bar timing when this undo payload appears so re-renders don't restart the drain.
+  const barTiming = React.useMemo(() => {
+    if (!pending) return null;
+    const durationMs = Number(pending.duration_ms) || 30000;
+    const remainingMs = Math.max(0, Number(pending.expires_at) - Date.now());
+    if (remainingMs <= 0) return null;
+    return {
+      key: `${pending.section_key}:${pending.expires_at}`,
+      remainingMs,
+      startScale: Math.min(1, Math.max(0, remainingMs / durationMs)),
+    };
+  }, [pending?.section_key, pending?.expires_at, pending?.duration_ms]);
+
+  if (!pending || !barTiming) return null;
 
   const undo = async () => {
     if (busy) return;
@@ -3280,7 +3304,6 @@ function CmsSectionUndoToast() {
         setBusy(false);
         return;
       }
-      // Reload editor if still on that page
       window.dispatchEvent(new CustomEvent("cpas:section-restored", {
         detail: { page_route: pending.page_route, section_key: pending.section_key },
       }));
@@ -3290,41 +3313,97 @@ function CmsSectionUndoToast() {
     setBusy(false);
   };
 
-  void tick;
+  const label = pending.label || pending.section_key;
+
   return React.createElement("div", {
     role: "status",
+    "aria-live": "polite",
     style: {
-      position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 9999,
-      display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
-      background: "#1a1420", color: "#f8f7ff", borderRadius: 12,
-      boxShadow: "0 12px 40px rgba(0,0,0,.35)", maxWidth: "min(520px, calc(100vw - 24px))",
-      fontFamily: "var(--font-ui)", fontSize: 13,
+      position: "fixed",
+      bottom: 24,
+      left: "50%",
+      transform: "translateX(-50%)",
+      zIndex: 9999,
+      width: "min(440px, calc(100vw - 24px))",
+      background: "#f7f5f2",
+      color: "#2a2430",
+      borderRadius: 12,
+      border: "1px solid #e4dfd8",
+      boxShadow: "0 10px 32px rgba(26,20,32,.12)",
+      fontFamily: "var(--font-ui)",
+      fontSize: 13,
+      overflow: "hidden",
     },
   },
-    React.createElement("span", { style: { flex: 1 } },
-      `Deleted “${pending.label || pending.section_key}”. Undo within ${secsLeft}s.`
+    React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "12px 12px 12px 16px",
+      },
+    },
+      React.createElement("span", {
+        style: { flex: 1, lineHeight: 1.4, color: "#3d3648", fontWeight: 500 },
+      }, `Section removed — “${label}”`),
+      React.createElement("button", {
+        type: "button",
+        disabled: busy,
+        onClick: undo,
+        style: {
+          padding: "7px 14px",
+          borderRadius: 8,
+          border: 0,
+          cursor: busy ? "wait" : "pointer",
+          background: "#6f2270",
+          color: "#fff",
+          fontWeight: 700,
+          fontSize: 12,
+          letterSpacing: "0.01em",
+          flexShrink: 0,
+        },
+      }, busy ? "Restoring…" : "Undo"),
+      React.createElement("button", {
+        type: "button",
+        "aria-label": "Dismiss",
+        onClick: () => {
+          try { sessionStorage.removeItem("cpas.sectionUndo"); } catch (_) {}
+          setPending(null);
+        },
+        style: {
+          width: 28,
+          height: 28,
+          border: 0,
+          borderRadius: 8,
+          background: "transparent",
+          color: "#8a8294",
+          cursor: "pointer",
+          fontSize: 18,
+          lineHeight: 1,
+          flexShrink: 0,
+        },
+      }, "×")
     ),
-    React.createElement("button", {
-      type: "button",
-      disabled: busy,
-      onClick: undo,
+    React.createElement("div", {
+      "aria-hidden": "true",
       style: {
-        padding: "7px 14px", borderRadius: 8, border: 0, cursor: busy ? "wait" : "pointer",
-        background: "#a78bfa", color: "#1a1420", fontWeight: 800, fontSize: 12,
+        height: 3,
+        background: "#e8e3dc",
+        width: "100%",
       },
-    }, busy ? "Restoring…" : "Undo"),
-    React.createElement("button", {
-      type: "button",
-      "aria-label": "Dismiss",
-      onClick: () => {
-        try { sessionStorage.removeItem("cpas.sectionUndo"); } catch (_) {}
-        setPending(null);
-      },
-      style: {
-        width: 28, height: 28, border: 0, borderRadius: 8, background: "transparent",
-        color: "#c4b5d4", cursor: "pointer", fontSize: 16, lineHeight: 1,
-      },
-    }, "×")
+    },
+      React.createElement("div", {
+        key: barTiming.key,
+        style: {
+          height: "100%",
+          width: "100%",
+          background: "#6f2270",
+          transformOrigin: "left center",
+          transform: `scaleX(${barTiming.startScale})`,
+          animation: `cpasUndoDrain ${barTiming.remainingMs}ms linear forwards`,
+        },
+      })
+    )
   );
 }
 
