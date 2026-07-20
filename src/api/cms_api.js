@@ -858,7 +858,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     }
   }
 
-  // GET /api/cms/section/templates — addable section + form catalog for Templates canvas
+  // GET /api/cms/section/templates — addable section + form catalog (editor Add SSOT)
   if (path === "/api/cms/section/templates" && method === "GET") {
     const cmsUser = await requireCmsUser(request, env, sessionUser);
     if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);

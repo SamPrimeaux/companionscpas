@@ -25,7 +25,6 @@ const ROUTE_REGISTRY = [
   { path: "/dashboard/cms/forms/",       view: "cms-form-editor",    paramKey: "formId" },
   { path: "/dashboard/cms/forms",        view: "cms-forms" },
   { path: "/dashboard/cms/brand",        view: "cms-brand" },
-  { path: "/dashboard/cms/templates",    view: "cms-templates" },
   { path: "/dashboard/cms",              view: "cms-website" },
   { path: "/dashboard/email",            view: "email" },
   { path: "/dashboard/reports",          view: "reports" },
@@ -84,6 +83,11 @@ function resolveRoute(pathname, searchParams) {
   if (norm === "/dashboard/notifications") {
     window.history.replaceState({}, "", "/dashboard/email?view=notifications");
     return { view: "email", params: {} };
+  }
+  // Retired Templates page — send bookmarks to Pages
+  if (norm === "/dashboard/cms/templates") {
+    window.history.replaceState({}, "", "/dashboard/cms/pages");
+    return { view: "cms-pages", params: {} };
   }
   for (const route of ROUTE_REGISTRY) {
     if (route.paramKey) {
@@ -255,10 +259,6 @@ function App() {
         return typeof CmsBrandView === "function"
           ? React.createElement(CmsBrandView,     { onNavigate: navigate })
           : cmsShell("Brand & Settings", "Loading…");
-      case "cms-templates":
-        return typeof CmsTemplatesView === "function"
-          ? React.createElement(CmsTemplatesView, { onNavigate: navigate })
-          : cmsShell("Templates", "Loading…");
 
       // Email inbox
       case "email":

@@ -60,7 +60,6 @@ const NAV_STRUCTURE = [
         { key: "cms-images",    label: "Images",           path: "/dashboard/cms/images" },
         { key: "cms-forms",     label: "Forms",            path: "/dashboard/cms/forms" },
         { key: "cms-brand",     label: "Brand & Settings", path: "/dashboard/cms/brand" },
-        { key: "cms-templates", label: "Templates",        path: "/dashboard/cms/templates" },
       ]
     }
   ]},
