@@ -21,6 +21,7 @@ import { assemblePage, isCmsPageRoute, publishRoute } from "./api/cms_pipeline.j
 import { renderAnimalProfileSection } from "./api/render_animal_profile_page.js";
 import { emailApiRoutes } from './api/email_api.js';
 import { gmailRoutes } from './api/gmail_api.js';
+import { handleFosterApply, handleFosterList, handleFosterUpdate } from './api/foster_api.js';
 
 
 function json(data, status = 200) {

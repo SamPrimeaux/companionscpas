@@ -106,6 +106,15 @@ async function sendResend(env, { to, templateKey, vars }) {
 // ── POST /api/foster/apply ───────────────────────────────────────────────────
 
 export async function handleFosterApply(request, env) {
+  try {
+    return await handleFosterApplyInner(request, env);
+  } catch (err) {
+    console.error("[foster_api] unhandled:", err?.message || err);
+    return json({ error: "Submission failed. Please try again." }, 500);
+  }
+}
+
+async function handleFosterApplyInner(request, env) {
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
@@ -117,15 +126,12 @@ export async function handleFosterApply(request, env) {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  // 1. Verify form is active
-  const form = await env.DB.prepare(
-    "SELECT id, status, settings_json FROM cpas_application_forms WHERE form_id = ? AND tenant_id = ? LIMIT 1"
-  ).bind(FORM_ID, TENANT).first().catch(() => null);
-
-  // Fallback: try by id column if form_id lookup fails
-  const formRow = form || await env.DB.prepare(
-    "SELECT id, status, settings_json FROM cpas_application_forms WHERE id = ? LIMIT 1"
-  ).bind(FORM_ID).first().catch(() => null);
+  // 1. Verify form is active (id or form_key)
+  const formRow = await env.DB.prepare(
+    `SELECT id, status, settings_json FROM cpas_application_forms
+     WHERE tenant_id = ? AND (id = ? OR form_key = ? OR form_key = 'foster_application')
+     LIMIT 1`
+  ).bind(TENANT, FORM_ID, FORM_ID).first().catch(() => null);
 
   if (!formRow || formRow.status !== "active") {
     return json({ error: "Applications are not currently open" }, 503);
@@ -168,7 +174,7 @@ export async function handleFosterApply(request, env) {
   const answersJson = JSON.stringify(body);
   const ipHash = await hashIp(request.headers.get("CF-Connecting-IP") || "");
 
-  await env.DB.prepare(`
+  const insertResult = await env.DB.prepare(`
     INSERT INTO cpas_foster_applications (
       id, form_id, tenant_id, status, review_status, source,
       first_name, last_name, email, phone,
@@ -181,7 +187,7 @@ export async function handleFosterApply(request, env) {
       ?, ?, ?,
       datetime('now'), datetime('now'), datetime('now'))
   `).bind(
-    appId, FORM_ID, TENANT,
+    appId, formRow.id || FORM_ID, TENANT,
     (body.first_name || "").trim(),
     (body.last_name  || "").trim(),
     (body.email      || "").toLowerCase().trim(),
@@ -194,8 +200,11 @@ export async function handleFosterApply(request, env) {
     request.headers.get("User-Agent") || ""
   ).run().catch(err => {
     console.error("[foster_api] D1 insert error:", err.message);
-    throw err;
+    return null;
   });
+  if (!insertResult) {
+    return json({ error: "Could not save application. Please try again." }, 500);
+  }
 
   // 6. Fire emails (non-fatal — don't fail the request if Resend is down)
   const firstName = (body.first_name || "Applicant").trim();

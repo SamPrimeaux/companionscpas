@@ -2,7 +2,7 @@
 export const SHELL_VERSION = "footer-iam-logo-52-20260719c";
 export const DONATE_MODAL_VERSION = "campaign-entry-20260719";
 export const COMPETITION_PAYMENT_MODAL_VERSION = "wet-dog-validation-20260719";
-export const CPAS_MODALS_VERSION = "modals-v3-20260706";
+export const CPAS_MODALS_VERSION = "modals-foster-cats-20260719";
 
 export { brandTokensStylesheetTag } from "./brand_tokens.js";
 

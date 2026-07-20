@@ -133,6 +133,7 @@ export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
   if (!entry) return { ok: false, error: "entry_not_found" };
 
   const isPaid = kind === "paid";
+  const isStarted = kind === "started";
   let thankYou = null;
   if (isPaid) {
     thankYou = await sendEntrantThankYou(env, entry).catch((err) => ({
@@ -147,9 +148,18 @@ export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
 
   const adminTo = env.ADMIN_EMAIL || "companionsCPAS@gmail.com";
   const reason = String(
-    detail.reason || entry.failure_message || entry.failure_code || "Payment was not completed."
+    detail.reason
+      || entry.failure_message
+      || entry.failure_code
+      || (isStarted ? "New competition entry started — awaiting payment." : "Payment was not completed.")
   );
-  const statusLabel = isPaid ? "Paid entry" : kind === "abandoned" ? "Abandoned payment" : "Payment failed";
+  const statusLabel = isPaid
+    ? "Paid entry"
+    : isStarted
+      ? "Entry started"
+      : kind === "abandoned"
+        ? "Abandoned payment"
+        : "Payment failed";
   const attachments = await attachmentForEntry(env, entry);
   const vars = entryTemplateVars(entry, { reason, status_label: statusLabel });
   const actionUrl = `/dashboard/fundraising/${encodeURIComponent(entry.campaign_id)}`;
@@ -162,10 +172,14 @@ export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
     type: isPaid ? "competition_entry_paid" : `competition_entry_${kind}`,
     title: isPaid
       ? `Paid competition entry: ${entry.dog_name} — ${entry.owner_name}`
-      : `Action needed: ${statusLabel.toLowerCase()} — ${entry.dog_name}`,
+      : isStarted
+        ? `New competition entry: ${entry.dog_name} — ${entry.owner_name}`
+        : `Action needed: ${statusLabel.toLowerCase()} — ${entry.dog_name}`,
     body: isPaid
       ? `${entry.owner_name} paid $${vars.amount} for ${entry.dog_name}.`
-      : `${statusLabel}: ${entry.dog_name} / ${entry.owner_name}. ${reason}`,
+      : isStarted
+        ? `${entry.owner_name} started an entry for ${entry.dog_name} (${entry.owner_email || "no email"}). Payment not completed yet.`
+        : `${statusLabel}: ${entry.dog_name} / ${entry.owner_name}. ${reason}`,
     source: isPaid ? "stripe" : "competition_entry",
     related_type: "competition_entry",
     related_id: `${entry.id}:${kind}`,
@@ -234,7 +248,7 @@ export async function notifyCompetitionEntry(env, entryId, kind, detail = {}) {
           updated_at = datetime('now')
       WHERE id = ? AND tenant_id = ?
     `).bind(entry.id, TENANT_ID).run().catch(() => null);
-  } else {
+  } else if (!isStarted) {
     await env.DB.prepare(`
       UPDATE competition_entries
       SET failure_notified_at = datetime('now'),

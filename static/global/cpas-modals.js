@@ -122,7 +122,8 @@
       { key: 'has_yard', label: 'Fenced yard?', type: 'radio', required: true, options: ['Yes - fully fenced', 'Yes - partially fenced', 'No'] },
       { key: 'adults_in_home', label: 'Adults in home', type: 'number', required: true, placeholder: '2' },
       { key: 'children_in_home', label: 'Children under 18', type: 'number', required: false, placeholder: '0' },
-      { key: 'current_pets', label: 'Current pets (type, breed, age)', type: 'textarea', required: false, placeholder: 'e.g. Lab mix, 3 yrs' },
+      { key: 'has_cats', label: 'Do you have cats?', type: 'radio', required: true, options: ['Yes', 'No'] },
+      { key: 'current_pets', label: 'Current pets (type, breed, age)', type: 'textarea', required: false, placeholder: 'e.g. Lab mix, 3 yrs — include dogs, cats, other' },
     ]},
     { id: 'experience', title: 'Experience', fields: [
       { key: 'foster_experience', label: 'Have you fostered before?', type: 'radio', required: true, options: ['Yes', 'No'] },
@@ -546,7 +547,10 @@
       Object.keys(payload).forEach((k) => { if (Array.isArray(payload[k])) payload[k] = payload[k].join(', '); });
       const res = await fetch('/api/foster/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || 'Submission failed.');
+      if (!res.ok) {
+        const detail = Array.isArray(d.errors) && d.errors.length ? (' ' + d.errors.join('; ')) : '';
+        throw new Error((d.error || 'Submission failed.') + detail);
+      }
       ['fa-header', 'fa-progress', 'fa-step-label', 'fa-body', 'fa-footer', 'fa-error'].forEach((id) => {
         const el = document.getElementById(id) || card.querySelector('.' + id);
         if (el) el.style.display = 'none';

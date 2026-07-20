@@ -243,6 +243,16 @@ async function handleCreateEntry(request, env) {
     return json({ ok: false, error: "Could not save entry" }, 500);
   }
 
+  // Notify staff as soon as an entry + photo is saved (before Stripe completes)
+  try {
+    const { notifyCompetitionEntry } = await import("./competition_notifications.js");
+    await notifyCompetitionEntry(env, id, "started", {
+      reason: "New competition entry started — awaiting payment.",
+    });
+  } catch (err) {
+    console.warn("[competition-entries] start notify failed:", err?.message || err);
+  }
+
   return json({
     ok: true,
     entry_id: id,
