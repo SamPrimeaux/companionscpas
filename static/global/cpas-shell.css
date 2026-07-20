@@ -332,7 +332,8 @@ p  { text-wrap: pretty; }
   padding: 0 1.15rem;
   font-size: 13px;
   font-weight: 600;
-  border-radius: 999px;
+  /* Prefer rounded-rect over pill — matches theme-dark / fosters Donate CTA */
+  border-radius: 12px;
 }
 
 /* Legacy alias — same shape as btn-primary (rounded rect, purple glass) */
@@ -838,7 +839,8 @@ p  { text-wrap: pretty; }
   color: #fff !important;
   background: linear-gradient(135deg, var(--tg-cta-donate-start), var(--tg-cta-donate-end));
   box-shadow: 0 8px 22px var(--tg-cta-donate-shadow);
-  border-radius: 999px;
+  /* Keep plum-glass colors; use same rounded-rect shape as theme-dark header Donate */
+  border-radius: 12px;
 }
 .theme-plum-glass .mobile-menu-toggle {
   border-color: rgba(255, 255, 255, 0.18);
@@ -1006,7 +1008,7 @@ body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;h
     background: var(--purple);
     color: #fff !important;
     font-weight: 600;
-    border-radius: 999px;
+    border-radius: 12px;
   }
   .theme-plum-glass .mobile-menu-panel {
     background: linear-gradient(180deg, rgba(44, 10, 56, 0.98) 0%, rgba(58, 16, 72, 0.97) 100%);
