@@ -22,6 +22,7 @@ import { renderAnimalProfileSection } from "./api/render_animal_profile_page.js"
 import { emailApiRoutes } from './api/email_api.js';
 import { gmailRoutes } from './api/gmail_api.js';
 import { handleFosterApply, handleFosterList, handleFosterUpdate } from './api/foster_api.js';
+import { formsRoutes } from './api/forms_api.js';
 
 
 function json(data, status = 200) {
@@ -248,6 +249,9 @@ export default {
 
       const competitionResult = await competitionEntriesRoutes(request, env, url);
       if (competitionResult) return competitionResult;
+
+      const formsResult = await formsRoutes(request, env, url);
+      if (formsResult) return formsResult;
 
       const cmsResult = await cmsRoutes(request, env, url);
       if (cmsResult) return cmsResult;

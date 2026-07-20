@@ -58,6 +58,7 @@ const NAV_STRUCTURE = [
         { key: "cms-website",   label: "Website Overview", path: "/dashboard/cms/website" },
         { key: "cms-pages",     label: "Pages",            path: "/dashboard/cms/pages" },
         { key: "cms-images",    label: "Images",           path: "/dashboard/cms/images" },
+        { key: "cms-forms",     label: "Forms",            path: "/dashboard/cms/forms" },
         { key: "cms-brand",     label: "Brand & Settings", path: "/dashboard/cms/brand" },
         { key: "cms-templates", label: "Templates",        path: "/dashboard/cms/templates" },
       ]
@@ -356,7 +357,8 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
       NAV_STRUCTURE.map(group => React.createElement("div", { key: group.group, className: "cpas-nav-group" },
         React.createElement("div", { className: "cpas-nav-group-label" }, group.group),
         group.items.map(item => {
-          const active = view === item.key || (item.children && item.children.some(c => c.key === view));
+          const active = view === item.key
+            || (item.children && item.children.some(c => c.key === view || (c.key === "cms-forms" && view === "cms-form-editor")));
           const hasKids = item.children && item.children.length;
           const childOpen = hasKids && isActiveCMS(view) && !collapsed;
           return React.createElement("div", { key: item.key },
@@ -377,8 +379,8 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
               item.children.map(child => React.createElement("button", {
                 key: child.key,
                 onClick: () => navigate(child.key),
-                className: `cpas-nav-item cpas-nav-child ${view === child.key ? "active" : ""}`,
-                "aria-current": view === child.key ? "page" : undefined
+                className: `cpas-nav-item cpas-nav-child ${view === child.key || (child.key === "cms-forms" && view === "cms-form-editor") ? "active" : ""}`,
+                "aria-current": view === child.key || (child.key === "cms-forms" && view === "cms-form-editor") ? "page" : undefined
               },
                 React.createElement("span", { className: "cpas-nav-label" }, child.label)
               ))
@@ -423,7 +425,9 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
 function TopBar({ view, isMobile, navOpen, onOpenNav, navigate }) {
   const [search, setSearch] = useState("");
   if (isMobile) {
-    const label = NAV_ITEMS.find(n=>n.key===view)?.label||"Dashboard";
+    const label = view === "cms-form-editor"
+      ? "Form Studio"
+      : (NAV_ITEMS.find(n=>n.key===view)?.label||"Dashboard");
     return React.createElement("header", { className:"cpas-topbar mobile", style:{ display:"flex" } },
       React.createElement("button", { className:"cpas-hamburger", onClick:onOpenNav, "aria-label":"Open navigation", "aria-expanded":String(navOpen), "aria-controls":"cpas-mobile-drawer" },
         React.createElement("span", { style:{ width:18 } }),
@@ -492,7 +496,7 @@ function MobileDrawer({ open, view, navigate, onClose, onLogout }) {
             ),
             hasKids && React.createElement("div", { className:`cpas-nav-children ${cmsChildOpen?"open":""}` },
               item.children.map(child => React.createElement("button", { key:child.key, onClick:()=>{ navigate(child.key); onClose(); },
-                className:`cpas-nav-item cpas-nav-child ${view===child.key?"active":""}`, "aria-current":view===child.key?"page":undefined }, child.label))
+                className:`cpas-nav-item cpas-nav-child ${view===child.key || (child.key==="cms-forms" && view==="cms-form-editor")?"active":""}`, "aria-current":view===child.key || (child.key==="cms-forms" && view==="cms-form-editor")?"page":undefined }, child.label))
             )
           );
         })

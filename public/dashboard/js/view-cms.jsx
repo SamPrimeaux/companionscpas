@@ -165,6 +165,7 @@ function CmsWebsiteView({ onNavigate }) {
       [
         { key: "cms-pages",     icon: "layers",   color: C.purpleDim, iconColor: C.purpleL, label: "Manage Pages",     sub: "Add, edit, reorder pages" },
         { key: "cms-images",    icon: "image",    color: C.tealDim,   iconColor: C.teal,    label: "Image Library",    sub: "Upload and manage media" },
+        { key: "cms-forms",     icon: "docs",     color: C.blueDim || C.purpleDim, iconColor: C.blue || C.purpleL, label: "Forms", sub: "Applications & form studio" },
         { key: "cms-brand",     icon: "tag",      color: C.yellowDim, iconColor: C.yellow,  label: "Brand & Settings", sub: "Colors, logos, org info" },
         { key: "cms-templates", icon: "sparkles", color: C.greenDim,  iconColor: C.green,   label: "Templates",        sub: "Browse section types" },
       ].map(item =>

@@ -22,6 +22,8 @@ const ROUTE_REGISTRY = [
   { path: "/dashboard/cms/pages/",       view: "cms-page-editor",    paramKey: "pageId" },
   { path: "/dashboard/cms/pages",        view: "cms-pages" },
   { path: "/dashboard/cms/images",       view: "cms-images" },
+  { path: "/dashboard/cms/forms/",       view: "cms-form-editor",    paramKey: "formId" },
+  { path: "/dashboard/cms/forms",        view: "cms-forms" },
   { path: "/dashboard/cms/brand",        view: "cms-brand" },
   { path: "/dashboard/cms/templates",    view: "cms-templates" },
   { path: "/dashboard/cms",              view: "cms-website" },
@@ -204,7 +206,7 @@ function App() {
     );
   }
 
-  const isCmsEditor = view === "cms-page-editor";
+  const isCmsEditor = view === "cms-page-editor" || view === "cms-form-editor";
   const isEmailWorkspace = view === "email";
 
   const renderView = () => {
@@ -241,6 +243,14 @@ function App() {
         return typeof CmsImagesView === "function"
           ? React.createElement(CmsImagesView,    { onNavigate: navigate })
           : cmsShell("Images", "Loading…");
+      case "cms-forms":
+        return typeof CmsFormsView === "function"
+          ? React.createElement(CmsFormsView,     { onNavigate: navigate })
+          : cmsShell("Forms", "Loading…");
+      case "cms-form-editor":
+        return typeof CmsFormEditorView === "function"
+          ? React.createElement(CmsFormEditorView, { formId: params.formId, onNavigate: navigate })
+          : cmsShell("Form Studio", "Loading…");
       case "cms-brand":
         return typeof CmsBrandView === "function"
           ? React.createElement(CmsBrandView,     { onNavigate: navigate })
