@@ -1043,6 +1043,29 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setBusy(false);
   };
 
+  const setPageTheme = async (theme) => {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/cms/page/theme', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ route_path: route, theme }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.success === false) throw new Error(d.error || 'Theme save failed');
+      setPageData((prev) => ({
+        ...prev,
+        page: { ...(prev.page || {}), theme },
+      }));
+      notify(d.message || `Theme → ${theme}`);
+      bumpPreview();
+    } catch (e) {
+      notify(String(e.message || e), 'error');
+    }
+    setBusy(false);
+  };
+
   const toggleVisible = async (section) => {
     const next = { ...section, is_visible: section.is_visible === 0 ? 1 : 0 };
     setPageData(prev => ({ ...prev, sections:(prev.sections || []).map(s => s.section_key === section.section_key ? next : s) }));
@@ -1165,6 +1188,13 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   function renderTopbar() {
     const bothCollapsed = !sidenavOpen && !inspectorOpen;
+    const pageThemeRaw = String(pageData.page?.theme || 'plum_glass').toLowerCase().replace(/-/g, '_');
+    const pageTheme = pageThemeRaw === 'light' ? 'light' : pageThemeRaw === 'dark' ? 'dark' : 'plum_glass';
+    const themeOptions = [
+      { value: 'plum_glass', label: 'Plum / cream' },
+      { value: 'light', label: 'Light' },
+      { value: 'dark', label: 'Dark' },
+    ];
     return React.createElement('div', { style:{ height:52, background:C.surface, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 14px', gap:8, flexShrink:0, zIndex:10 } },
       React.createElement('button', { onClick:()=>onNavigate('cms-pages'), style:{ background:'none', border:'none', color:C.textSec, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--font-ui)', flexShrink:0 } }, React.createElement(Icon, { name:'chevL', size:14 }), 'Pages'),
       React.createElement('div', { style:{ width:1, height:20, background:C.border } }),
@@ -1193,6 +1223,25 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       React.createElement('div', { style:{ flex:1, minWidth:0 } },
         React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, pageTitle),
         React.createElement('div', { style:{ fontSize:10, color:C.textMut, fontFamily:'var(--font-mono)' } }, route)
+      ),
+      !isMobile && React.createElement('div', {
+        title: 'Page theme preset — controls light/dark surface for the whole public page',
+        style: { display:'flex', gap:4, flexShrink:0, alignItems:'center' }
+      },
+        React.createElement('span', { style:{ fontSize:10, fontWeight:800, color:C.textMut, letterSpacing:'.06em', textTransform:'uppercase', marginRight:2 } }, 'Theme'),
+        themeOptions.map((opt) => React.createElement('button', {
+          key: opt.value,
+          type: 'button',
+          disabled: busy,
+          onClick: () => { if (pageTheme !== opt.value) setPageTheme(opt.value); },
+          style: {
+            height: 28, padding: '0 9px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
+            border: `1px solid ${pageTheme === opt.value ? C.purple : C.border}`,
+            background: pageTheme === opt.value ? C.purpleDim : C.bg2,
+            color: pageTheme === opt.value ? C.purpleL : C.textSec,
+            fontFamily: 'var(--font-ui)',
+          }
+        }, opt.label))
       ),
       hasUnsaved && React.createElement('div', { style:{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:99, background:'#fef3c7', color:'#92400e', border:'1px solid #fcd34d', whiteSpace:'nowrap', flexShrink:0 } }, 'Unsaved draft'),
       notice.text && !isMobile && React.createElement('div', { style:{ fontSize:11, color:notice.type === 'error' ? C.red : C.green, fontWeight:700, flexShrink:0 } }, notice.text),
@@ -1612,14 +1661,17 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const zoom = Number.isFinite(Number(cfg.image_zoom)) ? Number(cfg.image_zoom) : 1;
     const side = String(cfg.image_side || 'right').toLowerCase() === 'left' ? 'left' : 'right';
     const layout = String(cfg.hero_layout || 'soft_split').toLowerCase().replace(/-/g, '_');
-    const layoutNorm = layout === 'true' || layout === 'true_split' || layout === 'split' || layout === 'panel'
-      ? 'true_split'
-      : (layout === 'overlay' || layout === 'full_bleed' ? 'overlay' : 'soft_split');
-    const overlay = String(cfg.overlay_strength || (layoutNorm === 'true_split' ? 'none' : 'medium')).toLowerCase();
+    const layoutNorm = (layout === 'contained' || layout === 'contained_split' || layout === 'inset' || layout === 'guttered')
+      ? 'contained_split'
+      : (layout === 'true' || layout === 'true_split' || layout === 'split' || layout === 'panel' || layout === 'edge_bleed')
+        ? 'true_split'
+        : (layout === 'overlay' || layout === 'full_bleed' ? 'overlay' : 'soft_split');
+    const overlay = String(cfg.overlay_strength || (layoutNorm === 'true_split' || layoutNorm === 'contained_split' ? 'none' : 'medium')).toLowerCase();
     const fit = String(cfg.image_fit || 'cover').toLowerCase() === 'contain' ? 'contain' : 'cover';
     const width = Number.isFinite(Number(cfg.image_width)) ? Number(cfg.image_width) : 55;
     const imgUrl = selected.image_url || '';
     const isHero = String(selected.section_type || '').toLowerCase() === 'hero';
+    const layoutLocked = cfg.layout_locked === true || cfg.layout_locked === 1 || cfg.layout_locked === '1';
 
     const onFocalPointer = (e) => {
       const el = e.currentTarget;
@@ -1674,24 +1726,31 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             ? 'Hover the photo in the preview to select it, then drag to reposition. Or click the thumbnail below.'
             : 'Click the preview to set the focal point (crop center).'
         ),
-        isHero && renderPresetRow('Layout / scene', layoutNorm, [
+        isHero && layoutLocked && React.createElement('div', {
+          style: {
+            fontSize: 12, lineHeight: 1.45, padding: '10px 12px', borderRadius: 10,
+            background: 'rgba(124,58,237,.08)', border: `1px solid ${C.border}`, color: C.textSec,
+          }
+        }, 'Layout locked to Contained split (even side gutters). Edit copy, photo, and CTAs — theme is under Page theme in the top bar.'),
+        isHero && !layoutLocked && renderPresetRow('Layout / scene', layoutNorm, [
+          { value:'contained_split', label:'Contained' },
           { value:'soft_split', label:'Soft fade' },
-          { value:'true_split', label:'True split' },
           { value:'overlay', label:'Overlay' },
+          { value:'true_split', label:'Edge bleed' },
         ], (v) => setConfigPatch({
           hero_layout: v,
-          overlay_strength: v === 'true_split' ? 'none' : (cfg.overlay_strength || 'medium'),
+          overlay_strength: (v === 'true_split' || v === 'contained_split') ? 'none' : (cfg.overlay_strength || 'medium'),
         })),
-        isHero && layoutNorm !== 'true_split' && renderPresetRow('Overlay', overlay, [
+        isHero && !layoutLocked && layoutNorm !== 'true_split' && layoutNorm !== 'contained_split' && renderPresetRow('Overlay', overlay, [
           { value:'none', label:'None' },
           { value:'soft', label:'Soft' },
           { value:'medium', label:'Med' },
           { value:'strong', label:'Strong' },
         ], (v) => setConfigPatch({ overlay_strength: v })),
-        isHero && layoutNorm === 'true_split' && renderPresetRow('Photo width', String(width), [
+        isHero && !layoutLocked && (layoutNorm === 'true_split' || layoutNorm === 'contained_split') && renderPresetRow('Photo width', String(width), [
           { value:'45', label:'45%' },
+          { value:'48', label:'48%' },
           { value:'55', label:'55%' },
-          { value:'65', label:'65%' },
         ], (v) => setConfigPatch({ image_width: Number(v) })),
         isHero && renderPresetRow('Fit', fit, [
           { value:'cover', label:'Cover' },

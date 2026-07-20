@@ -1715,5 +1715,51 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     }, failed.length ? 207 : 200);
   }
 
+  if (path === "/api/cms/page/theme" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const route = normalizeRouteInput(data.route_path || data.route || "");
+    if (!route) return json({ success: false, error: "route_path is required" }, 400);
+
+    const allowed = new Set(["plum_glass", "light", "dark"]);
+    const themeRaw = String(data.theme || "").trim().toLowerCase().replace(/-/g, "_");
+    const theme = themeRaw === "plum" || themeRaw === "cream" ? "plum_glass" : themeRaw;
+    if (!allowed.has(theme)) {
+      return json({ success: false, error: "theme must be plum_glass, light, or dark" }, 400);
+    }
+
+    const triggeredBy = cmsUser?.email || cmsUser?.id || "dashboard";
+    try {
+      await env.DB.prepare(
+        `UPDATE cms_pages
+         SET theme = ?, updated_at = datetime('now')
+         WHERE tenant_id = ? AND route_path = ?`
+      ).bind(theme, TENANT_ID, route).run();
+    } catch (err) {
+      console.error("[cms/page/theme] update failed:", err?.message || err);
+      return json({ success: false, error: "Could not update page theme" }, 500);
+    }
+
+    await bustCache(env, `page:${route}`, `brand:${TENANT_ID}`);
+    const published = await publishPageRoute(env, route, triggeredBy).catch((err) => ({
+      success: false,
+      error: err?.message || String(err),
+    }));
+
+    return json({
+      success: Boolean(published?.success !== false),
+      route_path: route,
+      theme,
+      published: Boolean(published?.success !== false),
+      message: theme === "dark"
+        ? "Page theme set to Dark (legacy)."
+        : theme === "light"
+          ? "Page theme set to Light."
+          : "Page theme set to Light plum / cream (recommended).",
+    }, published?.success === false ? 207 : 200);
+  }
+
   return null;
 }

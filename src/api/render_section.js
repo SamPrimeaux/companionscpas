@@ -241,7 +241,12 @@ function renderSharedHeroCta(label, url, variant = "primary", sub = "", action =
 
 function resolveHeroLayout(config) {
   const raw = pickText(config, ["hero_layout", "layout"]).toLowerCase().replace(/-/g, "_");
-  if (raw === "true" || raw === "true_split" || raw === "split" || raw === "panel") return "true_split";
+  if (raw === "contained" || raw === "contained_split" || raw === "inset" || raw === "guttered") {
+    return "contained_split";
+  }
+  if (raw === "true" || raw === "true_split" || raw === "split" || raw === "panel" || raw === "edge_bleed") {
+    return "true_split";
+  }
   if (raw === "overlay" || raw === "full_bleed" || raw === "fullbleed") return "overlay";
   return "soft_split";
 }
@@ -250,7 +255,7 @@ function resolveOverlayStrength(config, layout) {
   const raw = pickText(config, ["overlay_strength"]).toLowerCase();
   if (raw === "none" || raw === "soft" || raw === "medium" || raw === "strong") return raw;
   if (layout === "overlay") return "medium";
-  if (layout === "true_split") return "none";
+  if (layout === "true_split" || layout === "contained_split") return "none";
   return "medium";
 }
 
@@ -263,7 +268,7 @@ function resolveImageWidthPct(config) {
 }
 
 function scrimGradientCss(layout, strength, imageSide) {
-  if (layout === "true_split" || strength === "none") return "transparent";
+  if (layout === "true_split" || layout === "contained_split" || strength === "none") return "transparent";
   const dir = imageSide === "left" ? "270deg" : "90deg";
   if (layout === "overlay") {
     if (strength === "soft") {
@@ -323,6 +328,7 @@ function renderHero(section) {
 
   const layoutClass =
     layout === "true_split" ? " hero-split--true" :
+    layout === "contained_split" ? " hero-split--contained" :
     layout === "overlay" ? " hero-split--overlay" :
     " hero-split--soft";
   const sideClass = imageSide === "left" ? " hero-split--image-left" : "";
@@ -351,7 +357,8 @@ function renderHero(section) {
 [data-cpas-section="${sk}"]{--hero-image-width:${imageWidth}%;--hero-text-width:${textPanelPct}%;}
 [data-cpas-section="${sk}"] .hero-media-bg img{object-fit:${imageFit};object-position:${objectPos};width:100%;height:100%;${zoomCss}}
 [data-cpas-section="${sk}"] .hero-scrim{background:${scrimBg};}
-[data-cpas-section="${sk}"].hero-split--true{--hero-image-width:${imageWidth}%;}
+[data-cpas-section="${sk}"].hero-split--true,
+[data-cpas-section="${sk}"].hero-split--contained{--hero-image-width:${imageWidth}%;}
 [data-cpas-section="${sk}"].hero-split--image-left .hero-media-bg img{left:0;right:auto;}
 [data-cpas-section="${sk}"].hero-split--image-left .hero-content{margin-left:auto;}
 @media(max-width:768px){[data-cpas-section="${sk}"].hero-split--image-left .hero-media-bg img{left:0;right:0;width:100%}}
