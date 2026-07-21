@@ -335,59 +335,60 @@ async function renderDonatePaymentHero(section, blocks, brand, env) {
   const body = pickText(section, ["body"]) || pickText(section, ["subheading"])
     || "Choose a fee-free gift, PayPal, Venmo, supplies from our wishlist, or a card donation — all of it stays with Companions of CPAS.";
   const showTax = config.show_tax_badge !== false && config.show_tax_badge !== 0 && config.show_tax_badge !== "0";
-  const imageUrl = pickText(section, ["image_url"]) || pickText(config, ["image_url"])
-    || `${CDN}/static/cms/uploads/2026/07/1784219444043-wet-dog-comp..jpg`;
-  const imageAlt = pickText(config, ["image_alt"]) || "Companions of CPAS — dogs and donors making second chances possible";
   const brandLogo = pickText(brand, ["logo_dark_url", "logo_light_url"])
     || "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/b82e15b1-05e1-454c-85ca-a92f8eee2100/avatar";
+  // media_presentation: "card" (logo / contained art) | "photo" (full-bleed cover). CMS-swappable via image_url.
+  const mediaPresentation = (pickText(config, ["media_presentation"]) || "card").toLowerCase() === "photo"
+    ? "photo"
+    : "card";
+  const imageUrl = pickText(section, ["image_url"]) || pickText(config, ["image_url"]) || brandLogo;
+  const imageAlt = pickText(config, ["image_alt"]) || "Companions of CPAS";
 
   const methods = await resolvePaymentMethods(env, config);
   const buttons = renderPaymentMethodButtonsHtml(methods);
 
   return `
 <style>
-.dpay-hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,48%);gap:clamp(1.5rem,4vw,3.5rem);align-items:center;padding:clamp(2.5rem,6vw,4.5rem) max(var(--page-gutter,1.25rem),calc((100% - var(--page-max,1180px)) / 2));background:var(--bg,#F5F2E9);box-sizing:border-box}
+.dpay-hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(240px,42%);gap:clamp(1.75rem,4vw,3.25rem);align-items:center;padding:clamp(2.5rem,6vw,4.5rem) max(var(--page-gutter,1.25rem),calc((100% - var(--page-max,1180px)) / 2));background:#faf8f4;box-sizing:border-box}
 .dpay-hero-copy{max-width:34rem}
-.dpay-hero-brand{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem}
-.dpay-hero-brand img{height:42px;width:auto;display:block}
 .dpay-hero-eyebrow{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#6f2270;margin:0 0 .75rem}
 .dpay-hero-heading{font-family:var(--font-display),Georgia,serif;font-size:clamp(1.85rem,4.2vw,2.75rem);line-height:1.12;color:#1a0a24;margin:0 0 1rem}
 .dpay-hero-body{font-size:1.02rem;line-height:1.65;color:#4a3a55;margin:0 0 1.35rem}
-.dpay-hero-tax{display:inline-flex;align-items:center;gap:.45rem;font-size:.78rem;font-weight:700;color:#5b2d8e;background:rgba(107,45,139,.08);border:1px solid rgba(107,45,139,.16);border-radius:999px;padding:.35rem .75rem;margin-bottom:1.15rem}
-.dpay-methods{display:grid;gap:.7rem;max-width:28rem}
-.dpay-methods--inline{display:flex;flex-wrap:wrap;gap:.55rem;max-width:none}
-.dpay-btn{display:flex;align-items:center;gap:.85rem;width:100%;box-sizing:border-box;padding:.85rem 1rem;border-radius:14px;border:1.5px solid rgba(26,22,34,.12);background:#fff;text-decoration:none;color:#1a1622;font:inherit;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;text-align:left}
-.dpay-btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(26,22,34,.08);border-color:rgba(111,34,112,.35)}
-.dpay-logo{flex-shrink:0;display:block}
-.dpay-copy{display:flex;flex-direction:column;gap:.15rem;min-width:0}
-.dpay-label{font-size:.95rem;font-weight:800;line-height:1.25}
-.dpay-note{font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;opacity:.72}
-.dpay-btn--zeffy{background:#1a1622;border-color:#1a1622;color:#faf7f3}
-.dpay-btn--zeffy .dpay-note{color:#c4a4e8}
-.dpay-btn--paypal{background:#fff;border-color:#00308733}
-.dpay-btn--venmo{background:#fff;border-color:#3D95CE44}
-.dpay-btn--amazon{background:#fff;border-color:#ff990055}
-.dpay-btn--stripe{background:#faf7f3;border-style:dashed}
-.dpay-hero-media{position:relative;border-radius:var(--radius-lg,18px);overflow:hidden;aspect-ratio:4/3;max-height:min(520px,58vh);box-shadow:0 18px 48px rgba(28,20,32,.10);background:#efeae3}
-.dpay-hero-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 40%}
+.dpay-hero-tax{display:inline-flex;align-items:center;gap:.45rem;font-size:.78rem;font-weight:700;color:#5b2d8e;background:rgba(107,45,139,.08);border:1px solid rgba(107,45,139,.16);border-radius:999px;padding:.35rem .75rem;margin:0 0 1.35rem}
+.dpay-methods{display:grid;gap:1rem;max-width:22rem}
+.dpay-methods--inline{display:flex;flex-wrap:wrap;gap:.65rem;max-width:none}
+.dpay-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.55rem;width:100%;box-sizing:border-box;min-height:5.25rem;padding:1rem 1.1rem .95rem;border-radius:16px;border:1.5px solid transparent;text-decoration:none;color:#1a1622;font:inherit;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s,filter .15s;text-align:center}
+.dpay-btn:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(26,22,34,.10);filter:brightness(1.02)}
+.dpay-logo{flex-shrink:0;display:block;margin:0 auto;height:26px;width:auto;max-width:70%}
+.dpay-copy{display:flex;flex-direction:column;align-items:center;gap:.2rem;min-width:0;width:100%}
+.dpay-label{font-size:.9rem;font-weight:800;line-height:1.3}
+.dpay-note{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.78}
+.dpay-btn--zeffy{background:#141018;border-color:#141018;color:#faf7f3}
+.dpay-btn--zeffy .dpay-note{color:#49e9d5}
+.dpay-btn--paypal{background:#eef5ff;border-color:#9ec0ef;color:#003087}
+.dpay-btn--venmo{background:#eaf6fc;border-color:#7ec0e8;color:#008CFF}
+.dpay-btn--amazon{background:#fff6e8;border-color:#f0c078;color:#232f3e}
+.dpay-btn--stripe{background:#f3f0ff;border-color:#b8a9ff;color:#3d348b;border-style:solid}
+.dpay-hero-media{position:relative;border-radius:22px;overflow:hidden;aspect-ratio:1;max-width:min(420px,100%);margin-inline:auto;box-shadow:0 18px 48px rgba(28,20,32,.10);background:linear-gradient(160deg,#ffffff 0%,#f3eee6 100%);border:1px solid rgba(26,22,34,.06)}
+.dpay-hero-media--card{display:grid;place-items:center;padding:clamp(1.75rem,5vw,3rem);box-sizing:border-box}
+.dpay-hero-media--card img{position:static;width:min(68%,220px);height:auto;max-height:68%;object-fit:contain;object-position:center;filter:drop-shadow(0 10px 24px rgba(26,22,34,.12))}
+.dpay-hero-media--photo{aspect-ratio:4/3;max-width:none;padding:0;background:#efeae3}
+.dpay-hero-media--photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 40%;filter:none;max-height:none}
 @media(max-width:860px){
   .dpay-hero{grid-template-columns:1fr;padding:2rem 1.25rem 2.5rem}
-  .dpay-hero-media{order:-1;max-height:none;min-height:240px}
+  .dpay-hero-media{order:-1;max-width:280px}
   .dpay-methods{max-width:none}
 }
 </style>
 <section class="dpay-hero" data-section-key="${escAttr(sectionKey)}" data-cpas-section="donate_payment_hero" id="donate-give">
   <div class="dpay-hero-copy">
-    <div class="dpay-hero-brand">
-      <img src="${escAttr(brandLogo)}" alt="Companions of CPAS" width="120" height="42" loading="eager" decoding="async" />
-    </div>
     ${eyebrow ? `<p class="dpay-hero-eyebrow" data-cms-field="eyebrow">${esc(eyebrow)}</p>` : ""}
     <h1 class="dpay-hero-heading" data-cms-field="heading">${esc(heading)}</h1>
     ${body ? `<p class="dpay-hero-body" data-cms-field="body">${esc(body)}</p>` : ""}
     ${showTax ? `<div class="dpay-hero-tax">501(c)(3) · EIN 88-4156327 · Tax-deductible</div>` : ""}
     ${buttons || `<p class="dpay-hero-body">Donation options are being updated — please check back shortly.</p>`}
   </div>
-  <div class="dpay-hero-media" data-cms-field="image_url">
+  <div class="dpay-hero-media dpay-hero-media--${mediaPresentation}" data-cms-field="image_url" data-media-presentation="${mediaPresentation}">
     <img src="${escAttr(imageUrl)}" alt="${escAttr(imageAlt)}" loading="eager" fetchpriority="high" decoding="async" />
   </div>
 </section>`.trim();
