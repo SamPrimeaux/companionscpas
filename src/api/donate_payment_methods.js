@@ -18,7 +18,9 @@ const DEFAULT_METHODS = [
     note: "fee-free",
     url_field: "zeffy_donate_url",
     component_id: "payment_zeffy",
+    logo_asset_key: "payment_logo_zeffy",
     style: "zeffy",
+    logo_height: 22,
   },
   {
     id: "paypal",
@@ -52,10 +54,11 @@ const DEFAULT_METHODS = [
     id: "stripe",
     enabled: true,
     label: "Card or bank",
-    note: "Stripe",
     action: "donate",
     component_id: "payment_stripe_donation_modal",
+    logo_asset_key: "payment_logo_stripe",
     style: "stripe",
+    logo_height: 22,
   },
 ];
 
@@ -109,6 +112,8 @@ function resolveLogoFromCatalog(method) {
   if (key === "amazon_wishlist" || key === "amazon") return COMPONENT_LOGOS.amazon_wishlist?.src || "";
   if (key === "paypal") return COMPONENT_LOGOS.paypal?.src || "";
   if (key === "venmo") return COMPONENT_LOGOS.venmo?.src || "";
+  if (key === "zeffy") return COMPONENT_LOGOS.zeffy?.src || "";
+  if (key === "stripe") return COMPONENT_LOGOS.stripe?.src || "";
   return "";
 }
 

@@ -95,6 +95,8 @@ export const COMPONENT_LOGOS = {
   paypal: { src: "https://assets.companionsofcaddo.org/static/assets/PayPal.svg.webp", alt: "PayPal", height: 22 },
   venmo: { src: "https://assets.companionsofcaddo.org/static/assets/venmo-official-logo.svg", alt: "Venmo", height: 22 },
   amazon_wishlist: { src: "https://assets.companionsofcaddo.org/static/assets/amz-wishlist-bttn.webp", alt: "Amazon Wishlist", height: 22 },
+  zeffy: { src: "https://assets.companionsofcaddo.org/static/assets/zeffy-wordmark.webp", alt: "Zeffy", height: 22 },
+  stripe: { src: "https://assets.companionsofcaddo.org/static/assets/stripe-wordmark.webp", alt: "Stripe", height: 22 },
 };
 
 export function componentLogo(key) {
