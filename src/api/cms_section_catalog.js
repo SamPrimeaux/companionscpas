@@ -18,6 +18,7 @@ import {
   renderContactTeam,
   CONTACT_FORM_SCRIPT,
 } from "./render_contact_sections.js";
+import { renderRawHtml } from "./render_raw_html.js";
 
 const TENANT_ID = "tenant_companionscpas";
 
@@ -50,6 +51,7 @@ export const D1_SECTION_TYPES = [
   "home_story",
   "nav",
   "org_info",
+  "raw_html",
   "shelter_hub",
   "testimonial",
   "testimonials",
@@ -122,6 +124,11 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
   }
 
   try {
+    // Custom Code — fetch remote HTML by config.source_url (any page route)
+    if (type === "raw_html") {
+      return String(await renderRawHtml(section, blocks, brand, env, { preview }) || "");
+    }
+
     // Plain content (non-About). About mission_statement uses branded fragment below.
     if (type === "content" && !(route === "/about" && key === "mission_statement")) {
       const eyebrow = String(section?.eyebrow || "").trim();
@@ -223,6 +230,7 @@ export const ADDABLE_SECTION_TYPES = [
   { type: "contact_form", label: "Contact Form", desc: "Message form" },
   { type: "contact_team", label: "Team", desc: "Group photo + member list" },
   { type: "contact_socials", label: "Contact Info Cards", desc: "Email, location, org cards" },
+  { type: "raw_html", label: "Custom Code", desc: "Embed HTML from a URL" },
 ];
 
 export function pageNeedsContactFormScript(sections = []) {

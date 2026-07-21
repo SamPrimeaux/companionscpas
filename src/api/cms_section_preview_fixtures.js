@@ -285,6 +285,20 @@ export function buildSectionPreviewFixture(type, brand = {}) {
         blocks: [],
       };
 
+    case "raw_html":
+      return {
+        section: baseSection(t, brand, {
+          heading: "Custom Code",
+          subheading: "",
+          body: "",
+          image_url: "",
+          cta_label: "",
+          cta_secondary_label: "",
+          config: { source_url: "" },
+        }),
+        blocks: [],
+      };
+
     default:
       return {
         section: baseSection(t, brand, {
@@ -318,6 +332,7 @@ export const SECTION_TEMPLATE_META = {
   contact_socials: { category: "content", icon: "home" },
   animal_grid: { category: "animals", icon: "paw" },
   content: { category: "content", icon: "docs" },
+  raw_html: { category: "content", icon: "docs" },
 };
 
 export const FORM_TEMPLATE_ENTRIES = [

@@ -462,7 +462,8 @@ const FONT_PRESETS_CMS = [
 const CMS_TYPE_COLOR = {
   hero: '#a78bfa', text_image: '#60a5fa', text_image_split: '#60a5fa', feature_cards: '#34d399',
   foster_grid: '#fbbf24', campaign_grid: '#f87171', testimonial: '#94a3b8', cta_banner: '#fb923c',
-  animal_grid: '#4ade80', content: '#94a3b8', service_cards: '#34d399', donate_tiers: '#fbbf24'
+  animal_grid: '#4ade80', content: '#94a3b8', service_cards: '#34d399', donate_tiers: '#fbbf24',
+  raw_html: '#64748b',
 };
 
 const CMS_DEVICE_FRAMES = { desktop: null, tablet: 834, mobile: 390 };
@@ -691,6 +692,7 @@ const CMS_SECTION_TYPES = [
   { type:'contact_socials', label:'Contact Info Cards', desc:'Email, location, org cards' },
   { type:'contact_team', label:'Team', desc:'Group photo + member list' },
   { type:'content', label:'Content', desc:'Simple copy section for flexible text' },
+  { type:'raw_html', label:'Custom Code', desc:'Embed HTML from a URL' },
 ];
 
 function useBp() {
@@ -1188,7 +1190,19 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const addSection = async (type) => {
     const maxOrder = sortedSections.reduce((m,s)=>Math.max(m, Number(s.sort_order)||0), 0);
     const newKey = `${type}_${cmsSlugForKey(route)}_${Date.now()}`;
-    const section = { section_key:newKey, section_type:type, page_route:route, heading:'New ' + type.replace(/_/g,' '), subheading:'', body:'', sort_order:maxOrder+10, is_visible:1, tenant_id:'tenant_companionscpas' };
+    const isRawHtml = type === 'raw_html';
+    const section = {
+      section_key: newKey,
+      section_type: type,
+      page_route: route,
+      heading: isRawHtml ? 'Custom Code' : ('New ' + type.replace(/_/g,' ')),
+      subheading: '',
+      body: '',
+      sort_order: maxOrder + 10,
+      is_visible: 1,
+      tenant_id: 'tenant_companionscpas',
+      ...(isRawHtml ? { config_json: JSON.stringify({ source_url: '' }) } : {}),
+    };
     setBusy(true);
     try { await saveSectionObject(section, true); setShowAddSection(false); await loadPage(); setSelectedKey(newKey); setMobileTab('edit'); notify('Section added'); }
     catch(e) { notify(e.message, 'error'); }
@@ -1736,10 +1750,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       || !!(selected.image_url && String(selected.image_url).trim())
     );
     const isPaymentHero = String(selected.section_type || '') === 'donate_payment_hero';
+    const isRawHtml = String(selected.section_type || '') === 'raw_html';
     const sectionBlocks = (pageData.blocks || []).filter(
       (b) => cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(selected.section_key)
     );
-    const usesCards = !usesConfigCards && (['feature_cards', 'card_grid', 'home_pillars'].includes(selected.section_type) || sectionBlocks.length > 0);
+    const usesCards = !usesConfigCards && !isRawHtml && (['feature_cards', 'card_grid', 'home_pillars'].includes(selected.section_type) || sectionBlocks.length > 0);
     const field = (label, key, type='text', opts={}) => React.createElement('div', { key, id: 'cms-field-' + key }, cmsFieldLabel(label), type === 'textarea' ? cmsTextArea(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.rows || 5) : cmsTextInput(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.placeholder, opts.mono));
 
     const isBlockField = selectedField === 'block_title' || selectedField === 'block_body' || selectedField === 'block_subtitle' || selectedField === 'block_image';
@@ -1925,8 +1940,33 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     );
 
     const fullPanel = !showElementFocus && React.createElement(React.Fragment, null,
-      configCardsPanel,
-      React.createElement('div', { style:{ display:'grid', gap:12 } },
+      isRawHtml && React.createElement('div', { style:{ display:'grid', gap:12 } },
+        React.createElement('h4', { style:groupTitleStyle() }, 'Custom Code'),
+        React.createElement('div', { style:{ fontSize:12, color:C.textMut, lineHeight:1.45 } },
+          'Fetches HTML from the URL at save/publish and injects it into the page fragment. Use https URLs only.'
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Source URL'),
+          cmsTextInput(
+            cfg.source_url || '',
+            (v) => {
+              const nextCfg = { ...cmsParseConfig(selected), source_url: v };
+              const next = { ...selected, config_json: JSON.stringify(nextCfg) };
+              setPageData((prev) => ({
+                ...prev,
+                sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? next : s)),
+              }));
+              setHasUnsaved(true);
+            },
+            (e) => setConfigPatch({ source_url: String(e?.target?.value ?? cfg.source_url ?? '').trim() }),
+            'https://assets.companionsofcaddo.org/...',
+            true
+          )
+        ),
+        field('Label', 'heading')
+      ),
+      !isRawHtml && configCardsPanel,
+      !isRawHtml && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, usesConfigCards ? 'Section intro' : 'Content'),
         !usesConfigCards && field('Eyebrow','eyebrow'),
         field('Heading','heading'),
@@ -1936,7 +1976,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           'Per-card titles (Wishlist, Wet Dog…) are under Campaign cards above — not these section fields.'
         )
       ),
-      needsImage && renderMediaControls(),
+      !isRawHtml && needsImage && renderMediaControls(),
       isPaymentHero && renderPaymentMethodsEditor(cfg),
       isPaymentHero && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Media card'),
@@ -1974,12 +2014,12 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             ))
           : React.createElement('div', { style:{ color:C.textMut, fontSize:12 } }, 'No cards yet — this section uses section fields only.')
       ),
-      !usesConfigCards && React.createElement('div', { style:{ display:'grid', gap:12 } },
+      !isRawHtml && !usesConfigCards && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Links'),
         renderCtaFields('cta_label', 'cta_href', 'Primary CTA'),
         renderCtaFields('cta_secondary_label', 'cta_secondary_href', 'Secondary CTA')
       ),
-      React.createElement('div', { style:{ display:'grid', gap:12 } },
+      !isRawHtml && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Section style'),
         renderPresetRow('Text size', cfg.text_size || 'm', [
           { value:'s', label:'S' }, { value:'m', label:'M' }, { value:'l', label:'L' }
