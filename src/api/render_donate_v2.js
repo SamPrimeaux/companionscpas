@@ -351,8 +351,8 @@ async function renderDonatePaymentHero(section, blocks, brand, env) {
 
   return `
 <style>
-.dpay-hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(240px,42%);gap:clamp(1.75rem,4vw,3.25rem);align-items:center;padding:clamp(2.5rem,6vw,4.5rem) max(var(--page-gutter,1.25rem),calc((100% - var(--page-max,1180px)) / 2));background:#faf8f4;box-sizing:border-box}
-.dpay-hero-copy{max-width:34rem}
+.dpay-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,46%);gap:clamp(1.75rem,4vw,3.25rem);align-items:stretch;padding:clamp(2.5rem,6vw,4.5rem) max(var(--page-gutter,1.25rem),calc((100% - var(--page-max,1180px)) / 2));background:#faf8f4;box-sizing:border-box}
+.dpay-hero-copy{max-width:34rem;align-self:center}
 .dpay-hero-eyebrow{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#6f2270;margin:0 0 .75rem}
 .dpay-hero-heading{font-family:var(--font-display),Georgia,serif;font-size:clamp(1.85rem,4.2vw,2.75rem);line-height:1.12;color:#1a0a24;margin:0 0 1rem}
 .dpay-hero-body{font-size:1.02rem;line-height:1.65;color:#4a3a55;margin:0 0 1.35rem}
@@ -365,14 +365,15 @@ async function renderDonatePaymentHero(section, blocks, brand, env) {
 .dpay-copy{display:flex;flex-direction:column;align-items:center;gap:.2rem;min-width:0;width:100%}
 .dpay-label{font-size:.9rem;font-weight:800;line-height:1.3}
 .dpay-note{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.9}
-.dpay-hero-media{position:relative;border-radius:22px;overflow:hidden;aspect-ratio:1;max-width:min(420px,100%);margin-inline:auto;box-shadow:0 18px 48px rgba(28,20,32,.10);background:linear-gradient(160deg,#ffffff 0%,#f3eee6 100%);border:1px solid rgba(26,22,34,.06)}
-.dpay-hero-media--card{display:grid;place-items:center;padding:clamp(1.75rem,5vw,3rem);box-sizing:border-box}
+.dpay-hero-media{position:relative;border-radius:22px;overflow:hidden;box-sizing:border-box;box-shadow:0 18px 48px rgba(28,20,32,.10);border:1px solid rgba(26,22,34,.06)}
+.dpay-hero-media--card{display:grid;place-items:center;aspect-ratio:1;max-width:min(420px,100%);margin-inline:auto;padding:clamp(1.75rem,5vw,3rem);background:linear-gradient(160deg,#ffffff 0%,#f3eee6 100%);align-self:center}
 .dpay-hero-media--card img{position:static;width:min(68%,220px);height:auto;max-height:68%;object-fit:contain;object-position:center;filter:drop-shadow(0 10px 24px rgba(26,22,34,.12))}
-.dpay-hero-media--photo{aspect-ratio:4/3;max-width:none;padding:0;background:#efeae3}
-.dpay-hero-media--photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 40%;filter:none;max-height:none}
+.dpay-hero-media--photo{width:100%;min-height:min(640px,78vh);aspect-ratio:3/4;max-width:none;margin:0;padding:0;background:#2a2430;align-self:stretch}
+.dpay-hero-media--photo img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;object-position:center center;filter:none;max-height:none}
 @media(max-width:860px){
   .dpay-hero{grid-template-columns:1fr;padding:2rem 1.25rem 2.5rem}
-  .dpay-hero-media{order:-1;max-width:280px}
+  .dpay-hero-media--card{order:-1;max-width:280px}
+  .dpay-hero-media--photo{order:-1;min-height:240px;aspect-ratio:4/5;width:100%;max-width:none}
   .dpay-methods{max-width:none}
 }
 </style>
