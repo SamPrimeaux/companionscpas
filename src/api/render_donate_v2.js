@@ -3,6 +3,7 @@ import { COMPONENT_ICONS } from "./cms_components.js";
 import {
   resolvePaymentMethods,
   renderPaymentMethodButtonsHtml,
+  resolvePaymentLayout,
 } from "./donate_payment_methods.js";
 
 const TENANT_ID = "tenant_companionscpas";
@@ -345,7 +346,8 @@ async function renderDonatePaymentHero(section, blocks, brand, env) {
   const imageAlt = pickText(config, ["image_alt"]) || "Companions of CPAS";
 
   const methods = await resolvePaymentMethods(env, config);
-  const buttons = renderPaymentMethodButtonsHtml(methods);
+  const layout = resolvePaymentLayout(config);
+  const buttons = renderPaymentMethodButtonsHtml(methods, { layout });
 
   return `
 <style>
@@ -355,20 +357,14 @@ async function renderDonatePaymentHero(section, blocks, brand, env) {
 .dpay-hero-heading{font-family:var(--font-display),Georgia,serif;font-size:clamp(1.85rem,4.2vw,2.75rem);line-height:1.12;color:#1a0a24;margin:0 0 1rem}
 .dpay-hero-body{font-size:1.02rem;line-height:1.65;color:#4a3a55;margin:0 0 1.35rem}
 .dpay-hero-tax{display:inline-flex;align-items:center;gap:.45rem;font-size:.78rem;font-weight:700;color:#5b2d8e;background:rgba(107,45,139,.08);border:1px solid rgba(107,45,139,.16);border-radius:999px;padding:.35rem .75rem;margin:0 0 1.35rem}
-.dpay-methods{display:grid;gap:1rem;max-width:22rem}
+.dpay-methods{display:grid;gap:var(--dpay-gap,1rem);max-width:var(--dpay-max-w,22rem)}
 .dpay-methods--inline{display:flex;flex-wrap:wrap;gap:.65rem;max-width:none}
-.dpay-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.55rem;width:100%;box-sizing:border-box;min-height:5.25rem;padding:1rem 1.1rem .95rem;border-radius:16px;border:1.5px solid transparent;text-decoration:none;color:#1a1622;font:inherit;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s,filter .15s;text-align:center}
+.dpay-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.55rem;width:100%;box-sizing:border-box;min-height:var(--dpay-btn-min-h,5.25rem);padding:1rem 1.1rem .95rem;border-radius:16px;border:1.5px solid transparent;text-decoration:none;color:#1a1622;font:inherit;cursor:pointer;transition:transform .15s,box-shadow .15s,filter .15s;text-align:center}
 .dpay-btn:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(26,22,34,.10);filter:brightness(1.02)}
-.dpay-logo{flex-shrink:0;display:block;margin:0 auto;height:26px;width:auto;max-width:70%}
+.dpay-logo{flex-shrink:0;display:block;margin:0 auto;width:auto;max-width:70%}
 .dpay-copy{display:flex;flex-direction:column;align-items:center;gap:.2rem;min-width:0;width:100%}
 .dpay-label{font-size:.9rem;font-weight:800;line-height:1.3}
-.dpay-note{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.78}
-.dpay-btn--zeffy{background:#141018;border-color:#141018;color:#faf7f3}
-.dpay-btn--zeffy .dpay-note{color:#49e9d5}
-.dpay-btn--paypal{background:#eef5ff;border-color:#9ec0ef;color:#003087}
-.dpay-btn--venmo{background:#eaf6fc;border-color:#7ec0e8;color:#008CFF}
-.dpay-btn--amazon{background:#fff6e8;border-color:#f0c078;color:#232f3e}
-.dpay-btn--stripe{background:#f3f0ff;border-color:#b8a9ff;color:#3d348b;border-style:solid}
+.dpay-note{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.9}
 .dpay-hero-media{position:relative;border-radius:22px;overflow:hidden;aspect-ratio:1;max-width:min(420px,100%);margin-inline:auto;box-shadow:0 18px 48px rgba(28,20,32,.10);background:linear-gradient(160deg,#ffffff 0%,#f3eee6 100%);border:1px solid rgba(26,22,34,.06)}
 .dpay-hero-media--card{display:grid;place-items:center;padding:clamp(1.75rem,5vw,3rem);box-sizing:border-box}
 .dpay-hero-media--card img{position:static;width:min(68%,220px);height:auto;max-height:68%;object-fit:contain;object-position:center;filter:drop-shadow(0 10px 24px rgba(26,22,34,.12))}

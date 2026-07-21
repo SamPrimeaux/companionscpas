@@ -1,14 +1,62 @@
 /**
- * D1-driven donate payment methods.
- * SSOT: donation_settings (URLs) + cms_components (logos/labels)
- * + optional section.config_json.payment_methods_json (order / enable / copy).
- * Logos resolve: component.logo_url → cms_assets(logo_asset_key) → COMPONENT_LOGOS.
+ * D1-driven donate payment methods — fully CMS-editable.
+ * SSOT precedence (highest first):
+ *   section.config_json.payment_methods_json  →  cms_components  →  DEFAULT_METHODS
+ * URLs: method.url → donation_settings[url_field] → component.config.url
+ * Colors/logos: method fields → component.config → DEFAULT_STYLES
+ * After this ships, button edits are D1/CMS + Publish — no worker redeploy.
  */
 import { getComponent, COMPONENT_LOGOS } from "./cms_components.js";
 import { escapeHtml } from "./render_section.js";
 
 const TENANT_ID = "tenant_companionscpas";
 const CDN = "https://assets.companionsofcaddo.org";
+
+/** Visual defaults — overridden by cms_components / payment_methods_json */
+export const DEFAULT_STYLES = {
+  zeffy: {
+    background: "#141018",
+    border_color: "#141018",
+    text_color: "#faf7f3",
+    note_color: "#49e9d5",
+  },
+  paypal: {
+    background: "#eef5ff",
+    border_color: "#9ec0ef",
+    text_color: "#003087",
+    note_color: "",
+  },
+  venmo: {
+    background: "#eaf6fc",
+    border_color: "#7ec0e8",
+    text_color: "#008CFF",
+    note_color: "",
+  },
+  amazon_wishlist: {
+    background: "#fff6e8",
+    border_color: "#f0c078",
+    text_color: "#232f3e",
+    note_color: "",
+  },
+  amazon: {
+    background: "#fff6e8",
+    border_color: "#f0c078",
+    text_color: "#232f3e",
+    note_color: "",
+  },
+  stripe: {
+    background: "#f3f0ff",
+    border_color: "#b8a9ff",
+    text_color: "#3d348b",
+    note_color: "",
+  },
+  default: {
+    background: "#ffffff",
+    border_color: "rgba(26,22,34,0.12)",
+    text_color: "#1a1622",
+    note_color: "",
+  },
+};
 
 const DEFAULT_METHODS = [
   {
@@ -21,6 +69,7 @@ const DEFAULT_METHODS = [
     logo_asset_key: "payment_logo_zeffy",
     style: "zeffy",
     logo_height: 22,
+    ...DEFAULT_STYLES.zeffy,
   },
   {
     id: "paypal",
@@ -30,6 +79,8 @@ const DEFAULT_METHODS = [
     component_id: "payment_paypal",
     logo_asset_key: "payment_logo_paypal",
     style: "paypal",
+    logo_height: 22,
+    ...DEFAULT_STYLES.paypal,
   },
   {
     id: "venmo",
@@ -39,6 +90,8 @@ const DEFAULT_METHODS = [
     component_id: "payment_venmo",
     logo_asset_key: "payment_logo_venmo",
     style: "venmo",
+    logo_height: 22,
+    ...DEFAULT_STYLES.venmo,
   },
   {
     id: "amazon_wishlist",
@@ -49,6 +102,7 @@ const DEFAULT_METHODS = [
     logo_asset_key: "payment_logo_amazon",
     style: "amazon",
     logo_height: 28,
+    ...DEFAULT_STYLES.amazon_wishlist,
   },
   {
     id: "stripe",
@@ -59,6 +113,7 @@ const DEFAULT_METHODS = [
     logo_asset_key: "payment_logo_stripe",
     style: "stripe",
     logo_height: 22,
+    ...DEFAULT_STYLES.stripe,
   },
 ];
 
@@ -73,6 +128,13 @@ function esc(v) {
 
 function escAttr(v) {
   return escapeHtml(v);
+}
+
+function cssColor(v) {
+  const s = text(v);
+  if (!s) return "";
+  if (/[;"'<>\\]/.test(s)) return "";
+  return s;
 }
 
 export async function loadDonationSettings(env) {
@@ -118,6 +180,8 @@ function resolveLogoFromCatalog(method) {
 }
 
 async function resolveLogoUrl(env, method, component) {
+  const fromMethod = text(method.logo_url);
+  if (fromMethod) return fromMethod;
   const fromComponent = text(component?.config?.logo_url);
   if (fromComponent) return fromComponent;
   const assetKey = text(method.logo_asset_key) || text(component?.config?.logo_asset_key);
@@ -130,11 +194,30 @@ async function resolveLogoUrl(env, method, component) {
 
 function resolveHref(method, settings, component) {
   if (text(method.action) === "donate" || text(method.id) === "stripe") return "";
+  if (text(method.url)) return text(method.url);
   const field = text(method.url_field);
   if (field && text(settings[field])) return text(settings[field]);
-  if (text(method.url)) return text(method.url);
   if (text(component?.config?.url)) return text(component.config.url);
   return "";
+}
+
+function pickStyle(method, component) {
+  const id = text(method.style) || text(method.id) || "default";
+  const base = DEFAULT_STYLES[id] || DEFAULT_STYLES.default;
+  const c = component?.config || {};
+  return {
+    background: cssColor(method.background) || cssColor(c.background) || base.background,
+    borderColor: cssColor(method.border_color || method.borderColor)
+      || cssColor(c.border_color)
+      || base.border_color,
+    textColor: cssColor(method.text_color || method.textColor || method.brand_color)
+      || cssColor(c.text_color)
+      || cssColor(c.brand_color)
+      || base.text_color,
+    noteColor: cssColor(method.note_color || method.noteColor)
+      || cssColor(c.note_color)
+      || base.note_color,
+  };
 }
 
 function parseMethodsConfig(sectionConfig = {}) {
@@ -150,9 +233,19 @@ function parseMethodsConfig(sectionConfig = {}) {
   return DEFAULT_METHODS;
 }
 
-/**
- * Build ordered payment method rows for rendering.
- */
+/** Layout tokens from section config — CMS editable, no deploy. */
+export function resolvePaymentLayout(sectionConfig = {}) {
+  const gap = text(sectionConfig.button_gap) || "1rem";
+  const minH = text(sectionConfig.button_min_height) || "5.25rem";
+  const maxW = text(sectionConfig.buttons_max_width) || "22rem";
+  const safe = (v) => (/[;"'<>\\]/.test(v) ? "" : v);
+  return {
+    gap: safe(gap) || "1rem",
+    minHeight: safe(minH) || "5.25rem",
+    maxWidth: safe(maxW) || "22rem",
+  };
+}
+
 export async function resolvePaymentMethods(env, sectionConfig = {}) {
   const settings = await loadDonationSettings(env);
   const methods = parseMethodsConfig(sectionConfig || {});
@@ -178,6 +271,7 @@ export async function resolvePaymentMethods(env, sectionConfig = {}) {
     const label = text(m.label) || text(component?.config?.label) || text(component?.label) || text(m.id);
     const note = text(m.note) || text(component?.config?.note);
     const logoHeight = Number(m.logo_height || component?.config?.logo_height) || 22;
+    const colors = pickStyle(m, component);
     resolved.push({
       id: text(m.id) || `pay_${index}`,
       label,
@@ -187,34 +281,55 @@ export async function resolvePaymentMethods(env, sectionConfig = {}) {
       logoUrl,
       logoHeight,
       style: text(m.style) || text(m.id) || "default",
-      brandColor: text(m.brand_color) || text(component?.config?.brand_color),
-      background: text(m.background) || text(component?.config?.background) || "",
+      ...colors,
+      urlField: text(m.url_field),
+      componentId: text(m.component_id),
     });
   }
   return resolved;
 }
 
-/**
- * Render the reusable payment method button stack (D1-driven).
- */
+function buttonInlineStyle(m) {
+  const parts = [];
+  if (m.background) parts.push(`background:${m.background}`);
+  if (m.borderColor) parts.push(`border-color:${m.borderColor}`);
+  if (m.textColor) parts.push(`color:${m.textColor}`);
+  return parts.join(";");
+}
+
 export function renderPaymentMethodButtonsHtml(methods, opts = {}) {
   if (!methods?.length) return "";
+  const layout = opts.layout || {};
   const className = opts.className || "dpay-methods";
+  const styleVars = [
+    layout.gap ? `--dpay-gap:${layout.gap}` : "",
+    layout.minHeight ? `--dpay-btn-min-h:${layout.minHeight}` : "",
+    layout.maxWidth ? `--dpay-max-w:${layout.maxWidth}` : "",
+  ].filter(Boolean).join(";");
+
   const buttons = methods.map((m) => {
     const logo = m.logoUrl
       ? `<img class="dpay-logo" src="${escAttr(m.logoUrl)}" alt="" height="${m.logoHeight}" style="height:${m.logoHeight}px;width:auto" loading="lazy" decoding="async" />`
       : "";
-    const note = m.note ? `<span class="dpay-note">${esc(m.note)}</span>` : "";
+    const noteStyle = m.noteColor ? ` style="color:${escAttr(m.noteColor)}"` : "";
+    const note = m.note ? `<span class="dpay-note"${noteStyle}>${esc(m.note)}</span>` : "";
     const label = `<span class="dpay-label">${esc(m.label)}</span>`;
     const inner = `${logo}<span class="dpay-copy">${label}${note}</span>`;
+    const btnStyle = buttonInlineStyle(m);
+    const styleAttr = btnStyle ? ` style="${escAttr(btnStyle)}"` : "";
     const styleMod = ` dpay-btn--${escAttr(m.style || "default")}`;
     if (m.isStripe) {
-      return `<button type="button" class="dpay-btn${styleMod}" data-action="donate" aria-label="${escAttr(m.label)}">${inner}</button>`;
+      return `<button type="button" class="dpay-btn${styleMod}"${styleAttr} data-action="donate" data-pay-id="${escAttr(m.id)}" aria-label="${escAttr(m.label)}">${inner}</button>`;
     }
-    return `<a class="dpay-btn${styleMod}" href="${escAttr(m.href)}" target="_blank" rel="noopener noreferrer" aria-label="${escAttr(m.label)}">${inner}</a>`;
+    return `<a class="dpay-btn${styleMod}"${styleAttr} href="${escAttr(m.href)}" target="_blank" rel="noopener noreferrer" data-pay-id="${escAttr(m.id)}" aria-label="${escAttr(m.label)}">${inner}</a>`;
   }).join("\n");
 
-  return `<div class="${escAttr(className)}" role="group" aria-label="Ways to give">${buttons}</div>`;
+  const wrapStyle = styleVars ? ` style="${escAttr(styleVars)}"` : "";
+  return `<div class="${escAttr(className)}"${wrapStyle} role="group" aria-label="Ways to give">${buttons}</div>`;
+}
+
+export function getEditablePaymentMethodsDefaults() {
+  return DEFAULT_METHODS.map((m) => ({ ...m }));
 }
 
 export { DEFAULT_METHODS, CDN };

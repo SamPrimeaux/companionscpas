@@ -1499,10 +1499,128 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     );
   }
 
+  function parsePaymentMethods(cfg) {
+    let raw = cfg?.payment_methods_json ?? cfg?.payment_methods;
+    if (typeof raw === 'string') {
+      try { raw = JSON.parse(raw); } catch { raw = null; }
+    }
+    if (Array.isArray(raw) && raw.length) return raw.map((m) => ({ ...m }));
+    return [
+      { id:'zeffy', enabled:true, label:'Donate — 100% goes to animals', note:'fee-free', url_field:'zeffy_donate_url', component_id:'payment_zeffy', style:'zeffy', logo_height:22, background:'#141018', border_color:'#141018', text_color:'#faf7f3', note_color:'#49e9d5', logo_url:'https://assets.companionsofcaddo.org/static/assets/zeffy-wordmark.webp' },
+      { id:'paypal', enabled:true, label:'Donate via PayPal', url_field:'paypal_donate_url', component_id:'payment_paypal', style:'paypal', logo_height:22, background:'#eef5ff', border_color:'#9ec0ef', text_color:'#003087', logo_url:'https://assets.companionsofcaddo.org/static/assets/PayPal.svg.webp' },
+      { id:'venmo', enabled:true, label:'Pay on Venmo', url_field:'venmo_donate_url', component_id:'payment_venmo', style:'venmo', logo_height:22, background:'#eaf6fc', border_color:'#7ec0e8', text_color:'#008CFF', logo_url:'https://assets.companionsofcaddo.org/static/assets/venmo-official-logo.svg' },
+      { id:'amazon_wishlist', enabled:true, label:'Send supplies', url_field:'amazon_wishlist_url', component_id:'wishlist_amazon', style:'amazon', logo_height:28, background:'#fff6e8', border_color:'#f0c078', text_color:'#232f3e', logo_url:'https://assets.companionsofcaddo.org/static/assets/amz-wishlist-bttn.webp' },
+      { id:'stripe', enabled:true, label:'Card or bank', action:'donate', component_id:'payment_stripe_donation_modal', style:'stripe', logo_height:22, background:'#f3f0ff', border_color:'#b8a9ff', text_color:'#3d348b', logo_url:'https://assets.companionsofcaddo.org/static/assets/stripe-wordmark.webp' },
+    ];
+  }
+
+  function renderPaymentMethodsEditor(cfg) {
+    const methods = parsePaymentMethods(cfg);
+    const writeMethods = (next, saveNow) => {
+      const nextCfg = { ...cmsParseConfig(selected), payment_methods_json: next };
+      const nextSec = { ...selected, config_json: JSON.stringify(nextCfg) };
+      setPageData((prev) => ({
+        ...prev,
+        sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? nextSec : s)),
+      }));
+      setHasUnsaved(true);
+      if (saveNow) {
+        saveSectionObject(nextSec, true)
+          .then(() => bumpPreview())
+          .catch((e) => notify(e.message || 'Could not save payment buttons', 'error'));
+      }
+    };
+    const patchMethod = (idx, patch, saveNow = false) => {
+      const next = methods.map((m, i) => (i === idx ? { ...m, ...patch } : m));
+      writeMethods(next, saveNow);
+    };
+    const moveMethod = (idx, dir) => {
+      const j = idx + dir;
+      if (j < 0 || j >= methods.length) return;
+      const next = methods.slice();
+      const tmp = next[idx];
+      next[idx] = next[j];
+      next[j] = tmp;
+      writeMethods(next, true);
+    };
+    const colorField = (idx, m, key, label) => React.createElement('div', { key: key, style:{ display:'grid', gap:4 } },
+      cmsFieldLabel(label),
+      React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'center' } },
+        React.createElement('input', {
+          type: 'color',
+          value: /^#[0-9a-fA-F]{6}$/.test(String(m[key] || '')) ? m[key] : '#ffffff',
+          onChange: (e) => patchMethod(idx, { [key]: e.target.value }, true),
+          style: { width:36, height:28, border:'none', background:'transparent', cursor:'pointer' }
+        }),
+        cmsTextInput(m[key] || '', (v) => patchMethod(idx, { [key]: v }, false), () => saveSelected(true), '#hex or rgb()')
+      )
+    );
+
+    return React.createElement('div', { style:{ display:'grid', gap:12 } },
+      React.createElement('h4', { style:groupTitleStyle() }, 'Payment buttons'),
+      React.createElement('div', { style:{ fontSize:11, color:C.textMut, lineHeight:1.45 } },
+        'Edit label, logo, colors, URL, and order here. Save Draft then Publish Live — no worker deploy needed.'
+      ),
+      methods.map((m, idx) => React.createElement('div', {
+        key: m.id || idx,
+        style: {
+          border: `1px solid ${C.border}`,
+          borderRadius: 12,
+          padding: 12,
+          background: C.bg,
+          display: 'grid',
+          gap: 10,
+        }
+      },
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 } },
+          React.createElement('label', { style:{ display:'flex', alignItems:'center', gap:8, fontWeight:800, fontSize:13, color:C.text, cursor:'pointer' } },
+            React.createElement('input', {
+              type: 'checkbox',
+              checked: m.enabled !== false && m.enabled !== 0 && m.enabled !== '0',
+              onChange: (e) => patchMethod(idx, { enabled: e.target.checked }, true)
+            }),
+            m.id || ('method_' + idx)
+          ),
+          React.createElement('div', { style:{ display:'flex', gap:4 } },
+            React.createElement('button', { type:'button', title:'Move up', onClick:() => moveMethod(idx, -1), style:{ width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, cursor:'pointer' } }, '↑'),
+            React.createElement('button', { type:'button', title:'Move down', onClick:() => moveMethod(idx, 1), style:{ width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, cursor:'pointer' } }, '↓')
+          )
+        ),
+        React.createElement('div', { style:{
+          display:'flex', flexDirection:'column', alignItems:'center', gap:6, padding:'12px 10px', borderRadius:12,
+          background: m.background || '#fff', border:`1.5px solid ${m.border_color || '#ddd'}`, color: m.text_color || '#111'
+        } },
+          m.logo_url ? React.createElement('img', { src: m.logo_url, alt:'', style:{ height: Number(m.logo_height)||22, width:'auto', maxWidth:'70%' } }) : null,
+          React.createElement('div', { style:{ fontWeight:800, fontSize:12, textAlign:'center' } }, m.label || 'Label'),
+          m.note ? React.createElement('div', { style:{ fontSize:10, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', color: m.note_color || 'inherit', opacity:0.85 } }, m.note) : null
+        ),
+        React.createElement('div', null, cmsFieldLabel('Label'), cmsTextInput(m.label || '', (v) => patchMethod(idx, { label: v }, false), () => saveSelected(true))),
+        React.createElement('div', null, cmsFieldLabel('Note (optional)'), cmsTextInput(m.note || '', (v) => patchMethod(idx, { note: v }, false), () => saveSelected(true), 'fee-free')),
+        m.action !== 'donate' && React.createElement('div', null,
+          cmsFieldLabel('URL'),
+          cmsTextInput(m.url || '', (v) => patchMethod(idx, { url: v }, false), () => saveSelected(true), 'https://…', true)
+        ),
+        m.action === 'donate' && React.createElement('div', { style:{ fontSize:11, color:C.textMut } }, 'Opens the in-site donation modal (Stripe).'),
+        React.createElement('div', null, cmsFieldLabel('Logo URL'), cmsTextInput(m.logo_url || '', (v) => patchMethod(idx, { logo_url: v }, false), () => saveSelected(true), 'https://assets…', true)),
+        React.createElement('div', null,
+          cmsFieldLabel('Logo height (px)'),
+          cmsTextInput(String(m.logo_height || 22), (v) => patchMethod(idx, { logo_height: Number(v) || 22 }, false), () => saveSelected(true), '22')
+        ),
+        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 } },
+          colorField(idx, m, 'background', 'Background'),
+          colorField(idx, m, 'border_color', 'Border'),
+          colorField(idx, m, 'text_color', 'Text'),
+          colorField(idx, m, 'note_color', 'Note color')
+        )
+      ))
+    );
+  }
+
   function renderInspector(compact=false) {
     if (!selected) return React.createElement('div', { style:{ padding:18, color:C.textMut, fontSize:13 } }, 'Select a section to edit.');
-    const needsImage = ['hero','text_image','text_image_split','contact_hero','contact_team','campaign_grid'].includes(selected.section_type)
+    const needsImage = ['hero','text_image','text_image_split','contact_hero','contact_team','campaign_grid','donate_payment_hero'].includes(selected.section_type)
       || !!(selected.image_url && String(selected.image_url).trim());
+    const isPaymentHero = String(selected.section_type || '') === 'donate_payment_hero';
     const sectionBlocks = (pageData.blocks || []).filter(
       (b) => cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(selected.section_key)
     );
@@ -1586,6 +1704,17 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const fullPanel = !showElementFocus && React.createElement(React.Fragment, null,
       React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Content'), field('Eyebrow','eyebrow'), field('Heading','heading'), field('Subheading','subheading'), field('Body','body','textarea',{ rows:5 })),
       needsImage && renderMediaControls(),
+      isPaymentHero && renderPaymentMethodsEditor(cfg),
+      isPaymentHero && React.createElement('div', { style:{ display:'grid', gap:12 } },
+        React.createElement('h4', { style:groupTitleStyle() }, 'Media card'),
+        renderPresetRow('Presentation', cfg.media_presentation || 'card', [
+          { value:'card', label:'Logo card' }, { value:'photo', label:'Full photo' }
+        ], v => setConfigPatch({ media_presentation: v })),
+        React.createElement('div', null,
+          cmsFieldLabel('Button gap'),
+          cmsTextInput(cfg.button_gap || '1rem', v => setConfigPatch({ button_gap: v }), () => {}, '1rem')
+        )
+      ),
       usesCards && React.createElement('div', { style:{ display:'grid', gap:10 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Cards in this section'),
         sectionBlocks.length

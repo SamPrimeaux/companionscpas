@@ -773,6 +773,44 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     });
   }
 
+  // Donation payment URLs — CMS-editable without worker redeploy
+  if (path === "/api/cms/donation-settings" && method === "GET") {
+    const { getEditablePaymentMethodsDefaults } = await import("./donate_payment_methods.js");
+    const settings = await env.DB.prepare(
+      `SELECT paypal_donate_url, venmo_donate_url, zeffy_donate_url, amazon_wishlist_url,
+              provider, currency, default_amounts_json
+       FROM donation_settings WHERE tenant_id = ? LIMIT 1`
+    ).bind(TENANT_ID).first().catch(() => null);
+    return json({
+      success: true,
+      settings: settings || {},
+      default_methods: getEditablePaymentMethodsDefaults(),
+    });
+  }
+
+  if (path === "/api/cms/donation-settings" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const fields = ["paypal_donate_url", "venmo_donate_url", "zeffy_donate_url", "amazon_wishlist_url"];
+    const updates = [];
+    const binds = [];
+    for (const f of fields) {
+      if (body[f] !== undefined) {
+        updates.push(`${f} = ?`);
+        binds.push(String(body[f] || "").trim());
+      }
+    }
+    if (!updates.length) return json({ error: "No donation URL fields provided" }, 400);
+    binds.push(TENANT_ID);
+    await env.DB.prepare(
+      `UPDATE donation_settings SET ${updates.join(", ")}, updated_at = datetime('now') WHERE tenant_id = ?`
+    ).bind(...binds).run();
+    const settings = await env.DB.prepare(
+      `SELECT paypal_donate_url, venmo_donate_url, zeffy_donate_url, amazon_wishlist_url
+       FROM donation_settings WHERE tenant_id = ? LIMIT 1`
+    ).bind(TENANT_ID).first();
+    return json({ success: true, settings });
+  }
+
   if (path === "/api/cms/page" && method === "GET") {
     const route = url.searchParams.get("route") || "/";
     if (isFragmentPageRoute(route)) await ensureFragmentPageSections(env, route);
@@ -985,6 +1023,61 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       section.is_visible === 0 ? 0 : 1,
       typeof section.config_json === "string" ? section.config_json : JSON.stringify(section.config_json || {})
     ).run();
+
+    // Keep donation_settings + cms_components in sync when payment methods are edited in CMS
+    try {
+      const cfgRaw = typeof section.config_json === "string" ? section.config_json : JSON.stringify(section.config_json || {});
+      const cfg = JSON.parse(cfgRaw || "{}");
+      let methods = cfg.payment_methods_json ?? cfg.payment_methods;
+      if (typeof methods === "string") methods = JSON.parse(methods);
+      if (Array.isArray(methods) && methods.length) {
+        const urlMap = {
+          zeffy_donate_url: null,
+          paypal_donate_url: null,
+          venmo_donate_url: null,
+          amazon_wishlist_url: null,
+        };
+        for (const m of methods) {
+          if (!m || !m.url_field || !m.url) continue;
+          if (Object.prototype.hasOwnProperty.call(urlMap, m.url_field)) {
+            urlMap[m.url_field] = String(m.url).trim();
+          }
+        }
+        const urlUpdates = Object.entries(urlMap).filter(([, v]) => v);
+        if (urlUpdates.length) {
+          await env.DB.prepare(
+            `UPDATE donation_settings SET ${urlUpdates.map(([k]) => `${k} = ?`).join(", ")}, updated_at = datetime('now') WHERE tenant_id = ?`
+          ).bind(...urlUpdates.map(([, v]) => v), TENANT_ID).run();
+        }
+        for (const m of methods) {
+          const cid = String(m.component_id || "").trim();
+          if (!cid) continue;
+          const row = await env.DB.prepare(
+            "SELECT config_json FROM cms_components WHERE id = ? LIMIT 1"
+          ).bind(cid).first().catch(() => null);
+          if (!row) continue;
+          let ccfg = {};
+          try { ccfg = JSON.parse(row.config_json || "{}"); } catch { ccfg = {}; }
+          const next = {
+            ...ccfg,
+            ...(m.label ? { label: m.label } : {}),
+            ...(m.note != null ? { note: m.note } : {}),
+            ...(m.logo_url ? { logo_url: m.logo_url } : {}),
+            ...(m.logo_height ? { logo_height: Number(m.logo_height) } : {}),
+            ...(m.background ? { background: m.background } : {}),
+            ...(m.border_color ? { border_color: m.border_color } : {}),
+            ...(m.text_color ? { text_color: m.text_color } : {}),
+            ...(m.note_color ? { note_color: m.note_color } : {}),
+            ...(m.url ? { url: m.url } : {}),
+          };
+          await env.DB.prepare(
+            "UPDATE cms_components SET config_json = ?, updated_at = datetime('now') WHERE id = ?"
+          ).bind(JSON.stringify(next), cid).run();
+        }
+      }
+    } catch (syncErr) {
+      console.warn("[cms/section/save] payment method sync:", syncErr?.message || syncErr);
+    }
 
     await env.DB.prepare("UPDATE cms_pages SET status = 'draft', updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?")
       .bind(TENANT_ID, page_route).run().catch(() => {});
