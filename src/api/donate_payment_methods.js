@@ -62,7 +62,9 @@ const DEFAULT_METHODS = [
   {
     id: "zeffy",
     enabled: true,
-    label: "Donate — 100% goes to animals",
+    label: "",
+    tooltip: "Donate with Zeffy — 100% goes to animals (fee-free)",
+    show_label: false,
     note: "fee-free",
     url_field: "zeffy_donate_url",
     component_id: "payment_zeffy",
@@ -74,7 +76,10 @@ const DEFAULT_METHODS = [
   {
     id: "paypal",
     enabled: true,
-    label: "Donate via PayPal",
+    label: "",
+    tooltip: "Donate via PayPal",
+    show_label: false,
+    note: "",
     url_field: "paypal_donate_url",
     component_id: "payment_paypal",
     logo_asset_key: "payment_logo_paypal",
@@ -85,7 +90,10 @@ const DEFAULT_METHODS = [
   {
     id: "venmo",
     enabled: true,
-    label: "Pay on Venmo",
+    label: "",
+    tooltip: "Pay on Venmo",
+    show_label: false,
+    note: "",
     url_field: "venmo_donate_url",
     component_id: "payment_venmo",
     logo_asset_key: "payment_logo_venmo",
@@ -96,7 +104,10 @@ const DEFAULT_METHODS = [
   {
     id: "amazon_wishlist",
     enabled: true,
-    label: "Send supplies",
+    label: "",
+    tooltip: "Send supplies via Amazon Wishlist",
+    show_label: false,
+    note: "",
     url_field: "amazon_wishlist_url",
     component_id: "wishlist_amazon",
     logo_asset_key: "payment_logo_amazon",
@@ -107,7 +118,10 @@ const DEFAULT_METHODS = [
   {
     id: "stripe",
     enabled: true,
-    label: "Card or bank",
+    label: "",
+    tooltip: "Card or bank donation",
+    show_label: false,
+    note: "",
     action: "donate",
     component_id: "payment_stripe_donation_modal",
     logo_asset_key: "payment_logo_stripe",
@@ -241,7 +255,7 @@ export function resolvePaymentLayout(sectionConfig = {}) {
   const safe = (v) => (/[;"'<>\\]/.test(v) ? "" : v);
   return {
     gap: safe(gap) || "1rem",
-    minHeight: safe(minH) || "5.25rem",
+    minHeight: safe(minH) || "3.75rem",
     maxWidth: safe(maxW) || "22rem",
   };
 }
@@ -268,13 +282,21 @@ export async function resolvePaymentMethods(env, sectionConfig = {}) {
     const isStripe = text(m.action) === "donate" || text(m.id) === "stripe";
     if (!isStripe && !href) continue;
     const logoUrl = await resolveLogoUrl(env, m, component);
-    const label = text(m.label) || text(component?.config?.label) || text(component?.label) || text(m.id);
-    const note = text(m.note) || text(component?.config?.note);
+    // label is optional on-button text (off by default). tooltip drives hover + a11y.
+    // Do NOT fall back to cms_components.label — empty means intentionally hidden.
+    const showLabel = m.show_label === true || m.show_label === 1 || m.show_label === "1";
+    const label = text(m.label);
+    const tooltip = text(m.tooltip) || label || text(component?.config?.label) || text(component?.label) || text(m.id);
+    const note = Object.prototype.hasOwnProperty.call(m, "note")
+      ? text(m.note)
+      : text(component?.config?.note);
     const logoHeight = Number(m.logo_height || component?.config?.logo_height) || 22;
     const colors = pickStyle(m, component);
     resolved.push({
       id: text(m.id) || `pay_${index}`,
       label,
+      showLabel,
+      tooltip,
       note,
       href,
       isStripe,
@@ -308,20 +330,27 @@ export function renderPaymentMethodButtonsHtml(methods, opts = {}) {
   ].filter(Boolean).join(";");
 
   const buttons = methods.map((m) => {
+    const tip = m.tooltip || m.label || m.id;
     const logo = m.logoUrl
       ? `<img class="dpay-logo" src="${escAttr(m.logoUrl)}" alt="" height="${m.logoHeight}" style="height:${m.logoHeight}px;width:auto" loading="lazy" decoding="async" />`
       : "";
     const noteStyle = m.noteColor ? ` style="color:${escAttr(m.noteColor)}"` : "";
     const note = m.note ? `<span class="dpay-note"${noteStyle}>${esc(m.note)}</span>` : "";
-    const label = `<span class="dpay-label">${esc(m.label)}</span>`;
-    const inner = `${logo}<span class="dpay-copy">${label}${note}</span>`;
+    const label = m.showLabel && m.label
+      ? `<span class="dpay-label">${esc(m.label)}</span>`
+      : "";
+    const copy = (label || note)
+      ? `<span class="dpay-copy">${label}${note}</span>`
+      : "";
+    const inner = `${logo}${copy}`;
     const btnStyle = buttonInlineStyle(m);
     const styleAttr = btnStyle ? ` style="${escAttr(btnStyle)}"` : "";
     const styleMod = ` dpay-btn--${escAttr(m.style || "default")}`;
+    const tipAttr = ` title="${escAttr(tip)}" aria-label="${escAttr(tip)}"`;
     if (m.isStripe) {
-      return `<button type="button" class="dpay-btn${styleMod}"${styleAttr} data-action="donate" data-pay-id="${escAttr(m.id)}" aria-label="${escAttr(m.label)}">${inner}</button>`;
+      return `<button type="button" class="dpay-btn${styleMod}"${styleAttr}${tipAttr} data-action="donate" data-pay-id="${escAttr(m.id)}">${inner}</button>`;
     }
-    return `<a class="dpay-btn${styleMod}"${styleAttr} href="${escAttr(m.href)}" target="_blank" rel="noopener noreferrer" data-pay-id="${escAttr(m.id)}" aria-label="${escAttr(m.label)}">${inner}</a>`;
+    return `<a class="dpay-btn${styleMod}"${styleAttr}${tipAttr} href="${escAttr(m.href)}" target="_blank" rel="noopener noreferrer" data-pay-id="${escAttr(m.id)}">${inner}</a>`;
   }).join("\n");
 
   const wrapStyle = styleVars ? ` style="${escAttr(styleVars)}"` : "";

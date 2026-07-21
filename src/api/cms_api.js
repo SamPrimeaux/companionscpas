@@ -1060,7 +1060,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
           try { ccfg = JSON.parse(row.config_json || "{}"); } catch { ccfg = {}; }
           const next = {
             ...ccfg,
-            ...(m.label ? { label: m.label } : {}),
+            ...(m.tooltip ? { label: m.tooltip } : (m.label ? { label: m.label } : {})),
             ...(m.note != null ? { note: m.note } : {}),
             ...(m.logo_url ? { logo_url: m.logo_url } : {}),
             ...(m.logo_height ? { logo_height: Number(m.logo_height) } : {}),

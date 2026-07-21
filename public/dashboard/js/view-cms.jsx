@@ -1504,13 +1504,26 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     if (typeof raw === 'string') {
       try { raw = JSON.parse(raw); } catch { raw = null; }
     }
-    if (Array.isArray(raw) && raw.length) return raw.map((m) => ({ ...m }));
+    if (Array.isArray(raw) && raw.length) {
+      return raw.map((m) => {
+        const tip = (m.tooltip != null && String(m.tooltip).trim())
+          ? String(m.tooltip).trim()
+          : String(m.label || '').trim();
+        return {
+          ...m,
+          label: m.label != null ? m.label : '',
+          tooltip: tip,
+          show_label: m.show_label === true || m.show_label === 1 || m.show_label === '1',
+          note: m.note != null ? m.note : '',
+        };
+      });
+    }
     return [
-      { id:'zeffy', enabled:true, label:'Donate — 100% goes to animals', note:'fee-free', url_field:'zeffy_donate_url', component_id:'payment_zeffy', style:'zeffy', logo_height:22, background:'#141018', border_color:'#141018', text_color:'#faf7f3', note_color:'#49e9d5', logo_url:'https://assets.companionsofcaddo.org/static/assets/zeffy-wordmark.webp' },
-      { id:'paypal', enabled:true, label:'Donate via PayPal', url_field:'paypal_donate_url', component_id:'payment_paypal', style:'paypal', logo_height:22, background:'#eef5ff', border_color:'#9ec0ef', text_color:'#003087', logo_url:'https://assets.companionsofcaddo.org/static/assets/PayPal.svg.webp' },
-      { id:'venmo', enabled:true, label:'Pay on Venmo', url_field:'venmo_donate_url', component_id:'payment_venmo', style:'venmo', logo_height:22, background:'#eaf6fc', border_color:'#7ec0e8', text_color:'#008CFF', logo_url:'https://assets.companionsofcaddo.org/static/assets/venmo-official-logo.svg' },
-      { id:'amazon_wishlist', enabled:true, label:'Send supplies', url_field:'amazon_wishlist_url', component_id:'wishlist_amazon', style:'amazon', logo_height:28, background:'#fff6e8', border_color:'#f0c078', text_color:'#232f3e', logo_url:'https://assets.companionsofcaddo.org/static/assets/amz-wishlist-bttn.webp' },
-      { id:'stripe', enabled:true, label:'Card or bank', action:'donate', component_id:'payment_stripe_donation_modal', style:'stripe', logo_height:22, background:'#f3f0ff', border_color:'#b8a9ff', text_color:'#3d348b', logo_url:'https://assets.companionsofcaddo.org/static/assets/stripe-wordmark.webp' },
+      { id:'zeffy', enabled:true, label:'', tooltip:'Donate with Zeffy — 100% goes to animals (fee-free)', show_label:false, note:'fee-free', url_field:'zeffy_donate_url', component_id:'payment_zeffy', style:'zeffy', logo_height:22, background:'#141018', border_color:'#141018', text_color:'#faf7f3', note_color:'#49e9d5', logo_url:'https://assets.companionsofcaddo.org/static/assets/zeffy-wordmark.webp' },
+      { id:'paypal', enabled:true, label:'', tooltip:'Donate via PayPal', show_label:false, note:'', url_field:'paypal_donate_url', component_id:'payment_paypal', style:'paypal', logo_height:22, background:'#eef5ff', border_color:'#9ec0ef', text_color:'#003087', logo_url:'https://assets.companionsofcaddo.org/static/assets/PayPal.svg.webp' },
+      { id:'venmo', enabled:true, label:'', tooltip:'Pay on Venmo', show_label:false, note:'', url_field:'venmo_donate_url', component_id:'payment_venmo', style:'venmo', logo_height:22, background:'#eaf6fc', border_color:'#7ec0e8', text_color:'#008CFF', logo_url:'https://assets.companionsofcaddo.org/static/assets/venmo-official-logo.svg' },
+      { id:'amazon_wishlist', enabled:true, label:'', tooltip:'Send supplies via Amazon Wishlist', show_label:false, note:'', url_field:'amazon_wishlist_url', component_id:'wishlist_amazon', style:'amazon', logo_height:28, background:'#fff6e8', border_color:'#f0c078', text_color:'#232f3e', logo_url:'https://assets.companionsofcaddo.org/static/assets/amz-wishlist-bttn.webp' },
+      { id:'stripe', enabled:true, label:'', tooltip:'Card or bank donation', show_label:false, note:'', action:'donate', component_id:'payment_stripe_donation_modal', style:'stripe', logo_height:22, background:'#f3f0ff', border_color:'#b8a9ff', text_color:'#3d348b', logo_url:'https://assets.companionsofcaddo.org/static/assets/stripe-wordmark.webp' },
     ];
   }
 
@@ -1559,7 +1572,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     return React.createElement('div', { style:{ display:'grid', gap:12 } },
       React.createElement('h4', { style:groupTitleStyle() }, 'Payment buttons'),
       React.createElement('div', { style:{ fontSize:11, color:C.textMut, lineHeight:1.45 } },
-        'Edit label, logo, colors, URL, and order here. Save Draft then Publish Live — no worker deploy needed.'
+        'Logo-first buttons. Tooltip is hover/accessibility text. Optional on-button label stays off unless you turn it on. Publish Live — no worker deploy.'
       ),
       methods.map((m, idx) => React.createElement('div', {
         key: m.id || idx,
@@ -1586,15 +1599,32 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             React.createElement('button', { type:'button', title:'Move down', onClick:() => moveMethod(idx, 1), style:{ width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, cursor:'pointer' } }, '↓')
           )
         ),
-        React.createElement('div', { style:{
+        React.createElement('div', {
+          title: m.tooltip || m.id || '',
+          style:{
           display:'flex', flexDirection:'column', alignItems:'center', gap:6, padding:'12px 10px', borderRadius:12,
           background: m.background || '#fff', border:`1.5px solid ${m.border_color || '#ddd'}`, color: m.text_color || '#111'
         } },
           m.logo_url ? React.createElement('img', { src: m.logo_url, alt:'', style:{ height: Number(m.logo_height)||22, width:'auto', maxWidth:'70%' } }) : null,
-          React.createElement('div', { style:{ fontWeight:800, fontSize:12, textAlign:'center' } }, m.label || 'Label'),
+          (m.show_label && m.label) ? React.createElement('div', { style:{ fontWeight:800, fontSize:12, textAlign:'center' } }, m.label) : null,
           m.note ? React.createElement('div', { style:{ fontSize:10, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', color: m.note_color || 'inherit', opacity:0.85 } }, m.note) : null
         ),
-        React.createElement('div', null, cmsFieldLabel('Label'), cmsTextInput(m.label || '', (v) => patchMethod(idx, { label: v }, false), () => saveSelected(true))),
+        React.createElement('div', null,
+          cmsFieldLabel('Tooltip (hover / accessibility)'),
+          cmsTextInput(m.tooltip || '', (v) => patchMethod(idx, { tooltip: v }, false), () => saveSelected(true), 'Shown on hover')
+        ),
+        React.createElement('label', { style:{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:C.textSec, cursor:'pointer' } },
+          React.createElement('input', {
+            type: 'checkbox',
+            checked: !!m.show_label,
+            onChange: (e) => patchMethod(idx, { show_label: e.target.checked }, true)
+          }),
+          'Show label text on button'
+        ),
+        m.show_label && React.createElement('div', null,
+          cmsFieldLabel('On-button label'),
+          cmsTextInput(m.label || '', (v) => patchMethod(idx, { label: v }, false), () => saveSelected(true), 'Optional visible text')
+        ),
         React.createElement('div', null, cmsFieldLabel('Note (optional)'), cmsTextInput(m.note || '', (v) => patchMethod(idx, { note: v }, false), () => saveSelected(true), 'fee-free')),
         m.action !== 'donate' && React.createElement('div', null,
           cmsFieldLabel('URL'),

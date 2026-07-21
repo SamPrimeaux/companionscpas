@@ -359,7 +359,7 @@ async function renderDonatePaymentHero(section, blocks, brand, env) {
 .dpay-hero-tax{display:inline-flex;align-items:center;gap:.45rem;font-size:.78rem;font-weight:700;color:#5b2d8e;background:rgba(107,45,139,.08);border:1px solid rgba(107,45,139,.16);border-radius:999px;padding:.35rem .75rem;margin:0 0 1.35rem}
 .dpay-methods{display:grid;gap:var(--dpay-gap,1rem);max-width:var(--dpay-max-w,22rem)}
 .dpay-methods--inline{display:flex;flex-wrap:wrap;gap:.65rem;max-width:none}
-.dpay-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.55rem;width:100%;box-sizing:border-box;min-height:var(--dpay-btn-min-h,5.25rem);padding:1rem 1.1rem .95rem;border-radius:16px;border:1.5px solid transparent;text-decoration:none;color:#1a1622;font:inherit;cursor:pointer;transition:transform .15s,box-shadow .15s,filter .15s;text-align:center}
+.dpay-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.45rem;width:100%;box-sizing:border-box;min-height:var(--dpay-btn-min-h,3.75rem);padding:.95rem 1.1rem;border-radius:16px;border:1.5px solid transparent;text-decoration:none;color:#1a1622;font:inherit;cursor:pointer;transition:transform .15s,box-shadow .15s,filter .15s;text-align:center}
 .dpay-btn:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(26,22,34,.10);filter:brightness(1.02)}
 .dpay-logo{flex-shrink:0;display:block;margin:0 auto;width:auto;max-width:70%}
 .dpay-copy{display:flex;flex-direction:column;align-items:center;gap:.2rem;min-width:0;width:100%}
