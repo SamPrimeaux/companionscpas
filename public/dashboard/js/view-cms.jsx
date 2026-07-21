@@ -490,7 +490,27 @@ function cmsNormalizeSectionKey(key) {
 }
 
 function cmsParseConfig(section) {
-  try { return JSON.parse(section?.config_json || "{}"); } catch { return {}; }
+  const raw = section?.config_json;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) return { ...raw };
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+/** two_cards / campaign grids store per-item copy in config.cards — not section eyebrow/heading. */
+function cmsConfigCards(section) {
+  const cfg = cmsParseConfig(section);
+  const cards = Array.isArray(cfg.cards) ? cfg.cards.filter((c) => c && typeof c === "object") : [];
+  if (!cards.length) return null;
+  const type = String(section?.section_type || "");
+  const layoutOk = cfg.layout === "two_cards" || type === "donate_campaign_grid" || type === "campaign_grid";
+  return layoutOk ? cards : null;
 }
 
 /**
@@ -1694,13 +1714,23 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     );
   }
 
+  React.useEffect(() => {
+    if (!selected) return;
+    const cards = cmsConfigCards(selected);
+    if (!cards?.length) return;
+    // Always bind a card for two_cards grids so title/image/CTA fields are visible immediately.
+    if (!selectedBlockKey) {
+      const firstId = String(cards[0].id || cards[0].title || "card");
+      setSelectedBlockKey(firstId);
+      if (!selectedField || selectedField === "card_image") setSelectedField("card_image");
+    }
+  }, [selected, selectedField, selectedBlockKey]);
+
   function renderInspector(compact=false) {
     if (!selected) return React.createElement('div', { style:{ padding:18, color:C.textMut, fontSize:13 } }, 'Select a section to edit.');
     const cfg = cmsParseConfig(selected);
-    const configCards = (cfg.layout === 'two_cards' && Array.isArray(cfg.cards) && cfg.cards.length)
-      ? cfg.cards
-      : null;
-    const usesConfigCards = !!configCards;
+    const configCards = cmsConfigCards(selected);
+    const usesConfigCards = !!configCards?.length;
     const needsImage = !usesConfigCards && (
       ['hero','text_image','text_image_split','contact_hero','contact_team','campaign_grid','donate_payment_hero','donate_campaign_grid'].includes(selected.section_type)
       || !!(selected.image_url && String(selected.image_url).trim())
@@ -1714,10 +1744,12 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
     const isBlockField = selectedField === 'block_title' || selectedField === 'block_body' || selectedField === 'block_subtitle' || selectedField === 'block_image';
     const isConfigCardField = selectedField === 'card_image';
-    const selectedConfigCard = usesConfigCards && selectedBlockKey
-      ? configCards.find((c) => String(c.id || c.title || '') === String(selectedBlockKey))
+    const resolvedCardKey = selectedBlockKey
+      || (usesConfigCards ? String(configCards[0].id || configCards[0].title || '') : '');
+    const selectedConfigCard = usesConfigCards && resolvedCardKey
+      ? configCards.find((c) => String(c.id || c.title || '') === String(resolvedCardKey)) || configCards[0]
       : null;
-    const showElementFocus = !!selectedField;
+    const showElementFocus = !!selectedField && !(isConfigCardField && usesConfigCards);
     const elementLabel = CMS_FIELD_LABELS[selectedField] || selectedField;
     const isTextEl = CMS_TEXT_FIELDS.has(selectedField) && !isBlockField && !isConfigCardField;
     const isImageEl = CMS_IMAGE_FIELDS.has(selectedField) && !isBlockField && !isConfigCardField;
@@ -1737,43 +1769,56 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       ], v => setConfigPatch({ image_object_position: v }))
     );
 
-    const configCardPanel = isConfigCardField && React.createElement('div', { style:{ display:'grid', gap:12 } },
-      selectedConfigCard
-        ? React.createElement(React.Fragment, null,
-            React.createElement('div', { style:{ fontSize:11, color:C.textMut, fontFamily:'var(--font-mono)' } }, selectedConfigCard.id || 'card'),
-            React.createElement('div', null,
-              cmsFieldLabel('Eyebrow'),
-              cmsTextInput(selectedConfigCard.eyebrow || '', (v) => setConfigCardLocal(selectedConfigCard.id, { eyebrow: v }), () => patchConfigCard(selectedConfigCard.id, { eyebrow: selectedConfigCard.eyebrow || '' }))
-            ),
-            React.createElement('div', null,
-              cmsFieldLabel('Title'),
-              cmsTextInput(selectedConfigCard.title || '', (v) => setConfigCardLocal(selectedConfigCard.id, { title: v }), () => patchConfigCard(selectedConfigCard.id, { title: selectedConfigCard.title || '' }))
-            ),
-            React.createElement('div', null,
-              cmsFieldLabel('Image URL'),
-              React.createElement('div', { style:{ display:'flex', gap:8 } },
-                React.createElement('div', { style:{ flex:1 } },
-                  cmsTextInput(selectedConfigCard.image || '', (v) => setConfigCardLocal(selectedConfigCard.id, { image: v }), () => patchConfigCard(selectedConfigCard.id, { image: selectedConfigCard.image || '' }), 'https://assets.companionsofcaddo.org/...', true)
-                ),
-                React.createElement(Btn, {
-                  size:'sm', variant:'secondary', icon:'image',
-                  onClick: () => openImagePicker({ kind: 'config_card', cardId: selectedConfigCard.id }),
-                }, 'Pick')
-              )
-            ),
-            selectedConfigCard.image && React.createElement('div', { style:{ width:'100%', maxHeight:220, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center' } },
-              React.createElement('img', { src: selectedConfigCard.image, alt: '', style:{ width:'100%', height:'auto', maxHeight:220, objectFit:'contain', display:'block' } })
-            ),
-            React.createElement('div', null,
-              cmsFieldLabel('CTA label'),
-              cmsTextInput(selectedConfigCard.cta_label || '', (v) => setConfigCardLocal(selectedConfigCard.id, { cta_label: v }), () => patchConfigCard(selectedConfigCard.id, { cta_label: selectedConfigCard.cta_label || '' }))
-            ),
-            React.createElement('div', null,
-              cmsFieldLabel('CTA URL'),
-              cmsTextInput(selectedConfigCard.cta_href || '', (v) => setConfigCardLocal(selectedConfigCard.id, { cta_href: v }), () => patchConfigCard(selectedConfigCard.id, { cta_href: selectedConfigCard.cta_href || '' }), 'https://…', true)
-            )
-          )
-        : React.createElement('div', { style:{ color:C.textMut, fontSize:13 } }, 'Card not found. Click a card image in the preview, or pick a card below.')
+    const cardEditId = selectedConfigCard
+      ? String(selectedConfigCard.id || selectedConfigCard.title || resolvedCardKey || '')
+      : '';
+
+    const configCardFields = selectedConfigCard && React.createElement('div', { style:{ display:'grid', gap:12, padding:12, borderRadius:12, border:`1px solid ${C.purple}55`, background:'rgba(124,58,237,0.05)' } },
+      React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 } },
+        React.createElement('div', { style:{ fontSize:12, fontWeight:800, color:C.purpleL } },
+          'Editing card: ', selectedConfigCard.title || cardEditId || 'card'
+        ),
+        React.createElement('div', { style:{ fontSize:10, color:C.textMut, fontFamily:'var(--font-mono)' } }, cardEditId)
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Eyebrow'),
+        cmsTextInput(selectedConfigCard.eyebrow || '', (v) => setConfigCardLocal(cardEditId, { eyebrow: v }), () => patchConfigCard(cardEditId, { eyebrow: selectedConfigCard.eyebrow || '' }))
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Title'),
+        cmsTextInput(selectedConfigCard.title || '', (v) => setConfigCardLocal(cardEditId, { title: v }), () => patchConfigCard(cardEditId, { title: selectedConfigCard.title || '' }), 'e.g. Wishlist')
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Image URL'),
+        React.createElement('div', { style:{ display:'flex', gap:8 } },
+          React.createElement('div', { style:{ flex:1 } },
+            cmsTextInput(selectedConfigCard.image || '', (v) => setConfigCardLocal(cardEditId, { image: v }), () => patchConfigCard(cardEditId, { image: selectedConfigCard.image || '' }), 'https://assets.companionsofcaddo.org/...', true)
+          ),
+          React.createElement(Btn, {
+            size:'sm', variant:'secondary', icon:'image',
+            onClick: () => openImagePicker({ kind: 'config_card', cardId: cardEditId }),
+          }, 'Pick')
+        )
+      ),
+      selectedConfigCard.image && React.createElement('div', { style:{ width:'100%', maxHeight:220, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center' } },
+        React.createElement('img', { src: selectedConfigCard.image, alt: '', style:{ width:'100%', height:'auto', maxHeight:220, objectFit:'contain', display:'block' } })
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('CTA label'),
+        cmsTextInput(selectedConfigCard.cta_label || '', (v) => setConfigCardLocal(cardEditId, { cta_label: v }), () => patchConfigCard(cardEditId, { cta_label: selectedConfigCard.cta_label || '' }), 'Vote Now')
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('CTA URL'),
+        cmsTextInput(selectedConfigCard.cta_href || '', (v) => setConfigCardLocal(cardEditId, { cta_href: v }), () => patchConfigCard(cardEditId, { cta_href: selectedConfigCard.cta_href || '' }), 'https://companionsofcaddo.org/#…', true)
+      ),
+      React.createElement('label', { style:{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:C.textSec, cursor:'pointer' } },
+        React.createElement('input', {
+          type: 'checkbox',
+          checked: !!selectedConfigCard.cta_external,
+          onChange: (e) => patchConfigCard(cardEditId, { cta_external: e.target.checked }),
+        }),
+        'Open CTA in new tab'
+      )
     );
 
     const blockPanel = isBlockField && React.createElement('div', { style:{ display:'grid', gap:12 } },
@@ -1816,35 +1861,33 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           style:{ background:'none', border:`1px solid ${C.border}`, borderRadius:8, padding:'4px 8px', fontSize:11, cursor:'pointer', color:C.textSec }
         }, 'Full section')
       ),
-      isConfigCardField ? configCardPanel
-        : isBlockField ? blockPanel
-        : React.createElement(React.Fragment, null,
-          selectedField === 'heading' && field('Heading', 'heading'),
-          selectedField === 'eyebrow' && field('Eyebrow', 'eyebrow'),
-          selectedField === 'subheading' && field('Subheading', 'subheading'),
-          selectedField === 'body' && field('Body', 'body', 'textarea', { rows: 6 }),
-          selectedField === 'image_url' && renderMediaControls(),
-          selectedField === 'cta_label' && renderCtaFields('cta_label', 'cta_href', 'Primary CTA'),
-          selectedField === 'cta_secondary_label' && renderCtaFields('cta_secondary_label', 'cta_secondary_href', 'Secondary CTA'),
-          styleTweaks
-        )
+      isBlockField ? blockPanel : React.createElement(React.Fragment, null,
+        selectedField === 'heading' && field('Heading', 'heading'),
+        selectedField === 'eyebrow' && field('Eyebrow', 'eyebrow'),
+        selectedField === 'subheading' && field('Subheading', 'subheading'),
+        selectedField === 'body' && field('Body', 'body', 'textarea', { rows: 6 }),
+        selectedField === 'image_url' && renderMediaControls(),
+        selectedField === 'cta_label' && renderCtaFields('cta_label', 'cta_href', 'Primary CTA'),
+        selectedField === 'cta_secondary_label' && renderCtaFields('cta_secondary_label', 'cta_secondary_href', 'Secondary CTA'),
+        styleTweaks
+      )
     );
 
     const configCardsPanel = usesConfigCards && React.createElement('div', { style:{ display:'grid', gap:10 } },
       React.createElement('h4', { style:groupTitleStyle() }, 'Campaign cards'),
       React.createElement('div', { style:{ fontSize:12, color:C.textMut, lineHeight:1.45 } },
-        'Each card has its own image. Click a card below (or the image in preview) to change it — section Media is not used for this layout.'
+        'Card title, image, and CTA live here (not in section Eyebrow/Heading). Select a card to edit.'
       ),
       configCards.map((card) => {
         const cardId = String(card.id || card.title || '');
-        const active = selectedBlockKey === cardId && selectedField === 'card_image';
+        const active = String(resolvedCardKey) === cardId;
         return React.createElement('button', {
           key: cardId || card.title,
           type: 'button',
           onClick: () => {
             setSelectedBlockKey(cardId);
             setSelectedField('card_image');
-            postHighlight(selected.section_key, 'card_image');
+            postHighlight(selected.section_key, 'card_image', cardId);
             setMobileTab('edit');
           },
           style: {
@@ -1872,16 +1915,28 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           ),
           React.createElement('div', { style: { minWidth: 0 } },
             React.createElement('div', { style:{ fontWeight:800, color:C.text, fontSize:13 } }, card.title || cardId || 'Card'),
-            React.createElement('div', { style:{ color:C.textMut, fontSize:11, marginTop:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, card.eyebrow || card.cta_label || 'Edit card image')
+            React.createElement('div', { style:{ color:C.textMut, fontSize:11, marginTop:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } },
+              [card.eyebrow, card.cta_label].filter(Boolean).join(' · ') || 'Edit title, image, CTA'
+            )
           )
         );
-      })
+      }),
+      configCardFields
     );
 
     const fullPanel = !showElementFocus && React.createElement(React.Fragment, null,
-      React.createElement('div', { style:{ display:'grid', gap:12 } }, React.createElement('h4', { style:groupTitleStyle() }, 'Content'), field('Eyebrow','eyebrow'), field('Heading','heading'), field('Subheading','subheading'), field('Body','body','textarea',{ rows:5 })),
-      needsImage && renderMediaControls(),
       configCardsPanel,
+      React.createElement('div', { style:{ display:'grid', gap:12 } },
+        React.createElement('h4', { style:groupTitleStyle() }, usesConfigCards ? 'Section intro' : 'Content'),
+        !usesConfigCards && field('Eyebrow','eyebrow'),
+        field('Heading','heading'),
+        !usesConfigCards && field('Subheading','subheading'),
+        field('Body','body','textarea',{ rows:5 }),
+        usesConfigCards && React.createElement('div', { style:{ fontSize:11, color:C.textMut, lineHeight:1.4 } },
+          'Per-card titles (Wishlist, Wet Dog…) are under Campaign cards above — not these section fields.'
+        )
+      ),
+      needsImage && renderMediaControls(),
       isPaymentHero && renderPaymentMethodsEditor(cfg),
       isPaymentHero && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Media card'),
@@ -1919,7 +1974,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             ))
           : React.createElement('div', { style:{ color:C.textMut, fontSize:12 } }, 'No cards yet — this section uses section fields only.')
       ),
-      React.createElement('div', { style:{ display:'grid', gap:12 } },
+      !usesConfigCards && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Links'),
         renderCtaFields('cta_label', 'cta_href', 'Primary CTA'),
         renderCtaFields('cta_secondary_label', 'cta_secondary_href', 'Secondary CTA')
