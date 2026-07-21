@@ -613,14 +613,15 @@ function renderTwoCardCampaignGrid(section, config) {
     const href = escAttr(card.cta_href || "#");
     const external = card.cta_external ? ' target="_blank" rel="noopener noreferrer"' : "";
     const isWishlist = card.cta_href && card.cta_href.includes("amazon.com");
+    const cardId = escAttr(card.id || card.title || "card");
     const btn = isWishlist
       ? `<a class="home-img-btn home-img-btn--wishlist" href="${href}"${external} aria-label="Shop Amazon Wishlist">${WISHLIST_LOGO}</a>`
       : `<a class="home-img-btn home-img-btn--donate" href="${href}"${external}>${esc(card.cta_label || "Donate Now")}</a>`;
     const eyebrow = card.eyebrow ? `<p class="ey-purple" style="margin:0 0 .5rem;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">${esc(card.eyebrow)}</p>` : "";
     const title = card.title ? `<p style="margin:0 0 .75rem;font-size:1rem;font-weight:600;color:var(--text-1)">${esc(card.title)}</p>` : "";
-    return `<div class="home-img-card">
+    return `<div class="home-img-card" data-cms-card="${cardId}">
         ${eyebrow}${title}
-        <a href="${href}"${external} class="home-img-card-img" aria-label="${escAttr(card.title)}">
+        <a href="${href}"${external} class="home-img-card-img" aria-label="${escAttr(card.title)}" data-cms-field="card_image" data-cms-block="${cardId}">
           <img src="${escAttr(card.image)}" alt="${escAttr(card.title)}" loading="lazy" decoding="async" />
         </a>
         <div class="home-img-card-foot">${btn}</div>

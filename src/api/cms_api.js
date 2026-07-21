@@ -681,10 +681,14 @@ function injectCmsInspector(html) {
       if (activeKey && activeField) {
         var sec = resolveSection(activeKey);
         if (sec) {
-          var f = sec.querySelector('[data-cms-field="' + activeField + '"]');
+          var f = null;
+          if (e.data.blockKey) {
+            f = sec.querySelector('[data-cms-field="' + activeField + '"][data-cms-block="' + e.data.blockKey + '"]');
+          }
+          if (!f) f = sec.querySelector('[data-cms-field="' + activeField + '"]');
           if (f) {
             f.classList.add('cms-field-active');
-            if (activeField === 'image_url') {
+            if (activeField === 'image_url' || activeField === 'card_image') {
               var img = f.tagName === 'IMG' ? f : f.querySelector('img');
               if (img) {
                 var pos = readObjectPos(img);
