@@ -230,7 +230,7 @@ export const ADDABLE_SECTION_TYPES = [
   { type: "contact_form", label: "Contact Form", desc: "Message form" },
   { type: "contact_team", label: "Team", desc: "Group photo + member list" },
   { type: "contact_socials", label: "Contact Info Cards", desc: "Email, location, org cards" },
-  { type: "raw_html", label: "Custom Code", desc: "Embed HTML from a URL" },
+  { type: "raw_html", label: "Custom Code", desc: "Paste HTML or embed from a URL" },
 ];
 
 export function pageNeedsContactFormScript(sections = []) {

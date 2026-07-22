@@ -294,7 +294,11 @@ export function buildSectionPreviewFixture(type, brand = {}) {
           image_url: "",
           cta_label: "",
           cta_secondary_label: "",
-          config: { source_url: "" },
+          config: {
+            html_source: "paste",
+            html: '<section class="section s-light" style="padding:2rem"><div class="container"><h2>Custom Code preview</h2><p>Paste your HTML in the editor — Save/Publish stores the fragment on R2.</p></div></section>',
+            source_url: "",
+          },
         }),
         blocks: [],
       };

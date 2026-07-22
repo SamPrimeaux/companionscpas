@@ -692,7 +692,7 @@ const CMS_SECTION_TYPES = [
   { type:'contact_socials', label:'Contact Info Cards', desc:'Email, location, org cards' },
   { type:'contact_team', label:'Team', desc:'Group photo + member list' },
   { type:'content', label:'Content', desc:'Simple copy section for flexible text' },
-  { type:'raw_html', label:'Custom Code', desc:'Embed HTML from a URL' },
+  { type:'raw_html', label:'Custom Code', desc:'Paste HTML or embed from a URL' },
 ];
 
 function useBp() {
@@ -1201,7 +1201,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       sort_order: maxOrder + 10,
       is_visible: 1,
       tenant_id: 'tenant_companionscpas',
-      ...(isRawHtml ? { config_json: JSON.stringify({ source_url: '' }) } : {}),
+      ...(isRawHtml ? { config_json: JSON.stringify({ html_source: 'paste', html: '', source_url: '' }) } : {}),
     };
     setBusy(true);
     try { await saveSectionObject(section, true); setShowAddSection(false); await loadPage(); setSelectedKey(newKey); setMobileTab('edit'); notify('Section added'); }
@@ -1943,25 +1943,53 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       isRawHtml && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Custom Code'),
         React.createElement('div', { style:{ fontSize:12, color:C.textMut, lineHeight:1.45 } },
-          'Fetches HTML from the URL at save/publish and injects it into the page fragment. Use https URLs only.'
+          'Paste HTML here or load from a URL. Save/Publish writes the rendered fragment to R2 and busts the page cache.'
         ),
-        React.createElement('div', null,
-          cmsFieldLabel('Source URL'),
-          cmsTextInput(
-            cfg.source_url || '',
-            (v) => {
-              const nextCfg = { ...cmsParseConfig(selected), source_url: v };
-              const next = { ...selected, config_json: JSON.stringify(nextCfg) };
-              setPageData((prev) => ({
-                ...prev,
-                sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? next : s)),
-              }));
-              setHasUnsaved(true);
-            },
-            (e) => setConfigPatch({ source_url: String(e?.target?.value ?? cfg.source_url ?? '').trim() }),
-            'https://assets.companionsofcaddo.org/...',
-            true
-          )
+        renderPresetRow('Source', (cfg.html_source === 'url' || (!cfg.html && cfg.source_url)) ? 'url' : 'paste', [
+          { value:'paste', label:'Paste HTML' }, { value:'url', label:'From URL' }
+        ], (v) => setConfigPatch({ html_source: v })),
+        ((cfg.html_source === 'url' || (!cfg.html && cfg.source_url && cfg.html_source !== 'paste'))
+          ? React.createElement('div', null,
+              cmsFieldLabel('Source URL'),
+              cmsTextInput(
+                cfg.source_url || '',
+                (v) => {
+                  const nextCfg = { ...cmsParseConfig(selected), source_url: v, html_source: 'url' };
+                  const next = { ...selected, config_json: JSON.stringify(nextCfg) };
+                  setPageData((prev) => ({
+                    ...prev,
+                    sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? next : s)),
+                  }));
+                  setHasUnsaved(true);
+                },
+                (e) => setConfigPatch({ source_url: String(e?.target?.value ?? cfg.source_url ?? '').trim(), html_source: 'url' }),
+                'https://assets.companionsofcaddo.org/...',
+                true
+              )
+            )
+          : React.createElement('div', null,
+              cmsFieldLabel('HTML'),
+              cmsTextArea(
+                cfg.html || '',
+                (v) => {
+                  const nextCfg = { ...cmsParseConfig(selected), html: v, html_source: 'paste' };
+                  const next = { ...selected, config_json: JSON.stringify(nextCfg) };
+                  setPageData((prev) => ({
+                    ...prev,
+                    sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? next : s)),
+                  }));
+                  setHasUnsaved(true);
+                },
+                (e) => setConfigPatch({
+                  html: String(e?.target?.value ?? cfg.html ?? ''),
+                  html_source: 'paste',
+                }),
+                16
+              ),
+              React.createElement('div', { style:{ fontSize:11, color:C.textMut, marginTop:6, lineHeight:1.4 } },
+                'Paste a fragment (section markup, not a full document). Scripts in pasted HTML will run on the public page.'
+              )
+            )
         ),
         field('Label', 'heading')
       ),
