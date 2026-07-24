@@ -67,14 +67,14 @@ export function buildEntrySharePageMeta(entry) {
   const photo = safeUrl(entry.photo_url);
   const path = competitionEntrySharePath(entry.id);
   const description = caption
-    ? `"${caption}" — Vote for ${dogName} in the ${campaign}. Every vote helps shelter animals.`
-    : `Vote for ${dogName} in the ${campaign}. Every vote helps shelter animals at Caddo Parish Animal Services.`;
+    ? `"${caption}" — See ${dogName} in the ${campaign}. Every entry helps shelter animals.`
+    : `See ${dogName} in the ${campaign}. Every entry helps shelter animals at Caddo Parish Animal Services.`;
   return {
     route_path: path,
     canonical_path: path,
     canonical_url: competitionEntryShareUrl(entry.id),
-    title: `Vote for ${dogName}`,
-    seo_title: `Vote for ${dogName} · ${campaign}`,
+    title: `Meet ${dogName}`,
+    seo_title: `Meet ${dogName} · ${campaign}`,
     meta_description: description.slice(0, 220),
     og_image_url: photo || null,
     og_type: "article",
@@ -85,11 +85,10 @@ export function renderCompetitionEntryShareSection(entry) {
   const dogName = text(entry.dog_name) || "Competition entry";
   const caption = text(entry.caption);
   const photo = safeUrl(entry.photo_url);
-  const votes = Number(entry.vote_count) || 0;
   const campaign = text(entry.campaign_title) || "Wet Dog Competition";
   const entryId = text(entry.id);
   const shareUrl = competitionEntryShareUrl(entryId);
-  const fbShare = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(`Vote for ${dogName} in the ${campaign}!`)}`;
+  const fbShare = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(`Check out ${dogName} in the ${campaign}!`)}`;
 
   return `
 <style>
@@ -103,10 +102,8 @@ export function renderCompetitionEntryShareSection(entry) {
 .wes-caption{margin:0 0 18px;color:var(--muted);font-size:16px;line-height:1.55;font-style:italic}
 .wes-actions{display:flex;flex-wrap:wrap;gap:10px}
 .wes-btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border-radius:12px;border:0;font:inherit;font-size:14px;font-weight:800;cursor:pointer;text-decoration:none}
-.wes-btn--vote{background:var(--a);color:#fff;flex:1}
-.wes-btn--vote[data-voted="true"]{opacity:.85}
-.wes-btn--fb{background:var(--fb);color:#fff}
-.wes-btn--ghost{background:#f3eef6;color:#4d4454}
+.wes-btn--fb{background:var(--fb);color:#fff;flex:1}
+.wes-btn--ghost{background:#f3eef6;color:#4d4454;flex:1}
 .wes-note{margin:14px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
 </style>
 <section class="wes" data-entry-id="${esc(entryId)}">
@@ -119,42 +116,11 @@ export function renderCompetitionEntryShareSection(entry) {
       <h1 class="wes-name">${esc(dogName)}</h1>
       ${caption ? `<p class="wes-caption">"${esc(caption)}"</p>` : ""}
       <div class="wes-actions">
-        <button type="button" class="wes-btn wes-btn--vote" data-wes-vote>
-          ♥ <span data-wes-count>${votes}</span> Vote for ${esc(dogName)}
-        </button>
         <a class="wes-btn wes-btn--fb" href="${esc(fbShare)}" target="_blank" rel="noopener noreferrer">Share on Facebook</a>
         <a class="wes-btn wes-btn--ghost" href="${esc(GALLERY_URL)}">See all entries</a>
       </div>
-      <p class="wes-note">Every vote helps shelter animals at Caddo Parish Animal Services. Share this pup so friends can vote too.</p>
+      <p class="wes-note">Share this pup so friends can see the gallery too — every entry helps shelter animals at Caddo Parish Animal Services.</p>
     </div>
   </article>
-</section>
-<script>
-(() => {
-  const root = document.querySelector(".wes");
-  if (!root || root.dataset.ready === "1") return;
-  root.dataset.ready = "1";
-  const entryId = root.getAttribute("data-entry-id");
-  const btn = root.querySelector("[data-wes-vote]");
-  const countEl = root.querySelector("[data-wes-count]");
-  const storageKey = "wes_voted_" + entryId;
-  try {
-    if (localStorage.getItem(storageKey) === "1" && btn) btn.dataset.voted = "true";
-  } catch {}
-  btn?.addEventListener("click", async () => {
-    if (!btn || btn.disabled || btn.dataset.busy === "1") return;
-    btn.dataset.busy = "1";
-    try {
-      const res = await fetch("/api/public/competition-entries/" + encodeURIComponent(entryId) + "/vote", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) {
-        if (countEl) countEl.textContent = data.vote_count;
-        btn.dataset.voted = "true";
-        try { localStorage.setItem(storageKey, "1"); } catch {}
-      }
-    } catch {}
-    btn.dataset.busy = "";
-  });
-})();
-</script>`;
+</section>`;
 }

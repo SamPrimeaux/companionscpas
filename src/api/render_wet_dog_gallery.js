@@ -45,10 +45,6 @@ async function loadApprovedEntries(env, campaignId, limit = 60) {
   return rows?.results || [];
 }
 
-function heartIcon() {
-  return `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>`;
-}
-
 function facebookIcon() {
   return `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>`;
 }
@@ -59,11 +55,10 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
   const campaign = await loadCampaign(env, campaignId);
   const entries = await loadApprovedEntries(env, campaignId);
 
-  const heading = text(section.heading || config.public_heading) || "Vote for Your Favorite";
+  const heading = text(section.heading || config.public_heading) || "Meet the Entries";
   const eyebrow = text(section.eyebrow || config.eyebrow) || (campaign?.title || "Wet Dog Competition");
   const description = text(section.subheading || section.body || config.public_description)
-    || "Every approved entry is here. Tap a photo for a larger preview, then vote or share.";
-  const shareBase = safeUrl(config.share_url, "https://companionsofcaddo.org/donate");
+    || "Every approved entry is here. Tap a photo for a larger preview, then share your favorite.";
   const entryShareBase = "https://companionsofcaddo.org/wet-dog/";
   const sectionKey = text(section.section_key) || "wet_dog_gallery";
   const sectionId = `wdg-${sectionKey.replace(/[^a-z0-9_-]+/gi, "-")}`;
@@ -94,10 +89,6 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
         <h3 class="wdg-name">${esc(dogName)}</h3>
         ${captionHtml}
         <div class="wdg-actions">
-          <button type="button" class="wdg-vote-btn" data-wdg-vote data-entry-id="${esc(entry.id)}" ${votingOpen ? "" : "disabled"}>
-            ${heartIcon()}
-            <span class="wdg-vote-count" data-wdg-count>${votes}</span>
-          </button>
           <button type="button" class="wdg-share-btn" data-wdg-share data-entry-id="${esc(entry.id)}" data-dog-name="${esc(dogName)}">
             ${facebookIcon()}
             <span>Share</span>
@@ -107,9 +98,9 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
     </article>`.trim();
   }).join("");
 
-  const emptyState = `<p class="wdg-empty">Entries are still being reviewed — check back soon to vote.</p>`;
+  const emptyState = `<p class="wdg-empty">Entries are still being reviewed — check back soon to see them here.</p>`;
   const closedNotice = !votingOpen
-    ? `<p class="wdg-closed-note">Voting isn't open yet for this competition.</p>`
+    ? `<p class="wdg-closed-note">This gallery isn't open yet — check back soon.</p>`
     : "";
 
   return `
@@ -144,11 +135,7 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
 #${sectionId} .wdg-caption{margin:0;font-size:12px;font-style:italic;color:var(--wdg-muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 #${sectionId} .wdg-actions{margin-top:auto;padding-top:8px;display:flex;gap:8px}
 #${sectionId} .wdg-vote-btn,#${sectionId} .wdg-share-btn,#${sectionId} .wdg-lb-vote,#${sectionId} .wdg-lb-share{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1.5px solid var(--wdg-line);background:transparent;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s ease}
-#${sectionId} .wdg-vote-btn,#${sectionId} .wdg-lb-vote{color:var(--wdg-accent);border-color:rgba(111,47,168,.3);flex:1;justify-content:center}
-#${sectionId} .wdg-vote-btn:hover:not(:disabled),#${sectionId} .wdg-lb-vote:hover:not(:disabled){background:rgba(111,47,168,.08)}
-#${sectionId} .wdg-vote-btn[data-voted="true"],#${sectionId} .wdg-lb-vote[data-voted="true"]{background:var(--wdg-accent);color:#fff;border-color:var(--wdg-accent)}
-#${sectionId} .wdg-vote-btn:disabled,#${sectionId} .wdg-lb-vote:disabled{opacity:.45;cursor:not-allowed}
-#${sectionId} .wdg-share-btn,#${sectionId} .wdg-lb-share{color:var(--wdg-fb);border-color:rgba(24,119,242,.3)}
+#${sectionId} .wdg-share-btn,#${sectionId} .wdg-lb-share{color:var(--wdg-fb);border-color:rgba(24,119,242,.3);flex:1;justify-content:center}
 #${sectionId} .wdg-share-btn:hover,#${sectionId} .wdg-lb-share:hover{background:rgba(24,119,242,.07)}
 #${sectionId} .wdg-empty,#${sectionId} .wdg-closed-note{text-align:center;color:var(--wdg-muted);font-size:14px;padding:24px 0}
 #${sectionId} .wdg-lightbox{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(18,12,24,.72);backdrop-filter:blur(6px)}
@@ -191,11 +178,6 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
         </div>
         <p class="wdg-lb-caption" data-wdg-lb-caption hidden></p>
         <div class="wdg-lb-actions">
-          <button type="button" class="wdg-lb-vote" data-wdg-lb-vote ${votingOpen ? "" : "disabled"}>
-            ${heartIcon()}
-            <span data-wdg-lb-count>0</span>
-            <span>Vote</span>
-          </button>
           <button type="button" class="wdg-lb-share" data-wdg-lb-share>
             ${facebookIcon()}
             <span>Share on Facebook</span>
@@ -211,62 +193,23 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
   if (!root || root.dataset.wdgReady === "1") return;
   root.dataset.wdgReady = "1";
 
-  const SHARE_BASE = ${JSON.stringify(shareBase)};
   const ENTRY_SHARE_BASE = ${JSON.stringify(entryShareBase)};
-  const SECTION_ID = ${JSON.stringify(sectionId)};
   const EYEBROW = ${JSON.stringify(eyebrow)};
-  const STORAGE_KEY = "wdg_voted_" + (root.dataset.campaignId || "");
   const lightbox = root.querySelector("[data-wdg-lightbox]");
   const lbImg = root.querySelector("[data-wdg-lb-img]");
   const lbName = root.querySelector("[data-wdg-lb-name]");
   const lbCaption = root.querySelector("[data-wdg-lb-caption]");
-  const lbVote = root.querySelector("[data-wdg-lb-vote]");
-  const lbCount = root.querySelector("[data-wdg-lb-count]");
   const lbShare = root.querySelector("[data-wdg-lb-share]");
   let activeEntryId = "";
 
-  function getVoted() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; }
-  }
-  function setVoted(entryId) {
-    try {
-      const voted = getVoted();
-      voted[entryId] = true;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(voted));
-    } catch {}
-  }
   function entryShareUrl(entryId) {
     return ENTRY_SHARE_BASE + encodeURIComponent(entryId);
   }
   function shareEntry(entryId, dogName) {
     const shareUrl = entryShareUrl(entryId);
-    const quote = "Vote for " + (dogName || "this pup") + " in the " + EYEBROW + "! " + shareUrl;
+    const quote = "Check out " + (dogName || "this pup") + " in the " + EYEBROW + "! " + shareUrl;
     const fbUrl = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(shareUrl) + "&quote=" + encodeURIComponent(quote);
     window.open(fbUrl, "wdg-share", "width=620,height=460,resizable=yes,scrollbars=yes,noopener");
-  }
-  function syncVotedUi() {
-    const voted = getVoted();
-    root.querySelectorAll("[data-wdg-vote]").forEach((btn) => {
-      const id = btn.getAttribute("data-entry-id");
-      if (voted[id]) btn.dataset.voted = "true";
-    });
-    if (activeEntryId && voted[activeEntryId] && lbVote) lbVote.dataset.voted = "true";
-  }
-  async function castVote(entryId, countEls, voteBtns) {
-    if (!entryId) return;
-    try {
-      const res = await fetch("/api/public/competition-entries/" + encodeURIComponent(entryId) + "/vote", {
-        method: "POST",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) {
-        (countEls || []).forEach((el) => { if (el) el.textContent = data.vote_count; });
-        (voteBtns || []).forEach((btn) => { if (btn) btn.dataset.voted = "true"; });
-        const card = root.querySelector('.wdg-card[data-entry-id="' + entryId + '"]');
-        if (card) card.dataset.voteCount = String(data.vote_count);
-        setVoted(entryId);
-      }
-    } catch {}
   }
   function openLightbox(card) {
     if (!lightbox || !card) return;
@@ -274,7 +217,6 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
     const dogName = card.getAttribute("data-dog-name") || "Untitled";
     const caption = card.getAttribute("data-caption") || "";
     const photo = card.getAttribute("data-photo-url") || "";
-    const votes = card.getAttribute("data-vote-count") || "0";
     if (lbImg) {
       lbImg.src = photo;
       lbImg.alt = dogName;
@@ -288,11 +230,6 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
         lbCaption.hidden = true;
         lbCaption.textContent = "";
       }
-    }
-    if (lbCount) lbCount.textContent = votes;
-    if (lbVote) {
-      lbVote.dataset.entryId = activeEntryId;
-      lbVote.dataset.voted = getVoted()[activeEntryId] ? "true" : "";
     }
     if (lbShare) {
       lbShare.dataset.entryId = activeEntryId;
@@ -310,8 +247,6 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
     document.documentElement.style.overflow = "";
   }
 
-  syncVotedUi();
-
   root.querySelectorAll("[data-wdg-open]").forEach((btn) => {
     btn.addEventListener("click", () => openLightbox(btn.closest(".wdg-card")));
   });
@@ -321,26 +256,6 @@ export async function renderWetDogGallery(section = {}, blocks = [], brand = {},
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && lightbox?.dataset.open === "true") closeLightbox();
-  });
-
-  root.querySelectorAll("[data-wdg-vote]").forEach((btn) => {
-    btn.addEventListener("click", async (event) => {
-      event.stopPropagation();
-      if (btn.disabled || btn.dataset.busy === "1") return;
-      const entryId = btn.getAttribute("data-entry-id");
-      btn.dataset.busy = "1";
-      await castVote(entryId, [btn.querySelector("[data-wdg-count]"), lbCount], [btn, lbVote]);
-      btn.dataset.busy = "";
-    });
-  });
-
-  lbVote?.addEventListener("click", async () => {
-    if (lbVote.disabled || lbVote.dataset.busy === "1") return;
-    const entryId = lbVote.dataset.entryId || activeEntryId;
-    lbVote.dataset.busy = "1";
-    const cardBtn = root.querySelector('.wdg-vote-btn[data-entry-id="' + entryId + '"]');
-    await castVote(entryId, [lbCount, cardBtn?.querySelector("[data-wdg-count]")], [lbVote, cardBtn]);
-    lbVote.dataset.busy = "";
   });
 
   root.querySelectorAll("[data-wdg-share]").forEach((btn) => {
