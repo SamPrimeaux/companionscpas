@@ -22,10 +22,20 @@ function AgentSamDrawer() {
   const [busy, setBusy] = React.useState(false);
   const [sessionId, setSessionId] = React.useState(null);
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [pendingAutoSend, setPendingAutoSend] = React.useState("");
   const abortRef = React.useRef(null);
 
   React.useEffect(() => {
-    const openDrawer = () => setOpen(true);
+    const openDrawer = (eventOrPrompt) => {
+      const text = typeof eventOrPrompt === "string"
+        ? eventOrPrompt.trim()
+        : String(eventOrPrompt?.detail?.prompt || "").trim();
+      setOpen(true);
+      if (text) {
+        setPrompt(text);
+        setPendingAutoSend(text);
+      }
+    };
     const closeDrawer = () => setOpen(false);
     const toggleDrawer = () => setOpen(v => !v);
 
@@ -51,6 +61,14 @@ function AgentSamDrawer() {
     document.body.classList.toggle("agentsam-open", open);
   }, [open]);
 
+  React.useEffect(() => {
+    if (!open || !pendingAutoSend || busy) return;
+    const text = pendingAutoSend;
+    setPendingAutoSend("");
+    // Future upgrade: route this through cms_agent_section_improvement_patch once that workflow runner is proven.
+    void sendPrompt(text);
+  }, [open, pendingAutoSend, busy]);
+
   function stopPrompt() {
     if (abortRef.current) {
       abortRef.current.abort();
@@ -60,8 +78,9 @@ function AgentSamDrawer() {
     setSteps(s => [...s, { title:"Stopped by user", status:"stopped" }]);
   }
 
-  async function sendPrompt() {
-    const text = prompt.trim();
+  async function sendPrompt(explicitText = "") {
+    const directText = typeof explicitText === "string" ? explicitText : "";
+    const text = String(directText || prompt).trim();
     if (!text || busy) return;
     setPrompt("");
     setBusy(true);

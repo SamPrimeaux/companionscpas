@@ -551,7 +551,6 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
 // TopBar — desktop light, mobile dark (matches nav)
 // Mail icon now routes to /dashboard/email
 function TopBar({ view, isMobile, navOpen, onOpenNav, navigate }) {
-  const [search, setSearch] = useState("");
   if (isMobile) {
     const label = view === "cms-form-editor"
       ? "Form Studio"
@@ -570,10 +569,7 @@ function TopBar({ view, isMobile, navOpen, onOpenNav, navigate }) {
     );
   }
   return React.createElement("header", { className:"cpas-topbar" },
-    React.createElement("div", { style:{ flex:1, maxWidth:420, "--inp-bg":"rgba(255,255,255,0.07)", "--inp-border":"rgba(255,255,255,0.12)", "--inp-text":"rgba(255,255,255,0.85)", "--inp-placeholder":"rgba(255,255,255,0.38)" } },
-      React.createElement(Input, { value:search, onChange:setSearch, placeholder:"Search animals, people, records…", icon:"search",
-        style:{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", color:"rgba(255,255,255,0.85)", borderRadius:10 } })
-    ),
+    React.createElement("div", { style:{ flex:1 } }),
     React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto" } },
       // Mail → /dashboard/email (notifications live under Email → Smart Views)
       React.createElement("button", {

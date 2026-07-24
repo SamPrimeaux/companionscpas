@@ -760,6 +760,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [assets, setAssets] = React.useState([]);
   const [showAddSection, setShowAddSection] = React.useState(false);
   const [showCopyModal, setShowCopyModal] = React.useState(false);
+  const [pagesList, setPagesList] = React.useState([]);
+  const [pageSwitcherOpen, setPageSwitcherOpen] = React.useState(false);
+  const [showQuickAddPage, setShowQuickAddPage] = React.useState(false);
+  const [quickPage, setQuickPage] = React.useState({ title:'', slug:'', template_key:'default' });
+  const [quickPageSaving, setQuickPageSaving] = React.useState(false);
   const [copyTargetRoute, setCopyTargetRoute] = React.useState('/');
   const [copyInsertAfter, setCopyInsertAfter] = React.useState('hero');
   const [copyPages, setCopyPages] = React.useState([]);
@@ -773,6 +778,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [inspectorCollapsed, setInspectorCollapsed] = React.useState(true);
   const [hasUnsaved, setHasUnsaved] = React.useState(false);
   const imagePickTargetRef = React.useRef({ kind: 'section' });
+  const pageSwitcherRef = React.useRef(null);
   const notify = (t, type='ok') => cmsNotify(setNotice, t, type);
 
   const sortedSections = React.useMemo(() => [...(pageData.sections || [])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)), [pageData.sections]);
@@ -781,7 +787,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const want = cmsNormalizeSectionKey(selectedKey);
     return sortedSections.find(s => cmsNormalizeSectionKey(s.section_key) === want) || null;
   }, [sortedSections, selectedKey]);
-  const inspectorOpen = !!selected && !inspectorCollapsed;
+  const inspectorOpen = !inspectorCollapsed;
 
   const [previewVersion, setPreviewVersion] = React.useState(0);
   const bumpPreview = React.useCallback(() => setPreviewVersion(v => v + 1), []);
@@ -802,8 +808,8 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   }, []);
 
   const expandInspector = React.useCallback(() => {
-    if (selectedKey) setInspectorCollapsed(false);
-  }, [selectedKey]);
+    setInspectorCollapsed(false);
+  }, []);
 
   const enterFullPreview = React.useCallback(() => {
     setSidenavOpen(false);
@@ -897,9 +903,13 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   React.useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
-      if (showImagePicker || showAddSection || showFontPicker || showCopyModal) return;
+      if (pageSwitcherOpen) {
+        setPageSwitcherOpen(false);
+        return;
+      }
+      if (showImagePicker || showAddSection || showFontPicker || showCopyModal || showQuickAddPage) return;
       // Esc: collapse inspector first (keep selection), then clear selection
-      if (!inspectorCollapsed && selectedKey) {
+      if (!inspectorCollapsed) {
         setInspectorCollapsed(true);
         return;
       }
@@ -907,7 +917,20 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clearSelection, showImagePicker, showAddSection, showFontPicker, showCopyModal, inspectorCollapsed, selectedKey]);
+  }, [clearSelection, showImagePicker, showAddSection, showFontPicker, showCopyModal, showQuickAddPage, pageSwitcherOpen, inspectorCollapsed]);
+
+  React.useEffect(() => {
+    if (!pageSwitcherOpen) return;
+    const close = (event) => {
+      if (!pageSwitcherRef.current?.contains(event.target)) setPageSwitcherOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [pageSwitcherOpen]);
+
+  React.useEffect(() => {
+    setPageSwitcherOpen(false);
+  }, [route]);
 
   React.useEffect(() => {
     if (selectedKey) postHighlight(selectedKey, selectedField, selectedBlockKey);
@@ -921,6 +944,10 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       ]);
       const pd = await pageRes.json().catch(() => ({}));
       const bd = await bootRes.json().catch(() => ({}));
+      const bootPages = (Array.isArray(bd.pages) ? bd.pages : []).filter((page) => page?.route_path);
+      setPagesList(bootPages.length ? bootPages : [
+        { route_path: route, title: pd.page?.title || route, sort_order: 0 },
+      ]);
       if (pd.success || pd.page || pd.sections) {
         const secs = [...(pd.sections || [])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
         setPageData({ page:pd.page || { title:route, route_path:route }, sections:secs, blocks:pd.blocks || [] });
@@ -1356,6 +1383,63 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setHasUnsaved(true);
   };
 
+  const switchEditorPage = (page) => {
+    const nextRoute = String(page?.route_path || '/');
+    setPageSwitcherOpen(false);
+    if (nextRoute === route) return;
+    onNavigate('cms-page-editor', { pageId: cmsPageIdFromPublicRoute(nextRoute) });
+  };
+
+  const quickAddPage = async () => {
+    const title = String(quickPage.title || '').trim();
+    if (!title) return notify('Page title is required', 'error');
+    const slug = String(quickPage.slug || title)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    if (!slug) return notify('Enter a valid page title or URL slug', 'error');
+    const routePath = `/${slug}`;
+    if (pagesList.some((page) => page.route_path === routePath)) {
+      return notify(`A page already uses ${routePath}`, 'error');
+    }
+
+    setQuickPageSaving(true);
+    try {
+      const res = await fetch('/api/cms/page/save', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type':'application/json' },
+        body: JSON.stringify({
+          page: {
+            title,
+            route_path: routePath,
+            slug,
+            template_key: quickPage.template_key || 'default',
+            status: 'draft',
+          },
+          seed_sections: true,
+          add_to_nav: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || `Page creation failed (${res.status})`);
+      setPagesList((current) => [
+        ...current.filter((page) => page.route_path !== routePath),
+        { route_path: routePath, title, slug, status:'draft', sort_order: current.length * 10 + 10 },
+      ]);
+      setShowQuickAddPage(false);
+      setQuickPage({ title:'', slug:'', template_key:'default' });
+      notify(data.bootstrap?.sections?.seeded
+        ? `Page “${title}” created with starter sections and navigation.`
+        : `Page “${title}” created.`);
+      onNavigate('cms-page-editor', { pageId: data.editor_page_id || slug });
+    } catch (error) {
+      notify(error.message || 'Could not create page', 'error');
+    } finally {
+      setQuickPageSaving(false);
+    }
+  };
+
   const askAgent = () => {
     window.dispatchEvent(new CustomEvent('agentsam:open', { detail:{ prompt:`Improve the ${selected?.section_type || 'section'} copy for ${route}: ${selected?.heading || ''}` } }));
   };
@@ -1386,69 +1470,126 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   function renderTopbar() {
     const bothCollapsed = !sidenavOpen && !inspectorOpen;
-    const pageThemeRaw = String(pageData.page?.theme || 'plum_glass').toLowerCase().replace(/-/g, '_');
-    const pageTheme = pageThemeRaw === 'light' ? 'light' : pageThemeRaw === 'dark' ? 'dark' : 'plum_glass';
-    const themeOptions = [
-      { value: 'plum_glass', label: 'Plum / cream' },
-      { value: 'light', label: 'Light' },
-      { value: 'dark', label: 'Dark' },
-    ];
-    return React.createElement('div', { style:{ height:52, background:C.surface, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 14px', gap:8, flexShrink:0, zIndex:10 } },
-      React.createElement('button', { onClick:()=>onNavigate('cms-pages'), style:{ background:'none', border:'none', color:C.textSec, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--font-ui)', flexShrink:0 } }, React.createElement(Icon, { name:'chevL', size:14 }), 'Pages'),
-      React.createElement('div', { style:{ width:1, height:20, background:C.border } }),
-      isDesktop && React.createElement('button', {
-        type: 'button',
-        title: sidenavOpen ? 'Hide sections' : 'Show sections',
-        onClick: () => setSidenavOpen(v => !v),
-        style:{ height:30, padding:'0 10px', borderRadius:8, border:`1px solid ${C.border}`, background:sidenavOpen ? C.purpleDim : C.bg2, color:sidenavOpen ? C.purpleL : C.textMut, display:'flex', alignItems:'center', gap:6, cursor:'pointer', flexShrink:0, fontSize:11, fontWeight:700, fontFamily:'var(--font-ui)' }
-      }, React.createElement(Icon, { name: sidenavOpen ? 'chevL' : 'chevR', size:13 }), sidenavOpen ? 'Sections' : 'Sections'),
-      isDesktop && React.createElement('button', {
-        type: 'button',
-        title: inspectorOpen ? 'Hide editor panel' : (selectedKey ? 'Show editor panel' : 'Select a section to edit'),
-        disabled: !selectedKey && !inspectorOpen,
-        onClick: () => {
-          if (inspectorOpen) collapseInspector();
-          else expandInspector();
-        },
-        style:{ height:30, padding:'0 10px', borderRadius:8, border:`1px solid ${C.border}`, background:inspectorOpen ? C.purpleDim : C.bg2, color:inspectorOpen ? C.purpleL : C.textMut, display:'flex', alignItems:'center', gap:6, cursor: selectedKey || inspectorOpen ? 'pointer' : 'not-allowed', opacity: selectedKey || inspectorOpen ? 1 : 0.45, flexShrink:0, fontSize:11, fontWeight:700, fontFamily:'var(--font-ui)' }
-      }, React.createElement(Icon, { name: inspectorOpen ? 'chevR' : 'chevL', size:13 }), 'Editor'),
-      isDesktop && React.createElement('button', {
-        type: 'button',
-        title: bothCollapsed ? 'Panels already hidden' : 'Hide both panels for full-width preview',
-        onClick: enterFullPreview,
-        style:{ height:30, padding:'0 10px', borderRadius:8, border:`1px solid ${bothCollapsed ? C.purple : C.border}`, background:bothCollapsed ? C.purpleDim : C.bg2, color:bothCollapsed ? C.purpleL : C.textSec, display:'flex', alignItems:'center', gap:6, cursor:'pointer', flexShrink:0, fontSize:11, fontWeight:700, fontFamily:'var(--font-ui)' }
-      }, React.createElement(Icon, { name:'eye', size:13 }), 'Full preview'),
-      React.createElement('div', { style:{ flex:1, minWidth:0 } },
-        React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, pageTitle),
-        React.createElement('div', { style:{ fontSize:10, color:C.textMut, fontFamily:'var(--font-mono)' } }, route)
+    const orderedPages = [...pagesList].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+    const topbarButton = (active = false) => ({
+      height:30, padding:'0 10px', borderRadius:8,
+      border:`1px solid ${active ? C.purple : C.border}`,
+      background:active ? C.purpleDim : C.bg2,
+      color:active ? C.purpleL : C.textSec,
+      display:'flex', alignItems:'center', gap:6, cursor:'pointer', flexShrink:0,
+      fontSize:11, fontWeight:700, fontFamily:'var(--font-ui)'
+    });
+
+    return React.createElement('div', {
+      style:{
+        height:52, background:C.surface, borderBottom:`1px solid ${C.border}`,
+        display:'grid', gridTemplateColumns:isDesktop ? 'minmax(0,1fr) minmax(180px,260px) minmax(0,1fr)' : 'auto minmax(100px,1fr) auto',
+        alignItems:'center', padding:isMobile ? '0 8px' : '0 14px', gap:isMobile ? 6 : 10, flexShrink:0, position:'relative', zIndex:30
+      }
+    },
+      React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, minWidth:0, overflow:'hidden' } },
+        React.createElement('button', {
+          onClick:()=>onNavigate('cms-pages'),
+          style:{ background:'none', border:'none', color:C.textSec, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--font-ui)', flexShrink:0 }
+        }, React.createElement(Icon, { name:'chevL', size:14 }), 'Pages'),
+        React.createElement('div', { style:{ width:1, height:20, background:C.border, flexShrink:0 } }),
+        isDesktop && React.createElement('button', {
+          type:'button',
+          title:sidenavOpen ? 'Hide sections' : 'Show sections',
+          onClick:()=>setSidenavOpen((value)=>!value),
+          style:topbarButton(sidenavOpen)
+        }, React.createElement(Icon, { name:sidenavOpen ? 'chevL' : 'chevR', size:13 }), 'Sections'),
+        isDesktop && React.createElement('button', {
+          type:'button',
+          title:inspectorOpen ? 'Hide editor panel' : (selectedKey ? 'Show editor panel' : 'Show page settings'),
+          onClick:()=>{ if (inspectorOpen) collapseInspector(); else expandInspector(); },
+          style:topbarButton(inspectorOpen)
+        }, React.createElement(Icon, { name:inspectorOpen ? 'chevR' : 'chevL', size:13 }), 'Editor'),
+        isDesktop && React.createElement('button', {
+          type:'button',
+          title:bothCollapsed ? 'Panels already hidden' : 'Hide both panels for full-width preview',
+          onClick:enterFullPreview,
+          style:topbarButton(bothCollapsed)
+        }, React.createElement(Icon, { name:'eye', size:13 }), 'Full preview'),
+        isDesktop && React.createElement('button', {
+          type:'button',
+          title:`Open the live ${route} page in a new tab`,
+          onClick:()=>window.open(liveUrl, '_blank', 'noopener,noreferrer'),
+          style:topbarButton(false)
+        }, React.createElement(Icon, { name:'eye', size:13 }), 'View Live')
       ),
-      !isMobile && React.createElement('div', {
-        title: 'Page theme preset — controls light/dark surface for the whole public page',
-        style: { display:'flex', gap:4, flexShrink:0, alignItems:'center' }
-      },
-        React.createElement('span', { style:{ fontSize:10, fontWeight:800, color:C.textMut, letterSpacing:'.06em', textTransform:'uppercase', marginRight:2 } }, 'Theme'),
-        themeOptions.map((opt) => React.createElement('button', {
-          key: opt.value,
-          type: 'button',
-          disabled: busy,
-          onClick: () => { if (pageTheme !== opt.value) setPageTheme(opt.value); },
-          style: {
-            height: 28, padding: '0 9px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
-            border: `1px solid ${pageTheme === opt.value ? C.purple : C.border}`,
-            background: pageTheme === opt.value ? C.purpleDim : C.bg2,
-            color: pageTheme === opt.value ? C.purpleL : C.textSec,
-            fontFamily: 'var(--font-ui)',
+
+      React.createElement('div', { ref:pageSwitcherRef, style:{ position:'relative', minWidth:0, justifySelf:'stretch' } },
+        React.createElement('button', {
+          type:'button',
+          'aria-haspopup':'menu',
+          'aria-expanded':pageSwitcherOpen,
+          onClick:()=>setPageSwitcherOpen((value)=>!value),
+          style:{
+            width:'100%', minWidth:0, height:36, padding:'0 12px', borderRadius:10,
+            border:`1px solid ${pageSwitcherOpen ? C.purple : C.border}`,
+            background:pageSwitcherOpen ? C.purpleDim : C.bg,
+            color:C.text, cursor:'pointer', display:'grid', gridTemplateColumns:'minmax(0,1fr) auto',
+            alignItems:'center', gap:8, textAlign:'left', fontFamily:'var(--font-ui)'
           }
-        }, opt.label))
+        },
+          React.createElement('span', { style:{ minWidth:0 } },
+            React.createElement('span', { style:{ display:'block', fontSize:12, fontWeight:800, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, pageTitle),
+            React.createElement('span', { style:{ display:'block', fontSize:9, color:C.textMut, fontFamily:'var(--font-mono)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:1 } }, route)
+          ),
+          React.createElement(Icon, { name:'chevD', size:13, style:{ color:C.textMut } })
+        ),
+        pageSwitcherOpen && React.createElement('div', {
+          role:'menu',
+          style:{
+            position:'absolute', top:'calc(100% + 8px)', left:'50%', transform:'translateX(-50%)',
+            width:300, maxWidth:'calc(100vw - 28px)', maxHeight:360, overflowY:'auto',
+            padding:6, borderRadius:14, border:`1px solid ${C.border}`, background:C.surface,
+            boxShadow:'0 20px 50px rgba(0,0,0,.22)', zIndex:80
+          }
+        },
+          orderedPages.length
+            ? orderedPages.map((page) => {
+                const active = String(page.route_path || '/') === route;
+                return React.createElement('button', {
+                  key:page.route_path || page.title,
+                  type:'button', role:'menuitem',
+                  onClick:()=>switchEditorPage(page),
+                  style:{
+                    width:'100%', border:'none', borderRadius:10, padding:'9px 10px',
+                    background:active ? C.purpleDim : 'transparent', color:active ? C.purpleL : C.text,
+                    cursor:'pointer', display:'grid', gridTemplateColumns:'minmax(0,1fr) auto',
+                    alignItems:'center', gap:8, textAlign:'left', fontFamily:'var(--font-ui)'
+                  }
+                },
+                  React.createElement('span', { style:{ minWidth:0 } },
+                    React.createElement('span', { style:{ display:'block', fontSize:12, fontWeight:800, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, page.title || page.route_path),
+                    React.createElement('span', { style:{ display:'block', fontSize:10, color:active ? C.purple : C.textMut, fontFamily:'var(--font-mono)', marginTop:2 } }, page.route_path)
+                  ),
+                  active && React.createElement(Icon, { name:'check2', size:13 })
+                );
+              })
+            : React.createElement('div', { style:{ padding:'12px 10px', fontSize:12, color:C.textMut } }, 'No pages returned.'),
+          React.createElement('div', { style:{ height:1, background:C.border, margin:'6px 2px' } }),
+          React.createElement('button', {
+            type:'button', role:'menuitem',
+            onClick:()=>{ setPageSwitcherOpen(false); setShowQuickAddPage(true); },
+            style:{
+              width:'100%', border:'none', borderRadius:10, padding:'10px', background:'transparent',
+              color:C.purpleL, cursor:'pointer', display:'flex', alignItems:'center', gap:8,
+              fontSize:12, fontWeight:900, fontFamily:'var(--font-ui)', textAlign:'left'
+            }
+          }, React.createElement(Icon, { name:'plus', size:14 }), 'Add Page')
+        )
       ),
-      hasUnsaved && React.createElement('div', { style:{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:99, background:'#fef3c7', color:'#92400e', border:'1px solid #fcd34d', whiteSpace:'nowrap', flexShrink:0 } }, 'Unsaved draft'),
-      notice.text && !isMobile && React.createElement('div', { style:{ fontSize:11, color:notice.type === 'error' ? C.red : C.green, fontWeight:700, flexShrink:0 } }, notice.text),
-      isDesktop && React.createElement('div', { className:'cms-device-toggle', style:{ display:'flex', gap:4, flexShrink:0 } },
-        ['desktop','tablet','mobile'].map(m => React.createElement('button', { key:m, onClick:()=>setPreviewMode(m), style:{ padding:'5px 10px', borderRadius:7, border:`1px solid ${previewMode === m ? C.purple : C.border}`, background:previewMode === m ? C.purpleDim : 'transparent', color:previewMode === m ? C.purpleL : C.textSec, fontSize:11, cursor:'pointer', textTransform:'capitalize' } }, m))
-      ),
-      !isDesktop && React.createElement(Btn, { size:'sm', variant:'secondary', icon:'eye', onClick:()=>window.open(liveUrl, '_blank') }, 'Preview'),
-      hasUnsaved && React.createElement(Btn, { size:'sm', variant:'secondary', disabled:busy, onClick:()=>{ saveSelected(false).then(()=>setHasUnsaved(false)); } }, busy ? 'Saving…' : 'Save Draft'),
-      React.createElement(Btn, { size:'sm', icon:'publish', disabled:busy, onClick:()=>{ publishPage().then(()=>setHasUnsaved(false)); } }, isMobile ? 'Publish' : 'Publish Live')
+
+      React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8, minWidth:0 } },
+        hasUnsaved && React.createElement('div', { style:{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:99, background:'#fef3c7', color:'#92400e', border:'1px solid #fcd34d', whiteSpace:'nowrap', flexShrink:0 } }, 'Unsaved draft'),
+        notice.text && !isMobile && React.createElement('div', { style:{ maxWidth:150, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, color:notice.type === 'error' ? C.red : C.green, fontWeight:700, flexShrink:1 } }, notice.text),
+        !isDesktop && React.createElement(Btn, { size:'sm', variant:'secondary', icon:'eye', onClick:()=>window.open(liveUrl, '_blank', 'noopener,noreferrer') }, 'Preview'),
+        hasUnsaved && React.createElement(Btn, { size:'sm', variant:'secondary', disabled:busy || !selected, onClick:()=>{ saveSelected(false).then(()=>setHasUnsaved(false)); } }, busy ? 'Saving…' : 'Save Draft'),
+        React.createElement(Btn, { size:'sm', icon:'publish', disabled:busy, onClick:()=>{ publishPage().then(()=>setHasUnsaved(false)); } }, isMobile ? 'Publish' : 'Publish Live')
+      )
     );
   }
 
@@ -1741,8 +1882,87 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     }
   }, [selected, selectedField, selectedBlockKey]);
 
+  function renderPageSettings() {
+    const pageThemeRaw = String(pageData.page?.theme || 'plum_glass').toLowerCase().replace(/-/g, '_');
+    const pageTheme = pageThemeRaw === 'light' ? 'light' : pageThemeRaw === 'dark' ? 'dark' : 'plum_glass';
+    const themeOptions = [
+      { value:'plum_glass', label:'Plum' },
+      { value:'light', label:'Light' },
+      { value:'dark', label:'Dark' },
+    ];
+    const deviceOptions = ['desktop', 'tablet', 'mobile'];
+
+    return React.createElement('div', {
+      style:{ display:'grid', gap:14, padding:13, borderRadius:13, border:`1px solid ${C.border}`, background:C.bg }
+    },
+      React.createElement('div', { style:{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:10 } },
+        React.createElement('div', null,
+          React.createElement('div', { style:{ fontSize:11, fontWeight:900, color:C.textSec, letterSpacing:'.1em', textTransform:'uppercase' } }, 'Page Settings'),
+          React.createElement('div', { style:{ fontSize:11, color:C.textMut, marginTop:4 } }, pageTitle, ' · ', route)
+        ),
+        React.createElement('button', {
+          type:'button',
+          title:`Open ${liveUrl}`,
+          onClick:()=>window.open(liveUrl, '_blank', 'noopener,noreferrer'),
+          style:{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, color:C.textSec, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }
+        }, React.createElement(Icon, { name:'eye', size:14 }))
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Page theme'),
+        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:6 } },
+          themeOptions.map((option) => React.createElement('button', {
+            key:option.value,
+            type:'button',
+            disabled:busy,
+            onClick:()=>{ if (pageTheme !== option.value) setPageTheme(option.value); },
+            style:{
+              minHeight:34, padding:'6px 8px', borderRadius:9, fontSize:11, fontWeight:800,
+              cursor:busy ? 'wait' : 'pointer', fontFamily:'var(--font-ui)',
+              border:`1px solid ${pageTheme === option.value ? C.purple : C.border}`,
+              background:pageTheme === option.value ? C.purpleDim : C.surface,
+              color:pageTheme === option.value ? C.purpleL : C.textSec
+            }
+          }, option.label))
+        )
+      ),
+      isDesktop && React.createElement('div', null,
+        cmsFieldLabel('Preview size'),
+        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:6 } },
+          deviceOptions.map((device) => React.createElement('button', {
+            key:device,
+            type:'button',
+            onClick:()=>setPreviewMode(device),
+            style:{
+              minHeight:34, padding:'6px 8px', borderRadius:9, fontSize:11, fontWeight:800,
+              cursor:'pointer', textTransform:'capitalize', fontFamily:'var(--font-ui)',
+              border:`1px solid ${previewMode === device ? C.purple : C.border}`,
+              background:previewMode === device ? C.purpleDim : C.surface,
+              color:previewMode === device ? C.purpleL : C.textSec
+            }
+          }, device))
+        )
+      )
+    );
+  }
+
   function renderInspector(compact=false) {
-    if (!selected) return React.createElement('div', { style:{ padding:18, color:C.textMut, fontSize:13 } }, 'Select a section to edit.');
+    if (!selected) return React.createElement('div', { className:'cms-inspector-panel', style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface } },
+      React.createElement('div', { style:{ padding:16, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 } },
+        React.createElement('div', { style:{ minWidth:0 } },
+          React.createElement('div', { style:{ color:C.text, fontSize:15, fontWeight:900, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, 'Page editor'),
+          React.createElement('div', { style:{ color:C.textMut, fontSize:11, marginTop:3 } }, 'No section selected')
+        ),
+        React.createElement('button', {
+          type:'button', title:'Hide editor (Esc)',
+          onClick:()=>{ if (isMobile) setMobileTab('preview'); else collapseInspector(); },
+          style:{ width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.bg, color:C.textSec, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }
+        }, React.createElement(Icon, { name:'close', size:14 }))
+      ),
+      React.createElement('div', { style:{ padding:16, overflowY:'auto', flex:1, display:'grid', alignContent:'start', gap:16 } },
+        renderPageSettings(),
+        React.createElement('div', { style:{ padding:14, borderRadius:12, border:`1px dashed ${C.border}`, color:C.textMut, fontSize:12, lineHeight:1.55 } }, 'Select a section in the left panel or click content in the preview to edit its copy, media, links, and layout.')
+      )
+    );
     const cfg = cmsParseConfig(selected);
     const configCards = cmsConfigCards(selected);
     const usesConfigCards = !!configCards?.length;
@@ -2091,13 +2311,15 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             React.createElement('button', {
               type: 'button',
               title: 'Hide editor (Esc)',
-              onClick: collapseInspector,
+              onClick:()=>{ if (isMobile) setMobileTab('preview'); else collapseInspector(); },
               style: { width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.bg, color:C.textSec, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }
             }, React.createElement(Icon, { name:'close', size:14 }))
           )
         )
       ),
       React.createElement('div', { style:{ padding:16, overflowY:'auto', flex:1, display:'grid', gap:16 } },
+        renderPageSettings(),
+        React.createElement('div', { style:{ height:1, background:C.border } }),
         elementPanel || fullPanel
       ),
       React.createElement('div', { style:{ position:'sticky', bottom:0, padding:12, background:C.surface, borderTop:`1px solid ${C.border}`, display:'grid', gap:8 } },
@@ -2310,7 +2532,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             fontSize: 12, lineHeight: 1.45, padding: '10px 12px', borderRadius: 10,
             background: 'rgba(124,58,237,.08)', border: `1px solid ${C.border}`, color: C.textSec,
           }
-        }, 'Layout locked to Contained split (even side gutters). Edit copy, photo, and CTAs — theme is under Page theme in the top bar.'),
+        }, 'Layout locked to Contained split (even side gutters). Edit copy, photo, and CTAs — theme is under Page Settings in the editor panel.'),
         isHero && !layoutLocked && renderPresetRow('Layout / scene', layoutNorm, [
           { value:'contained_split', label:'Inset + gutters' },
           { value:'soft_split', label:'Soft fade' },
@@ -2378,6 +2600,62 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           ? React.createElement('div', { style:{ color:C.amber || '#b45309', fontSize:12, marginBottom:12 } }, 'Catalog load failed — showing local fallback. ', addableSectionsErr)
           : null,
         React.createElement('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : 'repeat(3,minmax(0,1fr))', gap:12 } }, types.map(t => { const color = CMS_TYPE_COLOR[t.type] || CMS_TYPE_COLOR.content; return React.createElement('button', { key:t.type, onClick:()=>addSection(t.type), style:{ textAlign:'left', padding:16, borderRadius:14, border:`1px solid ${color}55`, background:color + '12', cursor:'pointer' } }, React.createElement('div', { style:{ color, fontWeight:900, fontSize:14, marginBottom:6 } }, t.label), React.createElement('div', { style:{ color:C.textSec, fontSize:12, lineHeight:1.45 } }, t.desc)); }))
+      )
+    );
+  }
+
+  function renderQuickAddPageModal() {
+    if (!showQuickAddPage) return null;
+    return React.createElement('div', {
+      style:{ position:'fixed', inset:0, zIndex:270, background:'rgba(0,0,0,.52)', display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile ? 0 : 24 }
+    },
+      React.createElement('div', {
+        style:{ width:isMobile ? '100%' : 520, maxHeight:isMobile ? '100%' : '88vh', overflowY:'auto', background:C.surface, border:`1px solid ${C.border}`, borderRadius:isMobile ? 0 : 18, padding:18, display:'grid', gap:16 }
+      },
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 } },
+          React.createElement('div', null,
+            React.createElement('h3', { style:{ margin:0, color:C.text, fontSize:16 } }, 'Add New Page'),
+            React.createElement('div', { style:{ color:C.textMut, fontSize:11, marginTop:4 } }, 'Creates starter sections and adds the page to navigation.')
+          ),
+          React.createElement(Btn, { size:'sm', variant:'secondary', onClick:()=>setShowQuickAddPage(false) }, 'Close')
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Page title'),
+          cmsTextInput(quickPage.title, (value)=>setQuickPage((current)=>({ ...current, title:value })), null, 'e.g. Success Stories')
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('URL slug'),
+          React.createElement('div', { style:{ display:'flex', alignItems:'center' } },
+            React.createElement('span', { style:{ height:38, display:'flex', alignItems:'center', padding:'0 10px', background:C.bg2, border:`1px solid ${C.border}`, borderRight:'none', borderRadius:'9px 0 0 9px', fontSize:13, color:C.textMut } }, '/'),
+            React.createElement('input', {
+              value:quickPage.slug,
+              onChange:(event)=>setQuickPage((current)=>({ ...current, slug:event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })),
+              placeholder:'auto-generated from title',
+              style:{ flex:1, minWidth:0, height:38, boxSizing:'border-box', padding:'0 11px', border:`1px solid ${C.border}`, borderRadius:'0 9px 9px 0', background:C.bg, color:C.text, fontSize:13, outline:'none', fontFamily:'var(--font-mono)' }
+            })
+          )
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Template'),
+          React.createElement('div', { style:{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '1fr 1fr', gap:8 } },
+            PAGE_TEMPLATES.map((template) => {
+              const active = quickPage.template_key === template.key;
+              return React.createElement('button', {
+                key:template.key,
+                type:'button',
+                onClick:()=>setQuickPage((current)=>({ ...current, template_key:template.key })),
+                style:{ padding:'11px 12px', borderRadius:11, cursor:'pointer', textAlign:'left', border:`2px solid ${active ? C.purple : C.border}`, background:active ? C.purpleDim : C.bg, color:C.text, fontFamily:'var(--font-ui)' }
+              },
+                React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:7, fontWeight:800, fontSize:12 } }, React.createElement(Icon, { name:template.icon, size:13, style:{ color:active ? C.purpleL : C.textSec } }), template.label),
+                React.createElement('div', { style:{ color:C.textMut, fontSize:10, lineHeight:1.4, marginTop:4 } }, template.desc)
+              );
+            })
+          )
+        ),
+        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 } },
+          React.createElement(Btn, { variant:'secondary', onClick:()=>setShowQuickAddPage(false), disabled:quickPageSaving }, 'Cancel'),
+          React.createElement(Btn, { onClick:quickAddPage, disabled:quickPageSaving || !String(quickPage.title || '').trim(), icon:'plus' }, quickPageSaving ? 'Creating…' : 'Create Page')
+        )
       )
     );
   }
@@ -2461,19 +2739,20 @@ function CmsPageEditorView({ pageId, onNavigate }) {
               onClick: () => setSidenavOpen(true),
               style: { position:'absolute', left:8, top:8, zIndex:5, height:32, padding:'0 10px', borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, color:C.textSec, display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:11, fontWeight:700, boxShadow:'0 4px 14px rgba(0,0,0,.08)', fontFamily:'var(--font-ui)' }
             }, React.createElement(Icon, { name:'chevR', size:12 }), 'Sections'),
-            selectedKey && inspectorCollapsed && React.createElement('button', {
+            inspectorCollapsed && React.createElement('button', {
               type: 'button',
               className: 'cms-panel-reopen cms-panel-reopen-right',
-              title: 'Show editor',
+              title: selectedKey ? 'Show editor' : 'Show page settings',
               onClick: expandInspector,
               style: { position:'absolute', right:8, top:8, zIndex:5, height:32, padding:'0 10px', borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, color:C.textSec, display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:11, fontWeight:700, boxShadow:'0 4px 14px rgba(0,0,0,.08)', fontFamily:'var(--font-ui)' }
-            }, 'Editor', React.createElement(Icon, { name:'chevL', size:12 }))
+            }, selectedKey ? 'Editor' : 'Page settings', React.createElement(Icon, { name:'chevL', size:12 }))
           ) : React.createElement('div', { style:{ minHeight:0, overflow:'hidden' } }, renderInspector(true)),
           isDesktop && inspectorOpen && React.createElement('div', { className:'cms-inspector-col', style:{ borderLeft:`1px solid ${C.border}`, minHeight:0, overflow:'hidden' } }, renderInspector(false))
         ),
     showFontPicker && React.createElement('div', { style:{ position:'fixed', top:60, right:16, zIndex:240, width:260, background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:10, boxShadow:'0 20px 50px rgba(0,0,0,.2)' } }, FONT_PRESETS_CMS.map(p => React.createElement('button', { key:p.key, onClick:()=>saveFont(p.key), style:{ width:'100%', padding:10, marginBottom:6, borderRadius:10, border:`1px solid ${activeFont === p.key ? C.purple : C.border}`, background:activeFont === p.key ? C.purpleDim : C.bg, color:C.text, textAlign:'left', cursor:'pointer' } }, React.createElement('div', { style:{ fontWeight:900 } }, p.label), React.createElement('div', { style:{ color:C.textMut, fontSize:11 } }, p.sub)))) ,
     renderImagePicker(),
     renderAddSectionModal(),
+    renderQuickAddPageModal(),
     renderCopyModal()
   );
 }
