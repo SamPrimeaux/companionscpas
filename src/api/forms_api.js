@@ -119,6 +119,11 @@ async function loadFormBundle(env, formIdOrKey) {
   };
 }
 
+/** Public read for section renderers (same bundle as Forms Studio). */
+export async function loadFormBundleForRender(env, formIdOrKey) {
+  return loadFormBundle(env, formIdOrKey);
+}
+
 async function ensureSubmissionsTable(env) {
   await env.DB.prepare(
     `CREATE TABLE IF NOT EXISTS cpas_form_submissions (

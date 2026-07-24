@@ -689,6 +689,7 @@ const CMS_SECTION_TYPES = [
   { type:'animal_grid', label:'Animal Grid', desc:'Adoptable or foster-needed animals' },
   { type:'contact_hero', label:'Contact Hero', desc:'Contact page opener with social pills' },
   { type:'contact_form', label:'Contact Form', desc:'Inline message form for contact pages' },
+  { type:'embedded_form', label:'Form (Forms Studio)', desc:'Embed a published Forms Studio form' },
   { type:'contact_socials', label:'Contact Info Cards', desc:'Email, location, org cards' },
   { type:'contact_team', label:'Team', desc:'Group photo + member list' },
   { type:'content', label:'Content', desc:'Simple copy section for flexible text' },
@@ -1751,6 +1752,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     );
     const isPaymentHero = String(selected.section_type || '') === 'donate_payment_hero';
     const isRawHtml = String(selected.section_type || '') === 'raw_html';
+    const isEmbeddedForm = String(selected.section_type || '') === 'embedded_form';
     const sectionBlocks = (pageData.blocks || []).filter(
       (b) => cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(selected.section_key)
     );
@@ -1940,6 +1942,25 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     );
 
     const fullPanel = !showElementFocus && React.createElement(React.Fragment, null,
+      isEmbeddedForm && React.createElement('div', { style:{ display:'grid', gap:12 } },
+        React.createElement('h4', { style:groupTitleStyle() }, 'Forms Studio embed'),
+        React.createElement('div', { style:{ fontSize:12, color:C.textMut, lineHeight:1.45 } },
+          'This section renders a published form from CMS → Forms. Edit fields there; Publish the form, then Publish this page.'
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Form key'),
+          cmsTextInput(
+            cfg.form_key || '',
+            (v) => setConfigPatch({ form_key: String(v || '').trim() }),
+            (e) => setConfigPatch({ form_key: String(e?.target?.value ?? '').trim() }),
+            'join_our_team'
+          )
+        ),
+        React.createElement('a', {
+          href: '/dashboard/cms/forms',
+          style: { fontSize:12, fontWeight:700, color:C.purpleL },
+        }, 'Open Forms Studio →')
+      ),
       isRawHtml && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Custom Code'),
         React.createElement('div', { style:{ fontSize:12, color:C.textMut, lineHeight:1.45 } },

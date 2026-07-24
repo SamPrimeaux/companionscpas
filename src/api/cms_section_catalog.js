@@ -19,6 +19,7 @@ import {
   CONTACT_FORM_SCRIPT,
 } from "./render_contact_sections.js";
 import { renderRawHtml } from "./render_raw_html.js";
+import { renderEmbeddedForm } from "./render_embedded_form.js";
 
 const TENANT_ID = "tenant_companionscpas";
 
@@ -39,6 +40,7 @@ export const D1_SECTION_TYPES = [
   "donate_freedom_hero",
   "donate_medical_story",
   "donate_stories_help",
+  "embedded_form",
   "facebook_embeds",
   "feature_cards",
   "footer",
@@ -127,6 +129,9 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
     // Custom Code — fetch remote HTML by config.source_url (any page route)
     if (type === "raw_html") {
       return String(await renderRawHtml(section, blocks, brand, env, { preview }) || "");
+    }
+    if (type === "embedded_form") {
+      return String(await renderEmbeddedForm(section, blocks, brand, env, { preview }) || "");
     }
 
     // Plain content (non-About). About mission_statement uses branded fragment below.
@@ -228,6 +233,7 @@ export const ADDABLE_SECTION_TYPES = [
   { type: "testimonials", label: "Testimonials", desc: "Quotes and social proof" },
   { type: "contact_hero", label: "Contact Hero", desc: "Contact page opener with social pills" },
   { type: "contact_form", label: "Contact Form", desc: "Message form" },
+  { type: "embedded_form", label: "Form (Forms Studio)", desc: "Embed a published form — Join Our Team, volunteer, etc." },
   { type: "contact_team", label: "Team", desc: "Group photo + member list" },
   { type: "contact_socials", label: "Contact Info Cards", desc: "Email, location, org cards" },
   { type: "raw_html", label: "Custom Code", desc: "Paste HTML or embed from a URL" },
