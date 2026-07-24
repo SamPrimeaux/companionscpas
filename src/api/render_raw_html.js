@@ -1,24 +1,16 @@
 /**
- * raw_html / "Custom Code" — inject HTML from pasted config.html or fetch config.source_url.
- * Fail soft: never throw; empty comment on missing content / fetch failure.
+ * raw_html / "Custom Code" — inject HTML from R2 authoring key, pasted legacy config.html,
+ * or fetch config.source_url. Fail soft: never throw.
  * Sync/publish writes the result to the section R2 fragment like every other type.
  */
 
-const FETCH_TIMEOUT_MS = 8000;
+import {
+  parseSectionConfig,
+  getRawHtmlAuthoring,
+  rawHtmlAuthoringKey,
+} from "./cms_raw_html_storage.js";
 
-function parseConfig(section) {
-  const raw = section?.config_json;
-  if (raw && typeof raw === "object" && !Array.isArray(raw)) return { ...raw };
-  if (typeof raw === "string" && raw.trim()) {
-    try {
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-  return {};
-}
+const FETCH_TIMEOUT_MS = 8000;
 
 function escapeAttr(v) {
   return String(v ?? "")
@@ -45,30 +37,49 @@ function placeholder(sectionKey, title, detail, { error = false } = {}) {
 </section>`;
 }
 
-/** Resolve source: explicit html_source, else paste if html set, else url if source_url set. */
+/** Resolve source: r2 | paste | url */
 export function resolveRawHtmlSource(cfg = {}) {
   const mode = String(cfg.html_source || "").trim().toLowerCase();
   const inline = String(cfg.html || cfg.inline_html || "").trim();
   const sourceUrl = String(cfg.source_url || "").trim();
-  if (mode === "paste" || mode === "inline") return { mode: "paste", inline, sourceUrl };
-  if (mode === "url") return { mode: "url", inline, sourceUrl };
-  if (inline) return { mode: "paste", inline, sourceUrl };
-  if (sourceUrl) return { mode: "url", inline, sourceUrl };
-  return { mode: "paste", inline: "", sourceUrl: "" };
+  const r2Key = String(cfg.r2_key || "").trim();
+  if (mode === "r2" || r2Key) return { mode: "r2", inline, sourceUrl, r2Key };
+  if (mode === "paste" || mode === "inline") return { mode: "paste", inline, sourceUrl, r2Key };
+  if (mode === "url") return { mode: "url", inline, sourceUrl, r2Key };
+  if (inline) return { mode: "paste", inline, sourceUrl, r2Key };
+  if (sourceUrl) return { mode: "url", inline, sourceUrl, r2Key };
+  return { mode: "r2", inline: "", sourceUrl: "", r2Key: "" };
 }
 
 /**
  * @param {object} section
  * @param {object[]} [_blocks]
  * @param {object} [_brand]
- * @param {object|null} [_env]
+ * @param {object|null} [env]
  * @param {{ preview?: boolean }} [opts]
  */
-export async function renderRawHtml(section, _blocks = [], _brand = {}, _env = null, opts = {}) {
+export async function renderRawHtml(section, _blocks = [], _brand = {}, env = null, opts = {}) {
   const preview = opts.preview === true;
-  const cfg = parseConfig(section);
+  const cfg = parseSectionConfig(section);
   const sectionKey = String(section?.section_key || "raw_html").trim() || "raw_html";
-  const { mode, inline, sourceUrl } = resolveRawHtmlSource(cfg);
+  const pageRoute = section?.page_route || "/";
+  let { mode, inline, sourceUrl, r2Key } = resolveRawHtmlSource(cfg);
+
+  // Prefer R2 authoring when pointer or env available
+  if (mode === "r2" || r2Key) {
+    const key = r2Key || rawHtmlAuthoringKey(pageRoute, sectionKey);
+    const fromR2 = env ? await getRawHtmlAuthoring(env, key) : "";
+    if (fromR2) return wrapHtml(sectionKey, fromR2);
+    if (inline) return wrapHtml(sectionKey, inline); // rare hydrate path
+    if (preview) {
+      return placeholder(
+        sectionKey,
+        "Custom Code",
+        "No HTML in site storage yet. Paste HTML in the section editor and Save Draft."
+      );
+    }
+    return skipComment("r2 authoring empty");
+  }
 
   if (mode === "paste") {
     if (inline) return wrapHtml(sectionKey, inline);
@@ -76,7 +87,7 @@ export async function renderRawHtml(section, _blocks = [], _brand = {}, _env = n
       return placeholder(
         sectionKey,
         "Custom Code",
-        "Paste HTML in the section editor, or switch to From URL. Save/Publish writes the fragment to R2."
+        "Paste HTML in the section editor, or switch to From URL. Save writes HTML to R2 (not the database)."
       );
     }
     return skipComment("no pasted html");
@@ -88,7 +99,7 @@ export async function renderRawHtml(section, _blocks = [], _brand = {}, _env = n
       return placeholder(
         sectionKey,
         "Custom Code",
-        "Set <code>source_url</code> (https) or switch to Paste HTML."
+        "Set <code>source_url</code> (https) or paste HTML (stored in R2)."
       );
     }
     return skipComment("no source_url");

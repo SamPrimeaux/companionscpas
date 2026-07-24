@@ -15,6 +15,10 @@ import {
   rebuildCmsAssetUsages,
   loadUsagesByAssetIds,
 } from "./cms_asset_usages.js";
+import {
+  persistRawHtmlConfigOnSave,
+  hydrateRawHtmlSectionForEditor,
+} from "./cms_raw_html_storage.js";
 const TENANT_ID = "tenant_companionscpas";
 
 const R2_MEDIA_FOLDERS = new Set([
@@ -845,6 +849,11 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       sectionResults = sectionResults.filter((s) => fragmentKeys.includes(s.section_key));
     }
 
+    // Custom Code: hydrate HTML from R2 into response for the editor textarea (D1 stays lean)
+    sectionResults = await Promise.all(
+      sectionResults.map((s) => hydrateRawHtmlSectionForEditor(env, s))
+    );
+
     return json({ success: true, page, sections: sectionResults, blocks: blockResults });
   }
 
@@ -986,6 +995,17 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
     const page_route = section.page_route || data.page_route || "/";
     const section_key = section.section_key || data.section_key || id("section");
+    const sectionForPersist = { ...section, page_route, section_key };
+    let configJsonOut;
+    try {
+      configJsonOut = await persistRawHtmlConfigOnSave(env, sectionForPersist);
+    } catch (persistErr) {
+      console.warn("[cms/section/save] raw_html R2 persist failed:", persistErr?.message || persistErr);
+      return json({
+        success: false,
+        error: `Custom Code storage failed: ${persistErr?.message || persistErr}`,
+      }, 500);
+    }
 
     await env.DB.prepare(`
       INSERT INTO cms_page_sections
@@ -1025,13 +1045,12 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       section.cta_secondary_href || "",
       Number(section.sort_order || 50),
       section.is_visible === 0 ? 0 : 1,
-      typeof section.config_json === "string" ? section.config_json : JSON.stringify(section.config_json || {})
+      configJsonOut
     ).run();
 
     // Keep donation_settings + cms_components in sync when payment methods are edited in CMS
     try {
-      const cfgRaw = typeof section.config_json === "string" ? section.config_json : JSON.stringify(section.config_json || {});
-      const cfg = JSON.parse(cfgRaw || "{}");
+      const cfg = JSON.parse(configJsonOut || "{}");
       let methods = cfg.payment_methods_json ?? cfg.payment_methods;
       if (typeof methods === "string") methods = JSON.parse(methods);
       if (Array.isArray(methods) && methods.length) {

@@ -1201,7 +1201,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       sort_order: maxOrder + 10,
       is_visible: 1,
       tenant_id: 'tenant_companionscpas',
-      ...(isRawHtml ? { config_json: JSON.stringify({ html_source: 'paste', html: '', source_url: '' }) } : {}),
+      ...(isRawHtml ? { config_json: JSON.stringify({ html_source: 'r2', html: '', r2_key: '', source_url: '' }) } : {}),
     };
     setBusy(true);
     try { await saveSectionObject(section, true); setShowAddSection(false); await loadPage(); setSelectedKey(newKey); setMobileTab('edit'); notify('Section added'); }
@@ -1943,18 +1943,19 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       isRawHtml && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Custom Code'),
         React.createElement('div', { style:{ fontSize:12, color:C.textMut, lineHeight:1.45 } },
-          'Paste HTML here or load from a URL. Save/Publish writes the rendered fragment to R2 and busts the page cache.'
+          'Paste HTML here or load from a URL. Save stores HTML in site storage (R2) — not the database — then Publish writes the live page fragment and busts cache.'
         ),
-        renderPresetRow('Source', (cfg.html_source === 'url' || (!cfg.html && cfg.source_url)) ? 'url' : 'paste', [
+        renderPresetRow('Source', (cfg.html_source === 'url' || (!cfg.html && !cfg.r2_key && cfg.source_url)) ? 'url' : 'paste', [
           { value:'paste', label:'Paste HTML' }, { value:'url', label:'From URL' }
-        ], (v) => setConfigPatch({ html_source: v })),
-        ((cfg.html_source === 'url' || (!cfg.html && cfg.source_url && cfg.html_source !== 'paste'))
+        ], (v) => setConfigPatch({ html_source: v === 'url' ? 'url' : 'r2' })),
+        ((cfg.html_source === 'url' || (!cfg.html && !cfg.r2_key && cfg.source_url && cfg.html_source !== 'paste' && cfg.html_source !== 'r2'))
           ? React.createElement('div', null,
               cmsFieldLabel('Source URL'),
               cmsTextInput(
                 cfg.source_url || '',
                 (v) => {
                   const nextCfg = { ...cmsParseConfig(selected), source_url: v, html_source: 'url' };
+                  delete nextCfg.html;
                   const next = { ...selected, config_json: JSON.stringify(nextCfg) };
                   setPageData((prev) => ({
                     ...prev,
@@ -1972,7 +1973,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
               cmsTextArea(
                 cfg.html || '',
                 (v) => {
-                  const nextCfg = { ...cmsParseConfig(selected), html: v, html_source: 'paste' };
+                  const nextCfg = { ...cmsParseConfig(selected), html: v, html_source: 'r2' };
                   const next = { ...selected, config_json: JSON.stringify(nextCfg) };
                   setPageData((prev) => ({
                     ...prev,
@@ -1982,12 +1983,14 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                 },
                 (e) => setConfigPatch({
                   html: String(e?.target?.value ?? cfg.html ?? ''),
-                  html_source: 'paste',
+                  html_source: 'r2',
                 }),
                 16
               ),
               React.createElement('div', { style:{ fontSize:11, color:C.textMut, marginTop:6, lineHeight:1.4 } },
-                'Paste a fragment (section markup, not a full document). Scripts in pasted HTML will run on the public page.'
+                cfg.r2_key
+                  ? `Stored at ${cfg.r2_key}. Paste a fragment (section markup, not a full document).`
+                  : 'Paste a fragment (section markup, not a full document). Save stores it in R2.'
               )
             )
         ),
