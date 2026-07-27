@@ -463,7 +463,7 @@ const CMS_TYPE_COLOR = {
   hero: '#a78bfa', text_image: '#60a5fa', text_image_split: '#60a5fa', feature_cards: '#34d399',
   foster_grid: '#fbbf24', campaign_grid: '#f87171', testimonial: '#94a3b8', cta_banner: '#fb923c',
   animal_grid: '#4ade80', content: '#94a3b8', service_cards: '#34d399', donate_tiers: '#fbbf24',
-  raw_html: '#64748b',
+  raw_html: '#64748b', split_info_card: '#7B2FBE',
 };
 
 const CMS_DEVICE_FRAMES = { desktop: null, tablet: 834, mobile: 390 };
@@ -681,6 +681,7 @@ const CMS_SECTION_TYPES = [
   { type:'campaign_entry_hero', label:'Campaign Entry Hero', desc:'Split campaign opener with image, steps, entry, and sharing actions' },
   { type:'hero', label:'Hero', desc:'Large page opener with headline, image, and CTAs' },
   { type:'text_image', label:'Text + Image', desc:'Balanced story block with optional media' },
+  { type:'split_info_card', label:'Split Info Card', desc:'Image + copy with bullet list and contact card' },
   { type:'feature_cards', label:'Feature Cards', desc:'Reusable card grid for services or benefits' },
   { type:'foster_grid', label:'Foster Grid', desc:'Animal/foster focused grid section' },
   { type:'campaign_grid', label:'Campaign Grid', desc:'Donation or fundraising campaign grid' },
@@ -2098,12 +2099,17 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const configCards = cmsConfigCards(selected);
     const usesConfigCards = !!configCards?.length;
     const needsImage = !usesConfigCards && (
-      ['hero','text_image','text_image_split','contact_hero','contact_team','campaign_grid','donate_payment_hero','donate_campaign_grid'].includes(selected.section_type)
+      ['hero','text_image','text_image_split','contact_hero','contact_team','campaign_grid','donate_payment_hero','donate_campaign_grid','split_info_card'].includes(selected.section_type)
       || !!(selected.image_url && String(selected.image_url).trim())
     );
     const isPaymentHero = String(selected.section_type || '') === 'donate_payment_hero';
     const isRawHtml = String(selected.section_type || '') === 'raw_html';
     const isEmbeddedForm = String(selected.section_type || '') === 'embedded_form';
+    const isSplitInfoCard = String(selected.section_type || '') === 'split_info_card';
+    const splitSuppliesText = Array.isArray(cfg.supplies)
+      ? cfg.supplies.join('\n')
+      : String(cfg.supplies || '');
+    const splitContact = (cfg.contact && typeof cfg.contact === 'object') ? cfg.contact : {};
     const sectionBlocks = (pageData.blocks || []).filter(
       (b) => cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(selected.section_key)
     );
@@ -2380,6 +2386,122 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         )
       ),
       !isRawHtml && needsImage && renderMediaControls(),
+      isSplitInfoCard && React.createElement('div', { style:{ display:'grid', gap:12 } },
+        React.createElement('h4', { style:groupTitleStyle() }, 'Supplies list'),
+        React.createElement('div', { style:{ fontSize:12, color:C.textMut, lineHeight:1.45 } },
+          'One item per line. Shown as a vertical bullet list on the live page.'
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Items'),
+          cmsTextArea(
+            splitSuppliesText,
+            (v) => {
+              const nextCfg = { ...cmsParseConfig(selected), supplies: String(v || '').split(/\r?\n/) };
+              const next = { ...selected, config_json: JSON.stringify(nextCfg) };
+              setPageData((prev) => ({
+                ...prev,
+                sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? next : s)),
+              }));
+              setHasUnsaved(true);
+            },
+            () => {
+              const items = String(splitSuppliesText || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+              setConfigPatch({ supplies: items });
+            },
+            6
+          )
+        ),
+        React.createElement('h4', { style:groupTitleStyle() }, 'Contact card'),
+        React.createElement('div', null,
+          cmsFieldLabel('Contact eyebrow'),
+          cmsTextInput(
+            splitContact.eyebrow || '',
+            (v) => {
+              const nextCfg = { ...cmsParseConfig(selected), contact: { ...splitContact, eyebrow: v } };
+              const next = { ...selected, config_json: JSON.stringify(nextCfg) };
+              setPageData((prev) => ({
+                ...prev,
+                sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? next : s)),
+              }));
+              setHasUnsaved(true);
+            },
+            () => setConfigPatch({ contact: { ...cmsParseConfig(selected).contact, eyebrow: splitContact.eyebrow || '' } }),
+            'Questions about fostering'
+          )
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Contact name'),
+          cmsTextInput(
+            splitContact.name || '',
+            (v) => {
+              const nextCfg = { ...cmsParseConfig(selected), contact: { ...splitContact, name: v } };
+              const next = { ...selected, config_json: JSON.stringify(nextCfg) };
+              setPageData((prev) => ({
+                ...prev,
+                sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? next : s)),
+              }));
+              setHasUnsaved(true);
+            },
+            () => setConfigPatch({ contact: { ...cmsParseConfig(selected).contact, name: splitContact.name || '' } }),
+            'Amanda Norris'
+          )
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Email'),
+          cmsTextInput(
+            splitContact.email || '',
+            (v) => {
+              const nextCfg = { ...cmsParseConfig(selected), contact: { ...splitContact, email: v } };
+              const next = { ...selected, config_json: JSON.stringify(nextCfg) };
+              setPageData((prev) => ({
+                ...prev,
+                sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? next : s)),
+              }));
+              setHasUnsaved(true);
+            },
+            () => setConfigPatch({ contact: { ...cmsParseConfig(selected).contact, email: splitContact.email || '' } }),
+            'name@example.org',
+            true
+          )
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Phone'),
+          cmsTextInput(
+            splitContact.phone || '',
+            (v) => {
+              const nextCfg = { ...cmsParseConfig(selected), contact: { ...splitContact, phone: v } };
+              const next = { ...selected, config_json: JSON.stringify(nextCfg) };
+              setPageData((prev) => ({
+                ...prev,
+                sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? next : s)),
+              }));
+              setHasUnsaved(true);
+            },
+            () => setConfigPatch({ contact: { ...cmsParseConfig(selected).contact, phone: splitContact.phone || '' } }),
+            '318-226-6624'
+          )
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Image alt text'),
+          cmsTextInput(
+            cfg.image_alt || '',
+            (v) => {
+              const nextCfg = { ...cmsParseConfig(selected), image_alt: v };
+              const next = { ...selected, config_json: JSON.stringify(nextCfg) };
+              setPageData((prev) => ({
+                ...prev,
+                sections: (prev.sections || []).map((s) => (s.section_key === selected.section_key ? next : s)),
+              }));
+              setHasUnsaved(true);
+            },
+            () => setConfigPatch({ image_alt: cfg.image_alt || '' }),
+            'Foster dog'
+          )
+        ),
+        renderPresetRow('Image side', (cfg.image_position || 'left') === 'right' ? 'right' : 'left', [
+          { value:'left', label:'Left' }, { value:'right', label:'Right' }
+        ], (v) => setConfigPatch({ image_position: v }))
+      ),
       isPaymentHero && renderPaymentMethodsEditor(cfg),
       isPaymentHero && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Media card'),
@@ -2417,7 +2539,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             ))
           : React.createElement('div', { style:{ color:C.textMut, fontSize:12 } }, 'No cards yet — this section uses section fields only.')
       ),
-      !isRawHtml && !usesConfigCards && React.createElement('div', { style:{ display:'grid', gap:12 } },
+      !isRawHtml && !usesConfigCards && !isSplitInfoCard && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Links'),
         renderCtaFields('cta_label', 'cta_href', 'Primary CTA'),
         renderCtaFields('cta_secondary_label', 'cta_secondary_href', 'Secondary CTA')

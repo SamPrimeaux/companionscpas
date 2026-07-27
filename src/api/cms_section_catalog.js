@@ -20,6 +20,7 @@ import {
 } from "./render_contact_sections.js";
 import { renderRawHtml } from "./render_raw_html.js";
 import { renderEmbeddedForm } from "./render_embedded_form.js";
+import { renderSplitInfoCard } from "./render_split_info_card.js";
 
 const TENANT_ID = "tenant_companionscpas";
 
@@ -55,6 +56,7 @@ export const D1_SECTION_TYPES = [
   "org_info",
   "raw_html",
   "shelter_hub",
+  "split_info_card",
   "testimonial",
   "testimonials",
   "text_image",
@@ -129,6 +131,9 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
     // Custom Code — fetch remote HTML by config.source_url (any page route)
     if (type === "raw_html") {
       return String(await renderRawHtml(section, blocks, brand, env, { preview }) || "");
+    }
+    if (type === "split_info_card") {
+      return String(renderSplitInfoCard(section) || "");
     }
     if (type === "embedded_form") {
       return String(await renderEmbeddedForm(section, blocks, brand, env, { preview }) || "");
@@ -226,6 +231,7 @@ export const ADDABLE_SECTION_TYPES = [
   { type: "adopt_live_gallery", label: "Live Animal Gallery", desc: "Adoptable dogs pulled live from the Animals dashboard" },
   { type: "hero", label: "Hero", desc: "Headline, image, and CTAs" },
   { type: "text_image", label: "Text + Image", desc: "Story block with optional media" },
+  { type: "split_info_card", label: "Split Info Card", desc: "Image + copy with bullet list and contact card" },
   { type: "feature_cards", label: "Feature Cards", desc: "Card grid for services or benefits" },
   { type: "cta_banner", label: "CTA Banner", desc: "High-emphasis call to action" },
   { type: "campaign_grid", label: "Campaign Grid", desc: "Fundraising campaign cards" },

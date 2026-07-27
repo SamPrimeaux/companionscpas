@@ -85,6 +85,31 @@ export function buildSectionPreviewFixture(type, brand = {}) {
         blocks: [],
       };
 
+    case "split_info_card":
+      return {
+        section: baseSection(t, brand, {
+          eyebrow: "Fostering with us",
+          heading: "All supplies provided",
+          body: "Everything you need to foster comes from us — you bring the home.",
+          image_url: STOCK.dogPortrait,
+          cta_label: "",
+          cta_href: "",
+          cta_secondary_label: "",
+          config: {
+            image_position: "left",
+            image_alt: "Foster dog",
+            supplies: ["Crate", "Food", "Vetting", "Collar", "Leash"],
+            contact: {
+              eyebrow: "Questions about fostering",
+              name: "Amanda Norris",
+              email: "anorris@caddo.gov",
+              phone: "318-226-6624",
+            },
+          },
+        }),
+        blocks: [],
+      };
+
     case "feature_cards":
       return {
         section: baseSection(t, brand, {
@@ -324,6 +349,7 @@ export const SECTION_TEMPLATE_META = {
   adopt_live_gallery: { category: "animals", icon: "paw" },
   hero: { category: "structure", icon: "home" },
   text_image: { category: "content", icon: "image" },
+  split_info_card: { category: "content", icon: "layers" },
   feature_cards: { category: "content", icon: "layers" },
   cta_banner: { category: "structure", icon: "sparkles" },
   campaign_grid: { category: "giving", icon: "dollar" },
