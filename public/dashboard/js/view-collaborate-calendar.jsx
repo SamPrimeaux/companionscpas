@@ -541,7 +541,14 @@
           events,
           onSelect: selectMini,
           shiftMonth: function(amount) { setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + amount, 1)); },
-        })
+        }),
+        h('div', { className: 'cpas-cal-meet' },
+          h('strong', null, 'Meet with…'),
+          h('label', null,
+            h(Icon, { name: 'search', size: 13 }),
+            h('input', { type: 'search', placeholder: 'Search people', 'aria-label': 'Search people' })
+          )
+        )
       ),
       h('main', { className: 'cpas-cal-main' },
         h('header', { className: 'cpas-cal-toolbar' },
