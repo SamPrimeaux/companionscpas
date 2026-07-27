@@ -192,6 +192,47 @@
 })();
 // End mobile side navigation controller
 
+// Desktop More dropdown (cms_pages-driven; hover via CSS)
+(() => {
+  function initNavMore() {
+    document.querySelectorAll(".site-nav .nav-more").forEach((item) => {
+      if (item.dataset.moreReady === "1") return;
+      item.dataset.moreReady = "1";
+      const btn = item.querySelector(".nav-more-toggle");
+      if (!btn) return;
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const open = item.classList.toggle("is-open");
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+        document.querySelectorAll(".site-nav .nav-more.is-open").forEach((other) => {
+          if (other === item) return;
+          other.classList.remove("is-open");
+          const ob = other.querySelector(".nav-more-toggle");
+          if (ob) ob.setAttribute("aria-expanded", "false");
+        });
+      });
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target.closest(".site-nav .nav-more")) return;
+      document.querySelectorAll(".site-nav .nav-more.is-open").forEach((item) => {
+        item.classList.remove("is-open");
+        const btn = item.querySelector(".nav-more-toggle");
+        if (btn) btn.setAttribute("aria-expanded", "false");
+      });
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      document.querySelectorAll(".site-nav .nav-more.is-open").forEach((item) => {
+        item.classList.remove("is-open");
+        const btn = item.querySelector(".nav-more-toggle");
+        if (btn) btn.setAttribute("aria-expanded", "false");
+      });
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initNavMore);
+  else initNavMore();
+})();
+
 // Header scroll state (plum glass at top → solid ivory glass on scroll)
 (() => {
   function initHeaderScroll() {

@@ -1,20 +1,14 @@
+/**
+ * Public site header/footer — SSOT: cms_pages (nav_visible, nav_label, nav_placement, sort_order).
+ * No route allowlists. No fallback nav arrays. Empty D1 → empty chrome (fail loud in logs).
+ */
 import { getBrand } from "./render_page.js";
 import { preferHeaderLogoUrl } from "./brand_tokens.js";
 
 const TENANT_ID = "tenant_companionscpas";
-
 const DEFAULT_LOGO = "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/9a00de35-fa41-49da-e431-a5f004cf5e00/public";
 
-export const SITE_NAV_ITEMS = [
-  { route: "/", label: "Home", sort: 10, inHeader: true, inFooter: true },
-  { route: "/about", label: "About", sort: 20, inHeader: true, inFooter: true },
-  { route: "/adopt", label: "Adopt", sort: 30, inHeader: true, inFooter: true },
-  { route: "/fosters", label: "Foster", sort: 35, inHeader: true, inFooter: true },
-  { route: "/community", label: "Community", sort: 40, inHeader: true, inFooter: true },
-  { route: "/contact", label: "Contact", sort: 50, inHeader: true, inFooter: true },
-  { route: "/services", label: "Foster", sort: 60, inHeader: false, inFooter: false },
-  { route: "/donate", label: "Donate", sort: 70, inHeader: false, inFooter: true, headerButton: true },
-];
+const PLACEMENTS = new Set(["primary", "more", "cta", "footer_only", "none"]);
 
 function esc(v) {
   return String(v ?? "")
@@ -24,39 +18,96 @@ function esc(v) {
     .replace(/"/g, "&quot;");
 }
 
-export async function loadNavVisibility(env) {
-  const map = new Map();
-  if (!env?.DB) return map;
+function normalizeRoute(route) {
+  const raw = String(route || "").trim();
+  if (!raw || raw === "/") return "/";
+  let n = raw.startsWith("/") ? raw : `/${raw}`;
+  if (n.length > 1) n = n.replace(/\/+$/, "");
+  return n;
+}
+
+function normalizePlacement(raw) {
+  const p = String(raw || "more").trim().toLowerCase();
+  return PLACEMENTS.has(p) ? p : "more";
+}
+
+function shortLabelFromTitle(title, route) {
+  const t = String(title || "").trim();
+  if (!t) return normalizeRoute(route) === "/" ? "Home" : normalizeRoute(route);
+  const cut = t.split(/[—–|-]/)[0]?.trim() || t;
+  return cut.length > 32 ? cut.slice(0, 32).trim() : cut;
+}
+
+/**
+ * @returns {Promise<Array<{route:string,label:string,placement:string,sort_order:number}>>}
+ */
+export async function loadNavPages(env) {
+  if (!env?.DB) {
+    console.error("[nav] DB binding missing — header/footer will be empty");
+    return [];
+  }
   try {
     const { results } = await env.DB.prepare(
-      "SELECT route_path, nav_visible FROM cms_pages WHERE tenant_id = ?"
+      `SELECT route_path, title, nav_label, nav_placement, sort_order, nav_visible, status
+       FROM cms_pages
+       WHERE tenant_id = ?
+         AND nav_visible = 1
+         AND LOWER(COALESCE(status, '')) = 'published'
+         AND LOWER(COALESCE(nav_placement, 'more')) != 'none'
+       ORDER BY sort_order ASC, route_path ASC`
     ).bind(TENANT_ID).all();
-    for (const row of results || []) {
-      map.set(String(row.route_path), Number(row.nav_visible) !== 0);
+
+    const pages = (results || []).map((row) => {
+      const route = normalizeRoute(row.route_path);
+      const label = String(row.nav_label || "").trim() || shortLabelFromTitle(row.title, route);
+      return {
+        route,
+        label,
+        placement: normalizePlacement(row.nav_placement),
+        sort_order: Number(row.sort_order) || 50,
+      };
+    });
+
+    if (!pages.length) {
+      console.error("[nav] cms_pages returned zero chrome rows (published + nav_visible=1). Header/footer empty by design.");
     }
-  } catch {
-    // treat all as visible if column missing
+    return pages;
+  } catch (err) {
+    console.error("[nav] loadNavPages failed:", err?.message || err);
+    return [];
   }
-  return map;
 }
 
-function isRouteNavVisible(visibilityMap, route) {
-  if (visibilityMap.has(route)) return visibilityMap.get(route);
-  return true;
-}
+export async function resolveNavModel(env) {
+  const pages = await loadNavPages(env);
+  const byPlacement = (p) =>
+    pages
+      .filter((x) => x.placement === p)
+      .sort((a, b) => (a.sort_order - b.sort_order) || a.label.localeCompare(b.label));
 
-function headerNavItems(visibilityMap) {
-  return SITE_NAV_ITEMS
-    .filter((item) => item.inHeader && !item.headerButton)
-    .filter((item) => isRouteNavVisible(visibilityMap, item.route))
-    .sort((a, b) => a.sort - b.sort);
-}
+  const primary = byPlacement("primary");
+  const more = byPlacement("more");
+  const ctaList = byPlacement("cta");
+  const donate = ctaList[0] || null;
+  const footerOnly = byPlacement("footer_only");
 
-function footerNavItems(visibilityMap) {
-  return SITE_NAV_ITEMS
-    .filter((item) => item.inFooter)
-    .filter((item) => isRouteNavVisible(visibilityMap, item.route))
-    .sort((a, b) => a.sort - b.sort);
+  // Footer: all chrome pages except placement none (already filtered); include cta as text link
+  const footer = pages
+    .filter((p) => p.placement !== "none")
+    .sort((a, b) => (a.sort_order - b.sort_order) || a.label.localeCompare(b.label));
+
+  const mobile = [...primary, ...more, ...ctaList];
+
+  return {
+    primary,
+    more,
+    donate,
+    footer,
+    footerOnly,
+    mobile,
+    source: "cms_pages",
+    pages,
+  };
 }
 
 function headerLogoSrc(brand) {
@@ -65,37 +116,56 @@ function headerLogoSrc(brand) {
   return preferHeaderLogoUrl(raw.trim()) || DEFAULT_LOGO;
 }
 
+function renderMoreDropdown(moreItems) {
+  if (!moreItems.length) return "";
+  const links = moreItems
+    .map((item) => `<li role="none"><a role="menuitem" href="${esc(item.route)}">${esc(item.label)}</a></li>`)
+    .join("\n            ");
+  return `<li class="nav-more">
+          <button type="button" class="nav-more-toggle" aria-expanded="false" aria-haspopup="true">More</button>
+          <ul class="nav-more-menu" role="menu">
+            ${links}
+          </ul>
+        </li>`;
+}
+
 export async function renderSiteHeader(env) {
-  const [visibilityMap, brand] = await Promise.all([
-    loadNavVisibility(env),
+  const [nav, brand] = await Promise.all([
+    resolveNavModel(env),
     getBrand(env).catch(() => ({})),
   ]);
-  const navItems = headerNavItems(visibilityMap);
-  const showDonate = isRouteNavVisible(visibilityMap, "/donate");
   const logoSrc = esc(headerLogoSrc(brand));
   const logoAlt = esc(brand?.brand_name || "Companions of CPAS");
 
-  const navLis = navItems
+  const primaryLis = nav.primary
     .map((item) => `<li><a href="${esc(item.route)}">${esc(item.label)}</a></li>`)
     .join("\n        ");
+  const moreLis = renderMoreDropdown(nav.more);
 
-  const mobileLinks = [
-    ...navItems.map((item) => `<a href="${esc(item.route)}">${esc(item.label)}</a>`),
-    ...(showDonate ? ['<a href="/donate" class="mobile-donate">Donate</a>'] : []),
-  ].join("\n  ");
+  const mobileLinks = nav.mobile
+    .map((item) => {
+      const cls = item.placement === "cta" ? ' class="mobile-donate"' : "";
+      return `<a href="${esc(item.route)}"${cls}>${esc(item.label)}</a>`;
+    })
+    .join("\n  ");
 
-  return `<header class="site-header">
+  const donateBtn = nav.donate
+    ? `<a class="btn btn-primary" href="${esc(nav.donate.route)}">${esc(nav.donate.label)}</a>`
+    : "";
+
+  return `<header class="site-header" data-nav-source="cms_pages">
   <div class="container header-inner">
     <a href="/" class="logo-link" aria-label="${logoAlt} — home">
       <img src="${logoSrc}" alt="${logoAlt}" class="header-logo-img" />
     </a>
     <nav aria-label="Main navigation">
       <ul class="site-nav">
-        ${navLis}
+        ${primaryLis}
+        ${moreLis}
       </ul>
     </nav>
     <div class="header-actions">
-      ${showDonate ? `<a class="btn btn-primary" href="/donate">Donate</a>` : ""}
+      ${donateBtn}
     </div>
     <button class="mobile-menu-toggle" type="button" aria-label="Open navigation">
       <span></span><span></span><span></span>
@@ -109,38 +179,34 @@ export async function renderSiteHeader(env) {
 }
 
 export async function renderSiteFooter(env) {
-  const [visibilityMap, brand] = await Promise.all([
-    loadNavVisibility(env),
+  const [nav, brand] = await Promise.all([
+    resolveNavModel(env),
     getBrand(env).catch(() => ({})),
   ]);
-  const navItems = footerNavItems(visibilityMap);
 
-  // Pull from the correct DB columns, all already parsed by buildBrandPayload
-  const org      = brand?.organization || {};
-  const socials  = brand?.socials      || {};
+  const org = brand?.organization || {};
+  const socials = brand?.socials || {};
 
-  const orgName  = brand?.brand_name   || org.name          || "Companions of CPAS";
-  const ein      = org.ein             || "88-4156327";
-  const email    = org.email           || "companionsCPAS@gmail.com";
-  const tagline  = org.mission         || "A volunteer-run nonprofit helping dogs at Caddo Parish Animal Services receive medical care, transport support, and second chances.";
-  const fbUrl    = socials.facebook    || "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
-  const igUrl    = socials.instagram   || "https://www.instagram.com/companionscpas";
+  const orgName = brand?.brand_name || org.name || "Companions of CPAS";
+  const ein = org.ein || "88-4156327";
+  const email = org.email || "companionsCPAS@gmail.com";
+  const tagline = org.mission || "A volunteer-run nonprofit helping dogs at Caddo Parish Animal Services receive medical care, transport support, and second chances.";
+  const fbUrl = socials.facebook || "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
+  const igUrl = socials.instagram || "https://www.instagram.com/companionscpas";
 
-  // Same brand mark as the header (logo_light_url → DEFAULT_LOGO)
   const logoSrc = headerLogoSrc(brand);
   const iamLogo = brand?.developer_logo_light_url
     || "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/238de9d1-a470-4fe5-5424-9182f4bc0500/avatar";
 
-  const footerLis = navItems
+  const footerLis = nav.footer
     .map((item) => `<li><a href="${esc(item.route)}">${esc(item.label)}</a></li>`)
     .join("\n          ");
 
-  // SVG icons — explicit 16×16 inside 34px circle, no overflow clip needed
   const fbIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`;
   const igIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>`;
   const loginIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/></svg>`;
 
-  return `<footer class="site-footer">
+  return `<footer class="site-footer" data-nav-source="cms_pages">
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
@@ -190,4 +256,12 @@ export async function getSiteShellPartial(name, env) {
   if (name === "header") return renderSiteHeader(env);
   if (name === "footer") return renderSiteFooter(env);
   return "";
+}
+
+/** @deprecated — use loadNavPages. Kept empty-compat for accidental imports. */
+export async function loadNavVisibility(env) {
+  const map = new Map();
+  const pages = await loadNavPages(env);
+  for (const p of pages) map.set(p.route, true);
+  return map;
 }

@@ -1594,6 +1594,35 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   }
 
   function renderSectionList() {
+    const chromeActive = !selectedKey;
+    const chromeRow = (key, label, hint) => React.createElement('div', {
+      key,
+      onClick: () => {
+        clearSelection();
+        setInspectorCollapsed(false);
+        if (isMobile) setMobileTab('editor');
+      },
+      style: {
+        display: 'grid', gridTemplateColumns: '18px minmax(0,1fr) auto', alignItems: 'center', gap: 8,
+        padding: '10px 8px', marginBottom: 6, borderRadius: 12, cursor: 'pointer',
+        border: `2px solid ${chromeActive ? C.purple : C.border}`,
+        borderLeft: `5px solid ${chromeActive ? C.purple : '#7c3aed'}`,
+        background: chromeActive ? C.purpleDim : C.bg,
+      },
+    },
+      React.createElement('span', { style: { color: C.textMut, fontSize: 12 } }, '◈'),
+      React.createElement('div', { style: { minWidth: 0 } },
+        React.createElement('div', { style: { color: chromeActive ? C.purpleL : C.text, fontSize: 12, fontWeight: 800 } }, label),
+        React.createElement('div', { style: { color: C.textMut, fontSize: 10, marginTop: 2 } }, hint)
+      ),
+      React.createElement('span', {
+        style: {
+          fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 99,
+          background: 'rgba(124,58,237,0.12)', color: C.purpleL, border: `1px solid ${C.purple}44`,
+        },
+      }, 'chrome')
+    );
+
     return React.createElement('div', { className:'cms-sections-panel', style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface, position:'relative' } },
       React.createElement('div', { style:{ padding:'14px 14px 10px', borderBottom:`1px solid ${C.border}` } },
         React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 } },
@@ -1610,8 +1639,9 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         )
       ),
       React.createElement('div', { style:{ overflowY:'auto', padding:10, flex:1 } },
+        chromeRow('__header__', 'Header', 'Nav label · placement · More · Donate CTA'),
         sortedSections.length === 0
-          ? React.createElement('div', { style:{ padding:16, border:`1px dashed ${C.border}`, borderRadius:12, color:C.textMut, fontSize:12, textAlign:'center' } }, 'No sections yet. Add the first section.')
+          ? React.createElement('div', { style:{ padding:16, border:`1px dashed ${C.border}`, borderRadius:12, color:C.textMut, fontSize:12, textAlign:'center', marginBottom:6 } }, 'No body sections yet. Add the first section.')
           : sortedSections.map(s => {
               const active = selected?.section_key === s.section_key;
               const hidden = s.is_visible === 0;
@@ -1646,7 +1676,8 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                   },
                 }, React.createElement(Icon, { name: 'trash', size: 13 }))
               );
-            })
+            }),
+        chromeRow('__footer__', 'Footer', 'Same chrome settings · pages column links')
       )
     );
   }
@@ -1882,6 +1913,35 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     }
   }, [selected, selectedField, selectedBlockKey]);
 
+  function savePageChrome(patch) {
+    setBusy(true);
+    return fetch('/api/cms/page/chrome', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ route_path: route, ...patch }),
+    })
+      .then((res) => res.json().then((data) => ({ res, data })))
+      .then(({ res, data }) => {
+        if (!res.ok || !data.success) throw new Error(data.error || 'Chrome update failed');
+        setPageData((prev) => ({
+          ...prev,
+          page: { ...(prev.page || {}), ...(data.page || patch) },
+        }));
+        setPagesList((list) => list.map((p) => (
+          p.route_path === route ? { ...p, ...(data.page || patch) } : p
+        )));
+        bumpPreview();
+        notify(data.message || 'Header/footer updated sitewide');
+        return data;
+      })
+      .catch((e) => {
+        notify(e.message || 'Could not update navigation', 'error');
+        throw e;
+      })
+      .finally(() => setBusy(false));
+  }
+
   function renderPageSettings() {
     const pageThemeRaw = String(pageData.page?.theme || 'plum_glass').toLowerCase().replace(/-/g, '_');
     const pageTheme = pageThemeRaw === 'light' ? 'light' : pageThemeRaw === 'dark' ? 'dark' : 'plum_glass';
@@ -1891,6 +1951,17 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       { value:'dark', label:'Dark' },
     ];
     const deviceOptions = ['desktop', 'tablet', 'mobile'];
+    const navVisible = pageData.page?.nav_visible !== 0 && pageData.page?.nav_visible !== false;
+    const navLabel = pageData.page?.nav_label || '';
+    const navPlacement = String(pageData.page?.nav_placement || 'more').toLowerCase();
+    const sortOrder = pageData.page?.sort_order ?? 50;
+    const placementOptions = [
+      { value: 'primary', label: 'Primary bar' },
+      { value: 'more', label: 'More menu' },
+      { value: 'cta', label: 'Donate button' },
+      { value: 'footer_only', label: 'Footer only' },
+      { value: 'none', label: 'Hidden from chrome' },
+    ];
 
     return React.createElement('div', {
       style:{ display:'grid', gap:14, padding:13, borderRadius:13, border:`1px solid ${C.border}`, background:C.bg }
@@ -1906,6 +1977,66 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           onClick:()=>window.open(liveUrl, '_blank', 'noopener,noreferrer'),
           style:{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, color:C.textSec, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }
         }, React.createElement(Icon, { name:'eye', size:14 }))
+      ),
+      React.createElement('div', {
+        style:{ display:'grid', gap:12, padding:12, borderRadius:12, border:`1px solid ${C.purple}44`, background:'rgba(124,58,237,0.06)' }
+      },
+        React.createElement('div', { style:{ fontSize:11, fontWeight:900, color:C.purpleL, letterSpacing:'.08em', textTransform:'uppercase' } }, 'Header & Footer (sitewide)'),
+        React.createElement('div', { style:{ fontSize:11, color:C.textMut, lineHeight:1.45 } },
+          'Controls live navigation from this page row in the database. Publish republishes the whole site header/footer.'
+        ),
+        React.createElement('label', { style:{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:C.text, cursor:'pointer' } },
+          React.createElement('input', {
+            type:'checkbox',
+            checked: !!navVisible,
+            disabled: busy,
+            onChange:(e) => {
+              const next = e.target.checked ? 1 : 0;
+              setPageData((prev) => ({ ...prev, page: { ...(prev.page || {}), nav_visible: next } }));
+              savePageChrome({ nav_visible: next });
+            },
+          }),
+          'Show in site navigation'
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Nav label'),
+          cmsTextInput(
+            navLabel,
+            (v) => setPageData((prev) => ({ ...prev, page: { ...(prev.page || {}), nav_label: v } })),
+            () => savePageChrome({ nav_label: String(pageData.page?.nav_label || '').trim() }),
+            'e.g. About Us'
+          )
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Placement'),
+          React.createElement('select', {
+            value: navPlacement,
+            disabled: busy,
+            onChange: (e) => {
+              const v = e.target.value;
+              setPageData((prev) => ({ ...prev, page: { ...(prev.page || {}), nav_placement: v } }));
+              savePageChrome({ nav_placement: v });
+            },
+            style: {
+              width: '100%', boxSizing: 'border-box', padding: '9px 11px', borderRadius: 9,
+              border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontSize: 13,
+            },
+          }, placementOptions.map((o) => React.createElement('option', { key: o.value, value: o.value }, o.label)))
+        ),
+        React.createElement('div', null,
+          cmsFieldLabel('Sort order'),
+          cmsTextInput(
+            String(sortOrder),
+            (v) => setPageData((prev) => ({ ...prev, page: { ...(prev.page || {}), sort_order: v } })),
+            () => {
+              const n = Number(pageData.page?.sort_order);
+              if (!Number.isFinite(n)) return notify('Sort order must be a number', 'error');
+              savePageChrome({ sort_order: n });
+            },
+            '10',
+            true
+          )
+        )
       ),
       React.createElement('div', null,
         cmsFieldLabel('Page theme'),
@@ -4043,7 +4174,14 @@ function CmsBrandView({ onNavigate }) {
           tweakInput("Announcement Banner", socials.banner, v => setSocials(p => ({ ...p, banner: v })), { placeholder: "Optional header banner text" })
         ),
 
-        React.createElement(BrandTweakSection, { title: "Header Navigation", subtitle: "Saved with brand settings", defaultOpen: true },
+        React.createElement(BrandTweakSection, { title: "Header Navigation", subtitle: "Preview only — live header/footer use CMS Pages (nav label + placement). Edit chrome on each page.", defaultOpen: true },
+          React.createElement("div", {
+            style: {
+              marginBottom: 10, padding: "10px 12px", borderRadius: 10, fontSize: 12, lineHeight: 1.45,
+              background: "rgba(124,58,237,0.08)", border: `1px solid ${C.purple}44`, color: C.textSec,
+            },
+          }, "Live site navigation is managed in CMS Website → page → Header & Footer (nav_visible, nav_label, nav_placement). This Brand list does not control the public header.")
+        ,
           React.createElement("div", { style: { display: "grid", gap: 6 } },
             navLinks.map((link, i) => React.createElement("div", {
               key: i,

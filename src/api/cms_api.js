@@ -170,7 +170,7 @@ async function createPublishJob(env, routePath, triggeredBy) {
   }
 }
 
-const PUBLIC_PAGE_ROUTES = ["/", "/about", "/services", "/adopt", "/community", "/donate", "/contact"];
+const PUBLIC_PAGE_ROUTES = ["/", "/about", "/services", "/adopt", "/community", "/donate", "/contact", "/fosters", "/events"];
 
 async function listAllCmsPageRoutes(env) {
   const pages = await env.DB.prepare(
@@ -1104,7 +1104,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       console.warn("[cms/section/save] payment method sync:", syncErr?.message || syncErr);
     }
 
-    await env.DB.prepare("UPDATE cms_pages SET status = 'draft', updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?")
+    await env.DB.prepare("UPDATE cms_pages SET updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?")
       .bind(TENANT_ID, page_route).run().catch(() => {});
 
     await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`);
@@ -1145,8 +1145,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
         .run();
     }
 
+    // Keep published status so nav_visible-driven header stays stable while editing.
     await env.DB.prepare(
-      "UPDATE cms_pages SET status = 'draft', updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?"
+      "UPDATE cms_pages SET updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?"
     )
       .bind(TENANT_ID, page_route)
       .run()
@@ -1227,7 +1228,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       typeof block.config_json === "string" ? block.config_json : JSON.stringify(block.config_json || {})
     ).run();
 
-    await env.DB.prepare("UPDATE cms_pages SET status = 'draft', updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?")
+    await env.DB.prepare("UPDATE cms_pages SET updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?")
       .bind(TENANT_ID, page_route).run().catch(() => {});
 
     await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`);
@@ -1257,6 +1258,11 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     const title = page.title || "Untitled Page";
     const addToNav = data.add_to_nav !== false && page.add_to_nav !== false;
     const seedSections = data.seed_sections !== false && page.seed_sections !== false;
+    const shortNavLabel = String(page.nav_label || title).split(/[—–|-]/)[0]?.trim() || title;
+    const navPlacementRaw = String(page.nav_placement || (addToNav ? "more" : "none")).trim().toLowerCase();
+    const navPlacement = ["primary", "more", "cta", "footer_only", "none"].includes(navPlacementRaw)
+      ? navPlacementRaw
+      : (addToNav ? "more" : "none");
 
     const existing = await env.DB.prepare(
       "SELECT id FROM cms_pages WHERE tenant_id = ? AND route_path = ? LIMIT 1"
@@ -1266,8 +1272,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     await env.DB.prepare(`
       INSERT INTO cms_pages
       (id, tenant_id, route_path, slug, title, status, seo_title, meta_description, og_image_url,
-       page_type, template_key, sort_order, is_homepage, show_header, show_footer, nav_visible, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       page_type, template_key, sort_order, is_homepage, show_header, show_footer, nav_visible,
+       nav_label, nav_placement, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(tenant_id, route_path) DO UPDATE SET
         slug = excluded.slug,
         title = excluded.title,
@@ -1298,7 +1305,9 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       page.is_homepage ? 1 : 0,
       page.show_header === 0 ? 0 : 1,
       page.show_footer === 0 ? 0 : 1,
-      addToNav ? 1 : 0
+      addToNav ? 1 : 0,
+      shortNavLabel,
+      navPlacement
     ).run();
 
     let bootstrap = null;
@@ -1307,6 +1316,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
         route: route_path,
         title,
         add_to_nav: addToNav,
+        nav_placement: navPlacement,
       });
     }
 
@@ -2074,7 +2084,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     ).bind(JSON.stringify(merged), TENANT_ID).run();
     await bustCache(env, 'brand:' + TENANT_ID, 'bootstrap:' + TENANT_ID);
     // Bust all page KV cache so re-render picks up new font
-    const PUBLIC_ROUTES = ['/', '/about', '/adopt', '/fosters', '/contact', '/donate', '/community'];
+    const PUBLIC_ROUTES = ['/', '/about', '/adopt', '/fosters', '/contact', '/donate', '/community', '/events'];
     for (const r of PUBLIC_ROUTES) {
       await env.CMS_CACHE.delete('page:' + r).catch(() => {});
     }
@@ -2127,6 +2137,69 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       message: navVisible
         ? "Page is visible in site navigation."
         : "Page hidden from site navigation. Direct URL still works for editing.",
+    }, failed.length ? 207 : 200);
+  }
+
+  // Full chrome controls — nav_label / nav_placement / nav_visible / sort_order (cms_pages SSOT)
+  if (path === "/api/cms/page/chrome" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const route = normalizeRouteInput(data.route_path || data.route || "");
+    if (!route) return json({ success: false, error: "route_path is required" }, 400);
+
+    const allowedPlacement = new Set(["primary", "more", "cta", "footer_only", "none"]);
+    const placementRaw = String(data.nav_placement || "").trim().toLowerCase();
+    const navPlacement = allowedPlacement.has(placementRaw) ? placementRaw : null;
+    const navLabel = data.nav_label !== undefined ? String(data.nav_label || "").trim() : null;
+    const navVisible = data.nav_visible === undefined
+      ? null
+      : (data.nav_visible === 0 || data.nav_visible === false ? 0 : 1);
+    const sortOrder = data.sort_order !== undefined && data.sort_order !== null && data.sort_order !== ""
+      ? Number(data.sort_order)
+      : null;
+
+    if (navPlacement === null && navLabel === null && navVisible === null && sortOrder === null) {
+      return json({ success: false, error: "Provide nav_label, nav_placement, nav_visible, and/or sort_order" }, 400);
+    }
+
+    const sets = ["updated_at = datetime('now')"];
+    const binds = [];
+    if (navLabel !== null) { sets.push("nav_label = ?"); binds.push(navLabel); }
+    if (navPlacement !== null) { sets.push("nav_placement = ?"); binds.push(navPlacement); }
+    if (navVisible !== null) { sets.push("nav_visible = ?"); binds.push(navVisible); }
+    if (sortOrder !== null && Number.isFinite(sortOrder)) { sets.push("sort_order = ?"); binds.push(sortOrder); }
+    binds.push(TENANT_ID, route);
+
+    try {
+      await env.DB.prepare(
+        `UPDATE cms_pages SET ${sets.join(", ")} WHERE tenant_id = ? AND route_path = ?`
+      ).bind(...binds).run();
+    } catch (err) {
+      console.error("[cms/page/chrome] update failed:", err?.message || err);
+      return json({ success: false, error: "Could not update page chrome settings" }, 500);
+    }
+
+    const triggeredBy = cmsUser?.email || cmsUser?.id || "dashboard";
+    await bustCache(env, `brand:${TENANT_ID}`, `bootstrap:${TENANT_ID}`);
+    const republishResults = [];
+    const routesToRepublish = await listAllCmsPageRoutes(env);
+    for (const pageRoute of routesToRepublish) {
+      republishResults.push(await publishPageRoute(env, pageRoute, triggeredBy));
+    }
+    const failed = republishResults.filter((r) => !r.success);
+    const row = await env.DB.prepare(
+      `SELECT route_path, nav_label, nav_placement, nav_visible, sort_order, status
+       FROM cms_pages WHERE tenant_id = ? AND route_path = ? LIMIT 1`
+    ).bind(TENANT_ID, route).first().catch(() => null);
+
+    return json({
+      success: failed.length === 0,
+      page: row,
+      republished: republishResults.filter((r) => r.success).length,
+      failed: failed.length,
+      message: "Header/footer chrome updated from cms_pages. Site republished.",
     }, failed.length ? 207 : 200);
   }
 

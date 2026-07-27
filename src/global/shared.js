@@ -85,7 +85,7 @@
     if (!panel) {
       panel = document.createElement('nav'); panel.className = 'mobile-menu-panel'; panel.id = 'mobileMenuPanel';
       panel.setAttribute('aria-label', 'Mobile navigation');
-      panel.innerHTML = '<a href="/">Home</a><a href="/about">About</a><a href="/adopt">Adopt</a><a href="/services">Services</a><a href="/donate" class="mobile-donate">Donate</a>';
+      panel.innerHTML = '<a href="/">Home</a><a href="/fosters">Foster</a><a href="/adopt">Adopt</a><a href="/about">About Us</a><a href="/events">Events</a><a href="/contact">Contact</a><a href="/donate" class="mobile-donate">Donate</a>';
       document.body.appendChild(panel);
     }
     panel.setAttribute('aria-hidden', 'true');
@@ -118,6 +118,47 @@
     window.addEventListener('resize', () => { if (window.innerWidth > 760) closeMenu(); });
   }
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initMobileNav); } else { initMobileNav(); }
+})();
+
+// Desktop More dropdown (click + outside close; hover also works via CSS)
+(() => {
+  function initNavMore() {
+    document.querySelectorAll('.site-nav .nav-more').forEach((item) => {
+      if (item.dataset.moreReady === '1') return;
+      item.dataset.moreReady = '1';
+      const btn = item.querySelector('.nav-more-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const open = item.classList.toggle('is-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        document.querySelectorAll('.site-nav .nav-more.is-open').forEach((other) => {
+          if (other === item) return;
+          other.classList.remove('is-open');
+          const ob = other.querySelector('.nav-more-toggle');
+          if (ob) ob.setAttribute('aria-expanded', 'false');
+        });
+      });
+    });
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.site-nav .nav-more')) return;
+      document.querySelectorAll('.site-nav .nav-more.is-open').forEach((item) => {
+        item.classList.remove('is-open');
+        const btn = item.querySelector('.nav-more-toggle');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      });
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      document.querySelectorAll('.site-nav .nav-more.is-open').forEach((item) => {
+        item.classList.remove('is-open');
+        const btn = item.querySelector('.nav-more-toggle');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      });
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initNavMore);
+  else initNavMore();
 })();
 
 // Newsletter

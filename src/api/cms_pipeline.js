@@ -376,14 +376,24 @@ export async function seedStarterSectionsForRoute(env, route, title = "Welcome")
   return { seeded: true, sections: seeded };
 }
 
-export async function ensurePageNavItem(env, route, label, { visible = true } = {}) {
+export async function ensurePageNavItem(env, route, label, { visible = true, placement = "more" } = {}) {
   const r = normalizeCmsRoute(route);
   const navVisible = visible ? 1 : 0;
-  await env.DB.prepare(
-    `UPDATE cms_pages SET nav_visible = ?, updated_at = datetime('now')
-     WHERE tenant_id = ? AND route_path = ?`
-  ).bind(navVisible, TENANT_ID, r).run().catch(() => {});
+  const navLabel = String(label || "").trim() || r;
+  const navPlacement = ["primary", "more", "cta", "footer_only", "none"].includes(String(placement))
+    ? String(placement)
+    : "more";
 
+  await env.DB.prepare(
+    `UPDATE cms_pages
+     SET nav_visible = ?,
+         nav_label = COALESCE(NULLIF(TRIM(nav_label), ''), ?),
+         nav_placement = COALESCE(NULLIF(TRIM(nav_placement), ''), ?),
+         updated_at = datetime('now')
+     WHERE tenant_id = ? AND route_path = ?`
+  ).bind(navVisible, navLabel, navPlacement, TENANT_ID, r).run().catch(() => {});
+
+  // Optional mirror only — not live SSOT
   const existing = await env.DB.prepare(
     "SELECT id FROM cms_navigation_items WHERE tenant_id = ? AND href = ? LIMIT 1"
   ).bind(TENANT_ID, r).first().catch(() => null);
@@ -391,36 +401,50 @@ export async function ensurePageNavItem(env, route, label, { visible = true } = 
   if (existing?.id) {
     await env.DB.prepare(
       `UPDATE cms_navigation_items
-       SET label = ?, is_visible = ?, updated_at = datetime('now')
+       SET label = ?, is_visible = ?, nav_group = ?, updated_at = datetime('now')
        WHERE id = ?`
-    ).bind(label || r, navVisible, existing.id).run();
-    return { nav: "updated", href: r, label: label || r };
+    ).bind(navLabel, navVisible, navPlacement === "cta" ? "cta" : navPlacement, existing.id).run();
+    return { nav: "updated", href: r, label: navLabel, placement: navPlacement };
   }
 
   const maxRow = await env.DB.prepare(
-    "SELECT MAX(sort_order) AS m FROM cms_navigation_items WHERE tenant_id = ?"
+    "SELECT MAX(sort_order) AS m FROM cms_pages WHERE tenant_id = ?"
   ).bind(TENANT_ID).first().catch(() => ({ m: 100 }));
   const sortOrder = (Number(maxRow?.m) || 100) + 10;
+
+  await env.DB.prepare(
+    `UPDATE cms_pages SET sort_order = COALESCE(sort_order, ?) WHERE tenant_id = ? AND route_path = ?`
+  ).bind(sortOrder, TENANT_ID, r).run().catch(() => {});
 
   await env.DB.prepare(`
     INSERT INTO cms_navigation_items
     (id, tenant_id, label, href, sort_order, is_visible, created_at, updated_at, nav_group)
-    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 'header')
-  `).bind(newId("nav"), TENANT_ID, label || r, r, sortOrder, navVisible).run();
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)
+  `).bind(newId("nav"), TENANT_ID, navLabel, r, sortOrder, navVisible, navPlacement === "cta" ? "cta" : navPlacement).run();
 
-  return { nav: "created", href: r, label: label || r, sort_order: sortOrder };
+  return { nav: "created", href: r, label: navLabel, placement: navPlacement, sort_order: sortOrder };
 }
 
 /**
- * Full new-page bootstrap: starter sections + nav row.
- * Safe to call on existing pages — skips section seed if sections already exist.
+ * Full new-page bootstrap: starter sections + cms_pages chrome defaults.
+ * New pages default to More placement; staff change in Page settings.
  */
-export async function bootstrapNewCmsPage(env, { route, title, add_to_nav = true } = {}) {
+export async function bootstrapNewCmsPage(env, { route, title, add_to_nav = true, nav_placement = "more" } = {}) {
   const r = normalizeCmsRoute(route);
   const sectionResult = await seedStarterSectionsForRoute(env, r, title);
+  const shortLabel = String(title || r).split(/[—–|-]/)[0]?.trim() || String(title || r);
   let navResult = null;
   if (add_to_nav !== false) {
-    navResult = await ensurePageNavItem(env, r, title || r, { visible: true });
+    navResult = await ensurePageNavItem(env, r, shortLabel, {
+      visible: true,
+      placement: nav_placement || "more",
+    });
+  } else {
+    await env.DB.prepare(
+      `UPDATE cms_pages SET nav_visible = 0, nav_placement = 'none', updated_at = datetime('now')
+       WHERE tenant_id = ? AND route_path = ?`
+    ).bind(TENANT_ID, r).run().catch(() => {});
+    navResult = { nav: "hidden", href: r };
   }
   if (env.CMS_CACHE) {
     await Promise.all([

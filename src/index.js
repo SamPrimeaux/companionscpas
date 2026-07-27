@@ -205,7 +205,7 @@ const LEGACY_VIEW_MAP = {
   "notifications":      "/dashboard/email?view=notifications",
 };
 
-const PUBLIC_ROUTES = ["/", "/about", "/community", "/adopt", "/fosters", "/contact", "/donate"];
+const PUBLIC_ROUTES = ["/", "/about", "/community", "/adopt", "/fosters", "/contact", "/donate", "/events"];
 
 const getSession = getAuthUser;
 
