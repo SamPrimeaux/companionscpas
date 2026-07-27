@@ -3714,7 +3714,7 @@ function BrandPreviewCanvas({ brand, socials, previewTheme }) {
   const logoUrl = isDark
     ? (brand.logo_light_url || brand.logo_dark_url || "")
     : (brand.logo_dark_url || brand.logo_light_url || "");
-  const logoW = Math.max(48, Math.min(80, Number(brand.logo_width) || 80));
+  const logoW = Math.max(40, Math.min(88, Number(brand.logo_width) || 88));
   const HEADER_PREVIEW_H = 88;
   const navLinks = parseBrandNav(brand.navigation_json)
     .filter(l => l.label && l.href && String(l.style || "") !== "button")
@@ -3757,7 +3757,7 @@ function BrandPreviewCanvas({ brand, socials, previewTheme }) {
               style: {
                 height: logoW,
                 width: "auto",
-                maxHeight: HEADER_PREVIEW_H - 8,
+                maxHeight: HEADER_PREVIEW_H,
                 objectFit: "contain",
                 objectPosition: "left center",
                 display: "block",
@@ -3817,7 +3817,7 @@ function CmsBrandView({ onNavigate }) {
       if (d.brand) {
         setBrand({
           ...d.brand,
-          logo_width: Math.max(48, Math.min(80, Number(d.brand.logo_width) || 80)),
+          logo_width: Math.max(40, Math.min(88, Number(d.brand.logo_width) || 88)),
           logo_height: Number(d.brand.logo_height) || 0,
         });
         setOrg((() => { try { return JSON.parse(d.brand.organization_json || "{}"); } catch { return {}; } })());
@@ -3858,7 +3858,7 @@ function CmsBrandView({ onNavigate }) {
         body: JSON.stringify({
           brand: {
             ...brand,
-            logo_width: Math.max(48, Math.min(80, Number(brand.logo_width) || 80)),
+            logo_width: Math.max(40, Math.min(88, Number(brand.logo_width) || 88)),
             logo_height: null,
             organization_json: JSON.stringify(org),
             socials_json: JSON.stringify(socials),
@@ -4003,19 +4003,19 @@ function CmsBrandView({ onNavigate }) {
             onUploadFile: file => uploadLogo(file, "logo_dark_url"),
           }),
           React.createElement("div", null,
-            React.createElement("label", { style: lStyle }, `Header logo size (${Math.max(48, Math.min(80, Number(brand.logo_width) || 80))}px)`),
+            React.createElement("label", { style: lStyle }, `Header logo height (${Math.max(40, Math.min(88, Number(brand.logo_width) || 88))}px)`),
             React.createElement("input", {
-              type: "range", min: 48, max: 80, step: 2,
-              value: Math.max(48, Math.min(80, Number(brand.logo_width) || 80)),
+              type: "range", min: 40, max: 88, step: 2,
+              value: Math.max(40, Math.min(88, Number(brand.logo_width) || 88)),
               onChange: e => setBrand(p => ({ ...p, logo_width: Number(e.target.value) })),
               style: { width: "100%", accentColor: C.purple },
             }),
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: C.textMut, marginTop: 2 } },
-              React.createElement("span", null, "48px"),
-              React.createElement("span", null, "80px — nearly fills the bar")
+              React.createElement("span", null, "40px"),
+              React.createElement("span", null, "88px = full header height")
             ),
             React.createElement("p", { style: { fontSize: 11, color: C.textMut, margin: "6px 0 0", lineHeight: 1.4 } },
-              "Header bar is 88px tall. Logo stays fully inside it (8px padding). Max almost fills the bar — larger would mean growing the header again."
+              "Header bar is 88px. Drag to max to fill the full bar height. Aspect ratio is preserved (no crop/stretch). Save applies live on the public site."
             )
           )
         ),

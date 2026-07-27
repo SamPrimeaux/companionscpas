@@ -152,7 +152,7 @@ body { padding-top: var(--header-h); }
 }
 
 .logo-link { display: flex; align-items: center; flex-shrink: 0; }
-.logo-link img { height: 36px; width: auto; max-width: 140px; object-fit: contain; }
+.logo-link img { height: 88px; width: auto; max-width: none; object-fit: contain; }
 
 .site-nav { display: flex; align-items: center; gap: 2px; list-style: none; }
 .site-nav a {

@@ -1,5 +1,5 @@
 /** Shared public-page asset versions and script tags. */
-export const SHELL_VERSION = "header-88-logo-80-20260727a";
+export const SHELL_VERSION = "header-logo-fullbar-20260727b";
 export const DONATE_MODAL_VERSION = "campaign-entry-20260719";
 export const COMPETITION_PAYMENT_MODAL_VERSION = "wet-dog-copy-clean-20260720";
 export const CPAS_MODALS_VERSION = "modals-foster-cats-20260719";

@@ -16,9 +16,9 @@
   --ease:          cubic-bezier(0.16, 1, 0.3, 1);
   --header-h:      88px;
   --header-h-mob:  80px;
-  /* Header mark — tokens.css overrides with in-bar fit; this is fallback only */
-  --header-logo:   80px;
-  --header-logo-mob: 72px;
+  /* Fallback only — live size comes from brand tokens (!important) */
+  --header-logo:   88px;
+  --header-logo-mob: 80px;
   /* Site layout law — gutters + max content width (donate/contact rhythm) */
   --page-max:      1240px;
   --page-gutter:   clamp(20px, 4vw, 48px);
@@ -255,17 +255,17 @@ p  { text-wrap: pretty; }
   justify-self: start;
   display: inline-flex;
   align-items: center;
+  align-self: stretch;
   flex-shrink: 0;
-  height: var(--header-h);
+  height: 100%;
   overflow: visible;
 }
 .logo-link img,
 .header-logo-img {
   display: block;
-  height: min(var(--header-logo), calc(var(--header-h) - 8px));
+  height: var(--header-logo);
   width: auto;
-  max-height: calc(var(--header-h) - 8px);
-  max-width: min(280px, 42vw);
+  max-width: none;
   margin-block: 0;
   object-fit: contain;
   object-position: left center;
@@ -642,8 +642,7 @@ p  { text-wrap: pretty; }
   .container { width: min(var(--page-max), calc(100% - (var(--page-gutter) * 2))); }
   .logo-link img,
   .header-logo-img {
-    height: min(var(--header-logo-mob), calc(var(--header-h) - 8px));
-    max-height: calc(var(--header-h) - 8px);
+    height: var(--header-logo-mob);
     width: auto;
     margin-block: 0;
   }

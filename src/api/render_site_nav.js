@@ -1,8 +1,9 @@
 import { getBrand } from "./render_page.js";
+import { preferHeaderLogoUrl } from "./brand_tokens.js";
 
 const TENANT_ID = "tenant_companionscpas";
 
-const DEFAULT_LOGO = "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/9a00de35-fa41-49da-e431-a5f004cf5e00/avatar";
+const DEFAULT_LOGO = "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/9a00de35-fa41-49da-e431-a5f004cf5e00/public";
 
 export const SITE_NAV_ITEMS = [
   { route: "/", label: "Home", sort: 10, inHeader: true, inFooter: true },
@@ -61,7 +62,7 @@ function footerNavItems(visibilityMap) {
 function headerLogoSrc(brand) {
   const raw = brand?.logo_light_url || brand?.logo_url || DEFAULT_LOGO;
   if (typeof raw !== "string" || !raw.trim()) return DEFAULT_LOGO;
-  return raw.trim();
+  return preferHeaderLogoUrl(raw.trim()) || DEFAULT_LOGO;
 }
 
 export async function renderSiteHeader(env) {

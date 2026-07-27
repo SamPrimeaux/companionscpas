@@ -1,12 +1,11 @@
-/** Runtime brand color tokens — served as CSS so CMS color saves apply without republish. */
+/** Runtime brand tokens — CMS Brand saves apply via /api/cms/brand/tokens.css (no rebuild). */
 
-/** Public header bar height (matches cpas-shell.css --header-h). */
+/** Must match cpas-shell.css --header-h */
 export const HEADER_BAR_PX = 88;
-/** Small breathing room so the mark doesn’t kiss the bar edges. */
-export const HEADER_LOGO_INSET_PX = 8;
-/** Max logo height = almost the full bar (bar − inset). */
-export const HEADER_LOGO_MAX_PX = HEADER_BAR_PX - HEADER_LOGO_INSET_PX; // 80
-export const HEADER_LOGO_MIN_PX = 48;
+/** 0 = slider may use the full bar height. */
+export const HEADER_LOGO_INSET_PX = 0;
+export const HEADER_LOGO_MAX_PX = HEADER_BAR_PX - HEADER_LOGO_INSET_PX; // 88
+export const HEADER_LOGO_MIN_PX = 40;
 
 function trim(v) {
   return v == null ? "" : String(v).trim();
@@ -47,11 +46,25 @@ function mixHex(a, b, weight = 0.5) {
   return `#${[r, g, bVal].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
 }
 
-/** Clamp CMS logo_width to the in-bar safe range (height in px). */
-export function clampHeaderLogoPx(raw, fallback = 56) {
+/** Clamp CMS logo_width to [min, header bar height] — max = full header height. */
+export function clampHeaderLogoPx(raw, fallback = HEADER_LOGO_MAX_PX) {
   const n = Number(raw);
   const base = Number.isFinite(n) && n > 0 ? n : fallback;
   return Math.max(HEADER_LOGO_MIN_PX, Math.min(HEADER_LOGO_MAX_PX, Math.round(base)));
+}
+
+/**
+ * Prefer a sharp CF Images variant for the header mark.
+ * /avatar is a small thumb and reads tiny even when CSS height is correct.
+ */
+export function preferHeaderLogoUrl(url) {
+  const raw = trim(url);
+  if (!raw) return raw;
+  if (!/imagedelivery\.net\//i.test(raw)) return raw;
+  return raw
+    .replace(/\/avatar\/?$/i, "/public")
+    .replace(/\/w=\d+\/?$/i, "/public")
+    .replace(/\/h=\d+\/?$/i, "/public");
 }
 
 export function buildBrandTokensCss(brand = {}) {
@@ -59,14 +72,15 @@ export function buildBrandTokensCss(brand = {}) {
   const accent = normalizeHex(brand.accent_color, "#d62b2b");
   const purpleMid = mixHex(primary, "#ffffff", 0.18);
   const purpleLight = mixHex(primary, "#ffffff", 0.42);
-  // Slider = desired height; hard-capped so the full mark fits inside the 72px bar.
   const logoSize = clampHeaderLogoPx(brand.logo_width, HEADER_LOGO_MAX_PX);
 
   return `:root,
 .theme-light,
 .theme-plum-glass,
+.theme-dark,
 [data-theme="light"],
-[data-theme="plum_glass"] {
+[data-theme="plum_glass"],
+[data-theme="dark"] {
   --purple: ${primary};
   --purple-mid: ${purpleMid};
   --purple-light: ${purpleLight};
@@ -79,16 +93,30 @@ export function buildBrandTokensCss(brand = {}) {
   --header-logo-inset: ${HEADER_LOGO_INSET_PX}px;
 }
 
-/* Fit inside the header bar — height-driven, width follows aspect ratio (no crop/stretch). */
+/*
+ * Header logo — Brand slider drives height in px.
+ * Max = full --header-h. !important beats stale shell / shared rules.
+ * width:auto + object-fit:contain = no crop, no stretch.
+ */
+.site-header .logo-link {
+  height: 100%;
+  display: inline-flex !important;
+  align-items: center !important;
+  overflow: visible !important;
+}
+.site-header .logo-link img,
+.site-header .header-logo-img,
 .header-logo-img,
 .logo-link img {
-  height: min(var(--brand-logo-size), calc(var(--header-h) - var(--header-logo-inset)));
-  width: auto;
-  max-height: calc(var(--header-h) - var(--header-logo-inset));
-  max-width: min(280px, 42vw);
-  margin-block: 0;
-  object-fit: contain;
-  object-position: left center;
+  height: ${logoSize}px !important;
+  width: auto !important;
+  max-height: ${logoSize}px !important;
+  max-width: none !important;
+  margin-block: 0 !important;
+  object-fit: contain !important;
+  object-position: left center !important;
+  display: block !important;
+  flex-shrink: 0 !important;
 }
 `;
 }
