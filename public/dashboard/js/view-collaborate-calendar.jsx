@@ -519,6 +519,7 @@
         await api('/api/collaborate/calendar/events/' + encodeURIComponent(draft.id), { method: 'DELETE' });
         setDraft(null);
         await load();
+        loadUpcoming();
       } catch (deleteError) {
         setFormError(deleteError.message || 'Event could not be deleted');
       } finally {
