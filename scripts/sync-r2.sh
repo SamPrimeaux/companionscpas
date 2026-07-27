@@ -25,7 +25,7 @@ sedi() {
 HASH=$(git rev-parse --short HEAD)
 HTML="public/dashboard/index.html"
 if [ -f "$HTML" ]; then
-  sedi "s|\.jsx?v=[^\"]*|\.jsx|g; s|\.jsx\"|\.jsx?v=${HASH}\"|g; s|dash\.css?v=[^\"]*|dash.css|g; s|dash\.css\"|dash.css?v=${HASH}\"|g" "$HTML"
+  sedi "s|\.jsx?v=[^\"]*|\.jsx|g; s|\.jsx\"|\.jsx?v=${HASH}\"|g; s|\.css?v=[^\"]*|\.css|g; s|\.css\"|\.css?v=${HASH}\"|g" "$HTML"
   echo "Hash baked: $HASH → $HTML"
 fi
 

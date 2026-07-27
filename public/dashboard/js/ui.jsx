@@ -64,6 +64,7 @@ const NAV_STRUCTURE = [
     }
   ]},
   { group: "Admin", items: [
+    { key: "collaborate", label: "Collaborate", icon: "calendar", path: "/dashboard/collaborate" },
     { key: "email", label: "Email", icon: "mail", path: "/dashboard/email" },
     { key: "reports",  label: "Reports",  icon: "chart", path: "/dashboard/reports" },
     { key: "settings", label: "Settings", icon: "gear",  path: "/dashboard/settings" },
@@ -76,6 +77,7 @@ function isActiveCMS(view) { return view.startsWith("cms-"); }
 
 const ICONS = {
   dashboard:`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5"/></svg>`,
+  calendar: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="15" height="13.5" rx="2"/><path d="M6 2.5v3M14 2.5v3M2.5 8h15"/><path d="M6 11h2M11 11h3M6 14h2M11 14h3"/></svg>`,
   paw:      `<svg viewBox="0 0 20 20" fill="currentColor"><circle cx="7" cy="4" r="1.5"/><circle cx="13" cy="4" r="1.5"/><circle cx="4" cy="8" r="1.5"/><circle cx="16" cy="8" r="1.5"/><path d="M10 8c-2.5 0-5 2-5 5 0 1.5 1 2.5 2 2.5.6 0 1.5-.5 2-.5h2c.5 0 1.4.5 2 .5 1 0 2-1 2-2.5 0-3-2.5-5-5-5z"/></svg>`,
   heart:    `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 16s-7-4.5-7-9a4 4 0 0 1 7-2.65A4 4 0 0 1 17 7c0 4.5-7 9-7 9z"/></svg>`,
   check:    `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M6.5 10l2.5 2.5 4.5-4.5"/></svg>`,

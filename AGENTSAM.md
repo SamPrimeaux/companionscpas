@@ -1,6 +1,6 @@
 # AGENTSAM.md — Companions of Caddo (companionsofcaddo.org)
 > SSOT for any agent picking up this project. Read completely before touching any file, table, or binding.
-> Last updated: 2026-07-07
+> Last updated: 2026-07-27
 
 ---
 
@@ -114,6 +114,16 @@ What is broken/missing (priority order):
 
 ---
 
+## Collaborate Workspace
+
+- Route: `/dashboard/collaborate`; `seg=calendar|tasks|mail` selects the surface and defaults to Calendar.
+- `app.jsx` owns query parsing and browser history. The optional `ticket` query is retained only for Tasks.
+- `view-collaborate.jsx` owns the shell. Swarm A mounts `window.CollaborateCalendarPane`; Swarm B mounts `window.CollaborateTasksPane`.
+- Mail embeds the existing `EmailView` and keeps the current `/api/email/*`, Gmail OAuth, drafts, and notification behavior. `/dashboard/email` remains supported.
+- The seeded package in `packages/collaboration-integration-suite/` is reference material only. Runtime code lives under `public/dashboard` and `src/api`; Tasks must use `agentsam_tickets` and `agentsam_ticket_events`, never `agentsam_todo`.
+
+---
+
 ## Key Files
 | File | Purpose |
 |------|---------|
@@ -127,6 +137,9 @@ What is broken/missing (priority order):
 | static/global/cpas-shell.css | Main stylesheet (in R2) |
 | static/global/cpas-modals.js | Contact/foster/volunteer modals |
 | public/dashboard/js/view-cms.jsx | Full dashboard CMS UI |
+| public/dashboard/js/view-collaborate.jsx | Collaborate Calendar / Tasks / Mail shell and pane mount contract |
+| public/dashboard/css/collaborate.css | Collaborate desktop and mobile shell styles |
+| public/dashboard/js/view-email.jsx | Standalone and embedded CPAS mailbox |
 
 ---
 
@@ -157,6 +170,8 @@ What is broken/missing (priority order):
 - wrangler r2 object list syntax varies by wrangler version - use agentsam_r2_list MCP tool instead.
 - assets.companionsofcaddo.org is separate R2 custom domain - upload via dashboard Images, not wrangler.
 - Babel CDN dashboard: no TS, no imports, React.createElement() throughout, all in same file or window globals.
+- Collaborate tab state is URL state. Route all tab changes through `onNavigate`; do not mutate `location.search` directly.
+- Collaborate Calendar and Tasks may replace only their named `window.*Pane` mount points; shell ownership stays in `view-collaborate.jsx`.
 - /community: hide nav_visible=0 in cms_pages AND reroute all href=/community in R2 fragments BEFORE hiding.
 - impact_stats section removed from home. Do not re-enable without real metrics from client.
 

@@ -149,7 +149,7 @@ function messageLabels(m, view) {
   return labels;
 }
 
-function EmailView() {
+function EmailView({ embedded = false } = {}) {
   const [view, setView] = React.useState("inbox");
   const [folderId, setFolderId] = React.useState(null);
   const [activeMailbox, setActiveMailbox] = React.useState("all");
@@ -719,7 +719,10 @@ function EmailView() {
     : view === "sent" ? "Outbound log incl. no-reply automations"
     : "Filtered mailbox view";
 
-  return React.createElement("div", { className: "email-workspace email-workspace--flush" },
+  return React.createElement("div", {
+    className: "email-workspace email-workspace--flush" + (embedded ? " email-workspace--embedded" : ""),
+    "data-collaborate-embedded": embedded ? "true" : undefined,
+  },
     toast && React.createElement("div", { className: "mail-toast" + (toast.indexOf("err:") === 0 ? " is-error" : "") },
       toast.replace(/^(err:|ok:)/, "")
     ),
@@ -769,8 +772,8 @@ function EmailView() {
         React.createElement("aside", { className: "mail-rail" },
           React.createElement("div", { className: "mail-rail-head" },
             React.createElement("div", { className: "mail-rail-title" },
-              React.createElement("h1", null, "Email"),
-              React.createElement("p", null, "Client, platform, and project communication for Companions of CPAS.")
+              React.createElement("h1", null, embedded ? "Mail" : "Email"),
+              React.createElement("p", null, embedded ? "Inbox, notifications, and outbound communication." : "Client, platform, and project communication for Companions of CPAS.")
             ),
             React.createElement("button", { type: "button", className: "mail-icon-btn", onClick: function() { setSettingsOpen(true); }, title: "Mail settings" },
               React.createElement(Icon, { name: "gear", size: 16 })
