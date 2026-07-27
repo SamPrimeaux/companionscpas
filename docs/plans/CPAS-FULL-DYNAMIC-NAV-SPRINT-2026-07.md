@@ -1,8 +1,9 @@
 # CPAS Sprint — Full Dynamic Header / Footer (CMS-only)
 
-**Status:** Locked for next sprint — **no partials, no fallbacks, no route allowlists**  
+**Status:** SHIPPED 2026-07-27 — live header `data-nav-source="cms_pages"`; More = Events + Contact; Donate CTA; Community hidden  
 **Date:** 2026-07-27  
-**Rule:** Every public chrome control (label, show/hide, primary vs More vs Donate CTA, order) is editable in **CMS Website** and rendered from D1 only.
+**Rule:** Every public chrome control (label, show/hide, primary vs More vs Donate CTA, order) is editable in **CMS Website** and rendered from D1 only.  
+**Git:** companionscpas `43a50b3` (+ migration applied remote)
 
 ---
 
