@@ -84,23 +84,38 @@
 }
 .cpas-cal-mini-grid button.is-active.has-event::after { background: #fff; }
 
-.cpas-cal-meet { min-width: 0; display: grid; gap: 8px; margin-top: 18px; }
-.cpas-cal-meet > strong { font-size: 10px; }
-.cpas-cal-meet > label {
-  min-width: 0;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 9px;
-  border: 1px solid var(--cal-line);
-  border-radius: 8px;
-  background: #fff;
-  color: #777b84;
+.cpas-cal-upcoming { min-width: 0; display: grid; gap: 8px; margin-top: 18px; }
+.cpas-cal-upcoming > header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
-.cpas-cal-meet input {
-  width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #30323a; font-size: 9px;
+.cpas-cal-upcoming > header > strong {
+  font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #5b3a7a;
 }
+.cpas-cal-upcoming-add {
+  width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid var(--cal-line);
+  border-radius: 50%; background: #fff; color: var(--cal-accent); flex-shrink: 0;
+}
+.cpas-cal-upcoming-add:hover { background: var(--cal-accent-soft); }
+.cpas-cal-upcoming-empty { margin: 0; padding: 10px 9px; border: 1px dashed var(--cal-line); border-radius: 8px; color: #8a8792; font-size: 10px; background: #fff; }
+.cpas-cal-upcoming-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.cpas-cal-upcoming-list > li { min-width: 0; }
+.cpas-cal-upcoming-list button {
+  width: 100%; min-width: 0; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px;
+  padding: 7px 9px; border: 1px solid var(--cal-line); border-left: 3px solid var(--cal-accent);
+  border-radius: 8px; background: #fff; text-align: left; box-shadow: 0 1px 3px rgba(57, 32, 74, .06);
+}
+.cpas-cal-upcoming-list button:hover { background: var(--cal-accent-soft); }
+.cpas-cal-upcoming-date {
+  font-size: 8px; font-weight: 800; letter-spacing: .03em; color: var(--cal-accent); white-space: nowrap;
+}
+.cpas-cal-upcoming-title {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 600; color: #2a2233;
+}
+.cpas-cal-upcoming-time { font-size: 8px; color: #8a8792; white-space: nowrap; }
+.cpas-cal-upcoming-list button.is-medical { border-left-color: #bd3853; }
+.cpas-cal-upcoming-list button.is-volunteer { border-left-color: #218358; }
+.cpas-cal-upcoming-list button.is-fundraising { border-left-color: #ad7112; }
+.cpas-cal-upcoming-list button.is-social_post { border-left-color: #3472bd; }
 
 .cpas-cal-mobile-create { display: none; }
 
