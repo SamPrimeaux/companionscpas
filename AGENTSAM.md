@@ -118,7 +118,8 @@ What is broken/missing (priority order):
 
 - Route: `/dashboard/collaborate`; `seg=calendar|tasks|mail` selects the surface and defaults to Calendar.
 - `app.jsx` owns query parsing and browser history. The optional `ticket` query is retained only for Tasks.
-- `view-collaborate.jsx` owns the shell. Swarm A mounts `window.CollaborateCalendarPane`; Swarm B mounts `window.CollaborateTasksPane`.
+- `view-collaborate.jsx` owns the shell. Calendar mounts the live `window.CollaborateCalendarPane`; Swarm B mounts `window.CollaborateTasksPane`.
+- Calendar uses `/api/collaborate/calendar/events` for authenticated range reads and full create/update/delete against `dashboard_calendar_events`; each mutation batches a `dashboard_notifications` audit row.
 - Mail embeds the existing `EmailView` and keeps the current `/api/email/*`, Gmail OAuth, drafts, and notification behavior. `/dashboard/email` remains supported.
 - The seeded package in `packages/collaboration-integration-suite/` is reference material only. Runtime code lives under `public/dashboard` and `src/api`; Tasks must use `agentsam_tickets` and `agentsam_ticket_events`, never `agentsam_todo`.
 
@@ -138,6 +139,10 @@ What is broken/missing (priority order):
 | static/global/cpas-modals.js | Contact/foster/volunteer modals |
 | public/dashboard/js/view-cms.jsx | Full dashboard CMS UI |
 | public/dashboard/js/view-collaborate.jsx | Collaborate Calendar / Tasks / Mail shell and pane mount contract |
+| public/dashboard/js/view-collaborate-calendar.jsx | Live Calendar week/day/month UI and CRUD interactions |
+| public/dashboard/css/collaborate-calendar.css | Calendar parity grid, mini-month, modal, and responsive styles |
+| src/api/collaborate_calendar_api.js | Authenticated Calendar range and CRUD API |
+| db/migrations/20260727_collaborate_calendar_crud.sql | Calendar unix range fields, metadata, and indexes |
 | public/dashboard/css/collaborate.css | Collaborate desktop and mobile shell styles |
 | public/dashboard/js/view-email.jsx | Standalone and embedded CPAS mailbox |
 
