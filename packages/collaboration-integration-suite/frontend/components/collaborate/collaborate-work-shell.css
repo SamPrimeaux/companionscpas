@@ -1,0 +1,229 @@
+/* GCP-style unified work shell — Calendar / Tasks / Mail */
+.colab-work-shell {
+  --colab-shell-bg: #eef2f7;
+  --colab-shell-bar: #f8fafc;
+  --colab-shell-border: #b8bec8;
+  --colab-shell-text: #1a1c1e;
+  --colab-shell-muted: #5f6368;
+  --colab-shell-blue: #1558b8;
+  --colab-shell-blue-soft: #d8e6fb;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  align-self: stretch;
+  background: var(--colab-shell-bg);
+  color: var(--colab-shell-text);
+}
+
+.colab-work-shell-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 52px;
+  padding: 0 16px;
+  background: var(--colab-shell-bar);
+  border-bottom: 1px solid var(--colab-shell-border);
+  flex-shrink: 0;
+}
+
+.colab-work-shell-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 140px;
+  font-size: 14px;
+}
+
+.colab-work-shell-product {
+  font-weight: 600;
+  color: var(--colab-shell-muted);
+  letter-spacing: 0.01em;
+}
+
+.colab-work-shell-sep {
+  color: var(--colab-shell-muted);
+  opacity: 0.6;
+}
+
+.colab-work-shell-title {
+  font-weight: 600;
+}
+
+.colab-work-shell-tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.colab-work-shell-tabs button {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--colab-shell-muted);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.colab-work-shell-tabs button:hover {
+  background: var(--colab-shell-blue-soft);
+  color: var(--colab-shell-blue);
+}
+
+.colab-work-shell-tabs button.active {
+  background: var(--colab-shell-blue-soft);
+  color: var(--colab-shell-blue);
+  border-color: #9bbef0;
+  font-weight: 600;
+}
+
+.colab-work-shell-trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.colab-work-shell-topbar .colab-cal-hamb {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  color: var(--colab-shell-muted);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.colab-work-shell-topbar .colab-cal-hamb:hover {
+  background: var(--colab-shell-blue-soft);
+  color: var(--colab-shell-blue);
+}
+
+.colab-work-shell-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--colab-shell-text);
+  white-space: nowrap;
+}
+
+.colab-cal-topbar--sub {
+  min-height: 44px;
+  border-bottom: 1px solid var(--colab-shell-border);
+}
+
+.colab-cal-topbar--sub .colab-cal-top-center {
+  flex: 1;
+}
+
+.colab-work-shell .colab-cal {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.colab-work-shell-body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mail-time-insights-rail {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Mobile calendar header overrides ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Shrink the shell topbar to one tight row */
+  .colab-work-shell-topbar {
+    min-height: 44px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  /* Hide "Collaborate /" product prefix — wastes space on 390px */
+  .colab-work-shell-product,
+  .colab-work-shell-sep {
+    display: none;
+  }
+
+  .colab-work-shell-brand {
+    min-width: unset;
+    font-size: 13px;
+  }
+
+  .colab-work-shell-title {
+    font-size: 14px;
+  }
+
+  /* Collapse the secondary calendar day-focus bar (← Week / hint text) */
+  .colab-cal-day-focus-bar {
+    min-height: 36px;
+    padding: 0 10px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Hide the verbose hint "Single day — tap times to add events" */
+  .colab-cal-day-focus-label {
+    display: none;
+  }
+
+  /* The ← Week button stays but tighter */
+  .colab-cal-day-focus-bar .colab-cal-pill-btn,
+  .colab-cal-day-focus-bar button {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  /* Collapse the internal calendar topbar (Today · ‹ › · view switcher row)
+     This is .colab-cal-topbar inside the CalendarPage — fold it tight */
+  .colab-cal-topbar {
+    min-height: 40px;
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .colab-cal-month-title {
+    font-size: 14px;
+    margin: 0 4px;
+  }
+
+  .colab-cal-pill-btn {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .colab-cal-icon-btn,
+  .colab-cal-circle-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  /* Hide the view switcher (Day/Week/Month/Year) on mobile — week is default */
+  .colab-cal-view-select {
+    display: none;
+  }
+
+  /* Brand mark on the internal topbar — hide on mobile */
+  .colab-cal-brand {
+    display: none;
+  }
+}
