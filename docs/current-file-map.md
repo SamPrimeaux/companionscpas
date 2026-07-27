@@ -1,7 +1,7 @@
 # Companions of CPAS — Live Source File Map
 
 Version: v2  
-Last aligned: 2026-06-19  
+Last aligned: 2026-07-27
 Production repo: `/Users/samprimeaux/companionscpas`
 
 Canonical companion to README [Source File Map](../README.md#source-file-map). Use this for dashboard route ownership, API lanes, and table source-of-truth decisions.
@@ -24,6 +24,8 @@ Canonical companion to README [Source File Map](../README.md#source-file-map). U
 | HTML shell | `public/dashboard/index.html` | Loads JSX via Babel CDN; cache-bust query on script tags after deploy. |
 | Router | `public/dashboard/js/app.jsx` | `ROUTE_REGISTRY`, legacy `?view=` redirects, session gate, mobile nav, view switch. |
 | Shared UI | `public/dashboard/js/ui.jsx` | Sidebar, PageHeader, cards, Modal, Table, mobile drawer. |
+| Collaborate shell | `public/dashboard/js/view-collaborate.jsx` | Calendar / Tasks / Mail tabs, URL-backed surface selection, and lane mount points. |
+| Collaborate styles | `public/dashboard/css/collaborate.css` | Full-height workspace, pending panes, embedded Mail, and mobile tab bar. |
 | Config | `public/dashboard/js/config.js` | `GET /api/dashboard/config` |
 | Data bootstrap | `public/dashboard/js/data.js` | `GET /api/dashboard/overview` + `/api/dashboard/team`; hydrates `window.CPAS` (mock fallback on failure). |
 | Agent Sam chat | `public/dashboard/js/agentsam.jsx` | Chat UI, `POST /api/agentsam/chat`, uploads, Drive hooks. |
@@ -32,7 +34,7 @@ Canonical companion to README [Source File Map](../README.md#source-file-map). U
 
 ## Dashboard route ownership (live)
 
-| Route | View key | Component | Frontend | API | D1 / storage | Status (Jun 2026) |
+| Route | View key | Component | Frontend | API | D1 / storage | Status (Jul 2026) |
 |---|---|---|---|---|---|---|
 | `/dashboard/overview` | `overview` | `OverviewView` | `view-overview.jsx` | `/api/dashboard/overview` | `animal_profiles`, `cpas_foster_applications`, `donations`, `volunteer_records` | **Mixed** — animal count from API; deltas/sparklines/care bars still mock |
 | `/dashboard/animals` | `animals` | `AnimalsView` | `view-animals.jsx` | `GET/POST /api/dashboard/animals` | `animal_profiles`, `cms_assets` | **Live** |
@@ -56,6 +58,9 @@ Canonical companion to README [Source File Map](../README.md#source-file-map). U
 | `/dashboard/cms/templates` | `cms-templates` | `CmsTemplatesView` | `view-cms.jsx` | Section type catalog (UI) | — | **Reference UI** |
 | `/dashboard/reports` | `reports` | `ReportsView` | `view-reports.jsx` | Multiple + `/api/agentsam/runs` | Mixed | **Partial** — see Reports alignment |
 | `/dashboard/settings` | `settings` | `SettingsView` | `view-admin.jsx` | `/api/dashboard/config` | brand, integrations | **Shell** |
+| `/dashboard/collaborate` | `collaborate` | `CollaborateView` | `view-collaborate.jsx` | Lane A calendar APIs | `dashboard_calendar_events`, `dashboard_notifications` | **Shell live** — Calendar pane mounts through `window.CollaborateCalendarPane` |
+| `/dashboard/collaborate?seg=tasks` | `collaborate` | `CollaborateView` | `view-collaborate.jsx` | Lane B ticket APIs | `agentsam_tickets`, `agentsam_ticket_events` | **Shell live** — Tasks pane mounts through `window.CollaborateTasksPane`; optional `ticket` query supported |
+| `/dashboard/collaborate?seg=mail` | `collaborate` | `CollaborateView` + `EmailView` | `view-collaborate.jsx`, `view-email.jsx` | `/api/email/*`, Gmail OAuth | `inbound_emails`, `dashboard_notifications` | **Live** — existing CPAS mailbox embedded |
 | `/dashboard/notifications` | `email` | `EmailWorkspaceView` | `view-email.jsx` | Redirect to email notifications view | `dashboard_notifications` | **Live** (legacy URL) |
 | `/dashboard/email` | `email` | `EmailWorkspaceView` | `view-email.jsx` | `/api/email/*`, Gmail OAuth | `inbound_emails`, Gmail scope | **Live** |
 

@@ -26,6 +26,13 @@ const ROUTE_REGISTRY = [
   { path: "/dashboard/cms/forms",        view: "cms-forms" },
   { path: "/dashboard/cms/brand",        view: "cms-brand" },
   { path: "/dashboard/cms",              view: "cms-website" },
+  {
+    path: "/dashboard/collaborate",
+    view: "collaborate",
+    queryKeys: ["seg", "ticket"],
+    queryDefaults: { seg: "calendar" },
+    queryValues: { seg: ["calendar", "tasks", "mail"] },
+  },
   { path: "/dashboard/email",            view: "email" },
   { path: "/dashboard/reports",          view: "reports" },
   { path: "/dashboard/settings",         view: "settings" },
@@ -53,6 +60,20 @@ const LEGACY_MAP = {
   "animal-profile":     null,
   "application-detail": null,
 };
+
+function readRouteQuery(route, searchParams) {
+  const params = {};
+  for (const key of route.queryKeys || []) {
+    const raw = searchParams.get(key);
+    const allowed = route.queryValues?.[key];
+    if (raw && (!allowed || allowed.includes(raw))) params[key] = raw;
+  }
+  for (const [key, value] of Object.entries(route.queryDefaults || {})) {
+    if (!params[key]) params[key] = value;
+  }
+  if (route.view === "collaborate" && params.seg !== "tasks") delete params.ticket;
+  return params;
+}
 
 function resolveRoute(pathname, searchParams) {
   const legacyView = searchParams.get("view");
@@ -93,12 +114,17 @@ function resolveRoute(pathname, searchParams) {
     if (route.paramKey) {
       if (pathname.startsWith(route.path)) {
         const paramVal = pathname.slice(route.path.length).replace(/\/$/, "");
-        if (paramVal) return { view: route.view, params: { [route.paramKey]: paramVal } };
+        if (paramVal) {
+          return {
+            view: route.view,
+            params: { [route.paramKey]: paramVal, ...readRouteQuery(route, searchParams) },
+          };
+        }
       }
     } else {
       const norm = pathname.replace(/\/$/, "") || "/dashboard";
       if (norm === route.path || norm + "/" === route.path) {
-        return { view: route.view, params: {} };
+        return { view: route.view, params: readRouteQuery(route, searchParams) };
       }
     }
   }
@@ -108,8 +134,22 @@ function resolveRoute(pathname, searchParams) {
 function buildPath(view, params = {}) {
   const route = ROUTE_REGISTRY.find(r => r.view === view);
   if (!route) return "/dashboard/overview";
-  if (route.paramKey && params[route.paramKey]) return `${route.path}${params[route.paramKey]}`;
-  return route.path;
+  let path = route.paramKey && params[route.paramKey]
+    ? `${route.path}${params[route.paramKey]}`
+    : route.path;
+  const query = new URLSearchParams();
+  for (const key of route.queryKeys || []) {
+    const value = params[key];
+    if (route.view === "collaborate" && key === "ticket" && params.seg !== "tasks") continue;
+    const defaultValue = route.queryDefaults?.[key];
+    const allowed = route.queryValues?.[key];
+    if (value && value !== defaultValue && (!allowed || allowed.includes(value))) {
+      query.set(key, value);
+    }
+  }
+  const suffix = query.toString();
+  if (suffix) path += "?" + suffix;
+  return path;
 }
 
 function App() {
@@ -211,7 +251,7 @@ function App() {
   }
 
   const isCmsEditor = view === "cms-page-editor" || view === "cms-form-editor";
-  const isEmailWorkspace = view === "email";
+  const isFlushWorkspace = view === "email" || view === "collaborate";
 
   const renderView = () => {
     switch (view) {
@@ -260,6 +300,11 @@ function App() {
           ? React.createElement(CmsBrandView,     { onNavigate: navigate })
           : cmsShell("Brand & Settings", "Loading…");
 
+      case "collaborate":
+        return typeof CollaborateView === "function"
+          ? React.createElement(CollaborateView, { params, onNavigate: navigate })
+          : cmsShell("Collaborate", "Loading…");
+
       // Email inbox
       case "email":
         return typeof EmailView === "function"
@@ -273,7 +318,7 @@ function App() {
   };
 
   // CMS page editor gets full height with no scroll padding
-  const mainScrollStyle = (isCmsEditor || isEmailWorkspace)
+  const mainScrollStyle = (isCmsEditor || isFlushWorkspace)
     ? { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }
     : { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0 };
 
@@ -291,7 +336,7 @@ function App() {
       React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => setNavOpen(true), navigate }),
       React.createElement("main", {
         id: "main-scroll",
-        className: "cpas-dash-content" + (isEmailWorkspace || isCmsEditor ? " dash-content--flush" : ""),
+        className: "cpas-dash-content" + (isFlushWorkspace || isCmsEditor ? " dash-content--flush" : ""),
         style: mainScrollStyle
       }, renderView())
     ),
