@@ -16,6 +16,9 @@
   --ease:          cubic-bezier(0.16, 1, 0.3, 1);
   --header-h:      72px;
   --header-h-mob:  68px;
+  /* Header mark — ≥2× prior (was --header-h + 18 ≈ 90px) */
+  --header-logo:   180px;
+  --header-logo-mob: 160px;
   /* Site layout law — gutters + max content width (donate/contact rhythm) */
   --page-max:      1240px;
   --page-gutter:   clamp(20px, 4vw, 48px);
@@ -259,10 +262,10 @@ p  { text-wrap: pretty; }
 .logo-link img,
 .header-logo-img {
   display: block;
-  height: calc(var(--header-h) + 18px);
-  width: calc(var(--header-h) + 18px);
+  height: var(--header-logo);
+  width: var(--header-logo);
   max-width: none;
-  margin-block: -9px;
+  margin-block: calc((var(--header-logo) - var(--header-h)) / -2);
   object-fit: contain;
   object-position: left center;
 }
@@ -638,9 +641,9 @@ p  { text-wrap: pretty; }
   .container { width: min(var(--page-max), calc(100% - (var(--page-gutter) * 2))); }
   .logo-link img,
   .header-logo-img {
-    height: calc(var(--header-h) + 12px);
-    width: calc(var(--header-h) + 12px);
-    margin-block: -6px;
+    height: var(--header-logo-mob);
+    width: var(--header-logo-mob);
+    margin-block: calc((var(--header-logo-mob) - var(--header-h)) / -2);
   }
   .section   { padding-block: clamp(56px, 12vw, 88px); }
   .site-nav, .header-actions { display: none; }
