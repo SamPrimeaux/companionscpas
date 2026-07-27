@@ -427,6 +427,26 @@
 
     React.useEffect(function() { load(); }, [load]);
 
+    const loadUpcoming = React.useCallback(async function() {
+      setUpcomingLoading(true);
+      try {
+        const now = Math.floor(Date.now() / 1000);
+        const horizon = now + 60 * 86400;
+        const data = await api('/api/collaborate/calendar/events?from=' + now + '&to=' + horizon);
+        const sorted = (data.events || [])
+          .filter(function(event) { return event.starts_at_unix >= now; })
+          .sort(function(a, b) { return a.starts_at_unix - b.starts_at_unix; })
+          .slice(0, 6);
+        setUpcoming(sorted);
+      } catch (upcomingError) {
+        setUpcoming([]);
+      } finally {
+        setUpcomingLoading(false);
+      }
+    }, []);
+
+    React.useEffect(function() { loadUpcoming(); }, [loadUpcoming]);
+
     function move(amount) {
       if (view === 'month') {
         setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + amount, 1));
