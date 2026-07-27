@@ -305,11 +305,15 @@ function App() {
           ? React.createElement(CollaborateView, { params, onNavigate: navigate })
           : cmsShell("Collaborate", "Loading…");
 
-      // Email inbox
+      // Email inbox — routed through the Collaborate mail surface so /dashboard/email
+      // and /dashboard/collaborate?seg=mail render the identical wrapped experience
+      // (same EmailView component, same collab-work-shell chrome/branding).
       case "email":
-        return typeof EmailView === "function"
-          ? React.createElement(EmailView)
-          : cmsShell("Email", "Loading…");
+        return typeof CollaborateView === "function"
+          ? React.createElement(CollaborateView, { params: { seg: "mail" }, onNavigate: navigate })
+          : (typeof EmailView === "function"
+              ? React.createElement(EmailView)
+              : cmsShell("Email", "Loading…"));
 
       case "reports":             return React.createElement(ReportsView,            { onNavigate: navigate });
       case "settings":            return React.createElement(SettingsView,           { onNavigate: navigate });
