@@ -827,3 +827,183 @@
     grid-column: auto;
   }
 }
+
+.collab-task-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(18, 15, 24, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.collab-task-share-modal,
+.collab-task-library-modal {
+  width: min(520px, 100%);
+  max-height: min(820px, calc(100vh - 40px));
+  overflow: auto;
+  border: 1px solid rgba(82, 61, 107, 0.16);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(28, 18, 40, 0.24);
+}
+
+.collab-task-share-modal header,
+.collab-task-library-modal header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(79, 66, 96, 0.12);
+}
+
+.collab-task-share-modal header span {
+  color: var(--collab-accent, #8664b7);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.collab-task-share-modal header h2,
+.collab-task-library-modal header strong {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #2e2737;
+}
+
+.collab-task-share-modal {
+  padding-bottom: 8px;
+}
+
+.collab-task-share-summary {
+  margin: 0;
+  padding: 12px 18px 0;
+  color: #5c5364;
+  font-size: 13px;
+}
+
+.collab-task-share-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 18px 0;
+}
+
+.collab-task-share-modal label > span {
+  color: #665d6e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.collab-task-share-modal input,
+.collab-task-share-modal textarea {
+  width: 100%;
+  border: 1px solid rgba(80, 61, 105, 0.18);
+  border-radius: 8px;
+  background: #fbfbfd;
+  color: #30293a;
+  font: 500 14px/1.45 var(--font-ui, "DM Sans", sans-serif);
+  padding: 10px 12px;
+}
+
+.collab-task-share-hint {
+  margin: 12px 18px 0;
+  color: #7b7382;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.collab-task-share-modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 18px 18px;
+}
+
+.collab-task-attach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.collab-task-attach-grid,
+.collab-task-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 10px;
+}
+
+.collab-task-attach-card,
+.collab-task-library-card {
+  overflow: hidden;
+  border: 1px solid rgba(82, 61, 107, 0.14);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.collab-task-attach-card a,
+.collab-task-library-card {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.collab-task-attach-card img,
+.collab-task-library-card img {
+  display: block;
+  width: 100%;
+  height: 108px;
+  object-fit: cover;
+  background: #f0edf4;
+}
+
+.collab-task-attach-card figcaption,
+.collab-task-library-card span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 9px;
+  color: #554a61;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.collab-task-attach-card figcaption span,
+.collab-task-library-card span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collab-task-attach-card figcaption button {
+  border: 0;
+  background: transparent;
+  color: #ad3648;
+  font: 600 11px/1 var(--font-ui, "DM Sans", sans-serif);
+  cursor: pointer;
+}
+
+.collab-task-library-modal {
+  width: min(760px, 100%);
+  padding-bottom: 16px;
+}
+
+.collab-task-library-grid {
+  padding: 14px 16px 0;
+}
+
+.collab-task-library-modal > p {
+  padding: 14px 16px 0;
+}
+

@@ -87,11 +87,50 @@ function encodeTags(value) {
   return JSON.stringify(parseTicketTags(value));
 }
 
+export function parseTicketAttachments(value) {
+  let list = [];
+  if (Array.isArray(value)) {
+    list = value;
+  } else if (value) {
+    try {
+      const parsed = JSON.parse(String(value));
+      list = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      list = [];
+    }
+  }
+  const out = [];
+  const seen = new Set();
+  for (const item of list.slice(0, 40)) {
+    if (!item || typeof item !== "object") continue;
+    const url = String(item.url || item.pub_url || "").trim();
+    if (!url || !/^https?:\/\//i.test(url) || seen.has(url)) continue;
+    seen.add(url);
+    out.push({
+      id: String(item.id || item.asset_key || `att_${out.length + 1}`).slice(0, 120),
+      url,
+      asset_key: item.asset_key ? String(item.asset_key).slice(0, 240) : null,
+      name: item.name ? String(item.name).slice(0, 240) : (url.split("/").pop() || "attachment"),
+      mime: item.mime || item.mime_type || null,
+      source: item.source === "upload" || item.source === "library" || item.source === "url"
+        ? item.source
+        : (item.asset_key ? "library" : "url"),
+      linked_at: Number(item.linked_at) || null,
+    });
+  }
+  return out;
+}
+
+function encodeAttachments(value) {
+  return JSON.stringify(parseTicketAttachments(value));
+}
+
 function normalizeTicketRow(row) {
   if (!row) return null;
   return {
     ...row,
     tags: parseTicketTags(row.tags),
+    attachments: parseTicketAttachments(row.attachments_json),
     due_at: row.due_at === null || row.due_at === undefined ? null : Number(row.due_at),
     created_at: Number(row.created_at),
     updated_at: Number(row.updated_at),
@@ -191,11 +230,12 @@ export async function createTicket(env, input, actorId) {
   const now = unixNow();
   const dueAt = normalizeDueAt(input.due_at);
   const tags = encodeTags(input.tags);
+  const attachments = encodeAttachments(input.attachments ?? input.attachments_json ?? []);
   const insert = env.DB.prepare(`
     INSERT INTO agentsam_tickets (
       id, title, description, status, status_reason, project, subsystem,
-      tags, priority, requested_by, doc_path, due_at, created_at, updated_at, closed_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      tags, priority, requested_by, doc_path, due_at, attachments_json, created_at, updated_at, closed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     title,
@@ -209,6 +249,7 @@ export async function createTicket(env, input, actorId) {
     cleanOptional(input.requested_by, 240) || cleanOptional(actorId, 240),
     cleanOptional(input.doc_path, 1000),
     dueAt,
+    attachments,
     now,
     now,
     status === "shipped" || status === "abandoned" ? now : null,
@@ -237,6 +278,8 @@ const PATCH_FIELDS = {
   project: { column: "project", normalize: (value) => cleanOptional(value, 240) },
   subsystem: { column: "subsystem", normalize: (value) => cleanOptional(value, 240) },
   tags: { column: "tags", normalize: encodeTags },
+  attachments: { column: "attachments_json", normalize: encodeAttachments },
+  attachments_json: { column: "attachments_json", normalize: encodeAttachments },
   priority: { column: "priority", normalize: normalizePriority },
   requested_by: { column: "requested_by", normalize: (value) => cleanOptional(value, 240) },
   doc_path: { column: "doc_path", normalize: (value) => cleanOptional(value, 1000) },
@@ -252,7 +295,11 @@ export async function patchTicket(env, id, input, actorId) {
   for (const [field, config] of Object.entries(PATCH_FIELDS)) {
     if (!Object.prototype.hasOwnProperty.call(input, field)) continue;
     const value = config.normalize(input[field]);
-    const previous = field === "tags" ? JSON.stringify(existing.tags) : existing[field];
+    const previous = field === "tags"
+      ? JSON.stringify(existing.tags)
+      : field === "attachments" || field === "attachments_json"
+        ? JSON.stringify(existing.attachments || [])
+        : existing[field];
     if (String(previous ?? "") === String(value ?? "")) continue;
     sets.push(`${config.column} = ?`);
     params.push(value);

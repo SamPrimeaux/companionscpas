@@ -257,6 +257,236 @@ function TasksSidebar({
   );
 }
 
+function TicketShareModal({ ticket, busy, onClose, onSend }) {
+  const [to, setTo] = React.useState("");
+  const [message, setMessage] = React.useState("");
+  const [subject, setSubject] = React.useState(`Task: ${ticket.title || ""}`);
+  const [localError, setLocalError] = React.useState("");
+  const [sending, setSending] = React.useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setLocalError("");
+    setSending(true);
+    try {
+      await onSend({ to: to.trim(), message: message.trim(), subject: subject.trim() });
+      onClose();
+    } catch (shareError) {
+      setLocalError(shareError.message || "Share failed");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="collab-task-modal-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !sending) onClose();
+    }}>
+      <form className="collab-task-share-modal" role="dialog" aria-modal="true" aria-labelledby="collab-task-share-title" onSubmit={submit}>
+        <header>
+          <div>
+            <span>Share by email</span>
+            <h2 id="collab-task-share-title">Send this task to the team</h2>
+          </div>
+          <button type="button" className="collab-task-icon-btn" onClick={onClose} disabled={sending} aria-label="Close share">
+            <Icon name="close" size={18} />
+          </button>
+        </header>
+        <p className="collab-task-share-summary">{ticket.title}</p>
+        <label>
+          <span>To</span>
+          <input type="email" required value={to} onChange={(event) => setTo(event.target.value)} placeholder="teammate@example.com" autoFocus />
+        </label>
+        <label>
+          <span>Subject</span>
+          <input type="text" value={subject} onChange={(event) => setSubject(event.target.value)} />
+        </label>
+        <label>
+          <span>Note</span>
+          <textarea rows="4" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="What should they look at or do next?" />
+        </label>
+        <p className="collab-task-share-hint">
+          Sends via Companions email with the task link
+          {(ticket.attachments || []).length ? ` and ${(ticket.attachments || []).length} linked image${(ticket.attachments || []).length === 1 ? "" : "s"}` : ""}.
+          Images stay in the media library — no second upload.
+        </p>
+        {localError ? <p className="collab-task-error" role="alert">{localError}</p> : null}
+        <footer>
+          <button type="button" className="collab-task-btn ghost" onClick={onClose} disabled={sending || busy}>Cancel</button>
+          <button type="submit" className="collab-task-btn primary" disabled={sending || busy || !to.trim()}>
+            {sending ? "Sending…" : "Send email"}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+function TicketAttachments({ attachments, busy, onChange }) {
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [assets, setAssets] = React.useState([]);
+  const [loadingAssets, setLoadingAssets] = React.useState(false);
+  const [assetError, setAssetError] = React.useState("");
+  const [uploading, setUploading] = React.useState(false);
+  const fileRef = React.useRef(null);
+  const list = Array.isArray(attachments) ? attachments : [];
+
+  async function openLibrary() {
+    setPickerOpen(true);
+    setLoadingAssets(true);
+    setAssetError("");
+    try {
+      const response = await fetch("/api/cms/assets?limit=80", { credentials: "include" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not load media library");
+      setAssets((data.assets || []).filter((asset) => {
+        const mime = String(asset.mime_type || asset.mime || "");
+        return !mime || mime.startsWith("image/");
+      }));
+    } catch (libraryError) {
+      setAssetError(libraryError.message);
+    } finally {
+      setLoadingAssets(false);
+    }
+  }
+
+  function linkAsset(asset) {
+    const url = asset.pub_url || asset.url;
+    if (!url) return;
+    if (list.some((item) => item.url === url)) {
+      setPickerOpen(false);
+      return;
+    }
+    onChange([
+      ...list,
+      {
+        id: asset.asset_key || asset.id || url,
+        url,
+        asset_key: asset.asset_key || null,
+        name: asset.label || asset.alt_text || asset.asset_key || "Image",
+        mime: asset.mime_type || asset.mime || "image/jpeg",
+        source: "library",
+        linked_at: Math.floor(Date.now() / 1000),
+      },
+    ]);
+    setPickerOpen(false);
+  }
+
+  function unlink(url) {
+    onChange(list.filter((item) => item.url !== url));
+  }
+
+  async function uploadFile(event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setAssetError("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("usage_context", "tasks");
+      form.append("label", file.name);
+      const response = await fetch("/api/cms/asset/upload", {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !(data.success || data.asset || data.url || data.pub_url)) {
+        throw new Error(data.error || "Upload failed");
+      }
+      const asset = data.asset || data;
+      const url = asset.pub_url || asset.url || data.pub_url || data.url;
+      if (!url) throw new Error("Upload succeeded but no public URL was returned");
+      onChange([
+        ...list,
+        {
+          id: asset.asset_key || asset.id || url,
+          url,
+          asset_key: asset.asset_key || null,
+          name: asset.label || file.name,
+          mime: asset.mime_type || file.type || "image/jpeg",
+          source: "upload",
+          linked_at: Math.floor(Date.now() / 1000),
+        },
+      ]);
+    } catch (uploadError) {
+      setAssetError(uploadError.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <section className="collab-task-focus-section collab-task-attachments">
+      <div className="collab-task-focus-section-heading">
+        <span>Images & links</span>
+        <small>{list.length}</small>
+      </div>
+      <p>Link media-library assets or upload once into CMS storage. Tasks only store the URL — no double copy.</p>
+      <div className="collab-task-attach-actions">
+        <button type="button" className="collab-task-btn outline" onClick={openLibrary} disabled={busy || uploading}>
+          <Icon name="image" size={15} />
+          Link from library
+        </button>
+        <button type="button" className="collab-task-btn outline" onClick={() => fileRef.current?.click()} disabled={busy || uploading}>
+          <Icon name="upload" size={15} />
+          {uploading ? "Uploading…" : "Upload image"}
+        </button>
+        <input ref={fileRef} type="file" accept="image/*,.pdf" hidden onChange={uploadFile} />
+      </div>
+      {assetError ? <p className="collab-task-error" role="alert">{assetError}</p> : null}
+      {list.length ? (
+        <div className="collab-task-attach-grid">
+          {list.map((item) => (
+            <figure key={item.url} className="collab-task-attach-card">
+              <a href={item.url} target="_blank" rel="noreferrer">
+                <img src={item.url} alt={item.name || "Attachment"} />
+              </a>
+              <figcaption>
+                <span title={item.name}>{item.name || "Attachment"}</span>
+                <button type="button" onClick={() => unlink(item.url)} disabled={busy}>Unlink</button>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      ) : (
+        <p className="collab-task-activity-empty">No images linked yet.</p>
+      )}
+      {pickerOpen ? (
+        <div className="collab-task-modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setPickerOpen(false);
+        }}>
+          <section className="collab-task-library-modal" role="dialog" aria-modal="true" aria-label="Media library">
+            <header>
+              <strong>Link from media library</strong>
+              <button type="button" className="collab-task-icon-btn" onClick={() => setPickerOpen(false)} aria-label="Close library">
+                <Icon name="close" size={18} />
+              </button>
+            </header>
+            {loadingAssets ? <p className="collab-task-activity-empty">Loading library…</p> : null}
+            {!loadingAssets && !assets.length ? <p className="collab-task-activity-empty">No images found in the library.</p> : null}
+            <div className="collab-task-library-grid">
+              {assets.map((asset) => (
+                <button
+                  key={asset.asset_key || asset.id || asset.pub_url}
+                  type="button"
+                  className="collab-task-library-card"
+                  onClick={() => linkAsset(asset)}
+                >
+                  <img src={asset.pub_url || asset.url} alt={asset.label || asset.asset_key || "Asset"} />
+                  <span>{asset.label || asset.asset_key || "Image"}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function TicketFocus({
   ticket,
   events,
@@ -268,6 +498,7 @@ function TicketFocus({
   onComplete,
   onDelete,
   onToggleStar,
+  onShare,
 }) {
   const [title, setTitle] = React.useState(ticket.title || "");
   const [description, setDescription] = React.useState(ticket.description || "");
@@ -275,6 +506,8 @@ function TicketFocus({
   const [priority, setPriority] = React.useState(ticket.priority || "medium");
   const [project, setProject] = React.useState(ticket.project || "");
   const [dueLocal, setDueLocal] = React.useState(dueInputValue(ticket.due_at));
+  const [attachments, setAttachments] = React.useState(ticket.attachments || []);
+  const [shareOpen, setShareOpen] = React.useState(false);
   const dueRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -284,6 +517,7 @@ function TicketFocus({
     setPriority(ticket.priority || "medium");
     setProject(ticket.project || "");
     setDueLocal(dueInputValue(ticket.due_at));
+    setAttachments(ticket.attachments || []);
   }, [ticket.id, ticket.updated_at]);
 
   async function save() {
@@ -294,6 +528,20 @@ function TicketFocus({
       project: project || null,
       due_at: dueFromInput(dueLocal),
       status,
+      attachments,
+    });
+  }
+
+  async function persistAttachments(next) {
+    setAttachments(next);
+    await onSave({
+      title: title.trim(),
+      description: description.trim() || null,
+      priority,
+      project: project || null,
+      due_at: dueFromInput(dueLocal),
+      status,
+      attachments: next,
     });
   }
 
@@ -318,6 +566,10 @@ function TicketFocus({
             disabled={busy}
           >
             <Icon name="star" size={19} />
+          </button>
+          <button type="button" className="collab-task-btn outline" onClick={() => setShareOpen(true)} disabled={busy}>
+            <Icon name="share" size={15} />
+            Share
           </button>
           <button type="button" className="collab-task-btn primary" onClick={save} disabled={busy || !title.trim()}>
             {busy ? "Saving…" : "Save"}
@@ -375,6 +627,12 @@ function TicketFocus({
               placeholder="Describe what done looks like, paste URLs, and capture client feedback."
             />
           </section>
+
+          <TicketAttachments
+            attachments={attachments}
+            busy={busy}
+            onChange={persistAttachments}
+          />
 
           <section className="collab-task-focus-fields">
             <label>
@@ -438,6 +696,14 @@ function TicketFocus({
       <datalist id="collab-task-projects">
         {projects.map((item) => <option value={item} key={item}>{displayProject(item)}</option>)}
       </datalist>
+      {shareOpen ? (
+        <TicketShareModal
+          ticket={{ ...ticket, attachments }}
+          busy={busy}
+          onClose={() => setShareOpen(false)}
+          onSend={onShare}
+        />
+      ) : null}
     </section>
   );
 }
@@ -602,6 +868,24 @@ function CollaborateTasksPane({ ticketId, onNavigate }) {
     }
   }
 
+  async function shareTicket(payload) {
+    if (!selectedTicket) return;
+    setBusyId(selectedTicket.id);
+    setError("");
+    try {
+      await ticketApi(`/api/tickets/${encodeURIComponent(selectedTicket.id)}/share`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      await loadDetail(selectedTicket.id);
+    } catch (requestError) {
+      setError(requestError.message);
+      throw requestError;
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function created(ticket) {
     setCreating(false);
     setTickets((current) => [ticket, ...current]);
@@ -646,6 +930,7 @@ function CollaborateTasksPane({ ticketId, onNavigate }) {
               onComplete={completeTicket}
               onDelete={deleteTicket}
               onToggleStar={toggleStar}
+              onShare={shareTicket}
             />
           ) : (
             <div className="collab-tasks-error-state" role="alert">

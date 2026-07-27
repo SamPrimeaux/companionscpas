@@ -223,7 +223,7 @@ async function hydrateOutboundBody(env, row) {
   return { ...row, body_html: html || row.body_html, body_text: text || row.body_text, preview_text: preview || row.preview_text };
 }
 
-async function sendResendEmail(env, { from, to, subject, html, text, replyTo, type, related_type, related_id }) {
+export async function sendResendEmail(env, { from, to, subject, html, text, replyTo, type, related_type, related_id }) {
   const plain = text || String(html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   const key = resendKey(env);
   if (!key) {
