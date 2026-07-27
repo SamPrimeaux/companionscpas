@@ -3741,12 +3741,26 @@ function BrandPreviewCanvas({ brand, socials, previewTheme }) {
       style: {
         background: headerBg, color: textColor,
         borderBottom: `3px solid ${primary}`,
-        padding: "14px 18px",
+        padding: "10px 18px",
+        minHeight: Math.max(56, logoW + 20),
+        display: "flex",
+        alignItems: "center",
       },
     },
-      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" } },
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", width: "100%" } },
         logoUrl
-          ? React.createElement("img", { src: logoUrl, alt: brand.brand_name || "Logo", style: { width: logoW, height: "auto", maxHeight: Math.max(52, logoW), objectFit: "contain", display: "block" } })
+          ? React.createElement("img", {
+              src: logoUrl,
+              alt: brand.brand_name || "Logo",
+              style: {
+                width: logoW,
+                height: logoW,
+                objectFit: "contain",
+                objectPosition: "left center",
+                display: "block",
+                flexShrink: 0,
+              },
+            })
           : React.createElement("div", { style: { fontWeight: 800, fontSize: 15, color: primary } }, brand.brand_name || "Brand"),
         React.createElement("nav", { style: { display: "flex", gap: 14, flexWrap: "wrap", marginLeft: "auto", alignItems: "center" } },
           navLinks.map((link, i) => React.createElement("span", {
