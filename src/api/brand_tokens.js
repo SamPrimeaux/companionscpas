@@ -44,10 +44,11 @@ export function buildBrandTokensCss(brand = {}) {
   const accent = normalizeHex(brand.accent_color, "#d62b2b");
   const purpleMid = mixHex(primary, "#ffffff", 0.18);
   const purpleLight = mixHex(primary, "#ffffff", 0.42);
-  const logoWidth = Math.max(48, Math.min(320, Number(brand.logo_width) || 140));
+  // Driven by CMS Brand → Header Logo Width (no Worker redeploy to retune).
+  const logoWidth = Math.max(48, Math.min(360, Number(brand.logo_width) || 140));
   const logoHeight = Number(brand.logo_height) > 0
-    ? Math.max(28, Math.min(120, Number(brand.logo_height)))
-    : Math.round(logoWidth * 0.52);
+    ? Math.max(28, Math.min(280, Number(brand.logo_height)))
+    : logoWidth;
 
   return `:root,
 .theme-light,
@@ -64,12 +65,13 @@ export function buildBrandTokensCss(brand = {}) {
   --brand-logo-height: ${logoHeight}px;
 }
 
+/* Must beat cpas-shell.css — tokens.css loads after shell on every public page. */
 .header-logo-img,
 .logo-link img {
-  height: calc(var(--header-h) + 18px);
-  width: calc(var(--header-h) + 18px);
+  width: var(--brand-logo-width);
+  height: var(--brand-logo-height);
   max-width: none;
-  margin-block: -9px;
+  margin-block: calc((var(--brand-logo-height) - var(--header-h)) / -2);
   object-fit: contain;
   object-position: left center;
 }

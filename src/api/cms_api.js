@@ -728,7 +728,8 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     return new Response(buildBrandTokensCss(brand), {
       headers: {
         "content-type": "text/css; charset=utf-8",
-        "cache-control": "public, max-age=120, stale-while-revalidate=300",
+        // Short TTL so Brand slider saves apply without a rebuild (KV brand bust is immediate).
+        "cache-control": "public, max-age=30, stale-while-revalidate=60",
       },
     });
   }
@@ -1752,8 +1753,8 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       typeof brand.socials_json === "string"    ? brand.socials_json    : JSON.stringify(brand.socials_json || {}),
       typeof brand.organization_json === "string" ? brand.organization_json : JSON.stringify(brand.organization_json || {}),
       typeof brand.seo_defaults_json === "string" ? brand.seo_defaults_json : JSON.stringify(brand.seo_defaults_json || {}),
-      Number(brand.logo_width) > 0 ? Number(brand.logo_width) : 140,
-      Number(brand.logo_height) > 0 ? Number(brand.logo_height) : null,
+      Number(brand.logo_width) > 0 ? Math.max(48, Math.min(360, Number(brand.logo_width))) : 140,
+      Number(brand.logo_height) > 0 ? Math.max(28, Math.min(280, Number(brand.logo_height))) : null,
       TENANT_ID
     ).run();
 

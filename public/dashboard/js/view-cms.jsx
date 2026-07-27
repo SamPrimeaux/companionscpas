@@ -3714,7 +3714,7 @@ function BrandPreviewCanvas({ brand, socials, previewTheme }) {
   const logoUrl = isDark
     ? (brand.logo_light_url || brand.logo_dark_url || "")
     : (brand.logo_dark_url || brand.logo_light_url || "");
-  const logoW = Math.max(48, Math.min(240, Number(brand.logo_width) || 140));
+  const logoW = Math.max(48, Math.min(360, Number(brand.logo_width) || 140));
   const navLinks = parseBrandNav(brand.navigation_json)
     .filter(l => l.label && l.href && String(l.style || "") !== "button")
     .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
@@ -3746,7 +3746,7 @@ function BrandPreviewCanvas({ brand, socials, previewTheme }) {
     },
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" } },
         logoUrl
-          ? React.createElement("img", { src: logoUrl, alt: brand.brand_name || "Logo", style: { width: logoW, height: "auto", maxHeight: 52, objectFit: "contain", display: "block" } })
+          ? React.createElement("img", { src: logoUrl, alt: brand.brand_name || "Logo", style: { width: logoW, height: "auto", maxHeight: Math.max(52, logoW), objectFit: "contain", display: "block" } })
           : React.createElement("div", { style: { fontWeight: 800, fontSize: 15, color: primary } }, brand.brand_name || "Brand"),
         React.createElement("nav", { style: { display: "flex", gap: 14, flexWrap: "wrap", marginLeft: "auto", alignItems: "center" } },
           navLinks.map((link, i) => React.createElement("span", {
@@ -3992,14 +3992,17 @@ function CmsBrandView({ onNavigate }) {
           React.createElement("div", null,
             React.createElement("label", { style: lStyle }, `Header Logo Width (${Number(brand.logo_width) || 140}px)`),
             React.createElement("input", {
-              type: "range", min: 48, max: 240, step: 4,
-              value: Number(brand.logo_width) || 140,
+              type: "range", min: 48, max: 360, step: 4,
+              value: Math.max(48, Math.min(360, Number(brand.logo_width) || 140)),
               onChange: e => setBrand(p => ({ ...p, logo_width: Number(e.target.value) })),
               style: { width: "100%", accentColor: C.purple },
             }),
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: C.textMut, marginTop: 2 } },
               React.createElement("span", null, "48px"),
-              React.createElement("span", null, "240px")
+              React.createElement("span", null, "360px")
+            ),
+            React.createElement("p", { style: { fontSize: 11, color: C.textMut, margin: "6px 0 0", lineHeight: 1.4 } },
+              "Applies live on Save (public pages read Brand tokens CSS — no rebuild)."
             )
           )
         ),
