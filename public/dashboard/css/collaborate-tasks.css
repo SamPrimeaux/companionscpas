@@ -5,6 +5,17 @@
   height: 100%;
   background: #f7f8fb;
   color: var(--collab-text, #241d31);
+  font-family: var(--font-ui, "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.collab-tasks-layout button,
+.collab-tasks-layout input,
+.collab-tasks-layout select,
+.collab-tasks-layout textarea {
+  font-family: inherit;
 }
 
 .collab-tasks-sidebar {
@@ -28,7 +39,7 @@
   background: #fff;
   color: #4b3b60;
   box-shadow: 0 4px 12px rgba(50, 36, 68, 0.1);
-  font: 700 13px/1 var(--font-ui, "DM Sans", sans-serif);
+  font: 600 14px/1 var(--font-ui, "DM Sans", sans-serif);
   cursor: pointer;
 }
 
@@ -57,7 +68,7 @@
   background: transparent;
   color: #595262;
   text-align: left;
-  font: 600 12px/1.25 var(--font-ui, "DM Sans", sans-serif);
+  font: 600 13px/1.25 var(--font-ui, "DM Sans", sans-serif);
   cursor: pointer;
 }
 
@@ -70,7 +81,7 @@
 
 .collab-tasks-nav > button small {
   color: #8c8495;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -95,7 +106,7 @@
   gap: 4px;
   margin: 12px 8px 4px;
   color: #4d4556;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -124,14 +135,18 @@
 .collab-task-list-header h2 {
   margin: 0 0 8px;
   color: #2e2737;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
 .collab-task-list-header p {
   margin: 7px 0 0;
   color: #777080;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 .collab-task-list-project-label {
@@ -139,8 +154,8 @@
   align-items: center;
   gap: 5px;
   color: #5f5868;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .collab-task-refresh,
@@ -178,7 +193,7 @@
   border-bottom: 1px solid rgba(79, 66, 96, 0.12);
   background: transparent;
   color: #4b4453;
-  font: 500 12px/1 var(--font-ui, "DM Sans", sans-serif);
+  font: 500 14px/1 var(--font-ui, "DM Sans", sans-serif);
   cursor: pointer;
 }
 
@@ -239,7 +254,8 @@
 .collab-task-row-body strong {
   overflow: hidden;
   color: #302b36;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -248,8 +264,9 @@
 .collab-task-row-description {
   overflow: hidden;
   color: #746e79;
-  font-size: 10px;
-  line-height: 1.4;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -267,10 +284,10 @@
 .collab-task-due {
   display: inline-flex;
   align-items: center;
-  min-height: 19px;
-  padding: 0 7px;
+  min-height: 22px;
+  padding: 0 8px;
   border-radius: 6px;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
 }
 
@@ -344,13 +361,13 @@
   border-radius: 8px;
   background: #fff;
   color: #30293a;
-  font: 500 12px/1.4 var(--font-ui, "DM Sans", sans-serif);
+  font: 500 14px/1.45 var(--font-ui, "DM Sans", sans-serif);
   outline: none;
 }
 
 .collab-task-compose-title {
   padding: 8px 10px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .collab-task-compose textarea {
@@ -382,9 +399,10 @@
 
 .collab-task-compose-meta label > span {
   color: #716978;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .collab-task-compose-meta input {
@@ -398,15 +416,15 @@
 }
 
 .collab-task-btn {
-  min-height: 34px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 0 13px;
+  padding: 0 14px;
   border: 1px solid transparent;
   border-radius: 8px;
-  font: 700 11px/1 var(--font-ui, "DM Sans", sans-serif);
+  font: 600 13px/1 var(--font-ui, "DM Sans", sans-serif);
   cursor: pointer;
 }
 
@@ -521,10 +539,10 @@
   background: transparent !important;
   box-shadow: none !important;
   color: #27212e !important;
-  font-size: clamp(26px, 3vw, 39px) !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.03em;
-  line-height: 1.15 !important;
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+  line-height: 1.25 !important;
 }
 
 .collab-task-focus-pills {
@@ -549,9 +567,10 @@
 
 .collab-task-focus-pills label > span {
   color: #8a8291;
-  font-size: 8px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .collab-task-focus-pills select {
@@ -561,16 +580,16 @@
   border: 0;
   background: transparent;
   box-shadow: none;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: capitalize;
 }
 
 .collab-task-focus-project-pill {
   background: #eaf1fa;
   color: #4c719b;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .collab-task-focus-section {
@@ -584,16 +603,16 @@
   align-items: center;
   gap: 8px;
   color: #55485f;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .collab-task-focus-section > p {
   margin: 8px 0 14px;
   color: #7b7382;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -601,8 +620,8 @@
   min-height: 240px;
   padding: 15px 16px;
   resize: vertical;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 .collab-task-focus-fields {
@@ -621,8 +640,8 @@
 
 .collab-task-focus-fields label > span {
   color: #665d6e;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .collab-task-focus-fields input {
@@ -646,15 +665,16 @@
 
 .collab-task-focus-audit span {
   color: #8b8391;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .collab-task-focus-audit strong {
   color: #5c5364;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .collab-task-activity {
@@ -669,7 +689,7 @@
   background: #eee8f4;
   color: #704c94;
   text-align: center;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .collab-task-event {
@@ -691,7 +711,8 @@
 
 .collab-task-event strong {
   color: #4c4454;
-  font-size: 10px;
+  font-size: 13px;
+  font-weight: 600;
   text-transform: capitalize;
 }
 
@@ -700,7 +721,7 @@
 .collab-task-activity-empty {
   margin: 4px 0 0;
   color: #7e7685;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -732,11 +753,13 @@
 .collab-tasks-error-state strong {
   color: #3d3447;
   font-size: 16px;
+  font-weight: 600;
 }
 
 .collab-tasks-error-state span {
   max-width: 420px;
-  font-size: 11px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 @media (max-width: 1050px) {
