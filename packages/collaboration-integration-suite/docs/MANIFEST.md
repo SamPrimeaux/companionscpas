@@ -4,15 +4,15 @@
 
 | Path | Owner | Purpose |
 |---|---|---|
-| `public/dashboard/js/view-collaborate.jsx` | Swarm C | Shared shell, tabs, Mail embedding, Calendar and Tasks mount points |
-| `public/dashboard/css/collaborate.css` | Swarm C | Shared shell and responsive layout |
-| `public/dashboard/js/view-email.jsx` | Swarm C | Existing CPAS mailbox with embedded mode |
-| `public/dashboard/js/app.jsx` | Swarm C coordination | Route registry, query parsing, history |
-| `public/dashboard/js/ui.jsx` | Swarm C | Collaborate navigation entry |
-| `public/dashboard/js/view-collaborate-calendar.jsx` | Swarm A | Calendar pane and calendar-only UI |
-| `public/dashboard/css/collaborate-calendar.css` | Swarm A | Calendar-only styles |
-| `public/dashboard/js/view-collaborate-tasks.jsx` | Swarm B | Tickets-backed Tasks pane and focus view |
-| `public/dashboard/css/collaborate-tasks.css` | Swarm B | Tasks-only styles |
+| `public/dashboard/js/view-collaborate.jsx` | Swarm C (done) | Shared shell — Calendar/Tasks **must not** remain on CollaboratePendingPane after A/B |
+| `public/dashboard/css/collaborate.css` | Swarm C + A/B append | Shared shell; A/B add surface CSS files rather than freestyle shell |
+| `public/dashboard/js/view-email.jsx` | Swarm C (done) | Existing CPAS mailbox with embedded mode |
+| `public/dashboard/js/app.jsx` | Swarm C (done) | Route registry already owns collaborate query keys |
+| `public/dashboard/js/ui.jsx` | Swarm C (done) | Collaborate nav entry |
+| `public/dashboard/js/view-collaborate-calendar.jsx` | Swarm A | **IAM-parity** calendar pane — week grid + mini-cal + Create + CRUD |
+| `public/dashboard/css/collaborate-calendar.css` | Swarm A | Calendar-only styles ported from IAM seed |
+| `public/dashboard/js/view-collaborate-tasks.jsx` | Swarm B | **IAM-parity** tickets-backed Tasks list + focus |
+| `public/dashboard/css/collaborate-tasks.css` | Swarm B | Tasks-only styles ported from IAM seed |
 
 ## Reference inventory
 

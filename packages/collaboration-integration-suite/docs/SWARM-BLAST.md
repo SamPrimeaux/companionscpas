@@ -14,9 +14,39 @@
 | `tkt_cpas_collab_tickets_tasks_crud_2026_07` | Swarm B — Tasks UX on `agentsam_tickets` FULL CRUD | **next** (after or parallel to A; rebase onto A if A lands first) |
 | `tkt_cpas_collab_mail_shell_refine_2026_07` | Swarm C — Mail UX refine + Collaborate shell tabs | **DONE** — PR #4 → `main` (`4ac7a68` / merge+deploy `cdadf91`) |
 
-**Law:** no stubs · full CRUD where required · dual-pass E2E · deploy ≠ pass · unique branch + unique worktree per swarm · QC does not edit implementer branches  
+**Law:** no stubs · **full IAM UI/UX parity** · full CRUD · dual-pass E2E · deploy ≠ pass · unique branch + unique worktree per swarm · QC does not edit implementer branches  
 
-Paste **Swarm A / B / C** into **separate** agent sessions. Do not run two writing swarms in one chat.
+Paste **Swarm A / B** into **separate** agent sessions. Do not run two writing swarms in one chat.
+
+---
+
+## 0A. PARITY LOCK (NON-NEGOTIABLE — 2026-07-27)
+
+Operator feedback after Swarm C: the live CPAS Collaborate Calendar tab still shows a **"Calendar is coming online"** placeholder. That was an intentional shell mount for C only. **Swarm A and Swarm B are forbidden from shipping any similar placeholder.**
+
+### Visual SSOT (attach / open these while coding)
+
+| # | Surface | IAM live URL (look + layout) | What must appear on CPAS |
+|---|---------|------------------------------|---------------------------|
+| 1 | Calendar workspace | `https://inneranimalmedia.com/dashboard/collaborate` | Left rail: **Create**, **mini-month**, optional people search. Main: **week grid** with day headers, time axis, Today / ◀ ▶ / Week selector / refresh. Not a hero empty state. |
+| 2 | Tasks list | `https://inneranimalmedia.com/dashboard/collaborate?seg=tasks` | Left: **+ Create**, **My Tasks** (+ count), **Starred**, client/project lists. Main: **My Tasks** title, **+ Add a task**, real rows (checkbox, title, description, project pill, due, star). |
+| 3 | Task focus | `https://inneranimalmedia.com/dashboard/collaborate?seg=tasks&ticket=<id>` (IAM may show `task=` — **CPAS uses `ticket=`**) | Close + **Save**, large title, status/priority/project pills, **DOCUMENTATION** body, due + project fields, Created/Updated, footer **Schedule / Mark complete / Delete**. |
+
+CPAS brand colors (plum/purple) may replace IAM blue accents — **layout, density, controls, and information architecture must match IAM**, not a freestyle redesign.
+
+### Banned deliverables (instant reject / no merge)
+
+- "Coming online", "Coming soon", "mount here", disabled Create that does nothing, fake static demo rows  
+- API handlers that return `{ ok: true, events: [] }` / empty lists when D1 has data or when write was requested  
+- Half-CSS that looks "dashboard-y" but is not week-grid / My Tasks / focus parity  
+- Leaving `CollaboratePendingPane` as the Calendar or Tasks surface after your PR  
+- Inventing a different Tasks data model (`agentsam_todo`, localStorage, hard-coded arrays)
+
+### Required proof before claiming done
+
+1. Side-by-side screenshots: IAM vs CPAS for your surface (same viewport width).  
+2. Live CRUD against CPAS D1 with row ids in the ticket Tier 1 note.  
+3. Zero remaining "coming online" / pending copy for **your** surface in `view-collaborate*.jsx`.
 
 ---
 
@@ -264,28 +294,39 @@ Port behavior from IAM `src/core/agentsam-tickets.js` + `src/api/tickets.js`, ad
 
 ## 5. Acceptance goldens (must pass before visual approve)
 
-### Swarm A
-1. Open `/dashboard/collaborate` → week grid renders without console errors.  
-2. Create event → row in `dashboard_calendar_events` with correct unix range → appears on grid.  
-3. Edit title/time → UPDATE proven by D1 SELECT.  
-4. Delete → row gone; UI removes block.  
-5. At least one notification row created or explicitly deferred with code comment + ticket note (prefer implement).
+### Swarm A — Calendar (parity + CRUD)
 
-### Swarm B
-1. `/dashboard/collaborate?seg=tasks` lists **live** CPAS tickets (existing `tkt_cpas_w2_*` rows visible).  
-2. Open detail → description + events timeline.  
-3. Create ticket from UI → INSERT + event `created`.  
-4. Mark complete → `status=shipped` + event.  
-5. Delete → ticket + events removed.  
-6. Zero calls to `agentsam_todo` / `/api/agent/todo`.
+**UI/UX (fail without these):**
+1. `/dashboard/collaborate` shows the **real calendar workspace**, not `CollaboratePendingPane` / "coming online".  
+2. Left rail matches IAM structure: Create · mini-calendar · (optional Meet/search).  
+3. Main pane: week view with 7 day columns, time gutter, Today + prev/next + view switcher (Week/Day/Month) + refresh.  
+4. Side-by-side screenshot vs IAM calendar passes Sam/QC visual accept.
 
-### Swarm C
-1. Nav Collaborate + tabs switch Calendar/Tasks/Mail without full reload breakage.  
-2. Mail tab shows existing inbox (Gmail/Resend) with Compose still working.  
-3. Cache-bust bumped; R2 assets synced for changed JSX/CSS.
+**CRUD:**
+5. Create event → `dashboard_calendar_events` row + visible block on grid.  
+6. Edit title/time → D1 UPDATE proven.  
+7. Delete → row gone; UI removes block.  
+8. Notification row created **or** deferred with explicit ticket note (prefer implement).
+
+### Swarm B — Tasks (parity + CRUD)
+
+**UI/UX (fail without these):**
+1. `/dashboard/collaborate?seg=tasks` shows **My Tasks list UI** matching IAM (lists rail + rows), not pending placeholder.  
+2. Live CPAS tickets render on first paint (existing `tkt_cpas_*` / suite tickets visible — not hard-coded demo).  
+3. Focus view at `?seg=tasks&ticket=<id>` matches IAM focus: title, pills, DOCUMENTATION, due, project, Save, Mark complete, Delete.  
+4. Side-by-side screenshots vs IAM Tasks list + focus pass visual accept.
+
+**CRUD:**
+5. Create → INSERT + `agentsam_ticket_events` `created`.  
+6. Mark complete → `status=shipped` + event.  
+7. Delete → ticket + events removed.  
+8. Zero calls to `agentsam_todo` / `/api/agent/todo`.
+
+### Swarm C — DONE (shell only)
+Shell + Mail mounts shipped. C was allowed temporary Calendar/Tasks pending panes; **A/B must replace them**.
 
 ### QC / Sam visual
-Side-by-side vs IAM screenshots: tab chrome, Create affordance, task rows, calendar week header. Approve before production Worker+R2 promote if needed.
+Refuse merge if Calendar or Tasks still shows coming-online copy. Side-by-side vs IAM screenshots required.
 
 ---
 
@@ -298,24 +339,20 @@ Side-by-side vs IAM screenshots: tab chrome, Create affordance, task rows, calen
 
 ---
 
-## 7. Operator: create worktrees (once)
+## 7. Operator: create worktrees (A/B — base `origin/main`)
 
 ```bash
 REPO="$HOME/companionscpas"
 git -C "$REPO" fetch origin
-mkdir -p "$HOME/agent-worktrees" /tmp/cpas-worktrees
-
-git -C "$REPO" worktree add -B feat/cpas-collab-shell-mail \
-  "$HOME/agent-worktrees/swarm-c-collab-mail/companionscpas" \
-  origin/collaboration-integration-suite
+mkdir -p "$HOME/agent-worktrees"
 
 git -C "$REPO" worktree add -B feat/cpas-collab-calendar-crud \
   "$HOME/agent-worktrees/swarm-a-collab-cal/companionscpas" \
-  origin/collaboration-integration-suite
+  origin/main
 
 git -C "$REPO" worktree add -B feat/cpas-collab-tickets-tasks-crud \
   "$HOME/agent-worktrees/swarm-b-collab-tickets/companionscpas" \
-  origin/collaboration-integration-suite
+  origin/main
 ```
 
 Preflight every writer:
@@ -333,35 +370,11 @@ git status --porcelain
 
 ## 8. Paste prompts
 
-### Swarm C — SHELL+MAIL (start first)
+### Swarm C — SHELL+MAIL — COMPLETED (do not re-run)
 
-```text
-You are Swarm C — SHELL+MAIL for Companions CPAS collaboration suite.
+Shipped PR #4. Calendar/Tasks pending panes are **debt for A/B to erase**, not a pattern to copy.
 
-REPO: companionscpas
-CWD: $HOME/agent-worktrees/swarm-c-collab-mail/companionscpas
-BRANCH: feat/cpas-collab-shell-mail
-BASE: origin/collaboration-integration-suite
-TICKET: tkt_cpas_collab_mail_shell_refine_2026_07
-PLAN: docs/plans/CPAS-COLLABORATION-SUITE-SWARM-BLAST-2026-07.md
-
-GOAL: Ship Collaborate shell routes + nav + tab chrome; refine Mail to sit under Collaborate; wire empty/placeholder panes for Calendar/Tasks that A/B will fill — NO fake CRUD stubs that pretend to write. Prefer "Coming online" empty states that do not call fake APIs. You own app.jsx / ui.jsx / index.html.
-
-DO:
-1. Add /dashboard/collaborate (+ query seg=calendar|tasks|mail)
-2. Sidebar ADMIN → Collaborate
-3. Pill tabs Calendar | Tasks | Mail matching IAM screenshots
-4. Mail seg renders existing EmailView / view-email with shared chrome
-5. Export mount points: window.CollaborateCalendarPane / CollaborateTasksPane for A/B OR clear import contract in view-collaborate.jsx
-6. Bump cache-bust; document R2 sync commands
-7. Update docs/current-file-map.md
-
-DO NOT: implement calendar event SQL, tickets CRUD, replace view-email wholesale with IAM MailPage.
-
-PROOF: screenshots/URLs of tabs; git commit; PR into collaboration-integration-suite.
-```
-
-### Swarm A — CALENDAR
+### Swarm A — CALENDAR (parity mandatory)
 
 ```text
 You are Swarm A — CALENDAR for Companions CPAS.
@@ -369,26 +382,37 @@ You are Swarm A — CALENDAR for Companions CPAS.
 REPO: companionscpas
 CWD: $HOME/agent-worktrees/swarm-a-collab-cal/companionscpas
 BRANCH: feat/cpas-collab-calendar-crud
-BASE: origin/main (Swarm C shipped — rebase onto latest main, not deleted feat/cpas-collab-shell-mail)
+BASE: origin/main (latest — includes Swarm C shell)
 TICKET: tkt_cpas_collab_calendar_crud_2026_07
-PLAN: docs/plans/CPAS-COLLABORATION-SUITE-SWARM-BLAST-2026-07.md
-REFERENCE SEED: packages/collaboration-integration-suite/frontend/pages/LaunchDeskPage.tsx (+ calendar CSS)
+PLAN: docs/plans/CPAS-COLLABORATION-SUITE-SWARM-BLAST-2026-07.md  (read §0A PARITY LOCK first)
+IAM LIVE SSOT: https://inneranimalmedia.com/dashboard/collaborate
+REFERENCE CODE: packages/collaboration-integration-suite/frontend/pages/LaunchDeskPage.tsx + collaborate-calendar.css + CollaborateWorkShell patterns
+MOUNT: replace CollaboratePendingPane by setting window.CollaborateCalendarPane (or equivalent wired in view-collaborate.jsx)
 
-GOAL: FULL CRUD calendar UX (week/day/month + mini-cal + Create) driven by D1 dashboard_calendar_events (extend schema) + dashboard_notifications hooks. No booking pages, timers, meet_rooms, time_entries.
+OPERATOR LAW (violations = failed delivery):
+- FULL UI/UX PARITY with IAM Collaborate Calendar — not a freestyle redesign, not a stub.
+- NO "coming online", "mount here", disabled Create, empty hero placeholders.
+- FULL CRUD against live D1. Deploy ≠ done. Proof = screenshots side-by-side + D1 row ids.
 
-DO:
-1. Migration extending dashboard_calendar_events (unix times, all_day, location, etc.)
-2. src/api/collaborate_calendar_api.js + wire src/index.js
-3. Port calendar UI into public/dashboard (Babel JSX) mounted in Collaborate Calendar tab
-4. Create/edit/delete events end-to-end against live D1
-5. Optional Google Calendar = Phase 2 only — do not block v1
+MUST SHIP (visual):
+1. Left rail: Create button, working mini-month calendar, optional people search (can be non-functional search UI but present like IAM).
+2. Main week grid: day headers (Sun–Sat), hourly time axis, event blocks, Today / prev/next / Week|Day|Month / refresh — match IAM information architecture.
+3. Creating an event from Create or grid opens a real form and persists.
+4. CPAS may keep plum accent colors; layout/controls must still read as the IAM calendar.
 
-DO NOT: touch agentsam_tickets writers; do not use agentsam_todo; do not own app.jsx registry (coordinate with C).
+MUST SHIP (backend):
+1. Migration extending dashboard_calendar_events (unix times, all_day, location, attendees_json, created_by, updated_at, …)
+2. src/api/collaborate_calendar_api.js + wire src/index.js — GET/POST/PATCH/DELETE
+3. Optional dashboard_notifications on CRUD (prefer implement)
 
-PROOF: D1 SELECTs for created/updated/deleted event ids; /dashboard/collaborate week view shows them; Tier 1 on ticket.
+OUT OF SCOPE: Google Calendar sync (Phase 2), booking pages, timers, meet_rooms, agentsam_tickets, view-email core, rewriting app.jsx route registry (shell already owns routes — only add your script/CSS includes in index.html).
+
+REJECT YOUR OWN PR if /dashboard/collaborate still shows "Calendar is coming online".
+
+PROOF: side-by-side IAM vs CPAS screenshots; wrangler d1 SELECT for create/update/delete ids; Tier 1 on ticket; PR to main.
 ```
 
-### Swarm B — TICKETS-TASKS
+### Swarm B — TICKETS-TASKS (parity mandatory)
 
 ```text
 You are Swarm B — TICKETS-TASKS for Companions CPAS.
@@ -396,26 +420,38 @@ You are Swarm B — TICKETS-TASKS for Companions CPAS.
 REPO: companionscpas
 CWD: $HOME/agent-worktrees/swarm-b-collab-tickets/companionscpas
 BRANCH: feat/cpas-collab-tickets-tasks-crud
-BASE: origin/main (same as A; rebase onto A after A merges if calendar/tasks CSS or index.html conflict)
+BASE: origin/main (rebase onto A after A merges if index.html/CSS collide)
 TICKET: tkt_cpas_collab_tickets_tasks_crud_2026_07
-PLAN: docs/plans/CPAS-COLLABORATION-SUITE-SWARM-BLAST-2026-07.md
-UX REFERENCE: packages/.../CollaborateTasksPanel.tsx + CollaborateTaskFocus.tsx
-DATA REFERENCE: IAM src/core/agentsam-tickets.js + src/api/tickets.js
-LIVE DATA: CPAS D1 already has agentsam_tickets + agentsam_ticket_events (tkt_cpas_w2_* etc.)
+PLAN: docs/plans/CPAS-COLLABORATION-SUITE-SWARM-BLAST-2026-07.md  (read §0A PARITY LOCK first)
+IAM LIVE SSOT:
+  https://inneranimalmedia.com/dashboard/collaborate?seg=tasks
+  https://inneranimalmedia.com/dashboard/collaborate?seg=tasks&task=…  (CPAS param is ticket=, not task=/todo_*)
+REFERENCE CODE: packages/.../CollaborateTasksPanel.tsx + CollaborateTaskFocus.tsx + userTaskLists.ts
+DATA: agentsam_tickets + agentsam_ticket_events ONLY — port IAM tickets API behavior
+MOUNT: window.CollaborateTasksPane — erase Tasks "coming online" pending pane
 
-GOAL: Collaborate Tasks UX with FULL CRUD bound ONLY to agentsam_tickets / agentsam_ticket_events. Remap every former agentsam_todo call.
+OPERATOR LAW (violations = failed delivery):
+- FULL UI/UX PARITY with IAM Collaborate Tasks list + focus — not freestyle, not stubs.
+- NO agentsam_todo / /api/agent/todo / hard-coded demo tasks.
+- FULL CRUD. Live tickets visible on first paint. Proof = screenshots + D1 ids.
 
-DO:
-1. Port tickets API to CPAS (list/create/get/patch/status/delete/events/analytics)
-2. Extend core for description, requested_by, due_at if needed
-3. Tasks list + focus UI in Collaborate Tasks tab — show LIVE tickets on first paint
-4. Create / edit / complete(shipped) / delete with events
-5. Star/lists via tags JSON
-6. Delete runtime use of agent-todo.excerpt.js
+MUST SHIP (visual — match IAM):
+1. Left rail: + Create, My Tasks (with count), Starred, client/project list groups as applicable to CPAS data.
+2. Main: "My Tasks" header, + Add a task, rows with checkbox, title, description preview, project pill, due affordance, star.
+3. Focus/detail: close, Save, title, status/priority/project pills, DOCUMENTATION section, due datetime, project select, Created/Updated, Schedule on calendar / Mark complete / Delete.
+4. URL: /dashboard/collaborate?seg=tasks&ticket=<id> for focus.
 
-DO NOT: calendar schema; mail rewrite; agentsam_todo.
+MUST SHIP (backend):
+1. /api/tickets CRUD + status + events (+ analytics if needed)
+2. due_at / description fields as required by plan §1.3
+3. Mark complete → status shipped + event
+4. Remove any runtime path through agent-todo.excerpt.js
 
-PROOF: wrangler d1 SELECT before/after CRUD; UI lists real tkt_cpas_* rows; Tier 1 on ticket.
+OUT OF SCOPE: calendar event schema/API, mail rewrite, IAM Drive/artifacts shell.
+
+REJECT YOUR OWN PR if Tasks tab still shows "Tasks are coming online" or only stub rows.
+
+PROOF: side-by-side IAM vs CPAS (list + focus); D1 SELECT before/after CRUD; Tier 1 on ticket; PR to main.
 ```
 
 ### QC — EXTERNAL
@@ -423,14 +459,19 @@ PROOF: wrangler d1 SELECT before/after CRUD; UI lists real tkt_cpas_* rows; Tier
 ```text
 You are QC for CPAS collaboration suite. READ-ONLY on implementer branches.
 
-PLAN: docs/plans/CPAS-COLLABORATION-SUITE-SWARM-BLAST-2026-07.md
+PLAN: docs/plans/CPAS-COLLABORATION-SUITE-SWARM-BLAST-2026-07.md §0A + §5
 CWD: /tmp/cpas-worktrees/qc-collab/companionscpas (detached worktree)
 
-For each child ticket A/B/C:
-1. Pull PR diff; refuse if stubs / fake success / todo API leakage
-2. Raw D1 proof queries (events + tickets)
-3. Browser: collaborate calendar/tasks/mail tabs
-4. Record Tier 2; only then allow --set-shipped / umbrella close
+FAIL IMMEDIATELY if:
+- Calendar or Tasks still shows "coming online" / CollaboratePendingPane for that surface
+- UI does not side-by-side match IAM Collaborate calendar/tasks screenshots
+- Any agentsam_todo / stub CRUD / empty-success writers
+
+For each child ticket A/B:
+1. Pull PR diff
+2. Raw D1 proof queries
+3. Browser parity check vs IAM
+4. Tier 2 only when visual + data both pass
 
 Never push to feat/* implementer branches.
 ```
@@ -440,9 +481,10 @@ Never push to feat/* implementer branches.
 ## 9. Done definition
 
 - Collaborate Calendar/Tasks/Mail usable on companionsofcaddo.org dashboard  
-- Calendar FULL CRUD on extended `dashboard_calendar_events`  
-- Tasks FULL CRUD on `agentsam_tickets` + events (existing content visible)  
+- **Calendar UI matches IAM week workspace** + FULL CRUD on extended `dashboard_calendar_events`  
+- **Tasks UI matches IAM My Tasks + focus** + FULL CRUD on `agentsam_tickets` + events  
 - Mail refined, not replaced  
+- Zero "coming online" placeholders on Calendar or Tasks  
 - Package docs updated for reuse on future builds  
 - Umbrella ticket dual-pass green  
 
@@ -450,10 +492,10 @@ Never push to feat/* implementer branches.
 
 ## 10. Screenshot → owner quick map
 
-| Screenshot | Owner |
-|------------|-------|
-| Calendar week + mini-cal + Create | Swarm A |
-| Tasks My Tasks list | Swarm B |
-| Task focus / documentation panel | Swarm B |
-| IAM Mail (reference only) | Swarm C (cues) |
-| CPAS Email current | Swarm C (refine) |
+| Screenshot | Owner | Bar |
+|------------|-------|-----|
+| IAM Calendar week + mini-cal + Create | Swarm A | Pixel-adjacent layout parity + live CRUD |
+| IAM Tasks My Tasks list | Swarm B | Layout parity + live tickets |
+| IAM Task focus / documentation | Swarm B | Layout parity + save/complete/delete |
+| IAM Mail (reference only) | Swarm C | Done — cues only |
+| CPAS Email current | Swarm C | Done — embedded under Mail tab |
