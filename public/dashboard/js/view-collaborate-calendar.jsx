@@ -566,12 +566,43 @@
           onSelect: selectMini,
           shiftMonth: function(amount) { setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + amount, 1)); },
         }),
-        h('div', { className: 'cpas-cal-meet' },
-          h('strong', null, 'Meet with…'),
-          h('label', null,
-            h(Icon, { name: 'search', size: 13 }),
-            h('input', { type: 'search', placeholder: 'Search people', 'aria-label': 'Search people' })
-          )
+        h('div', { className: 'cpas-cal-upcoming', 'aria-label': 'Upcoming events' },
+          h('header', null,
+            h('strong', null, 'Upcoming events'),
+            h('button', {
+              type: 'button',
+              className: 'cpas-cal-upcoming-add',
+              onClick: function() { openCreate(new Date()); },
+              'aria-label': 'Add upcoming event',
+              title: 'Add event',
+            }, h(Icon, { name: 'plus', size: 13 }))
+          ),
+          upcomingLoading
+            ? h('p', { className: 'cpas-cal-upcoming-empty' }, 'Loading…')
+            : upcoming.length === 0
+              ? h('p', { className: 'cpas-cal-upcoming-empty' }, 'No upcoming events in the next 60 days.')
+              : h('ul', { className: 'cpas-cal-upcoming-list' },
+                  upcoming.map(function(event) {
+                    const start = new Date(event.starts_at_unix * 1000);
+                    return h('li', { key: event.id },
+                      h('button', {
+                        type: 'button',
+                        onClick: function() { openEdit(event); },
+                        className: 'is-' + String(event.event_type || 'general').replace(/[^a-z_]/g, ''),
+                      },
+                        h('span', { className: 'cpas-cal-upcoming-date' },
+                          start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                        ),
+                        h('span', { className: 'cpas-cal-upcoming-title' }, event.title),
+                        !event.all_day
+                          ? h('span', { className: 'cpas-cal-upcoming-time' },
+                              start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                            )
+                          : h('span', { className: 'cpas-cal-upcoming-time' }, 'All day')
+                      )
+                    );
+                  })
+                )
         )
       ),
       h('main', { className: 'cpas-cal-main' },
