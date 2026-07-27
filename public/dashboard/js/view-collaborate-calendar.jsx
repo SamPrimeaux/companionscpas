@@ -502,6 +502,7 @@
         }
         setDraft(null);
         await load();
+        loadUpcoming();
       } catch (saveError) {
         setFormError(saveError.message || 'Event could not be saved');
       } finally {
