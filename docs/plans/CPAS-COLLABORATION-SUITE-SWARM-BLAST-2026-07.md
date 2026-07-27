@@ -1,18 +1,18 @@
 # Companions CPAS — Collaboration suite swarm blast (Calendar + Tickets-Tasks + Mail)
 
-**Date:** 2026-07-26  
-**Branch (integration):** `collaboration-integration-suite`  
+**Date:** 2026-07-26 · **Updated:** 2026-07-27  
+**Integration base (LOCKED):** `origin/main` @ `cdadf91` (Swarm C shell+Mail shipped; do **not** base on deleted `feat/cpas-collab-shell-mail`)  
 **Repo:** `github.com/SamPrimeaux/companionscpas`  
-**Live site:** `https://companionsofcaddo.org`  
+**Live site:** `https://companionsofcaddo.org` · Collaborate: `/dashboard/collaborate`  
 **Visual SSOT (IAM screenshots):** Calendar `/dashboard/collaborate` · Tasks `/dashboard/collaborate?seg=tasks` · Mail `/dashboard/mail` (CPAS already has `/dashboard/email`)  
 
 **Coordination tickets (IAM D1 `agentsam_tickets` — also mirrored intent on CPAS D1):**
-| ID | Role |
-|----|------|
-| `tkt_cpas_collab_suite_e2e_2026_07` | Umbrella — do not ship until A+B+C Tier 1+2 |
-| `tkt_cpas_collab_calendar_crud_2026_07` | Swarm A — Calendar FULL CRUD |
-| `tkt_cpas_collab_tickets_tasks_crud_2026_07` | Swarm B — Tasks UX on `agentsam_tickets` FULL CRUD |
-| `tkt_cpas_collab_mail_shell_refine_2026_07` | Swarm C — Mail UX refine + Collaborate shell tabs |
+| ID | Role | Status |
+|----|------|--------|
+| `tkt_cpas_collab_suite_e2e_2026_07` | Umbrella — do not ship until A+B+C Tier 1+2 | open |
+| `tkt_cpas_collab_calendar_crud_2026_07` | Swarm A — Calendar FULL CRUD | **next** |
+| `tkt_cpas_collab_tickets_tasks_crud_2026_07` | Swarm B — Tasks UX on `agentsam_tickets` FULL CRUD | **next** (after or parallel to A; rebase onto A if A lands first) |
+| `tkt_cpas_collab_mail_shell_refine_2026_07` | Swarm C — Mail UX refine + Collaborate shell tabs | **DONE** — PR #4 → `main` (`4ac7a68` / merge+deploy `cdadf91`) |
 
 **Law:** no stubs · full CRUD where required · dual-pass E2E · deploy ≠ pass · unique branch + unique worktree per swarm · QC does not edit implementer branches  
 
@@ -197,9 +197,9 @@ Seed package under `packages/collaboration-integration-suite/` stays as **vendor
 | | **Swarm A — CALENDAR** | **Swarm B — TICKETS-TASKS** | **Swarm C — SHELL+MAIL** | **QC** |
 |--|------------------------|----------------------------|--------------------------|--------|
 | **Owns** | Calendar grid UX + event FULL CRUD + schema extend + notifications hooks | Tasks UX remapped to `agentsam_tickets` FULL CRUD + tickets API | Collaborate routes/nav/tabs; Mail UX refine; R2 sync/cache-bust; package docs | Tier 2 raw D1 + visual accept |
-| **Branch** | `feat/cpas-collab-calendar-crud` | `feat/cpas-collab-tickets-tasks-crud` | `feat/cpas-collab-shell-mail` | none (detached) |
-| **Worktree** | `$HOME/agent-worktrees/swarm-a-collab-cal/companionscpas` | `$HOME/agent-worktrees/swarm-b-collab-tickets/companionscpas` | `$HOME/agent-worktrees/swarm-c-collab-mail/companionscpas` | `/tmp/cpas-worktrees/qc-collab/companionscpas` |
-| **Base** | `origin/collaboration-integration-suite` | same | same | same |
+| **Branch** | `feat/cpas-collab-calendar-crud` | `feat/cpas-collab-tickets-tasks-crud` | `feat/cpas-collab-shell-mail` (**merged/deleted**) | none (detached) |
+| **Worktree** | `$HOME/agent-worktrees/swarm-a-collab-cal/companionscpas` | `$HOME/agent-worktrees/swarm-b-collab-tickets/companionscpas` | ~~swarm-c~~ removed | `/tmp/cpas-worktrees/qc-collab/companionscpas` |
+| **Base** | `origin/main` (`cdadf91`+) | same (rebase onto A after A merges if parallel) | shipped | `origin/main` |
 | **Primary ticket** | `tkt_cpas_collab_calendar_crud_2026_07` | `tkt_cpas_collab_tickets_tasks_crud_2026_07` | `tkt_cpas_collab_mail_shell_refine_2026_07` | umbrella T2 |
 | **Must not touch** | tickets API, `agentsam_tickets` writers, `view-email.jsx` core mail fetch | calendar API, `dashboard_calendar_events` writers | calendar event SQL, tickets CRUD core (except nav wiring) | implementer branches |
 
@@ -217,11 +217,12 @@ $HOME/agent-worktrees/
 
 ### Merge order (LOCKED)
 
-1. **C** lands shell routes + empty Collaborate chrome + Mail tab hook first (unblocks A/B mount points).  
-2. **A** and **B** rebase onto C after C merges to `collaboration-integration-suite` (or sequential PR onto C).  
-3. Prefer: C → A → B → QC visual pass → umbrella.
+1. **C** ✅ landed shell + Mail mounts on `main` (PR #4). Mount contracts: `window.CollaborateCalendarPane` / `window.CollaborateTasksPane`.  
+2. **A** next — branch from `origin/main`, implement calendar pane + API; prefer merge before B if both conflict on `collaborate.css` / `index.html` script tags.  
+3. **B** next — branch from `origin/main` (rebase onto A after A merges if needed); tickets API + Tasks pane.  
+4. Prefer remaining: **A → B → QC visual pass → umbrella dual-pass**.
 
-If parallel: A/B must not both rewrite `app.jsx` route registry conflict — **C owns `app.jsx` / `ui.jsx` / `index.html`**. A/B export view components; C wires them.
+If parallel: A/B must not both rewrite `app.jsx` route registry — shell already owns routes. A/B only add their pane scripts in `index.html` + CSS; do not regress Mail.
 
 ---
 
@@ -368,7 +369,7 @@ You are Swarm A — CALENDAR for Companions CPAS.
 REPO: companionscpas
 CWD: $HOME/agent-worktrees/swarm-a-collab-cal/companionscpas
 BRANCH: feat/cpas-collab-calendar-crud
-BASE: rebase onto feat/cpas-collab-shell-mail after C merges (or onto collaboration-integration-suite if C already merged)
+BASE: origin/main (Swarm C shipped — rebase onto latest main, not deleted feat/cpas-collab-shell-mail)
 TICKET: tkt_cpas_collab_calendar_crud_2026_07
 PLAN: docs/plans/CPAS-COLLABORATION-SUITE-SWARM-BLAST-2026-07.md
 REFERENCE SEED: packages/collaboration-integration-suite/frontend/pages/LaunchDeskPage.tsx (+ calendar CSS)
@@ -395,7 +396,7 @@ You are Swarm B — TICKETS-TASKS for Companions CPAS.
 REPO: companionscpas
 CWD: $HOME/agent-worktrees/swarm-b-collab-tickets/companionscpas
 BRANCH: feat/cpas-collab-tickets-tasks-crud
-BASE: same rebase rules as A (after C)
+BASE: origin/main (same as A; rebase onto A after A merges if calendar/tasks CSS or index.html conflict)
 TICKET: tkt_cpas_collab_tickets_tasks_crud_2026_07
 PLAN: docs/plans/CPAS-COLLABORATION-SUITE-SWARM-BLAST-2026-07.md
 UX REFERENCE: packages/.../CollaborateTasksPanel.tsx + CollaborateTaskFocus.tsx
