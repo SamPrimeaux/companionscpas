@@ -6,8 +6,7 @@ const COLLABORATE_SURFACES = [
 ];
 
 function CollaboratePendingPane({ surface }) {
-  const isCalendar = surface === "calendar";
-  if (isCalendar) {
+  if (surface === "calendar") {
     return React.createElement("section", { className: "collab-pending-main", role: "alert" },
       React.createElement("div", { className: "collab-pending-icon", "aria-hidden": "true" },
         React.createElement(Icon, { name: "calendar", size: 24 })
@@ -15,6 +14,19 @@ function CollaboratePendingPane({ surface }) {
       React.createElement("p", { className: "collab-pending-eyebrow" }, "Calendar unavailable"),
       React.createElement("h2", null, "The calendar pane failed to load"),
       React.createElement("p", null, "Reload the dashboard. If the problem continues, contact the workspace administrator."),
+      React.createElement("button", { type: "button", className: "collab-reload-button", onClick: function() { window.location.reload(); } },
+        "Reload dashboard"
+      )
+    );
+  }
+  if (surface === "tasks") {
+    return React.createElement("section", { className: "collab-pending-main", role: "alert" },
+      React.createElement("div", { className: "collab-pending-icon", "aria-hidden": "true" },
+        React.createElement(Icon, { name: "warning", size: 24 })
+      ),
+      React.createElement("p", { className: "collab-pending-eyebrow" }, "Collaborate workspace"),
+      React.createElement("h2", null, "Tasks could not load"),
+      React.createElement("p", null, "Reload the dashboard to restore the live tickets-backed task workspace."),
       React.createElement("button", { type: "button", className: "collab-reload-button", onClick: function() { window.location.reload(); } },
         "Reload dashboard"
       )
@@ -30,30 +42,13 @@ function CollaboratePendingPane({ surface }) {
       React.createElement("p", null, "Reload the dashboard to restore the existing CPAS mailbox.")
     );
   }
-  return React.createElement("div", { className: "collab-pending-layout" },
-    React.createElement("aside", { className: "collab-pending-context", "aria-label": surface + " tools" },
-      React.createElement("button", {
-        type: "button",
-        className: "collab-pending-create",
-        disabled: true,
-        title: "Task creation arrives with Swarm B",
-      },
-        React.createElement(Icon, { name: "plus", size: 16 }),
-        "Add a task"
-      ),
-      React.createElement("div", { className: "collab-pending-context-copy" },
-        React.createElement("strong", null, "My Tasks"),
-        React.createElement("span", null, "Task lists and filters mount here.")
-      )
+  return React.createElement("section", { className: "collab-pending-main", role: "alert" },
+    React.createElement("div", { className: "collab-pending-icon", "aria-hidden": "true" },
+      React.createElement(Icon, { name: "warning", size: 24 })
     ),
-    React.createElement("section", { className: "collab-pending-main", role: "status" },
-      React.createElement("div", { className: "collab-pending-icon", "aria-hidden": "true" },
-        React.createElement(Icon, { name: "check", size: 24 })
-      ),
-      React.createElement("p", { className: "collab-pending-eyebrow" }, "Collaborate workspace"),
-      React.createElement("h2", null, "Tasks are coming online"),
-      React.createElement("p", null, "The shell is ready for the live tickets-backed task pane.")
-    )
+    React.createElement("p", { className: "collab-pending-eyebrow" }, "Collaborate workspace"),
+    React.createElement("h2", null, "Surface unavailable"),
+    React.createElement("p", null, "Reload the dashboard to restore Collaborate.")
   );
 }
 
