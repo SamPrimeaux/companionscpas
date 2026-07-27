@@ -2,8 +2,8 @@
 .cpas-calendar {
   --cal-accent: var(--collab-accent, #7c3aed);
   --cal-accent-soft: rgba(124, 58, 237, .10);
-  --cal-line: #d8dce5;
-  --cal-line-soft: #e7e9ef;
+  --cal-line: #d6c5ec;
+  --cal-line-soft: #ebe1f7;
   --cal-bg: #f7f8fb;
   --cal-surface: #fff;
   --cal-muted: #696d77;
