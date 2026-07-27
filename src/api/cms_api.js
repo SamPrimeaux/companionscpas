@@ -1754,7 +1754,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       typeof brand.socials_json === "string"    ? brand.socials_json    : JSON.stringify(brand.socials_json || {}),
       typeof brand.organization_json === "string" ? brand.organization_json : JSON.stringify(brand.organization_json || {}),
       typeof brand.seo_defaults_json === "string" ? brand.seo_defaults_json : JSON.stringify(brand.seo_defaults_json || {}),
-      clampHeaderLogoPx(brand.logo_width, 56),
+      clampHeaderLogoPx(brand.logo_width, 80),
       null,
       TENANT_ID
     ).run();

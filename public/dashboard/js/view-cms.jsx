@@ -3714,8 +3714,8 @@ function BrandPreviewCanvas({ brand, socials, previewTheme }) {
   const logoUrl = isDark
     ? (brand.logo_light_url || brand.logo_dark_url || "")
     : (brand.logo_dark_url || brand.logo_light_url || "");
-  const logoW = Math.max(36, Math.min(60, Number(brand.logo_width) || 56));
-  const HEADER_PREVIEW_H = 72;
+  const logoW = Math.max(48, Math.min(80, Number(brand.logo_width) || 80));
+  const HEADER_PREVIEW_H = 88;
   const navLinks = parseBrandNav(brand.navigation_json)
     .filter(l => l.label && l.href && String(l.style || "") !== "button")
     .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
@@ -3757,7 +3757,7 @@ function BrandPreviewCanvas({ brand, socials, previewTheme }) {
               style: {
                 height: logoW,
                 width: "auto",
-                maxHeight: HEADER_PREVIEW_H - 12,
+                maxHeight: HEADER_PREVIEW_H - 8,
                 objectFit: "contain",
                 objectPosition: "left center",
                 display: "block",
@@ -3817,7 +3817,7 @@ function CmsBrandView({ onNavigate }) {
       if (d.brand) {
         setBrand({
           ...d.brand,
-          logo_width: Math.max(36, Math.min(60, Number(d.brand.logo_width) || 56)),
+          logo_width: Math.max(48, Math.min(80, Number(d.brand.logo_width) || 80)),
           logo_height: Number(d.brand.logo_height) || 0,
         });
         setOrg((() => { try { return JSON.parse(d.brand.organization_json || "{}"); } catch { return {}; } })());
@@ -3858,7 +3858,7 @@ function CmsBrandView({ onNavigate }) {
         body: JSON.stringify({
           brand: {
             ...brand,
-            logo_width: Math.max(36, Math.min(60, Number(brand.logo_width) || 56)),
+            logo_width: Math.max(48, Math.min(80, Number(brand.logo_width) || 80)),
             logo_height: null,
             organization_json: JSON.stringify(org),
             socials_json: JSON.stringify(socials),
@@ -4003,19 +4003,19 @@ function CmsBrandView({ onNavigate }) {
             onUploadFile: file => uploadLogo(file, "logo_dark_url"),
           }),
           React.createElement("div", null,
-            React.createElement("label", { style: lStyle }, `Header logo size (${Math.max(36, Math.min(60, Number(brand.logo_width) || 56))}px)`),
+            React.createElement("label", { style: lStyle }, `Header logo size (${Math.max(48, Math.min(80, Number(brand.logo_width) || 80))}px)`),
             React.createElement("input", {
-              type: "range", min: 36, max: 60, step: 2,
-              value: Math.max(36, Math.min(60, Number(brand.logo_width) || 56)),
+              type: "range", min: 48, max: 80, step: 2,
+              value: Math.max(48, Math.min(80, Number(brand.logo_width) || 80)),
               onChange: e => setBrand(p => ({ ...p, logo_width: Number(e.target.value) })),
               style: { width: "100%", accentColor: C.purple },
             }),
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: C.textMut, marginTop: 2 } },
-              React.createElement("span", null, "36px"),
-              React.createElement("span", null, "60px — fills the bar")
+              React.createElement("span", null, "48px"),
+              React.createElement("span", null, "80px — nearly fills the bar")
             ),
             React.createElement("p", { style: { fontSize: 11, color: C.textMut, margin: "6px 0 0", lineHeight: 1.4 } },
-              "Logo stays fully inside the header (with a little padding). Max is the bar height — larger would mean growing the whole header, which we don’t recommend."
+              "Header bar is 88px tall. Logo stays fully inside it (8px padding). Max almost fills the bar — larger would mean growing the header again."
             )
           )
         ),

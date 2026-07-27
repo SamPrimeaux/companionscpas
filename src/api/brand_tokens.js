@@ -1,12 +1,12 @@
 /** Runtime brand color tokens — served as CSS so CMS color saves apply without republish. */
 
 /** Public header bar height (matches cpas-shell.css --header-h). */
-export const HEADER_BAR_PX = 72;
-/** Keep logo inside the bar so it never crops (breathing room top + bottom). */
-export const HEADER_LOGO_INSET_PX = 12;
-/** Max logo height that still fits the bar. Larger would require growing the header. */
-export const HEADER_LOGO_MAX_PX = HEADER_BAR_PX - HEADER_LOGO_INSET_PX; // 60
-export const HEADER_LOGO_MIN_PX = 36;
+export const HEADER_BAR_PX = 88;
+/** Small breathing room so the mark doesn’t kiss the bar edges. */
+export const HEADER_LOGO_INSET_PX = 8;
+/** Max logo height = almost the full bar (bar − inset). */
+export const HEADER_LOGO_MAX_PX = HEADER_BAR_PX - HEADER_LOGO_INSET_PX; // 80
+export const HEADER_LOGO_MIN_PX = 48;
 
 function trim(v) {
   return v == null ? "" : String(v).trim();
@@ -60,7 +60,7 @@ export function buildBrandTokensCss(brand = {}) {
   const purpleMid = mixHex(primary, "#ffffff", 0.18);
   const purpleLight = mixHex(primary, "#ffffff", 0.42);
   // Slider = desired height; hard-capped so the full mark fits inside the 72px bar.
-  const logoSize = clampHeaderLogoPx(brand.logo_width, 56);
+  const logoSize = clampHeaderLogoPx(brand.logo_width, HEADER_LOGO_MAX_PX);
 
   return `:root,
 .theme-light,

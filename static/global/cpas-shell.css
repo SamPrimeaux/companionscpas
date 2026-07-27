@@ -14,11 +14,11 @@
   --purple-light:  #9d6cf3;
   --red-accent:    #d62b2b;
   --ease:          cubic-bezier(0.16, 1, 0.3, 1);
-  --header-h:      72px;
-  --header-h-mob:  68px;
+  --header-h:      88px;
+  --header-h-mob:  80px;
   /* Header mark — tokens.css overrides with in-bar fit; this is fallback only */
-  --header-logo:   56px;
-  --header-logo-mob: 52px;
+  --header-logo:   80px;
+  --header-logo-mob: 72px;
   /* Site layout law — gutters + max content width (donate/contact rhythm) */
   --page-max:      1240px;
   --page-gutter:   clamp(20px, 4vw, 48px);
@@ -262,9 +262,9 @@ p  { text-wrap: pretty; }
 .logo-link img,
 .header-logo-img {
   display: block;
-  height: min(var(--header-logo), calc(var(--header-h) - 12px));
+  height: min(var(--header-logo), calc(var(--header-h) - 8px));
   width: auto;
-  max-height: calc(var(--header-h) - 12px);
+  max-height: calc(var(--header-h) - 8px);
   max-width: min(280px, 42vw);
   margin-block: 0;
   object-fit: contain;
@@ -642,8 +642,8 @@ p  { text-wrap: pretty; }
   .container { width: min(var(--page-max), calc(100% - (var(--page-gutter) * 2))); }
   .logo-link img,
   .header-logo-img {
-    height: min(var(--header-logo-mob), calc(var(--header-h) - 10px));
-    max-height: calc(var(--header-h) - 10px);
+    height: min(var(--header-logo-mob), calc(var(--header-h) - 8px));
+    max-height: calc(var(--header-h) - 8px);
     width: auto;
     margin-block: 0;
   }
@@ -1627,7 +1627,7 @@ body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;h
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   margin-bottom: 1.5rem;
 }
-/* Footer mark — independent of in-bar header logo cap */
+/* Match header mark weight (~90px = --header-h + 18) */
 .site-footer .footer-brand-logo {
   display: block;
   height: 90px;
