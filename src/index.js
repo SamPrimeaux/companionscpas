@@ -29,6 +29,7 @@ import { emailApiRoutes } from './api/email_api.js';
 import { gmailRoutes } from './api/gmail_api.js';
 import { handleFosterApply, handleFosterList, handleFosterUpdate } from './api/foster_api.js';
 import { formsRoutes } from './api/forms_api.js';
+import { collaborateCalendarApiRoutes } from './api/collaborate_calendar_api.js';
 
 
 function json(data, status = 200) {
@@ -278,6 +279,9 @@ export default {
 
       const emailResult = await emailApiRoutes(request, env, url);
       if (emailResult) return emailResult;
+
+      const calendarResult = await collaborateCalendarApiRoutes(request, env, url);
+      if (calendarResult) return calendarResult;
 
       const publicResult = await publicApiRoutes(request, env, url);
       if (publicResult) return publicResult;

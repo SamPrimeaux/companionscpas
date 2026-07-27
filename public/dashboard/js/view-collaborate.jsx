@@ -7,6 +7,19 @@ const COLLABORATE_SURFACES = [
 
 function CollaboratePendingPane({ surface }) {
   const isCalendar = surface === "calendar";
+  if (isCalendar) {
+    return React.createElement("section", { className: "collab-pending-main", role: "alert" },
+      React.createElement("div", { className: "collab-pending-icon", "aria-hidden": "true" },
+        React.createElement(Icon, { name: "calendar", size: 24 })
+      ),
+      React.createElement("p", { className: "collab-pending-eyebrow" }, "Calendar unavailable"),
+      React.createElement("h2", null, "The calendar pane failed to load"),
+      React.createElement("p", null, "Reload the dashboard. If the problem continues, contact the workspace administrator."),
+      React.createElement("button", { type: "button", className: "collab-reload-button", onClick: function() { window.location.reload(); } },
+        "Reload dashboard"
+      )
+    );
+  }
   if (surface === "mail") {
     return React.createElement("section", { className: "collab-pending-main", role: "alert" },
       React.createElement("div", { className: "collab-pending-icon", "aria-hidden": "true" },
@@ -23,27 +36,23 @@ function CollaboratePendingPane({ surface }) {
         type: "button",
         className: "collab-pending-create",
         disabled: true,
-        title: surface === "calendar" ? "Calendar creation arrives with Swarm A" : "Task creation arrives with Swarm B",
+        title: "Task creation arrives with Swarm B",
       },
         React.createElement(Icon, { name: "plus", size: 16 }),
-        isCalendar ? "Create event" : "Add a task"
+        "Add a task"
       ),
       React.createElement("div", { className: "collab-pending-context-copy" },
-        React.createElement("strong", null, isCalendar ? "Calendar tools" : "My Tasks"),
-        React.createElement("span", null, isCalendar
-          ? "Mini calendar and view controls mount here."
-          : "Task lists and filters mount here.")
+        React.createElement("strong", null, "My Tasks"),
+        React.createElement("span", null, "Task lists and filters mount here.")
       )
     ),
     React.createElement("section", { className: "collab-pending-main", role: "status" },
       React.createElement("div", { className: "collab-pending-icon", "aria-hidden": "true" },
-        React.createElement(Icon, { name: isCalendar ? "calendar" : "check", size: 24 })
+        React.createElement(Icon, { name: "check", size: 24 })
       ),
       React.createElement("p", { className: "collab-pending-eyebrow" }, "Collaborate workspace"),
-      React.createElement("h2", null, isCalendar ? "Calendar is coming online" : "Tasks are coming online"),
-      React.createElement("p", null, isCalendar
-        ? "The shell is ready for the live week, day, and month calendar pane."
-        : "The shell is ready for the live tickets-backed task pane.")
+      React.createElement("h2", null, "Tasks are coming online"),
+      React.createElement("p", null, "The shell is ready for the live tickets-backed task pane.")
     )
   );
 }
