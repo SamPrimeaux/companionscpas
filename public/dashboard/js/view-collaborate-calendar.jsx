@@ -406,6 +406,8 @@
     const [formError, setFormError] = React.useState('');
     const [saving, setSaving] = React.useState(false);
     const [dragId, setDragId] = React.useState(null);
+    const [upcoming, setUpcoming] = React.useState([]);
+    const [upcomingLoading, setUpcomingLoading] = React.useState(true);
     const range = React.useMemo(function() { return eventWindow(view, anchor); }, [view, anchor]);
 
     const load = React.useCallback(async function() {
