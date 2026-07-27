@@ -19,6 +19,7 @@ import {
   persistRawHtmlConfigOnSave,
   hydrateRawHtmlSectionForEditor,
 } from "./cms_raw_html_storage.js";
+import { clampHeaderLogoPx } from "./brand_tokens.js";
 const TENANT_ID = "tenant_companionscpas";
 
 const R2_MEDIA_FOLDERS = new Set([
@@ -1753,8 +1754,8 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       typeof brand.socials_json === "string"    ? brand.socials_json    : JSON.stringify(brand.socials_json || {}),
       typeof brand.organization_json === "string" ? brand.organization_json : JSON.stringify(brand.organization_json || {}),
       typeof brand.seo_defaults_json === "string" ? brand.seo_defaults_json : JSON.stringify(brand.seo_defaults_json || {}),
-      Number(brand.logo_width) > 0 ? Math.max(48, Math.min(360, Number(brand.logo_width))) : 140,
-      Number(brand.logo_height) > 0 ? Math.max(28, Math.min(280, Number(brand.logo_height))) : null,
+      clampHeaderLogoPx(brand.logo_width, 56),
+      null,
       TENANT_ID
     ).run();
 

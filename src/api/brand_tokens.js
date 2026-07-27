@@ -1,5 +1,13 @@
 /** Runtime brand color tokens — served as CSS so CMS color saves apply without republish. */
 
+/** Public header bar height (matches cpas-shell.css --header-h). */
+export const HEADER_BAR_PX = 72;
+/** Keep logo inside the bar so it never crops (breathing room top + bottom). */
+export const HEADER_LOGO_INSET_PX = 12;
+/** Max logo height that still fits the bar. Larger would require growing the header. */
+export const HEADER_LOGO_MAX_PX = HEADER_BAR_PX - HEADER_LOGO_INSET_PX; // 60
+export const HEADER_LOGO_MIN_PX = 36;
+
 function trim(v) {
   return v == null ? "" : String(v).trim();
 }
@@ -39,16 +47,20 @@ function mixHex(a, b, weight = 0.5) {
   return `#${[r, g, bVal].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** Clamp CMS logo_width to the in-bar safe range (height in px). */
+export function clampHeaderLogoPx(raw, fallback = 56) {
+  const n = Number(raw);
+  const base = Number.isFinite(n) && n > 0 ? n : fallback;
+  return Math.max(HEADER_LOGO_MIN_PX, Math.min(HEADER_LOGO_MAX_PX, Math.round(base)));
+}
+
 export function buildBrandTokensCss(brand = {}) {
   const primary = normalizeHex(brand.primary_color, "#6b21e8");
   const accent = normalizeHex(brand.accent_color, "#d62b2b");
   const purpleMid = mixHex(primary, "#ffffff", 0.18);
   const purpleLight = mixHex(primary, "#ffffff", 0.42);
-  // Driven by CMS Brand → Header Logo Width (no Worker redeploy to retune).
-  const logoWidth = Math.max(48, Math.min(360, Number(brand.logo_width) || 140));
-  const logoHeight = Number(brand.logo_height) > 0
-    ? Math.max(28, Math.min(280, Number(brand.logo_height)))
-    : logoWidth;
+  // Slider = desired height; hard-capped so the full mark fits inside the 72px bar.
+  const logoSize = clampHeaderLogoPx(brand.logo_width, 56);
 
   return `:root,
 .theme-light,
@@ -61,17 +73,20 @@ export function buildBrandTokensCss(brand = {}) {
   --red-accent: ${accent};
   --btn-bg: ${primary};
   --eyebrow-color: ${primary};
-  --brand-logo-width: ${logoWidth}px;
-  --brand-logo-height: ${logoHeight}px;
+  --brand-logo-size: ${logoSize}px;
+  --brand-logo-width: ${logoSize}px;
+  --brand-logo-height: ${logoSize}px;
+  --header-logo-inset: ${HEADER_LOGO_INSET_PX}px;
 }
 
-/* Must beat cpas-shell.css — tokens.css loads after shell on every public page. */
+/* Fit inside the header bar — height-driven, width follows aspect ratio (no crop/stretch). */
 .header-logo-img,
 .logo-link img {
-  width: var(--brand-logo-width);
-  height: var(--brand-logo-height);
-  max-width: none;
-  margin-block: calc((var(--brand-logo-height) - var(--header-h)) / -2);
+  height: min(var(--brand-logo-size), calc(var(--header-h) - var(--header-logo-inset)));
+  width: auto;
+  max-height: calc(var(--header-h) - var(--header-logo-inset));
+  max-width: min(280px, 42vw);
+  margin-block: 0;
   object-fit: contain;
   object-position: left center;
 }

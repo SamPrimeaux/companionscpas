@@ -16,9 +16,9 @@
   --ease:          cubic-bezier(0.16, 1, 0.3, 1);
   --header-h:      72px;
   --header-h-mob:  68px;
-  /* Header mark — ≥2× prior (was --header-h + 18 ≈ 90px) */
-  --header-logo:   180px;
-  --header-logo-mob: 160px;
+  /* Header mark — tokens.css overrides with in-bar fit; this is fallback only */
+  --header-logo:   56px;
+  --header-logo-mob: 52px;
   /* Site layout law — gutters + max content width (donate/contact rhythm) */
   --page-max:      1240px;
   --page-gutter:   clamp(20px, 4vw, 48px);
@@ -262,10 +262,11 @@ p  { text-wrap: pretty; }
 .logo-link img,
 .header-logo-img {
   display: block;
-  height: var(--header-logo);
-  width: var(--header-logo);
-  max-width: none;
-  margin-block: calc((var(--header-logo) - var(--header-h)) / -2);
+  height: min(var(--header-logo), calc(var(--header-h) - 12px));
+  width: auto;
+  max-height: calc(var(--header-h) - 12px);
+  max-width: min(280px, 42vw);
+  margin-block: 0;
   object-fit: contain;
   object-position: left center;
 }
@@ -641,9 +642,10 @@ p  { text-wrap: pretty; }
   .container { width: min(var(--page-max), calc(100% - (var(--page-gutter) * 2))); }
   .logo-link img,
   .header-logo-img {
-    height: var(--header-logo-mob);
-    width: var(--header-logo-mob);
-    margin-block: calc((var(--header-logo-mob) - var(--header-h)) / -2);
+    height: min(var(--header-logo-mob), calc(var(--header-h) - 10px));
+    max-height: calc(var(--header-h) - 10px);
+    width: auto;
+    margin-block: 0;
   }
   .section   { padding-block: clamp(56px, 12vw, 88px); }
   .site-nav, .header-actions { display: none; }
@@ -1625,7 +1627,7 @@ body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;h
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   margin-bottom: 1.5rem;
 }
-/* Match header mark weight (~90px = --header-h + 18) */
+/* Footer mark — independent of in-bar header logo cap */
 .site-footer .footer-brand-logo {
   display: block;
   height: 90px;
