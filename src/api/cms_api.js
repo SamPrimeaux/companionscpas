@@ -884,7 +884,38 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
   if (path === "/api/cms/preview" && method === "GET") {
     const cmsUser = await requireCmsUser(request, env, sessionUser);
-    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+    if (!cmsUser) {
+      // iframe navigations must get HTML — raw JSON becomes Chrome "Pretty print"
+      const loginHref = "/admin/login?next=" + encodeURIComponent("/dashboard/cms/pages");
+      const html = `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sign in required</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    font-family:system-ui,-apple-system,sans-serif;background:#f5f2e9;color:#1a1622;padding:24px}
+  .card{max-width:420px;background:#fff;border:1px solid rgba(26,22,34,.08);border-radius:16px;
+    padding:28px 26px;box-shadow:0 8px 28px rgba(26,22,34,.08)}
+  h1{margin:0 0 10px;font-size:1.25rem} p{margin:0 0 18px;line-height:1.55;color:#4a4454;font-size:.95rem}
+  a{display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:10px;
+    background:#7B2FBE;color:#fff;font-weight:700;text-decoration:none}
+  a:hover{filter:brightness(1.05)}
+</style></head><body>
+  <div class="card">
+    <h1>Sign in required</h1>
+    <p>This CMS preview needs an active session on <strong>this device</strong>.
+       Phone and desktop can stay signed in at the same time — sign in here to restore the editor.</p>
+    <a href="${loginHref}" target="_top" rel="noopener">Sign in</a>
+  </div>
+</body></html>`;
+      return new Response(html, {
+        status: 401,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      });
+    }
 
     const route = normalizeRouteInput(url.searchParams.get("route") || "/");
     if (!route) return json({ success: false, error: "route required" }, 400);

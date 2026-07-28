@@ -1,12 +1,13 @@
+import {
+  buildSessionCookie,
+  createDashboardSession,
+} from "./session_api.js";
+
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: { "Content-Type": "application/json", ...headers }
   });
-}
-
-function sessionCookie(sessionId) {
-  return `cpas_session=${sessionId}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
 }
 
 function clearStateCookie() {
@@ -118,19 +119,10 @@ async function handleGoogleCallback(request, env, url) {
     return Response.redirect(`${url.origin}/admin/login?error=not_authorized&email=${encodeURIComponent(profile.email)}`, 302);
   }
 
-  // Revoke existing sessions
-  await env.DB.prepare(`
-    UPDATE agentsam_sessions SET status = 'revoked', updated_at = datetime('now')
-    WHERE user_id = ? AND status = 'active'
-  `).bind(user.id).run().catch(() => {});
-
-  // Create new session
-  const sessionId = crypto.randomUUID();
-  await env.DB.prepare(`
-    INSERT INTO agentsam_sessions
-      (id, tenant_id, user_id, session_title, route_path, mode, status, created_at, updated_at)
-    VALUES (?, 'tenant_companionscpas', ?, 'Google Login', '/dashboard', 'ask', 'active', datetime('now'), datetime('now'))
-  `).bind(sessionId, user.id).run();
+  // Multi-device: add a session — do NOT revoke phone/desktop/other active sessions
+  const { sessionId } = await createDashboardSession(env, user.id, {
+    title: "Google Login",
+  });
 
   await env.DB.prepare(`
     UPDATE users SET last_login_at = datetime('now'), updated_at = datetime('now') WHERE id = ?
@@ -139,7 +131,7 @@ async function handleGoogleCallback(request, env, url) {
   // Use Headers object so each Set-Cookie is a separate header
   const headers = new Headers();
   headers.append("Location", "/dashboard");
-  headers.append("Set-Cookie", sessionCookie(sessionId));
+  headers.append("Set-Cookie", buildSessionCookie(sessionId));
   headers.append("Set-Cookie", clearStateCookie());
 
   return new Response(null, { status: 302, headers });

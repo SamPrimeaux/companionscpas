@@ -1,3 +1,8 @@
+import {
+  buildSessionCookie,
+  createDashboardSession,
+} from "./session_api.js";
+
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -16,10 +21,6 @@ async function pbkdf2Verify(password, saltHex, hashHex) {
   );
   const calc = [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, "0")).join("");
   return calc === hashHex;
-}
-
-function cookie(sessionId) {
-  return `cpas_session=${sessionId}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`;
 }
 
 export async function authRoutes(request, env, url) {
@@ -52,23 +53,11 @@ export async function authRoutes(request, env, url) {
   const valid = await pbkdf2Verify(data.password, row.password_salt, row.password_hash);
   if (!valid) return json({ error: "Invalid email or password" }, 401);
 
-  // Revoke all previous active agentsam_sessions for this user
-  await env.DB.prepare(`
-    UPDATE agentsam_sessions
-    SET status = 'revoked', updated_at = datetime('now')
-    WHERE user_id = ? AND status = 'active'
-  `).bind(row.id).run().catch(() => {});
+  // Multi-device: add a session — do NOT revoke phone/desktop/other active sessions
+  const { sessionId } = await createDashboardSession(env, row.id, {
+    title: "Dashboard Session",
+  });
 
-  // Create new agentsam_session
-  const sessionId = crypto.randomUUID();
-
-  await env.DB.prepare(`
-    INSERT INTO agentsam_sessions
-      (id, tenant_id, user_id, session_title, route_path, mode, status, created_at, updated_at)
-    VALUES (?, 'tenant_companionscpas', ?, 'Dashboard Session', '/dashboard', 'ask', 'active', datetime('now'), datetime('now'))
-  `).bind(sessionId, row.id).run();
-
-  // Update last_login
   await env.DB.prepare(`
     UPDATE users SET last_login_at = datetime('now'), updated_at = datetime('now')
     WHERE id = ?
@@ -79,6 +68,6 @@ export async function authRoutes(request, env, url) {
     user: { id: row.id, email: row.email, full_name: row.full_name },
     redirect: "/dashboard"
   }, 200, {
-    "Set-Cookie": cookie(sessionId)
+    "Set-Cookie": buildSessionCookie(sessionId)
   });
 }
