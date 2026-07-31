@@ -13,11 +13,11 @@ Companions of CPAS — 501(c)(3) volunteer-powered rescue helping dogs at Caddo 
 
 ## Project Overview
 
-This platform combines a public-facing rescue website with a private admin dashboard. **All six public pages** are served through a **sectionalized CMS pipeline**: editable content lives in D1, renders into per-section R2 HTML fragments, assembles into full pages at request time, and caches in KV.
+This platform combines a public-facing rescue website with a private admin dashboard. **Public CMS pages** use one pipeline: D1 content → section HTML → assemble with dynamic header/footer → R2 page artifact + KV cache.
 
-The dashboard is a React SPA (raw JSX via Babel CDN) served from R2. The public site uses `shared.css` design tokens, modular popups (`cpas-modals.js`, `donate-modal.js`), and Stripe test-mode donations until the client goes live.
+The dashboard is a React SPA (raw JSX via Babel CDN) served from R2. The public site uses `cpas-shell.css` / brand tokens, modular popups (`cpas-modals.js`, `donate-modal.js`), and Stripe test-mode donations until the client goes live.
 
-**Start here:** [Client handoff status](#client-handoff-status-june-2026) for what's live today, then [Sectionalized CMS System](#sectionalized-cms-system) for CMS/public-site work. Dashboard file ownership: [`docs/current-file-map.md`](docs/current-file-map.md). Per-feature docs (vectorization-ready): [`docs/features/README.md`](docs/features/README.md).
+**Start here:** [Sectionalized CMS System](#sectionalized-cms-system) (agent SSOT for how pages/header/footer work), then [Client handoff status](#client-handoff-status-june-2026). Dashboard file ownership: [`docs/current-file-map.md`](docs/current-file-map.md). Architecture deep-dive: [`CMS_ARCHITECTURE.md`](CMS_ARCHITECTURE.md).
 
 ---
 
@@ -55,75 +55,96 @@ Production domain: `companionsofcaddo.org`. Final client sprint shipped:
 
 ## Sectionalized CMS System
 
-> Last updated: 2026-06-19. Canonical reference for CMS/public-site work.
+> Last verified against code: **2026-07-30**. Canonical agent reference for CMS / public site.
+> Companion deep-dive: [`CMS_ARCHITECTURE.md`](CMS_ARCHITECTURE.md).
 
-### Mental model
+### Mental model (one pipeline for every `cms_pages` route)
 
 ```
-Dashboard edit  →  D1 (cms_page_sections + cms_page_content_blocks)   ← source of truth
-       ↓ save / publish / sync
-Section renderers  →  R2 static/pages/{route}/{section_key}.html        ← rendered HTML fragments
-       ↓ assemble (Worker, on each request or publish)
-Full page HTML  →  header + <main>sections</main> + footer + shell JS
-       ↓ cache
-KV page:{route}  →  fast repeat visits (TTL ~1 hour)
-R2 static/pages/{route}/index.html  →  optional baked artifact after publish
+Dashboard edit  →  D1 (cms_pages + cms_page_sections + cms_page_content_blocks
+                        + cms_brand_settings)     ← content + chrome SSOT
+       ↓ Publish / brand save (republish)
+cms_pipeline.publishRoute
+  → syncRouteSectionsToR2  (renderSectionByType → R2 fragments)
+  → bust KV page:{route}
+  → assemblePage (D1 sections + dynamic header/footer)
+  → R2 static/pages…/index.html + KV page:{route}
+       ↓
+Public GET  →  KV → else assemblePage → else R2 artifact
 ```
 
-**D1** = what the team edits. **R2 fragments** = what the live site reads. **KV** = assembled page cache. Never hand-edit R2 page HTML; regenerate via CMS save, sync script, or publish.
+**D1** = what the team edits. **Never** hand-edit live R2 `static/pages/**/index.html` artifacts. Regenerate via CMS Publish, brand/footer save (republishes all routes), or ops scripts.
+
+### Do home and about still use different renderers?
+
+**Short answer: separate assemble pipelines — no. Separate branded section HTML for some keys — yes.**
+
+| Layer | Home `/` | About `/about` | Other CMS routes |
+|---|---|---|---|
+| **Serve / publish / preview** | Same: `cms_pipeline.assemblePage` / `publishRoute` | Same | Same |
+| **Route allowlist** | None — any `cms_pages` row (`isCmsPageRoute`) | Same | Same |
+| **Header / footer** | Same: `render_site_nav.js` (+ `footer_chrome.js`) | Same | Same |
+| **Section HTML** | Some `section_key`s still dispatch to `render_home_section.js` | Some keys → `render_about_section.js` | Typed catalog + `render_section.js` |
+
+Dispatch lives in **one catalog**: [`src/api/cms_section_catalog.js`](src/api/cms_section_catalog.js) → `renderSectionByType()`.
+
+- If `page_route === "/"` and key is in `{hero, mission, how_it_helps, transport_win, impact_stats, campaigns, newsletter}` (or type `home_*`) → `renderHomeFragment`.
+- If `page_route === "/about"` and key is in `{mission_statement, hero, why_we_exist, paths, campaigns, cta}` → `renderAboutFragment`.
+- Else → contact / donate-v2 / campaign / gallery / generic `render_section.js` / stub.
+
+Legacy modules `home_cms_sync.js`, `about_cms_sync.js`, `render_*_fragments.js`, `generic_page_cms_sync.js` still exist for **ops salvage / CLI sync**, but they are **not** the live public assemble path. [`page_cms_registry.js`](src/api/page_cms_registry.js) is a thin wrapper over `cms_pipeline` (no hard-coded six-route FRAGMENT_PAGES for serving).
+
+### Header / footer (agents: read this)
+
+| Concern | Truth |
+|---|---|
+| Live header/footer HTML | [`src/api/render_site_nav.js`](src/api/render_site_nav.js) (`renderSiteHeader` / `renderSiteFooter`) |
+| Footer chrome data | `cms_brand_settings.footer_json` via [`src/api/footer_chrome.js`](src/api/footer_chrome.js) — column titles, title size, trust badges (caption, image, href, height, placement, order) |
+| Nav links | `cms_pages` (`nav_visible`, `nav_label`, `nav_placement`, `sort_order`) — **not** `cms_brand_settings.navigation_json` |
+| Org / socials / logos | `cms_brand_settings` (`organization_json`, `socials_json`, logo fields) |
+| Editor UX | Page editor → click **Footer** / **Header** chrome rows in [`public/dashboard/js/view-cms.jsx`](public/dashboard/js/view-cms.jsx). Preview click on captions/badges/labels posts `cms:chrome-selected`. |
+| Brand & Settings | Colors + logos (+ header logo height via `/api/cms/brand/tokens.css`). **Not** the place for footer copy/nav. |
+| `static/global/cpas-header.html` / `cpas-footer.html` | **Reference / R2 fallback only.** Editing them does not change live pages when D1 is available. |
+| Brand save | `POST /api/cms/brand/save` writes D1, busts brand KV, then **republishes all `cms_pages` routes** (D1 list via `listAllCmsPageRoutes` — not a hardcoded `PUBLIC_ROUTES` allowlist for the happy path). |
 
 ### Public page serve order (`src/index.js` → `servePublicPage`)
 
-For every public route:
+1. **KV** `page:{route}`
+2. If `isCmsPageRoute(env, route)` → **`assemblePage`** (live D1 + dynamic chrome)
+3. **R2 artifact** `static/pages/index.html` or `static/pages{route}/index.html`
+4. Legacy `renderPage()` only if the above fail
 
-1. **KV hit** — return `page:{route}` immediately
-2. **Fragment assembly** — if route is fragment-managed, stitch R2 section files + shell
-3. **R2 artifact** — `static/pages/index.html` or `static/pages/{route}/index.html`
-4. **D1 ad-hoc fallback** — `renderPage()` (legacy; avoid for fragment routes)
+### Routes
 
-### Fragment-managed routes
+Any published `cms_pages.route_path` is a CMS route. Common production routes include `/`, `/about`, `/adopt`, `/fosters`, `/donate`, `/community`, `/contact`, `/events`, `/services` (services assembly may still be thin/broken — do not invent a route allowlist to “fix” that).
 
-| Route | Registry module | Renderer style | R2 fragment base | Page doc |
-|---|---|---|---|---|
-| `/` | `home_cms_sync.js` | Custom per-section (`render_home_section.js`) | `static/pages/home/` | [`docs/homepage-readme.md`](docs/homepage-readme.md) |
-| `/about` | `about_cms_sync.js` | Custom per-section (`render_about_section.js`) | `static/pages/about/` | [`docs/about-readme.md`](docs/about-readme.md) |
-| `/services` | `generic_page_cms_sync.js` | Shared `render_section.js` | `static/pages/services/` | [`docs/services-page-spec.md`](docs/services-page-spec.md) |
-| `/adopt` | `generic_page_cms_sync.js` | Shared `render_section.js` | `static/pages/adopt/` | — |
-| `/donate` | `generic_page_cms_sync.js` | Shared `render_section.js` + `render_campaign_transport_hero.js` | `static/pages/donate/` | [`docs/donate-readme.md`](docs/donate-readme.md) |
-| `/community` | `generic_page_cms_sync.js` | Shared `render_section.js` | `static/pages/community/` | — |
-
-**Custom routes** (`/`, `/about`) have dedicated renderers tuned to the design system (`hero-split`, `story-block`, `ways-grid`, etc.).
-
-**Generic routes** (`/services`, `/adopt`, `/donate`, `/community`) use `render_section.js` section types (`hero`, `text_image`, `feature_cards`, `foster_grid`, `cta_banner`, `fundraising`, etc.). Section type picks the HTML layout; D1 fields + blocks supply content.
-
-Route registry: [`src/api/page_cms_registry.js`](src/api/page_cms_registry.js).
+R2 fragment keys: `static/pages/{page_name}/{section_key}.html` (home uses `static/pages/home/…`). Artifacts: `/` → `static/pages/index.html`, else `static/pages{route}/index.html`.
 
 ### Key implementation files
 
 | File | Role |
 |---|---|
-| [`src/api/page_cms_registry.js`](src/api/page_cms_registry.js) | Maps routes → sync modules; `isFragmentPageRoute()`, publish/preview helpers |
-| [`src/api/home_cms_sync.js`](src/api/home_cms_sync.js) | Home D1 → R2 fragment sync + publish |
-| [`src/api/about_cms_sync.js`](src/api/about_cms_sync.js) | About D1 → R2 fragment sync + publish |
-| [`src/api/generic_page_cms_sync.js`](src/api/generic_page_cms_sync.js) | Generic pages D1 → R2 sync |
-| [`src/api/render_home_section.js`](src/api/render_home_section.js) | Home section HTML renderers |
-| [`src/api/render_about_section.js`](src/api/render_about_section.js) | About section HTML renderers |
-| [`src/api/render_section.js`](src/api/render_section.js) | Generic section renderers + **unified CTA resolver** |
-| [`src/api/render_home_fragments.js`](src/api/render_home_fragments.js) | Stitch home fragments → full page |
-| [`src/api/render_about_fragments.js`](src/api/render_about_fragments.js) | Stitch about fragments → full page |
-| [`src/api/render_generic_fragments.js`](src/api/render_generic_fragments.js) | Stitch generic routes → full page |
-| [`src/api/render_page.js`](src/api/render_page.js) | `assembleFullPage()`, brand/header/footer, legacy `renderPage()` |
-| [`src/api/page_shell.js`](src/api/page_shell.js) | Shared script tags + cache-bust versions for all public pages |
-| [`src/api/cms_api.js`](src/api/cms_api.js) | CMS save/preview/publish/bootstrap API |
+| [`src/api/cms_pipeline.js`](src/api/cms_pipeline.js) | **SSOT pipeline** — load sections, sync R2, `assemblePage`, `publishRoute`, `previewRoute` |
+| [`src/api/cms_section_catalog.js`](src/api/cms_section_catalog.js) | `renderSectionByType` — home/about key overrides + typed/generic renderers |
+| [`src/api/cms_api.js`](src/api/cms_api.js) | CMS HTTP: save, preview, publish, brand, chrome, assets |
+| [`src/api/page_cms_registry.js`](src/api/page_cms_registry.js) | Thin compat wrappers over `cms_pipeline` |
+| [`src/api/render_site_nav.js`](src/api/render_site_nav.js) | Live header/footer |
+| [`src/api/footer_chrome.js`](src/api/footer_chrome.js) | `footer_json` normalize + trust-badge HTML |
+| [`src/api/render_page.js`](src/api/render_page.js) | `getBrand`, `getGlobalPartial`, `assembleFullPage` |
+| [`src/api/page_shell.js`](src/api/page_shell.js) | Shell script tags + `SHELL_VERSION` cache bust |
+| [`src/api/render_home_section.js`](src/api/render_home_section.js) | Branded home section HTML (catalog override) |
+| [`src/api/render_about_section.js`](src/api/render_about_section.js) | Branded about section HTML (catalog override) |
+| [`src/api/render_section.js`](src/api/render_section.js) | Shared/generic section types + CTA resolver |
+| [`public/dashboard/js/view-cms.jsx`](public/dashboard/js/view-cms.jsx) | Page editor + Footer chrome panel + Brand theme |
 
 ### D1 tables (CMS content)
 
 | Table | Purpose |
 |---|---|
-| `cms_pages` | Page meta: `route_path`, `title`, `theme`, SEO fields |
-| `cms_page_sections` | Section rows per route: `section_key`, `section_type`, copy, images, CTAs, `config_json`, `sort_order`, `is_visible` |
-| `cms_page_content_blocks` | Repeating items inside a section (cards, stats, tiers, campaigns) |
-| `cms_brand_settings` | Logos, nav, footer, org identity |
+| `cms_pages` | Route registry + **nav chrome** (`nav_visible`, `nav_label`, `nav_placement`, `sort_order`), theme, SEO |
+| `cms_page_sections` | Section rows: `section_key`, `section_type`, copy, images, CTAs, `config_json`, `sort_order`, `is_visible`, `deleted_at` |
+| `cms_page_content_blocks` | Repeating items inside a section |
+| `cms_brand_settings` | Logos, colors, `organization_json`, `socials_json`, **`footer_json`** (trust badges + column titles) |
 | `cms_modals` | CMS-driven intro copy (e.g. foster CTA popup) |
 | `cms_assets` | R2 media library metadata |
 
@@ -133,14 +154,15 @@ Tenant ID everywhere: `tenant_companionscpas`.
 
 | Asset | Role |
 |---|---|
-| `static/global/cpas-header.html` | Site header; nav Donate uses `data-action="donate"` |
-| `static/global/cpas-footer.html` | Site footer |
-| `static/global/shared.css` | Global design system (`hero-cta`, `hero-split`, `ways-grid`, etc.) |
-| `static/global/shared.js` | Mobile nav, footer inject |
-| `static/global/cpas-modals.js` | Reusable apply popups (foster intro → 4-step form, volunteer, contact) |
-| `static/js/donate-modal.js` | Stripe PaymentElement donate modal (fetches key from API) |
+| `static/global/cpas-shell.css` | Public design system (merge from `cpas-public-surface.css` + partials via `npm run css:merge`) |
+| `static/global/cpas-header.html` | Fallback / reference only — not live SSOT |
+| `static/global/cpas-footer.html` | Fallback / reference only — not live SSOT |
+| `static/global/shared.js` | Mobile nav / shared public JS |
+| `static/global/cpas-modals.js` | Foster / volunteer / contact modals |
+| `static/js/donate-modal.js` | Stripe donate modal |
+| `/api/cms/brand/tokens.css` | Live logo size + brand CSS vars (no page republish needed for logo height) |
 
-Script inclusion is centralized in [`src/api/page_shell.js`](src/api/page_shell.js) → `publicPageScripts()`. Bump `SHELL_VERSION` / modal versions there after JS/CSS changes.
+Script inclusion: [`src/api/page_shell.js`](src/api/page_shell.js) → `publicPageScripts()`. Bump `SHELL_VERSION` after shell CSS/JS changes.
 
 ### CTA and modal conventions
 
@@ -198,22 +220,16 @@ Stripe publishable key from `GET /api/donations/config` (secret: `STRIPE_PUBLISH
 
 ### CMS dashboard workflow
 
-1. Edit at `/dashboard/cms/pages` → pick route → section fields
-2. **Save section** → `POST /api/cms/section/save` → re-render fragment → write R2 → bust `page:{route}` KV
-3. **Preview** → `GET /api/cms/preview?route=/donate` (auth required) — same assembly path as live
-4. **Publish** → `POST /api/cms/publish` with `{ route_path }` → sync all sections → write `index.html` artifact → refresh KV
+1. Edit at `/dashboard/cms/pages/{page}` — section list + live preview iframe (`GET /api/cms/preview?route=…`).
+2. **Body sections** — click section → inspector fields → Save Draft / blur-save → fragment sync + KV bust for that route.
+3. **Header chrome** — click Header → this page’s nav label / placement / sort / visibility (`POST /api/cms/page/chrome` republishes **all** routes).
+4. **Footer chrome** — click Footer → mission, org, socials, column titles, trust badges (drag reorder, placement, height, caption). Save → `POST /api/cms/brand/save` → republish all routes.
+5. **Publish Live** — `publishRoute` for the current page (full sync + artifact + KV).
+6. Preview uses the **same** `assemblePage` path as production (with `preview: true` for inspector hooks).
 
 **Bootstrap / reset a page** (logged into dashboard):
 
 ```javascript
-// Home only
-fetch('/api/cms/home/bootstrap', {
-  method: 'POST', credentials: 'include',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ force: true })
-}).then(r => r.json()).then(console.log)
-
-// Any fragment route (/about, /services, /donate, etc.)
 fetch('/api/cms/page/bootstrap', {
   method: 'POST', credentials: 'include',
   headers: { 'content-type': 'application/json' },
@@ -221,36 +237,32 @@ fetch('/api/cms/page/bootstrap', {
 }).then(r => r.json()).then(console.log)
 ```
 
-`force: true` resets sections to module defaults. `force: false` only inserts missing rows.
+`force: true` resets sections to defaults. Prefer this over route-specific bootstrap unless a dedicated endpoint still exists for home.
 
 ### Ops commands (production)
 
 ```bash
-# Deploy Worker (API + render logic)
+# Full ship (CSS merge → R2 globals → dashboard sync → wrangler deploy → salvage republish → KV bust)
+npm run deploy:full
+
+# Worker only (API / render logic)
 npm run deploy
 
-# Sync generic page fragments from D1 → R2 (CLI, no dashboard needed)
+# Merge public CSS partials into cpas-shell.css
+npm run css:merge && npm run css:publish
+
+# CLI fragment sync / republish (ops; prefer dashboard Publish when possible)
 node scripts/sync-page-fragments.mjs /donate
-node scripts/sync-page-fragments.mjs   # all four generic routes
-
-# Republish home + about full HTML + bust KV (after shell/script changes)
 node scripts/republish-shell-pages.mjs
+node scripts/publish-generic-page.mjs
 
-# Upload a static asset to R2
-npx wrangler r2 object put companionscpas/static/global/shared.css \
-  --file public/_shared.css --content-type "text/css; charset=utf-8" --remote
-
-# Bust a cached page
-npx wrangler kv key delete "page:/donate" \
-  --namespace-id 0b410337a8494fc982ea04c5bde1eab4 --remote
-
-# Full dashboard + public asset sync
+# Dashboard / asset delta sync to R2
 npm run sync
 ```
 
-**After CSS/JS/header changes:** upload to R2, bump version in `page_shell.js`, deploy Worker if render code changed, bust KV for affected routes.
+**After shell CSS/JS changes:** `css:merge` + publish globals, bump `SHELL_VERSION` in `page_shell.js`, deploy Worker, republish pages (or brand save / salvage).
 
-**After D1-only copy changes:** save in CMS or run sync script; KV is busted on save automatically.
+**After footer/brand chrome changes:** dashboard Footer save (or brand save) already republishes all `cms_pages` routes.
 
 ### KV cache keys
 
@@ -269,13 +281,12 @@ npm run sync
 
 | Area | Status | Next step |
 |---|---|---|
-| Fragment pipeline (all 6 routes) | Live | Block-level CMS editing for card-heavy sections |
-| Home + About custom renderers | Reference implementations | Template for future page remasters |
-| Generic pages (`render_section.js`) | Live | Per-page D1 content polish |
-| Donate modal + CTAs | Live (Stripe test mode) | Client sign-off; swap to live Stripe keys |
+| Unified `cms_pipeline` (all `cms_pages` routes) | Live | Keep adding section types in the catalog, not new assemble paths |
+| Home/About branded `section_key` overrides | Live inside catalog | Prefer typed shared sections for new work when possible |
+| Footer/header chrome in page editor | Live | Trust badges + column titles fully CMS-driven |
+| Donate modal + CTAs | Live (Stripe test mode) | Client sign-off; live Stripe keys |
 | Apply modals (foster/volunteer/contact) | Live in `cpas-modals.js` | More CTAs via `data-modal` / `cta_action` |
-| `/adopt` animal grid | Live but thinner than legacy bake | D1-driven grid/modal depth if client wants |
-| CMS brand | Live | Make org identity source of truth for all public copy |
+| `/services` | May fail assemble | Fix content/sections in D1 — do not hardcode route lists |
 
 Deeper schema/API reference: [`ARCHITECTURE.md`](ARCHITECTURE.md) (update dashboard contract table when editing). **Live dashboard map:** [`docs/current-file-map.md`](docs/current-file-map.md).
 
@@ -638,73 +649,46 @@ See [`docs/AGENTSAM_CPAS_ROADMAP.md`](docs/AGENTSAM_CPAS_ROADMAP.md) for sprint 
 
 ```text
 src/
-  index.js                         Worker entry, auth gate, public serve, API dispatch
+  index.js                         Worker entry → servePublicPage (KV → assemblePage → R2)
   api/
-    dashboard_api.js               Dashboard CRUD: animals, fosters POST/PATCH, volunteers,
-                                     applications, fundraising, donations, intakes, medical
-    dashboard_config_api.js        Dashboard config snapshot
-    cms_api.js                     CMS bootstrap, save, publish, assets, brand
-    page_cms_registry.js             Fragment route registry (6 public pages)
-    page_shell.js                  Public script tags + cache-bust versions
-    home_cms_sync.js               Home D1 ↔ R2 fragments
-    about_cms_sync.js              About D1 ↔ R2 fragments
-    generic_page_cms_sync.js       Services / adopt / donate / community sync
-    render_home_section.js         Home section renderers
-    render_about_section.js        About section renderers
+    cms_pipeline.js                SSOT: assemblePage / publishRoute / syncRouteSectionsToR2
+    cms_section_catalog.js         renderSectionByType (home/about key overrides + typed)
+    cms_api.js                     CMS HTTP: sections, preview, publish, brand, chrome
+    page_cms_registry.js           Thin wrappers over cms_pipeline (compat)
+    render_site_nav.js             Live header/footer HTML
+    footer_chrome.js               footer_json normalize + trust badge HTML
+    render_page.js                 getBrand, getGlobalPartial, assembleFullPage
+    page_shell.js                  Public script tags + SHELL_VERSION
+    render_home_section.js         Branded home section HTML (catalog override)
+    render_about_section.js        Branded about section HTML (catalog override)
     render_section.js              Generic sections + CTA resolver
-    render_home_fragments.js       Assemble /
-    render_about_fragments.js      Assemble /about
-    render_generic_fragments.js    Assemble generic routes
-    render_donate_v2.js            Donate dynamic hero
-    render_shelter_hub.js          Adopt shelter hub
-    render_page.js                 assembleFullPage(), legacy renderPage() fallback
-    render_site_nav.js             Header / footer / nav
-    foster_api.js                  Public POST /api/foster/apply
+    home_cms_sync.js               Legacy/ops home sync (not live assemble path)
+    about_cms_sync.js               Legacy/ops about sync
+    generic_page_cms_sync.js       Legacy/ops generic sync
+    render_*_fragments.js          Legacy stitch helpers used by salvage CLI
+    dashboard_api.js               Animals, fosters, volunteers, applications, …
+    foster_api.js                  Public foster apply
     payments_email.js              Stripe + receipts + webhook
-    donation_api.js                Legacy adopt create-intent
-    donation_fees.js               Cover-fees math
-    email_api.js                   Inbound email + drafts
-    gmail_api.js                   Gmail OAuth
-    drive_api.js                   Google Drive import → R2
-    social.js                      Lane A embed + Lane B stubs (501)
-    contact_api.js                 Public contact form
-    notifications.js               Dashboard notification writes
-    agentsam_api.js                Agent Sam chat + runs
-    agentsam_tools.js              Tool dispatch
-    resolveModel.js                Model routing + usage rollups
-    auth_login.js, auth_google.js, session_api.js, password_reset.js
-    members_api.js                 Team admin (settings lane)
+    brand_tokens.js                /api/cms/brand/tokens.css
+    …
 
 public/dashboard/js/
-  app.jsx                          Router + session + mobile shell
-  ui.jsx                           Shared components
-  data.js                          API bootstrap (mock fallback — see file map)
-  config.js                        Dashboard config loader
-  view-overview.jsx                Overview (mixed mock/live)
-  view-animals.jsx                 Animals, profile, fosters list, adoptions
-  view-applications.jsx            Applications list + detail
-  view-ops.jsx                     Intakes, medical, volunteers
-  view-finance.jsx                 Donations + fundraising
-  view-campaign.jsx                Campaign workspace editor
-  view-cms.jsx                     All CMS views
-  view-reports.jsx                 Reports (partial — AI tab seeded)
-  view-email.jsx                   Email + notifications workspace
-  view-admin.jsx                   Settings shell (+ stale Reports stub — do not use)
-  agentsam.jsx                     Agent Sam chat drawer
-
-public/
-  _shared.css, _shared.js          Public design system (sync to R2)
-  static/global/cpas-modals.js     Foster / volunteer / contact modals
-  static/js/donate-modal.js        Stripe donate modal
+  view-cms.jsx                     Page editor + Footer/Header chrome + Brand theme
+  app.jsx, ui.jsx, data.js, …
+  view-*.jsx                       Dashboard surfaces
 
 static/global/
-  cpas-header.html, cpas-footer.html   R2 shell partials
+  cpas-shell.css                   Merged public CSS (do not hand-edit surface half)
+  cpas-public-surface.css          Surface partial → merged into shell
+  cpas-header.html / cpas-footer.html   Fallback/reference only
+  cpas-modals.js, shared.js
 
-scripts/ (ops — keep)
-  sync-r2.sh                       npm run sync
-  sync-page-fragments.mjs          Generic CMS → R2
-  republish-shell-pages.mjs          Home/about republish + KV bust
-  audit_public_images.py             Handoff image validation
+scripts/
+  sync-r2.sh                       npm run sync (dashboard + changed assets)
+  merge-cpas-css.mjs               npm run css:merge
+  republish-shell-pages.mjs        Ops republish home/about + KV bust
+  sync-page-fragments.mjs          Ops generic fragment sync
+  salvage-resync.mjs               Post-deploy republish helper
 ```
 
 ---

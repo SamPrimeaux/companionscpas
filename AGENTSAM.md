@@ -128,16 +128,21 @@ What is broken/missing (priority order):
 ## Key Files
 | File | Purpose |
 |------|---------|
-| src/index.js | Worker router |
-| src/api/cms_api.js | CMS API - publishPageRoute() at line 145 |
-| src/api/render_home_fragments.js | HOME_FRAGMENT_KEYS - home assembly |
-| src/api/render_site_nav.js | Header + footer HTML |
+| src/index.js | Worker router → servePublicPage |
+| src/api/cms_pipeline.js | SSOT assemblePage / publishRoute (all cms_pages routes) |
+| src/api/cms_section_catalog.js | renderSectionByType — home/about key overrides + typed/generic |
+| src/api/cms_api.js | CMS HTTP: sections, preview, publish, brand/footer chrome |
+| src/api/render_site_nav.js | Live header/footer (not static/global/cpas-*.html) |
+| src/api/footer_chrome.js | footer_json trust badges + column titles |
+| src/api/render_home_section.js | Branded home section HTML (catalog override only) |
+| src/api/render_about_section.js | Branded about section HTML (catalog override only) |
 | src/api/render_section.js | Generic section renderer |
-| src/api/render_page.js | getBrand(), resolveRouteTheme() |
+| src/api/render_page.js | getBrand(), getGlobalPartial(), assembleFullPage() |
 | src/api/brand_tokens.js | CSS vars from D1 brand settings |
 | static/global/cpas-shell.css | Main stylesheet (in R2) |
 | static/global/cpas-modals.js | Contact/foster/volunteer modals |
-| public/dashboard/js/view-cms.jsx | Full dashboard CMS UI |
+| public/dashboard/js/view-cms.jsx | Page editor + Footer/Header chrome + Brand |
+| README.md | Agent SSOT for CMS pipeline (updated 2026-07-30) |
 | public/dashboard/js/view-collaborate.jsx | Collaborate Calendar / Tasks / Mail shell and pane mount contract |
 | public/dashboard/js/view-collaborate-calendar.jsx | Live Calendar week/day/month UI and CRUD interactions |
 | public/dashboard/css/collaborate-calendar.css | Calendar parity grid, mini-month, modal, and responsive styles |
