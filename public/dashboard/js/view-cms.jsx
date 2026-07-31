@@ -29,6 +29,30 @@ function cmsNotify(setter, text, type = "ok") {
   setTimeout(() => setter({ text: "", type: "" }), 4000);
 }
 
+const DEFAULT_CANDID_TRUST_BADGE = {
+  label: "Candid Seal of Transparency",
+  href: "https://app.candid.org/profile/14607574/companions-of-cpas-88-4156327/?pkId=ef6a3773-8ef0-42a2-b7df-ad52ac334f0e",
+  image_url: "https://widgets.guidestar.org/prod/v1/pdp/transparency-seal/14607574/svg",
+  enabled: true,
+};
+
+function cmsParseJsonObject(raw, fallback = {}) {
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw || "{}") : (raw || {});
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function cmsNormalizeTrustBadges(footerJson) {
+  const footer = footerJson && typeof footerJson === "object" ? footerJson : {};
+  if (Object.prototype.hasOwnProperty.call(footer, "trust_badges")) {
+    return Array.isArray(footer.trust_badges) ? footer.trust_badges : [];
+  }
+  return [{ ...DEFAULT_CANDID_TRUST_BADGE }];
+}
+
 function CmsNotice({ n }) {
   if (!n?.text) return null;
   const isErr = n.type === "error";
@@ -750,6 +774,14 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [selectedKey, setSelectedKey] = React.useState(null);
   const [selectedField, setSelectedField] = React.useState(null);
   const [selectedBlockKey, setSelectedBlockKey] = React.useState(null);
+  const [chromeTarget, setChromeTarget] = React.useState(null); // 'header' | 'footer' | null
+  const [chromeBrand, setChromeBrand] = React.useState(null);
+  const [chromeOrg, setChromeOrg] = React.useState({});
+  const [chromeSocials, setChromeSocials] = React.useState({});
+  const [chromeTrustBadges, setChromeTrustBadges] = React.useState([{ ...DEFAULT_CANDID_TRUST_BADGE }]);
+  const [chromeFooterLogo, setChromeFooterLogo] = React.useState("");
+  const [chromeSaving, setChromeSaving] = React.useState(false);
+  const [chromeUploading, setChromeUploading] = React.useState(false);
   const [previewMode, setPreviewMode] = React.useState('desktop');
   const [mobileTab, setMobileTab] = React.useState('sections');
   const [notice, setNotice] = React.useState({});
@@ -798,11 +830,25 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setSelectedKey(null);
     setSelectedField(null);
     setSelectedBlockKey(null);
+    setChromeTarget(null);
     setInspectorCollapsed(true);
     try {
       previewIframeRef.current?.contentWindow?.postMessage({ type: 'cms:clear-selection' }, '*');
     } catch (_) {}
   }, []);
+
+  const selectChrome = React.useCallback((target) => {
+    setSelectedKey(null);
+    setSelectedField(null);
+    setSelectedBlockKey(null);
+    setChromeTarget(target);
+    setInspectorCollapsed(false);
+    setHasUnsaved(false);
+    if (isMobile) setMobileTab('edit');
+    try {
+      previewIframeRef.current?.contentWindow?.postMessage({ type: 'cms:clear-selection' }, '*');
+    } catch (_) {}
+  }, [isMobile]);
 
   const collapseInspector = React.useCallback(() => {
     setInspectorCollapsed(true);
@@ -822,6 +868,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const normalized = cmsNormalizeSectionKey(key);
     const match = (pageData.sections || []).find(s => cmsNormalizeSectionKey(s.section_key) === normalized);
     const resolved = match?.section_key || key;
+    setChromeTarget(null);
     setSelectedKey(resolved);
     setSelectedField(opts.field || null);
     setSelectedBlockKey(opts.blockKey || null);
@@ -937,14 +984,28 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     if (selectedKey) postHighlight(selectedKey, selectedField, selectedBlockKey);
   }, [selectedKey, selectedField, selectedBlockKey, previewVersion, postHighlight]);
 
+  const applyChromeBrand = React.useCallback((row) => {
+    if (!row) return;
+    const org = cmsParseJsonObject(row.organization_json, {});
+    const socials = cmsParseJsonObject(row.socials_json, {});
+    const footer = cmsParseJsonObject(row.footer_json, {});
+    setChromeBrand(row);
+    setChromeOrg(org);
+    setChromeSocials(socials);
+    setChromeTrustBadges(cmsNormalizeTrustBadges(footer));
+    setChromeFooterLogo(String(row.footer_logo_light_url || row.footer_logo_dark_url || "").trim());
+  }, []);
+
   const loadPage = React.useCallback(async () => {
     try {
-      const [pageRes, bootRes] = await Promise.all([
+      const [pageRes, bootRes, brandRes] = await Promise.all([
         fetch(`/api/cms/page?route=${encodeURIComponent(route)}`, { credentials:'include' }),
-        fetch('/api/cms/bootstrap', { credentials:'include' })
+        fetch('/api/cms/bootstrap', { credentials:'include' }),
+        fetch('/api/cms/brand', { credentials:'include' }),
       ]);
       const pd = await pageRes.json().catch(() => ({}));
       const bd = await bootRes.json().catch(() => ({}));
+      const brandData = await brandRes.json().catch(() => ({}));
       const bootPages = (Array.isArray(bd.pages) ? bd.pages : []).filter((page) => page?.route_path);
       setPagesList(bootPages.length ? bootPages : [
         { route_path: route, title: pd.page?.title || route, sort_order: 0 },
@@ -961,9 +1022,10 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         let cfg = {}; try { cfg = JSON.parse(bd.brand?.config_json || '{}'); } catch {}
         setActiveFont(cfg.active_font_preset || 'fraunces_dm');
       }
+      if (brandData.brand) applyChromeBrand(brandData.brand);
       bumpPreview();
     } catch (e) { notify('Could not load page editor', 'error'); }
-  }, [route, bumpPreview]);
+  }, [route, bumpPreview, applyChromeBrand]);
 
   React.useEffect(() => { loadPage(); }, [loadPage]);
 
@@ -1588,41 +1650,51 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         hasUnsaved && React.createElement('div', { style:{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:99, background:'#fef3c7', color:'#92400e', border:'1px solid #fcd34d', whiteSpace:'nowrap', flexShrink:0 } }, 'Unsaved draft'),
         notice.text && !isMobile && React.createElement('div', { style:{ maxWidth:150, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:11, color:notice.type === 'error' ? C.red : C.green, fontWeight:700, flexShrink:1 } }, notice.text),
         !isDesktop && React.createElement(Btn, { size:'sm', variant:'secondary', icon:'eye', onClick:()=>window.open(liveUrl, '_blank', 'noopener,noreferrer') }, 'Preview'),
-        hasUnsaved && React.createElement(Btn, { size:'sm', variant:'secondary', disabled:busy || !selected, onClick:()=>{ saveSelected(false).then(()=>setHasUnsaved(false)); } }, busy ? 'Saving…' : 'Save Draft'),
+        hasUnsaved && React.createElement(Btn, {
+          size: 'sm',
+          variant: 'secondary',
+          disabled: busy || chromeSaving || (chromeTarget === 'footer' ? !chromeBrand : !selected),
+          onClick: () => {
+            if (chromeTarget === 'footer') {
+              saveChromeFooter(false).then(() => setHasUnsaved(false)).catch(() => {});
+              return;
+            }
+            saveSelected(false).then(() => setHasUnsaved(false));
+          },
+        }, (busy || chromeSaving) ? 'Saving…' : 'Save Draft'),
         React.createElement(Btn, { size:'sm', icon:'publish', disabled:busy, onClick:()=>{ publishPage().then(()=>setHasUnsaved(false)); } }, isMobile ? 'Publish' : 'Publish Live')
       )
     );
   }
 
   function renderSectionList() {
-    const chromeActive = !selectedKey;
-    const chromeRow = (key, label, hint) => React.createElement('div', {
-      key,
-      onClick: () => {
-        clearSelection();
-        setInspectorCollapsed(false);
-        if (isMobile) setMobileTab('editor');
-      },
-      style: {
-        display: 'grid', gridTemplateColumns: '18px minmax(0,1fr) auto', alignItems: 'center', gap: 8,
-        padding: '10px 8px', marginBottom: 6, borderRadius: 12, cursor: 'pointer',
-        border: `2px solid ${chromeActive ? C.purple : C.border}`,
-        borderLeft: `5px solid ${chromeActive ? C.purple : '#7c3aed'}`,
-        background: chromeActive ? C.purpleDim : C.bg,
-      },
-    },
-      React.createElement('span', { style: { color: C.textMut, fontSize: 12 } }, '◈'),
-      React.createElement('div', { style: { minWidth: 0 } },
-        React.createElement('div', { style: { color: chromeActive ? C.purpleL : C.text, fontSize: 12, fontWeight: 800 } }, label),
-        React.createElement('div', { style: { color: C.textMut, fontSize: 10, marginTop: 2 } }, hint)
-      ),
-      React.createElement('span', {
+    const chromeRow = (target, label, hint) => {
+      const chromeActive = chromeTarget === target && !selectedKey;
+      return React.createElement('div', {
+        key: target,
+        onClick: () => selectChrome(target),
         style: {
-          fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 99,
-          background: 'rgba(124,58,237,0.12)', color: C.purpleL, border: `1px solid ${C.purple}44`,
+          display: 'grid', gridTemplateColumns: '18px minmax(0,1fr) auto', alignItems: 'center', gap: 8,
+          padding: '10px 8px', marginBottom: 6, borderRadius: 12, cursor: 'pointer',
+          border: `2px solid ${chromeActive ? C.purple : C.border}`,
+          borderLeft: `5px solid ${chromeActive ? C.purple : '#7c3aed'}`,
+          background: chromeActive ? C.purpleDim : C.bg,
         },
-      }, 'chrome')
-    );
+      },
+        React.createElement('span', { style: { color: C.textMut, fontSize: 12 } }, '◈'),
+        React.createElement('div', { style: { minWidth: 0 } },
+          React.createElement('div', { style: { color: chromeActive ? C.purpleL : C.text, fontSize: 12, fontWeight: 800 } }, label),
+          chromeActive && React.createElement('div', { style: { fontSize: 9, fontWeight: 900, color: C.purpleL, letterSpacing: '.1em', textTransform: 'uppercase', marginTop: 2 } }, 'EDITING'),
+          React.createElement('div', { style: { color: C.textMut, fontSize: 10, marginTop: 2 } }, hint)
+        ),
+        React.createElement('span', {
+          style: {
+            fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 99,
+            background: 'rgba(124,58,237,0.12)', color: C.purpleL, border: `1px solid ${C.purple}44`,
+          },
+        }, 'chrome')
+      );
+    };
 
     return React.createElement('div', { className:'cms-sections-panel', style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface, position:'relative' } },
       React.createElement('div', { style:{ padding:'14px 14px 10px', borderBottom:`1px solid ${C.border}` } },
@@ -1640,7 +1712,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         )
       ),
       React.createElement('div', { style:{ overflowY:'auto', padding:10, flex:1 } },
-        chromeRow('__header__', 'Header', 'Nav label · placement · More · Donate CTA'),
+        chromeRow('header', 'Header', 'Nav label · placement · More · Donate CTA'),
         sortedSections.length === 0
           ? React.createElement('div', { style:{ padding:16, border:`1px dashed ${C.border}`, borderRadius:12, color:C.textMut, fontSize:12, textAlign:'center', marginBottom:6 } }, 'No body sections yet. Add the first section.')
           : sortedSections.map(s => {
@@ -1678,8 +1750,218 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                 }, React.createElement(Icon, { name: 'trash', size: 13 }))
               );
             }),
-        chromeRow('__footer__', 'Footer', 'Same chrome settings · pages column links')
+        chromeRow('footer', 'Footer', 'Mission · org · socials · trust badges · sitewide')
       )
+    );
+  }
+
+  async function saveChromeFooter(silent = false) {
+    if (!chromeBrand) {
+      notify('Brand settings not loaded yet', 'error');
+      return;
+    }
+    setChromeSaving(true);
+    try {
+      const footer_json = JSON.stringify({
+        ...cmsParseJsonObject(chromeBrand.footer_json, {}),
+        trust_badges: chromeTrustBadges,
+      });
+      const res = await fetch('/api/cms/brand/save', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          brand: {
+            ...chromeBrand,
+            brand_name: chromeOrg.legal_name || chromeOrg.name || chromeBrand.brand_name || 'Companions of CPAS',
+            footer_logo_light_url: chromeFooterLogo || chromeBrand.footer_logo_light_url || '',
+            footer_logo_dark_url: chromeFooterLogo || chromeBrand.footer_logo_dark_url || '',
+            organization_json: JSON.stringify(chromeOrg),
+            socials_json: JSON.stringify(chromeSocials),
+            footer_json,
+            logo_width: Math.max(40, Math.min(88, Number(chromeBrand.logo_width) || 88)),
+            logo_height: null,
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && res.status !== 207) throw new Error(data.error || 'Footer save failed');
+      setChromeBrand((prev) => prev ? { ...prev, footer_json, organization_json: JSON.stringify(chromeOrg), socials_json: JSON.stringify(chromeSocials), footer_logo_light_url: chromeFooterLogo } : prev);
+      bumpPreview();
+      setHasUnsaved(false);
+      if (!silent) {
+        const n = Number(data.republished) || 0;
+        notify(data.message || (n ? `Footer saved · ${n} pages republished` : 'Footer saved'));
+      }
+    } catch (e) {
+      notify(e.message || 'Footer save failed', 'error');
+      throw e;
+    } finally {
+      setChromeSaving(false);
+    }
+  }
+
+  async function uploadChromeFooterLogo(file) {
+    if (!file) return;
+    setChromeUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('usage_context', 'brand');
+      fd.append('label', 'Footer logo');
+      const res = await fetch('/api/cms/asset/upload', { method: 'POST', credentials: 'include', body: fd });
+      const d = await res.json();
+      const url = d.public_url || d.cdn_url || d.url;
+      if (!d.success || !url) throw new Error(d.error || 'Upload failed');
+      setChromeFooterLogo(url);
+      setHasUnsaved(true);
+      notify('Footer logo uploaded — save to publish sitewide');
+    } catch (e) {
+      notify(e.message || 'Upload failed', 'error');
+    } finally {
+      setChromeUploading(false);
+    }
+  }
+
+  function renderFooterChromeSettings() {
+    const patchOrg = (key, value) => {
+      setChromeOrg((prev) => {
+        const next = { ...prev, [key]: value };
+        if (key === 'legal_name') next.name = value;
+        if (key === 'city') next.parish = value;
+        return next;
+      });
+      setHasUnsaved(true);
+    };
+    const patchSocial = (key, value) => {
+      setChromeSocials((prev) => ({ ...prev, [key]: value }));
+      setHasUnsaved(true);
+    };
+    const patchBadge = (idx, patch) => {
+      setChromeTrustBadges((prev) => prev.map((b, i) => (i === idx ? { ...b, ...patch } : b)));
+      setHasUnsaved(true);
+    };
+
+    return React.createElement('div', {
+      style: { display: 'grid', gap: 14, padding: 13, borderRadius: 13, border: `1px solid ${C.purple}44`, background: 'rgba(124,58,237,0.06)' }
+    },
+      React.createElement('div', null,
+        React.createElement('div', { style: { fontSize: 11, fontWeight: 900, color: C.purpleL, letterSpacing: '.08em', textTransform: 'uppercase' } }, 'Footer (sitewide)'),
+        React.createElement('div', { style: { fontSize: 11, color: C.textMut, lineHeight: 1.45, marginTop: 4 } },
+          'Edits mission, org details, socials, and trust badges for every page. Save republishes the whole site footer.'
+        )
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Mission / tagline'),
+        cmsTextArea(chromeOrg.mission || '', (v) => patchOrg('mission', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 4)
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Organization name'),
+        cmsTextInput(chromeOrg.legal_name || chromeOrg.name || '', (v) => patchOrg('legal_name', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'Companions of CPAS')
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('EIN / Tax ID'),
+        cmsTextInput(chromeOrg.ein || '', (v) => patchOrg('ein', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, '88-4156327', true)
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Contact email'),
+        cmsTextInput(chromeOrg.email || '', (v) => patchOrg('email', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'companionsCPAS@gmail.com')
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('City / Parish'),
+        cmsTextInput(chromeOrg.city || chromeOrg.parish || '', (v) => patchOrg('city', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'Caddo Parish, Louisiana')
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Facebook URL'),
+        cmsTextInput(chromeSocials.facebook || '', (v) => patchSocial('facebook', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'https://facebook.com/…', true)
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Instagram URL'),
+        cmsTextInput(chromeSocials.instagram || '', (v) => patchSocial('instagram', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'https://instagram.com/…', true)
+      ),
+      React.createElement('div', null,
+        cmsFieldLabel('Footer logo URL'),
+        React.createElement('div', { style: { display: 'grid', gap: 8 } },
+          cmsTextInput(chromeFooterLogo || '', (v) => { setChromeFooterLogo(v); setHasUnsaved(true); }, () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'https://assets…', true),
+          React.createElement('label', {
+            style: {
+              display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 9,
+              border: `1px dashed ${C.border}`, background: C.surface, color: C.textSec, fontSize: 12, cursor: chromeUploading ? 'wait' : 'pointer', width: 'fit-content',
+            }
+          },
+            chromeUploading ? 'Uploading…' : 'Upload footer logo',
+            React.createElement('input', {
+              type: 'file', accept: 'image/*', style: { display: 'none' }, disabled: chromeUploading,
+              onChange: (e) => { uploadChromeFooterLogo(e.target.files?.[0]); e.target.value = ''; },
+            })
+          )
+        )
+      ),
+      React.createElement('div', { style: { display: 'grid', gap: 10 } },
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 } },
+          React.createElement('div', null,
+            cmsFieldLabel('Trust badges'),
+            React.createElement('div', { style: { fontSize: 11, color: C.textMut, marginTop: -4 } }, 'Candid and other seals appear in the footer bottom bar')
+          ),
+          React.createElement('button', {
+            type: 'button',
+            onClick: () => {
+              setChromeTrustBadges((prev) => [...prev, { label: '', href: '', image_url: '', enabled: true }]);
+              setHasUnsaved(true);
+            },
+            style: {
+              padding: '6px 10px', borderRadius: 8, border: `1px dashed ${C.border}`, background: 'transparent',
+              color: C.textSec, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-ui)',
+            },
+          }, '+ Add badge')
+        ),
+        chromeTrustBadges.map((badge, idx) => React.createElement('div', {
+          key: `trust-${idx}`,
+          style: { display: 'grid', gap: 8, padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface },
+        },
+          React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: C.text, cursor: 'pointer' } },
+            React.createElement('input', {
+              type: 'checkbox',
+              checked: badge.enabled !== false && badge.enabled !== 0,
+              onChange: (e) => patchBadge(idx, { enabled: e.target.checked }),
+            }),
+            'Enabled on public footer'
+          ),
+          React.createElement('div', null,
+            cmsFieldLabel('Label'),
+            cmsTextInput(badge.label || '', (v) => patchBadge(idx, { label: v }), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'Candid Seal of Transparency')
+          ),
+          React.createElement('div', null,
+            cmsFieldLabel('Link URL'),
+            cmsTextInput(badge.href || '', (v) => patchBadge(idx, { href: v }), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'https://…', true)
+          ),
+          React.createElement('div', null,
+            cmsFieldLabel('Image URL'),
+            cmsTextInput(badge.image_url || '', (v) => patchBadge(idx, { image_url: v }), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'https://widgets.guidestar.org/…', true)
+          ),
+          badge.image_url ? React.createElement('img', {
+            src: badge.image_url, alt: badge.label || 'Trust badge',
+            style: { height: 36, width: 'auto', objectFit: 'contain', opacity: 0.9 },
+          }) : null,
+          React.createElement('button', {
+            type: 'button',
+            onClick: () => {
+              setChromeTrustBadges((prev) => prev.filter((_, i) => i !== idx));
+              setHasUnsaved(true);
+            },
+            style: {
+              justifySelf: 'start', padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.red}44`,
+              background: C.surface, color: C.red, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-ui)',
+            },
+          }, 'Remove badge')
+        ))
+      ),
+      React.createElement(Btn, {
+        size: 'sm',
+        icon: chromeSaving ? undefined : 'check2',
+        disabled: chromeSaving || !chromeBrand,
+        onClick: () => { saveChromeFooter(false).catch(() => {}); },
+      }, chromeSaving ? 'Saving…' : 'Save footer sitewide')
     );
   }
 
@@ -2078,23 +2360,35 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   }
 
   function renderInspector(compact=false) {
-    if (!selected) return React.createElement('div', { className:'cms-inspector-panel', style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface } },
-      React.createElement('div', { style:{ padding:16, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 } },
-        React.createElement('div', { style:{ minWidth:0 } },
-          React.createElement('div', { style:{ color:C.text, fontSize:15, fontWeight:900, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, 'Page editor'),
-          React.createElement('div', { style:{ color:C.textMut, fontSize:11, marginTop:3 } }, 'No section selected')
+    if (!selected) {
+      const chromeTitle = chromeTarget === 'footer' ? 'Footer' : chromeTarget === 'header' ? 'Header' : 'Page editor';
+      const chromeSub = chromeTarget === 'footer'
+        ? 'Sitewide footer content'
+        : chromeTarget === 'header'
+          ? 'Sitewide navigation for this page'
+          : 'No section selected';
+      return React.createElement('div', { className:'cms-inspector-panel', style:{ height:'100%', display:'flex', flexDirection:'column', background:C.surface } },
+        React.createElement('div', { style:{ padding:16, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 } },
+          React.createElement('div', { style:{ minWidth:0 } },
+            React.createElement('div', { style:{ color:C.text, fontSize:15, fontWeight:900, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, chromeTitle),
+            React.createElement('div', { style:{ color:C.textMut, fontSize:11, marginTop:3 } }, chromeSub)
+          ),
+          React.createElement('button', {
+            type:'button', title:'Hide editor (Esc)',
+            onClick:()=>{ if (isMobile) setMobileTab('preview'); else collapseInspector(); },
+            style:{ width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.bg, color:C.textSec, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }
+          }, React.createElement(Icon, { name:'close', size:14 }))
         ),
-        React.createElement('button', {
-          type:'button', title:'Hide editor (Esc)',
-          onClick:()=>{ if (isMobile) setMobileTab('preview'); else collapseInspector(); },
-          style:{ width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.bg, color:C.textSec, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }
-        }, React.createElement(Icon, { name:'close', size:14 }))
-      ),
-      React.createElement('div', { style:{ padding:16, overflowY:'auto', flex:1, display:'grid', alignContent:'start', gap:16 } },
-        renderPageSettings(),
-        React.createElement('div', { style:{ padding:14, borderRadius:12, border:`1px dashed ${C.border}`, color:C.textMut, fontSize:12, lineHeight:1.55 } }, 'Select a section in the left panel or click content in the preview to edit its copy, media, links, and layout.')
-      )
-    );
+        React.createElement('div', { style:{ padding:16, overflowY:'auto', flex:1, display:'grid', alignContent:'start', gap:16 } },
+          chromeTarget === 'footer'
+            ? renderFooterChromeSettings()
+            : React.createElement(React.Fragment, null,
+                renderPageSettings(),
+                !chromeTarget && React.createElement('div', { style:{ padding:14, borderRadius:12, border:`1px dashed ${C.border}`, color:C.textMut, fontSize:12, lineHeight:1.55 } }, 'Select Header, Footer, or a section in the left panel — or click content in the preview — to edit.')
+              )
+        )
+      );
+    }
     const cfg = cmsParseConfig(selected);
     const configCards = cmsConfigCards(selected);
     const usesConfigCards = !!configCards?.length;
@@ -3858,15 +4152,6 @@ function ImagesCleanupTab({ assets, stats, loading, onReload, notify }) {
 }
 
 // ── Brand tweaks helpers ──────────────────────────────────────────────────────
-function parseBrandNav(navigationJson) {
-  try {
-    const links = JSON.parse(navigationJson || "[]");
-    return Array.isArray(links) ? links : [];
-  } catch {
-    return [];
-  }
-}
-
 function BrandTweakSection({ title, subtitle, defaultOpen = true, children }) {
   const [open, setOpen] = React.useState(defaultOpen);
   return React.createElement("div", {
@@ -3960,7 +4245,7 @@ function BrandLogoDropZone({ label, hint, value, onChange, dropBg, uploading, on
   );
 }
 
-function BrandPreviewCanvas({ brand, socials, previewTheme }) {
+function BrandThemeSwatches({ brand, previewTheme }) {
   const isDark = previewTheme === "dark";
   const primary = brand.primary_color || "#7c3aed";
   const accent = brand.accent_color || "#ee2336";
@@ -3968,81 +4253,37 @@ function BrandPreviewCanvas({ brand, socials, previewTheme }) {
     ? (brand.logo_light_url || brand.logo_dark_url || "")
     : (brand.logo_dark_url || brand.logo_light_url || "");
   const logoW = Math.max(40, Math.min(88, Number(brand.logo_width) || 88));
-  const HEADER_PREVIEW_H = 88;
-  const navLinks = parseBrandNav(brand.navigation_json)
-    .filter(l => l.label && l.href && String(l.style || "") !== "button")
-    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
-  const donateLink = parseBrandNav(brand.navigation_json).find(l => l.style === "button" || l.href === "/donate");
-  const canvasBg = isDark ? "#0b0f1a" : "#f5f0eb";
   const headerBg = isDark ? "#111827" : "#ffffff";
   const textColor = isDark ? "#f0ece6" : "#1a1a1a";
   const mutedColor = isDark ? "rgba(255,255,255,0.62)" : "#6b7280";
-  const banner = (socials?.banner || "").trim();
 
   return React.createElement("div", {
     style: {
       borderRadius: 16, overflow: "hidden", border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : C.border}`,
-      background: canvasBg, boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
+      background: isDark ? "#0b0f1a" : "#f5f0eb", boxShadow: "0 18px 48px rgba(15,23,42,0.08)",
     },
   },
-    banner && React.createElement("div", {
-      style: {
-        background: primary, color: "#fff", fontSize: 12, fontWeight: 600,
-        textAlign: "center", padding: "8px 14px",
-      },
-    }, banner),
     React.createElement("div", {
       style: {
-        background: headerBg, color: textColor,
-        borderBottom: `3px solid ${primary}`,
-        padding: "0 18px",
-        height: HEADER_PREVIEW_H,
-        display: "flex",
-        alignItems: "center",
-        overflow: "hidden",
+        background: headerBg, color: textColor, borderBottom: `3px solid ${primary}`,
+        padding: "0 18px", height: 88, display: "flex", alignItems: "center",
       },
     },
-      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, width: "100%", height: "100%" } },
-        logoUrl
-          ? React.createElement("img", {
-              src: logoUrl,
-              alt: brand.brand_name || "Logo",
-              style: {
-                height: logoW,
-                width: "auto",
-                maxHeight: HEADER_PREVIEW_H,
-                objectFit: "contain",
-                objectPosition: "left center",
-                display: "block",
-                flexShrink: 0,
-              },
-            })
-          : React.createElement("div", { style: { fontWeight: 800, fontSize: 15, color: primary } }, brand.brand_name || "Brand"),
-        React.createElement("nav", { style: { display: "flex", gap: 14, flexWrap: "wrap", marginLeft: "auto", alignItems: "center" } },
-          navLinks.map((link, i) => React.createElement("span", {
-            key: `${link.href}-${i}`,
-            style: { fontSize: 13, fontWeight: 600, color: mutedColor },
-          }, link.label)),
-          React.createElement("span", {
-            style: {
-              fontSize: 12, fontWeight: 700, padding: "8px 14px", borderRadius: 999,
-              background: accent, color: "#fff",
-            },
-          }, donateLink?.label || "Donate")
-        )
-      )
+      logoUrl
+        ? React.createElement("img", {
+            src: logoUrl, alt: brand.brand_name || "Logo",
+            style: { height: logoW, width: "auto", maxHeight: 88, objectFit: "contain", display: "block" },
+          })
+        : React.createElement("div", { style: { fontWeight: 800, fontSize: 15, color: primary } }, brand.brand_name || "Brand")
     ),
     React.createElement("div", { style: { padding: "18px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 } },
       [
         { label: "Primary", color: primary },
         { label: "Accent", color: accent },
         { label: "Header", color: headerBg, border: true },
-      ].map(sw => React.createElement("div", {
+      ].map((sw) => React.createElement("div", {
         key: sw.label,
-        style: {
-          borderRadius: 10, overflow: "hidden",
-          border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : C.border}`,
-        },
+        style: { borderRadius: 10, overflow: "hidden", border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : C.border}` },
       },
         React.createElement("div", { style: { height: 44, background: sw.color, borderBottom: sw.border ? `1px solid ${C.border}` : "none" } }),
         React.createElement("div", { style: { padding: "8px 10px", background: isDark ? "#111827" : "#fff", fontSize: 11, color: mutedColor } },
@@ -4057,8 +4298,6 @@ function BrandPreviewCanvas({ brand, socials, previewTheme }) {
 // ── /dashboard/cms/brand ──────────────────────────────────────────────────────
 function CmsBrandView({ onNavigate }) {
   const [brand, setBrand] = React.useState(null);
-  const [org, setOrg] = React.useState({});
-  const [socials, setSocials] = React.useState({});
   const [saving, setSaving] = React.useState(false);
   const [uploadingLogo, setUploadingLogo] = React.useState(null);
   const [previewTheme, setPreviewTheme] = React.useState("dark");
@@ -4073,8 +4312,6 @@ function CmsBrandView({ onNavigate }) {
           logo_width: Math.max(40, Math.min(88, Number(d.brand.logo_width) || 88)),
           logo_height: Number(d.brand.logo_height) || 0,
         });
-        setOrg((() => { try { return JSON.parse(d.brand.organization_json || "{}"); } catch { return {}; } })());
-        setSocials((() => { try { return JSON.parse(d.brand.socials_json || "{}"); } catch { return {}; } })());
       }
     }).catch(() => {});
   }, []);
@@ -4113,13 +4350,11 @@ function CmsBrandView({ onNavigate }) {
             ...brand,
             logo_width: Math.max(40, Math.min(88, Number(brand.logo_width) || 88)),
             logo_height: null,
-            organization_json: JSON.stringify(org),
-            socials_json: JSON.stringify(socials),
           },
         }),
       });
       const d = await res.json();
-      notify(d.success ? "Brand settings saved" : (d.error || "Save failed"), d.success ? "ok" : "error");
+      notify(d.success ? (d.message || "Brand settings saved") : (d.error || "Save failed"), d.success ? "ok" : "error");
     } catch (e) { notify("Save failed: " + e.message, "error"); }
     setSaving(false);
   };
@@ -4153,8 +4388,6 @@ function CmsBrandView({ onNavigate }) {
     );
   }
 
-  const navLinks = parseBrandNav(brand.navigation_json);
-
   return React.createElement(CmsPageWrapper, { padding: "20px 22px 48px" },
     React.createElement(CmsNotice, { n: notice }),
     React.createElement("div", {
@@ -4169,12 +4402,11 @@ function CmsBrandView({ onNavigate }) {
         minHeight: "calc(100vh - 120px)",
       },
     },
-      // Live preview canvas
       React.createElement("div", { style: { minWidth: 0 } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 12 } },
           React.createElement("div", null,
             React.createElement("h2", { style: { margin: 0, fontSize: 18, fontWeight: 800, color: C.text } }, "Brand & Settings"),
-            React.createElement("p", { style: { margin: "4px 0 0", fontSize: 12, color: C.textSec } }, "Live preview updates as you edit. Save to publish.")
+            React.createElement("p", { style: { margin: "4px 0 0", fontSize: 12, color: C.textSec } }, "Colors and logos. Footer copy, socials, and trust badges: edit Footer on any page in Pages.")
           ),
           React.createElement("div", { style: { display: "flex", gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4 } },
             ["dark", "light"].map(theme => React.createElement("button", {
@@ -4190,10 +4422,19 @@ function CmsBrandView({ onNavigate }) {
             }, theme === "dark" ? "Dark preview" : "Light preview"))
           )
         ),
-        React.createElement(BrandPreviewCanvas, { brand, socials, previewTheme })
+        React.createElement(BrandThemeSwatches, { brand, previewTheme }),
+        React.createElement("div", {
+          style: {
+            marginTop: 14, padding: "12px 14px", borderRadius: 12, fontSize: 12, lineHeight: 1.5,
+            background: "rgba(124,58,237,0.08)", border: `1px solid ${C.purple}44`, color: C.textSec,
+          },
+        },
+          "Footer mission, EIN, social links, and Candid/trust badges are edited in ",
+          React.createElement("strong", null, "Pages → Footer"),
+          " (sitewide). Navigation labels/placement are edited per page under Header."
+        )
       ),
 
-      // Tweaks rail
       React.createElement("div", {
         style: {
           position: "sticky", top: 16, maxHeight: "calc(100vh - 96px)", overflowY: "auto",
@@ -4204,7 +4445,7 @@ function CmsBrandView({ onNavigate }) {
         React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${C.border}` } },
           React.createElement("div", null,
             React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: C.text } }, "Tweaks"),
-            React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2 } }, "Site identity and navigation")
+            React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2 } }, "Theme identity only")
           ),
           React.createElement(Btn, { size: "sm", icon: saving ? undefined : "check2", onClick: save, disabled: saving }, saving ? "Saving..." : "Save Changes")
         ),
@@ -4268,93 +4509,8 @@ function CmsBrandView({ onNavigate }) {
               React.createElement("span", null, "88px = full header height")
             ),
             React.createElement("p", { style: { fontSize: 11, color: C.textMut, margin: "6px 0 0", lineHeight: 1.4 } },
-              "Header bar is 88px. Drag to max to fill the full bar height. Aspect ratio is preserved (no crop/stretch). Save applies live on the public site."
+              "Header bar is 88px. Logo height applies live via brand tokens CSS after save."
             )
-          )
-        ),
-
-        React.createElement(BrandTweakSection, { title: "Org Details", defaultOpen: false },
-          tweakInput("Legal Name", org.legal_name || org.name, v => setOrg(p => ({ ...p, legal_name: v, name: v })), { placeholder: "Companions of CPAS" }),
-          tweakInput("EIN / Tax ID", org.ein, v => setOrg(p => ({ ...p, ein: v })), { placeholder: "88-4156327", mono: true }),
-          tweakInput("Contact Email", org.email, v => setOrg(p => ({ ...p, email: v })), { type: "email", placeholder: "companionsCPAS@gmail.com" }),
-          tweakInput("City / Parish", org.city || org.parish, v => setOrg(p => ({ ...p, city: v, parish: v })), { placeholder: "Shreveport" }),
-          React.createElement("div", null,
-            React.createElement("label", { style: lStyle }, "Mission Statement"),
-            React.createElement("textarea", {
-              value: org.mission || "",
-              rows: 3,
-              onChange: e => setOrg(p => ({ ...p, mission: e.target.value })),
-              style: { ...fStyle, resize: "vertical", minHeight: 72 },
-            })
-          )
-        ),
-
-        React.createElement(BrandTweakSection, { title: "Links", defaultOpen: false },
-          tweakInput("Facebook URL", socials.facebook, v => setSocials(p => ({ ...p, facebook: v })), { type: "url", placeholder: "https://facebook.com/..." }),
-          tweakInput("Instagram URL", socials.instagram, v => setSocials(p => ({ ...p, instagram: v })), { type: "url", placeholder: "https://instagram.com/..." }),
-          tweakInput("Donation Link", socials.donation_url, v => setSocials(p => ({ ...p, donation_url: v })), { type: "url", placeholder: "https://..." }),
-          tweakInput("Announcement Banner", socials.banner, v => setSocials(p => ({ ...p, banner: v })), { placeholder: "Optional header banner text" })
-        ),
-
-        React.createElement(BrandTweakSection, { title: "Header Navigation", subtitle: "Preview only — live header/footer use CMS Pages (nav label + placement). Edit chrome on each page.", defaultOpen: true },
-          React.createElement("div", {
-            style: {
-              marginBottom: 10, padding: "10px 12px", borderRadius: 10, fontSize: 12, lineHeight: 1.45,
-              background: "rgba(124,58,237,0.08)", border: `1px solid ${C.purple}44`, color: C.textSec,
-            },
-          }, "Live site navigation is managed in CMS Website → page → Header & Footer (nav_visible, nav_label, nav_placement). This Brand list does not control the public header.")
-        ,
-          React.createElement("div", { style: { display: "grid", gap: 6 } },
-            navLinks.map((link, i) => React.createElement("div", {
-              key: i,
-              style: { display: "grid", gridTemplateColumns: "1fr 1fr 30px", gap: 6, alignItems: "center" },
-            },
-              React.createElement("input", {
-                value: link.label || "",
-                placeholder: "Label",
-                onChange: e => {
-                  const n = [...navLinks];
-                  n[i] = { ...n[i], label: e.target.value };
-                  setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) }));
-                },
-                style: { ...fStyle, padding: "7px 9px", fontSize: 12 },
-              }),
-              React.createElement("input", {
-                value: link.href || "",
-                placeholder: "/path",
-                onChange: e => {
-                  const n = [...navLinks];
-                  n[i] = { ...n[i], href: e.target.value };
-                  setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) }));
-                },
-                style: { ...fStyle, padding: "7px 9px", fontSize: 11, fontFamily: "var(--font-mono)" },
-              }),
-              React.createElement("button", {
-                type: "button",
-                title: "Remove link",
-                onClick: () => {
-                  const n = navLinks.filter((_, j) => j !== i);
-                  setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) }));
-                },
-                style: {
-                  width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.redDim}`,
-                  background: C.redDim, color: C.red, cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
-                },
-              }, React.createElement(Icon, { name: "close", size: 12 }))
-            )),
-            React.createElement("button", {
-              type: "button",
-              onClick: () => {
-                const n = [...navLinks, { label: "", href: "/", sort_order: (navLinks.length + 1) * 10 }];
-                setBrand(p => ({ ...p, navigation_json: JSON.stringify(n) }));
-              },
-              style: {
-                padding: "7px 10px", borderRadius: 8, border: `1px dashed ${C.border}`,
-                background: "transparent", color: C.textSec, cursor: "pointer",
-                fontSize: 12, fontFamily: "var(--font-ui)", textAlign: "left",
-              },
-            }, "+ Add Link")
           )
         )
       )

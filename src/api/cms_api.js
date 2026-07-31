@@ -1806,7 +1806,23 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       `bootstrap:${TENANT_ID}`
     );
 
-    return json({ success: true, message: "Brand updated. KV cache invalidated." });
+    // Footer/org/socials/logos are baked into page artifacts — republish from cms_pages (D1), not a hardcoded route list.
+    const triggeredBy = cmsUser?.email || cmsUser?.id || "dashboard";
+    const republishResults = [];
+    const routesToRepublish = await listAllCmsPageRoutes(env);
+    for (const pageRoute of routesToRepublish) {
+      republishResults.push(await publishPageRoute(env, pageRoute, triggeredBy));
+    }
+    const failed = republishResults.filter((r) => !r.success);
+
+    return json({
+      success: failed.length === 0,
+      republished: republishResults.filter((r) => r.success).length,
+      failed: failed.length,
+      message: failed.length
+        ? `Brand saved; ${failed.length} page(s) failed to republish.`
+        : "Brand updated. Sitewide header/footer republished.",
+    }, failed.length ? 207 : 200);
   }
 
   // POST /api/cms/section/copy — duplicate a section onto another page (content + blocks). Source stays put.

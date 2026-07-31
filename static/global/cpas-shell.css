@@ -1778,6 +1778,27 @@ body.cpas-nav-open,html.cpas-nav-open{overflow:hidden}.nav-drawer{height:100vh;h
   color: rgba(255, 255, 255, 0.42);
 }
 .footer-ein { margin: 0; }
+.footer-trust-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.footer-trust {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  line-height: 0;
+}
+.footer-trust img {
+  height: 36px;
+  width: auto;
+  max-width: 140px;
+  object-fit: contain;
+  opacity: 0.85;
+  transition: opacity 180ms;
+}
+.footer-trust:hover img { opacity: 1; }
 
 @media (max-width: 900px) {
   .mission-card { grid-template-columns: 1fr; padding: 2rem; }
