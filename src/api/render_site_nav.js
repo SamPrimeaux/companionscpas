@@ -206,7 +206,8 @@ export async function renderSiteFooter(env) {
   const fbUrl = socials.facebook || "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
   const igUrl = socials.instagram || "https://www.instagram.com/companionscpas";
 
-  const logoSrc = String(brand?.footer_logo_light_url || brand?.footer_logo_dark_url || "").trim() || headerLogoSrc(brand);
+  // Match header mark — same logo_light/dark resolution (preferHeaderLogoUrl).
+  const logoSrc = headerLogoSrc(brand);
   const iamLogo = brand?.developer_logo_light_url
     || "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/238de9d1-a470-4fe5-5424-9182f4bc0500/avatar";
 
