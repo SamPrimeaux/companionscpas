@@ -704,7 +704,7 @@
 }
 .footer-iam-mark:hover .footer-iam-logo { opacity: 1; }
 .footer-col-label {
-  font-size: 10px;
+  font-size: var(--footer-col-label-size, 15px);
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -730,10 +730,37 @@
 }
 .footer-ein { margin: 0; }
 .footer-trust-badges {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 1rem;
+}
+.footer-org-row + .footer-trust-badges { margin-top: 1.1rem; }
+.footer-social-icons + .footer-trust-badges { margin-top: 1rem; }
+.footer-bottom .footer-trust-badges {
+  flex-direction: row;
   align-items: center;
+  margin-top: 0;
   gap: 12px;
-  flex-wrap: wrap;
+}
+.footer-trust-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.footer-trust-caption {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.35;
+}
+.footer-trust-caption--empty {
+  color: rgba(255, 255, 255, 0.38);
+  font-style: italic;
+  font-weight: 500;
 }
 .footer-trust {
   display: inline-flex;
@@ -742,11 +769,9 @@
   line-height: 0;
 }
 .footer-trust img {
-  height: 36px;
   width: auto;
-  max-width: 140px;
   object-fit: contain;
-  opacity: 0.85;
+  opacity: 0.92;
   transition: opacity 180ms;
 }
 .footer-trust:hover img { opacity: 1; }

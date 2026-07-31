@@ -1,18 +1,18 @@
 /**
- * Public site header/footer — SSOT: cms_pages (nav_visible, nav_label, nav_placement, sort_order).
+ * Public site header/footer — SSOT: cms_pages (nav) + cms_brand_settings (brand + footer_json chrome).
  * No route allowlists. No fallback nav arrays. Empty D1 → empty chrome (fail loud in logs).
  */
 import { getBrand } from "./render_page.js";
 import { preferHeaderLogoUrl } from "./brand_tokens.js";
+import {
+  normalizeFooterChrome,
+  badgesForPlacement,
+  renderTrustBadgesHtml,
+  colLabelAttr,
+} from "./footer_chrome.js";
 
 const TENANT_ID = "tenant_companionscpas";
 const DEFAULT_LOGO = "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/9a00de35-fa41-49da-e431-a5f004cf5e00/public";
-const DEFAULT_CANDID_BADGE = {
-  label: "Candid Seal of Transparency",
-  href: "https://app.candid.org/profile/14607574/companions-of-cpas-88-4156327/?pkId=ef6a3773-8ef0-42a2-b7df-ad52ac334f0e",
-  image_url: "https://widgets.guidestar.org/prod/v1/pdp/transparency-seal/14607574/svg",
-  enabled: true,
-};
 
 const PLACEMENTS = new Set(["primary", "more", "cta", "footer_only", "none"]);
 
@@ -97,7 +97,6 @@ export async function resolveNavModel(env) {
   const donate = ctaList[0] || null;
   const footerOnly = byPlacement("footer_only");
 
-  // Footer: all chrome pages except placement none (already filtered); include cta as text link
   const footer = pages
     .filter((p) => p.placement !== "none")
     .sort((a, b) => (a.sort_order - b.sort_order) || a.label.localeCompare(b.label));
@@ -184,7 +183,8 @@ export async function renderSiteHeader(env) {
 </div>`;
 }
 
-export async function renderSiteFooter(env) {
+export async function renderSiteFooter(env, opts = {}) {
+  const preview = opts?.preview === true;
   const [nav, brand] = await Promise.all([
     resolveNavModel(env),
     getBrand(env).catch(() => ({})),
@@ -192,11 +192,7 @@ export async function renderSiteFooter(env) {
 
   const org = brand?.organization || {};
   const socials = brand?.socials || {};
-  const footerCfg = brand?.footer && typeof brand.footer === "object" ? brand.footer : {};
-  // Until CMS saves footer_json.trust_badges, show Candid by default. Explicit [] hides all badges.
-  const trustBadges = Object.prototype.hasOwnProperty.call(footerCfg, "trust_badges")
-    ? (Array.isArray(footerCfg.trust_badges) ? footerCfg.trust_badges : [])
-    : [DEFAULT_CANDID_BADGE];
+  const chrome = normalizeFooterChrome(brand?.footer || {});
 
   const orgName = brand?.brand_name || org.legal_name || org.name || "Companions of CPAS";
   const ein = org.ein || "88-4156327";
@@ -206,7 +202,6 @@ export async function renderSiteFooter(env) {
   const fbUrl = socials.facebook || "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
   const igUrl = socials.instagram || "https://www.instagram.com/companionscpas";
 
-  // Match header mark — same logo_light/dark resolution (preferHeaderLogoUrl).
   const logoSrc = headerLogoSrc(brand);
   const iamLogo = brand?.developer_logo_light_url
     || "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/238de9d1-a470-4fe5-5424-9182f4bc0500/avatar";
@@ -215,36 +210,31 @@ export async function renderSiteFooter(env) {
     .map((item) => `<li><a href="${esc(item.route)}">${esc(item.label)}</a></li>`)
     .join("\n          ");
 
-  const trustBadgesHtml = trustBadges
-    .filter((b) => b && b.enabled !== false && b.enabled !== 0 && String(b.image_url || "").trim() && String(b.href || "").trim())
-    .map((b) => {
-      const label = String(b.label || "Trust badge").trim() || "Trust badge";
-      return `<a class="footer-trust" href="${esc(b.href)}" target="_blank" rel="noopener" aria-label="${esc(label)}"><img src="${esc(b.image_url)}" alt="${esc(label)}" /></a>`;
-    })
-    .join("\n        ");
-  const trustBlock = trustBadgesHtml
-    ? `<div class="footer-trust-badges">${trustBadgesHtml}</div>`
-    : "";
+  const L = chrome.column_labels;
+  const labelSize = chrome.col_label_size_px;
+  const orgBadges = renderTrustBadgesHtml(badgesForPlacement(chrome, "organization"), { preview });
+  const followBadges = renderTrustBadgesHtml(badgesForPlacement(chrome, "follow_us"), { preview });
+  const bottomBadges = renderTrustBadgesHtml(badgesForPlacement(chrome, "footer_bottom"), { preview });
 
   const fbIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`;
   const igIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>`;
   const loginIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/></svg>`;
 
-  return `<footer class="site-footer" data-nav-source="cms_pages">
+  return `<footer class="site-footer" data-nav-source="cms_pages" data-cms-chrome-root="footer" style="--footer-col-label-size:${labelSize}px">
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
         <img src="${esc(logoSrc)}" alt="${esc(orgName)}" class="footer-brand-logo" />
-        <p class="footer-tagline">${esc(tagline)}</p>
+        <p class="footer-tagline"${preview ? ' data-cms-chrome="footer" data-cms-field="organization.mission"' : ""}>${esc(tagline)}</p>
       </div>
       <div>
-        <p class="footer-col-label">Pages</p>
+        <p class="footer-col-label"${colLabelAttr("pages", preview)}>${esc(L.pages)}</p>
         <ul class="footer-links">
           ${footerLis}
         </ul>
       </div>
       <div>
-        <p class="footer-col-label">Organization</p>
+        <p class="footer-col-label"${colLabelAttr("organization", preview)}>${esc(L.organization)}</p>
         <div class="footer-org-row">
           <span><strong>${esc(orgName)}</strong></span>
           <span>501(c)(3) Tax-Exempt</span>
@@ -252,14 +242,16 @@ export async function renderSiteFooter(env) {
           <span>${esc(locationLine)}</span>
           <span><a href="mailto:${esc(email)}">${esc(email)}</a></span>
         </div>
+        ${orgBadges}
       </div>
       <div>
-        <p class="footer-col-label">Follow Us</p>
+        <p class="footer-col-label"${colLabelAttr("follow_us", preview)}>${esc(L.follow_us)}</p>
         <div class="footer-social-icons">
           <a href="${esc(fbUrl)}" target="_blank" rel="noopener" class="footer-social-icon footer-social-icon--fb" aria-label="Facebook">${fbIcon}</a>
           <a href="${esc(igUrl)}" target="_blank" rel="noopener" class="footer-social-icon footer-social-icon--ig" aria-label="Instagram">${igIcon}</a>
         </div>
-        <p class="footer-col-label footer-staff-label">Staff</p>
+        ${followBadges}
+        <p class="footer-col-label footer-staff-label"${colLabelAttr("staff", preview)}>${esc(L.staff)}</p>
         <a href="/admin/login" class="footer-admin-link" aria-label="Staff admin login">
           ${loginIcon}<span>Admin login</span>
         </a>
@@ -267,7 +259,7 @@ export async function renderSiteFooter(env) {
     </div>
     <div class="footer-bottom">
       <p class="footer-ein">${esc(orgName)} &nbsp;·&nbsp; 501(c)(3) &nbsp;·&nbsp; EIN ${esc(ein)}</p>
-      ${trustBlock}
+      ${bottomBadges}
       <a href="https://inneranimalmedia.com" target="_blank" rel="noopener" class="footer-iam-mark" aria-label="Built by Inner Animal Media">
         <span class="footer-iam-label">Built by</span>
         <img src="${esc(iamLogo)}" alt="Inner Animal Media" class="footer-iam-logo" />
@@ -277,9 +269,9 @@ export async function renderSiteFooter(env) {
 </footer>`;
 }
 
-export async function getSiteShellPartial(name, env) {
+export async function getSiteShellPartial(name, env, opts = {}) {
   if (name === "header") return renderSiteHeader(env);
-  if (name === "footer") return renderSiteFooter(env);
+  if (name === "footer") return renderSiteFooter(env, opts);
   return "";
 }
 

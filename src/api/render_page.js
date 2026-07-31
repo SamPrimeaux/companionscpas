@@ -198,14 +198,14 @@ function fallbackFooter(brand) {
 </footer>`.trim();
 }
 
-export async function getGlobalPartial(name, brand, env) {
+export async function getGlobalPartial(name, brand, env, opts = {}) {
   const partialName = sanitizePathSegment(name, "");
   if (!partialName) return "";
 
   if (env?.DB && (partialName === "header" || partialName === "footer" || partialName === "cpas-header" || partialName === "cpas-footer")) {
     const { getSiteShellPartial } = await import("./render_site_nav.js");
     const resolved = partialName.startsWith("cpas-") ? partialName.slice(5) : partialName;
-    const dynamic = await getSiteShellPartial(resolved, env);
+    const dynamic = await getSiteShellPartial(resolved, env, opts);
     if (dynamic) return dynamic;
   }
 

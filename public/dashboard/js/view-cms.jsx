@@ -29,11 +29,29 @@ function cmsNotify(setter, text, type = "ok") {
   setTimeout(() => setter({ text: "", type: "" }), 4000);
 }
 
+const FOOTER_BADGE_PLACEMENTS = [
+  { value: "organization", label: "Organization column" },
+  { value: "follow_us", label: "Follow Us column" },
+  { value: "footer_bottom", label: "Bottom bar" },
+];
+
+const DEFAULT_FOOTER_COLUMN_LABELS = {
+  pages: "Pages",
+  organization: "Organization",
+  follow_us: "Follow Us",
+  staff: "Staff",
+};
+
 const DEFAULT_CANDID_TRUST_BADGE = {
+  id: "badge_candid",
   label: "Candid Seal of Transparency",
+  caption: "Visit our Candid Profile",
   href: "https://app.candid.org/profile/14607574/companions-of-cpas-88-4156327/?pkId=ef6a3773-8ef0-42a2-b7df-ad52ac334f0e",
   image_url: "https://widgets.guidestar.org/prod/v1/pdp/transparency-seal/14607574/svg",
   enabled: true,
+  height_px: 72,
+  placement: "organization",
+  sort_order: 10,
 };
 
 function cmsParseJsonObject(raw, fallback = {}) {
@@ -45,12 +63,51 @@ function cmsParseJsonObject(raw, fallback = {}) {
   }
 }
 
-function cmsNormalizeTrustBadges(footerJson) {
+function cmsNewBadgeId() {
+  return `badge_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function cmsNormalizeTrustBadge(raw, index = 0) {
+  const b = raw && typeof raw === "object" ? raw : {};
+  const placement = String(b.placement || "organization").trim().toLowerCase();
+  const height = Number(b.height_px);
+  const allowed = FOOTER_BADGE_PLACEMENTS.map((p) => p.value);
+  return {
+    id: String(b.id || "").trim() || cmsNewBadgeId(),
+    label: String(b.label || "").trim() || "Trust badge",
+    caption: String(b.caption ?? "").trim(),
+    href: String(b.href || "").trim(),
+    image_url: String(b.image_url || "").trim(),
+    enabled: b.enabled !== false && b.enabled !== 0,
+    height_px: Number.isFinite(height) && height > 0 ? Math.max(24, Math.min(160, Math.round(height))) : 72,
+    placement: allowed.includes(placement) ? placement : "organization",
+    sort_order: Number.isFinite(Number(b.sort_order)) ? Number(b.sort_order) : (index + 1) * 10,
+  };
+}
+
+function cmsNormalizeFooterChrome(footerJson) {
   const footer = footerJson && typeof footerJson === "object" ? footerJson : {};
+  const labelsIn = cmsParseJsonObject(footer.column_labels, {});
+  const column_labels = {
+    pages: String(labelsIn.pages || DEFAULT_FOOTER_COLUMN_LABELS.pages).trim() || DEFAULT_FOOTER_COLUMN_LABELS.pages,
+    organization: String(labelsIn.organization || DEFAULT_FOOTER_COLUMN_LABELS.organization).trim() || DEFAULT_FOOTER_COLUMN_LABELS.organization,
+    follow_us: String(labelsIn.follow_us || DEFAULT_FOOTER_COLUMN_LABELS.follow_us).trim() || DEFAULT_FOOTER_COLUMN_LABELS.follow_us,
+    staff: String(labelsIn.staff || DEFAULT_FOOTER_COLUMN_LABELS.staff).trim() || DEFAULT_FOOTER_COLUMN_LABELS.staff,
+  };
+  const sizeRaw = Number(footer.col_label_size_px);
+  const col_label_size_px = Number.isFinite(sizeRaw) && sizeRaw > 0
+    ? Math.max(10, Math.min(28, Math.round(sizeRaw)))
+    : 15;
+  let trust_badges;
   if (Object.prototype.hasOwnProperty.call(footer, "trust_badges")) {
-    return Array.isArray(footer.trust_badges) ? footer.trust_badges : [];
+    trust_badges = Array.isArray(footer.trust_badges)
+      ? footer.trust_badges.map((b, i) => cmsNormalizeTrustBadge(b, i))
+      : [];
+  } else {
+    trust_badges = [cmsNormalizeTrustBadge(DEFAULT_CANDID_TRUST_BADGE, 0)];
   }
-  return [{ ...DEFAULT_CANDID_TRUST_BADGE }];
+  trust_badges = [...trust_badges].sort((a, b) => (a.sort_order - b.sort_order) || a.label.localeCompare(b.label));
+  return { column_labels, col_label_size_px, trust_badges };
 }
 
 function CmsNotice({ n }) {
@@ -778,7 +835,12 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [chromeBrand, setChromeBrand] = React.useState(null);
   const [chromeOrg, setChromeOrg] = React.useState({});
   const [chromeSocials, setChromeSocials] = React.useState({});
-  const [chromeTrustBadges, setChromeTrustBadges] = React.useState([{ ...DEFAULT_CANDID_TRUST_BADGE }]);
+  const [chromeTrustBadges, setChromeTrustBadges] = React.useState([cmsNormalizeTrustBadge(DEFAULT_CANDID_TRUST_BADGE, 0)]);
+  const [chromeColumnLabels, setChromeColumnLabels] = React.useState({ ...DEFAULT_FOOTER_COLUMN_LABELS });
+  const [chromeLabelSize, setChromeLabelSize] = React.useState(15);
+  const [chromeFocusBadgeId, setChromeFocusBadgeId] = React.useState(null);
+  const [chromeFocusField, setChromeFocusField] = React.useState(null);
+  const [chromeDragBadgeId, setChromeDragBadgeId] = React.useState(null);
   const [chromeFooterLogo, setChromeFooterLogo] = React.useState("");
   const [chromeSaving, setChromeSaving] = React.useState(false);
   const [chromeUploading, setChromeUploading] = React.useState(false);
@@ -842,6 +904,10 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setSelectedField(null);
     setSelectedBlockKey(null);
     setChromeTarget(target);
+    if (target !== 'footer') {
+      setChromeFocusBadgeId(null);
+      setChromeFocusField(null);
+    }
     setInspectorCollapsed(false);
     setHasUnsaved(false);
     if (isMobile) setMobileTab('edit');
@@ -937,6 +1003,12 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         });
         return;
       }
+      if (e.data.type === 'cms:chrome-selected' && e.data.chrome === 'footer') {
+        selectChrome('footer');
+        setChromeFocusBadgeId(e.data.badgeId || null);
+        setChromeFocusField(e.data.field || null);
+        return;
+      }
       if (e.data.type === 'cms:element-selected') {
         selectSection(e.data.sectionKey, { field: e.data.field || null, blockKey: e.data.blockKey || null });
         return;
@@ -946,7 +1018,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [selectSection]);
+  }, [selectSection, selectChrome]);
 
   React.useEffect(() => {
     const onKey = (e) => {
@@ -984,15 +1056,36 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     if (selectedKey) postHighlight(selectedKey, selectedField, selectedBlockKey);
   }, [selectedKey, selectedField, selectedBlockKey, previewVersion, postHighlight]);
 
+  React.useEffect(() => {
+    if (chromeTarget !== 'footer') return;
+    let el = null;
+    if (chromeFocusBadgeId) {
+      el = document.getElementById(
+        chromeFocusField === 'caption'
+          ? `cms-footer-badge-${chromeFocusBadgeId}-caption`
+          : `cms-footer-badge-${chromeFocusBadgeId}`
+      );
+    } else if (chromeFocusField === 'organization.mission') {
+      el = document.getElementById('cms-footer-field-mission');
+    } else if (String(chromeFocusField || '').startsWith('column_labels.')) {
+      const key = String(chromeFocusField).slice('column_labels.'.length);
+      el = document.getElementById(`cms-footer-field-label-${key}`);
+    }
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [chromeTarget, chromeFocusBadgeId, chromeFocusField]);
+
   const applyChromeBrand = React.useCallback((row) => {
     if (!row) return;
     const org = cmsParseJsonObject(row.organization_json, {});
     const socials = cmsParseJsonObject(row.socials_json, {});
     const footer = cmsParseJsonObject(row.footer_json, {});
+    const chrome = cmsNormalizeFooterChrome(footer);
     setChromeBrand(row);
     setChromeOrg(org);
     setChromeSocials(socials);
-    setChromeTrustBadges(cmsNormalizeTrustBadges(footer));
+    setChromeTrustBadges(chrome.trust_badges);
+    setChromeColumnLabels(chrome.column_labels);
+    setChromeLabelSize(chrome.col_label_size_px);
     setChromeFooterLogo(String(row.footer_logo_light_url || row.footer_logo_dark_url || "").trim());
   }, []);
 
@@ -1762,9 +1855,15 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     }
     setChromeSaving(true);
     try {
+      const normalizedBadges = chromeTrustBadges.map((b, i) => cmsNormalizeTrustBadge({
+        ...b,
+        sort_order: (i + 1) * 10,
+      }, i));
       const footer_json = JSON.stringify({
         ...cmsParseJsonObject(chromeBrand.footer_json, {}),
-        trust_badges: chromeTrustBadges,
+        column_labels: chromeColumnLabels,
+        col_label_size_px: Number(chromeLabelSize) || 15,
+        trust_badges: normalizedBadges,
       });
       const res = await fetch('/api/cms/brand/save', {
         method: 'POST',
@@ -1824,6 +1923,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   }
 
   function renderFooterChromeSettings() {
+    const persist = () => { saveChromeFooter(true).then(() => setHasUnsaved(false)).catch(() => {}); };
     const patchOrg = (key, value) => {
       setChromeOrg((prev) => {
         const next = { ...prev, [key]: value };
@@ -1841,6 +1941,24 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       setChromeTrustBadges((prev) => prev.map((b, i) => (i === idx ? { ...b, ...patch } : b)));
       setHasUnsaved(true);
     };
+    const reorderBadge = (fromId, toId) => {
+      if (!fromId || !toId || fromId === toId) return;
+      setChromeTrustBadges((prev) => {
+        const next = [...prev];
+        const from = next.findIndex((b) => b.id === fromId);
+        const to = next.findIndex((b) => b.id === toId);
+        if (from < 0 || to < 0) return prev;
+        const [item] = next.splice(from, 1);
+        next.splice(to, 0, item);
+        return next.map((b, i) => ({ ...b, sort_order: (i + 1) * 10 }));
+      });
+      setHasUnsaved(true);
+      queueMicrotask(persist);
+    };
+    const focusRing = (active) => active
+      ? { boxShadow: `0 0 0 2px ${C.purple}`, border: `1px solid ${C.purple}` }
+      : { border: `1px solid ${C.border}` };
+    const missionFocused = chromeFocusField === 'organization.mission';
 
     return React.createElement('div', {
       style: { display: 'grid', gap: 14, padding: 13, borderRadius: 13, border: `1px solid ${C.purple}44`, background: 'rgba(124,58,237,0.06)' }
@@ -1848,65 +1966,89 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       React.createElement('div', null,
         React.createElement('div', { style: { fontSize: 11, fontWeight: 900, color: C.purpleL, letterSpacing: '.08em', textTransform: 'uppercase' } }, 'Footer (sitewide)'),
         React.createElement('div', { style: { fontSize: 11, color: C.textMut, lineHeight: 1.45, marginTop: 4 } },
-          'Edits mission, org details, socials, and trust badges for every page. Save republishes the whole site footer.'
+          'Click caption/badge/labels in the preview to jump here. Drag badges to reorder. Save republishes every page.'
         )
       ),
-      React.createElement('div', null,
+      React.createElement('div', {
+        id: 'cms-footer-field-mission',
+        style: { display: 'grid', gap: 6, padding: 8, borderRadius: 10, background: missionFocused ? C.purpleDim : 'transparent', ...focusRing(missionFocused) },
+      },
         cmsFieldLabel('Mission / tagline'),
-        cmsTextArea(chromeOrg.mission || '', (v) => patchOrg('mission', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 4)
+        cmsTextArea(chromeOrg.mission || '', (v) => patchOrg('mission', v), persist, 4)
       ),
       React.createElement('div', null,
         cmsFieldLabel('Organization name'),
-        cmsTextInput(chromeOrg.legal_name || chromeOrg.name || '', (v) => patchOrg('legal_name', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'Companions of CPAS')
+        cmsTextInput(chromeOrg.legal_name || chromeOrg.name || '', (v) => patchOrg('legal_name', v), persist, 'Companions of CPAS')
       ),
       React.createElement('div', null,
         cmsFieldLabel('EIN / Tax ID'),
-        cmsTextInput(chromeOrg.ein || '', (v) => patchOrg('ein', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, '88-4156327', true)
+        cmsTextInput(chromeOrg.ein || '', (v) => patchOrg('ein', v), persist, '88-4156327', true)
       ),
       React.createElement('div', null,
         cmsFieldLabel('Contact email'),
-        cmsTextInput(chromeOrg.email || '', (v) => patchOrg('email', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'companionsCPAS@gmail.com')
+        cmsTextInput(chromeOrg.email || '', (v) => patchOrg('email', v), persist, 'companionsCPAS@gmail.com')
       ),
       React.createElement('div', null,
         cmsFieldLabel('City / Parish'),
-        cmsTextInput(chromeOrg.city || chromeOrg.parish || '', (v) => patchOrg('city', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'Caddo Parish, Louisiana')
+        cmsTextInput(chromeOrg.city || chromeOrg.parish || '', (v) => patchOrg('city', v), persist, 'Caddo Parish, Louisiana')
       ),
       React.createElement('div', null,
         cmsFieldLabel('Facebook URL'),
-        cmsTextInput(chromeSocials.facebook || '', (v) => patchSocial('facebook', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'https://facebook.com/…', true)
+        cmsTextInput(chromeSocials.facebook || '', (v) => patchSocial('facebook', v), persist, 'https://facebook.com/…', true)
       ),
       React.createElement('div', null,
         cmsFieldLabel('Instagram URL'),
-        cmsTextInput(chromeSocials.instagram || '', (v) => patchSocial('instagram', v), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'https://instagram.com/…', true)
+        cmsTextInput(chromeSocials.instagram || '', (v) => patchSocial('instagram', v), persist, 'https://instagram.com/…', true)
       ),
-      React.createElement('div', null,
-        cmsFieldLabel('Footer logo URL'),
-        React.createElement('div', { style: { display: 'grid', gap: 8 } },
-          cmsTextInput(chromeFooterLogo || '', (v) => { setChromeFooterLogo(v); setHasUnsaved(true); }, () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'https://assets…', true),
-          React.createElement('label', {
-            style: {
-              display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 9,
-              border: `1px dashed ${C.border}`, background: C.surface, color: C.textSec, fontSize: 12, cursor: chromeUploading ? 'wait' : 'pointer', width: 'fit-content',
-            }
+      React.createElement('div', { style: { display: 'grid', gap: 8, padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface } },
+        cmsFieldLabel('Column titles (sitewide)'),
+        React.createElement('div', null,
+          cmsFieldLabel(`Title size (${chromeLabelSize}px)`),
+          React.createElement('input', {
+            type: 'range', min: 10, max: 22, step: 1, value: chromeLabelSize,
+            onChange: (e) => { setChromeLabelSize(Number(e.target.value)); setHasUnsaved(true); },
+            onMouseUp: persist, onTouchEnd: persist,
+            style: { width: '100%', accentColor: C.purple },
+          })
+        ),
+        ['pages', 'organization', 'follow_us', 'staff'].map((key) => {
+          const focused = chromeFocusField === `column_labels.${key}`;
+          return React.createElement('div', {
+            key,
+            id: `cms-footer-field-label-${key}`,
+            style: { padding: 6, borderRadius: 8, background: focused ? C.purpleDim : 'transparent', ...focusRing(focused) },
           },
-            chromeUploading ? 'Uploading…' : 'Upload footer logo',
-            React.createElement('input', {
-              type: 'file', accept: 'image/*', style: { display: 'none' }, disabled: chromeUploading,
-              onChange: (e) => { uploadChromeFooterLogo(e.target.files?.[0]); e.target.value = ''; },
-            })
-          )
-        )
+            cmsFieldLabel(key.replace('_', ' ')),
+            cmsTextInput(
+              chromeColumnLabels[key] || '',
+              (v) => { setChromeColumnLabels((p) => ({ ...p, [key]: v })); setHasUnsaved(true); },
+              persist,
+              DEFAULT_FOOTER_COLUMN_LABELS[key]
+            )
+          );
+        })
       ),
       React.createElement('div', { style: { display: 'grid', gap: 10 } },
         React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 } },
           React.createElement('div', null,
             cmsFieldLabel('Trust badges'),
-            React.createElement('div', { style: { fontSize: 11, color: C.textMut, marginTop: -4 } }, 'Candid and other seals appear in the footer bottom bar')
+            React.createElement('div', { style: { fontSize: 11, color: C.textMut, marginTop: -4 } }, 'Drag ≡ to reorder · placement + size + caption are live CMS fields')
           ),
           React.createElement('button', {
             type: 'button',
             onClick: () => {
-              setChromeTrustBadges((prev) => [...prev, { label: '', href: '', image_url: '', enabled: true }]);
+              const badge = cmsNormalizeTrustBadge({
+                id: cmsNewBadgeId(),
+                label: 'New badge',
+                caption: '',
+                href: '',
+                image_url: '',
+                enabled: true,
+                height_px: 72,
+                placement: 'organization',
+              }, chromeTrustBadges.length);
+              setChromeTrustBadges((prev) => [...prev, badge]);
+              setChromeFocusBadgeId(badge.id);
               setHasUnsaved(true);
             },
             style: {
@@ -1915,46 +2057,96 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             },
           }, '+ Add badge')
         ),
-        chromeTrustBadges.map((badge, idx) => React.createElement('div', {
-          key: `trust-${idx}`,
-          style: { display: 'grid', gap: 8, padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface },
-        },
-          React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: C.text, cursor: 'pointer' } },
-            React.createElement('input', {
-              type: 'checkbox',
-              checked: badge.enabled !== false && badge.enabled !== 0,
-              onChange: (e) => patchBadge(idx, { enabled: e.target.checked }),
-            }),
-            'Enabled on public footer'
-          ),
-          React.createElement('div', null,
-            cmsFieldLabel('Label'),
-            cmsTextInput(badge.label || '', (v) => patchBadge(idx, { label: v }), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'Candid Seal of Transparency')
-          ),
-          React.createElement('div', null,
-            cmsFieldLabel('Link URL'),
-            cmsTextInput(badge.href || '', (v) => patchBadge(idx, { href: v }), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'https://…', true)
-          ),
-          React.createElement('div', null,
-            cmsFieldLabel('Image URL'),
-            cmsTextInput(badge.image_url || '', (v) => patchBadge(idx, { image_url: v }), () => { saveChromeFooter(true).then(() => setHasUnsaved(false)); }, 'https://widgets.guidestar.org/…', true)
-          ),
-          badge.image_url ? React.createElement('img', {
-            src: badge.image_url, alt: badge.label || 'Trust badge',
-            style: { height: 36, width: 'auto', objectFit: 'contain', opacity: 0.9 },
-          }) : null,
-          React.createElement('button', {
-            type: 'button',
-            onClick: () => {
-              setChromeTrustBadges((prev) => prev.filter((_, i) => i !== idx));
-              setHasUnsaved(true);
-            },
+        chromeTrustBadges.map((badge, idx) => {
+          const focused = chromeFocusBadgeId === badge.id;
+          return React.createElement('div', {
+            key: badge.id || `trust-${idx}`,
+            id: `cms-footer-badge-${badge.id}`,
+            draggable: true,
+            onDragStart: () => setChromeDragBadgeId(badge.id),
+            onDragOver: (e) => e.preventDefault(),
+            onDrop: () => { reorderBadge(chromeDragBadgeId, badge.id); setChromeDragBadgeId(null); },
+            onDragEnd: () => setChromeDragBadgeId(null),
             style: {
-              justifySelf: 'start', padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.red}44`,
-              background: C.surface, color: C.red, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-ui)',
+              display: 'grid', gap: 8, padding: 10, borderRadius: 10, background: C.surface, cursor: 'grab',
+              opacity: chromeDragBadgeId === badge.id ? 0.55 : 1,
+              ...focusRing(focused),
             },
-          }, 'Remove badge')
-        ))
+          },
+            React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 } },
+              React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8, color: C.textMut, fontSize: 12, fontWeight: 700 } },
+                React.createElement('span', { 'aria-hidden': true }, '≡'),
+                focused ? 'EDITING BADGE' : `Badge ${idx + 1}`
+              ),
+              React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text, cursor: 'pointer' } },
+                React.createElement('input', {
+                  type: 'checkbox',
+                  checked: !!badge.enabled,
+                  onChange: (e) => { patchBadge(idx, { enabled: e.target.checked }); queueMicrotask(persist); },
+                }),
+                'Enabled'
+              )
+            ),
+            React.createElement('div', {
+              id: `cms-footer-badge-${badge.id}-caption`,
+              style: chromeFocusField === 'caption' && focused ? { ...focusRing(true), padding: 6, borderRadius: 8 } : null,
+            },
+              cmsFieldLabel('Caption (above icon)'),
+              cmsTextInput(badge.caption || '', (v) => patchBadge(idx, { caption: v }), persist, 'Visit our Candid Profile')
+            ),
+            React.createElement('div', null,
+              cmsFieldLabel('Accessibility label'),
+              cmsTextInput(badge.label || '', (v) => patchBadge(idx, { label: v }), persist, 'Candid Seal of Transparency')
+            ),
+            React.createElement('div', null,
+              cmsFieldLabel('Link URL'),
+              cmsTextInput(badge.href || '', (v) => patchBadge(idx, { href: v }), persist, 'https://…', true)
+            ),
+            React.createElement('div', {
+              style: chromeFocusField === 'image_url' && focused ? { ...focusRing(true), padding: 6, borderRadius: 8 } : null,
+            },
+              cmsFieldLabel('Image URL'),
+              cmsTextInput(badge.image_url || '', (v) => patchBadge(idx, { image_url: v }), persist, 'https://widgets.guidestar.org/…', true)
+            ),
+            React.createElement('div', null,
+              cmsFieldLabel('Placement'),
+              React.createElement('select', {
+                value: badge.placement || 'organization',
+                onChange: (e) => { patchBadge(idx, { placement: e.target.value }); queueMicrotask(persist); },
+                style: {
+                  width: '100%', boxSizing: 'border-box', padding: '9px 11px', borderRadius: 9,
+                  border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 13,
+                },
+              }, FOOTER_BADGE_PLACEMENTS.map((o) => React.createElement('option', { key: o.value, value: o.value }, o.label)))
+            ),
+            React.createElement('div', null,
+              cmsFieldLabel(`Icon height (${badge.height_px || 72}px)`),
+              React.createElement('input', {
+                type: 'range', min: 36, max: 120, step: 2, value: Number(badge.height_px) || 72,
+                onChange: (e) => patchBadge(idx, { height_px: Number(e.target.value) }),
+                onMouseUp: persist, onTouchEnd: persist,
+                style: { width: '100%', accentColor: C.purple },
+              })
+            ),
+            badge.image_url ? React.createElement('img', {
+              src: badge.image_url, alt: badge.label || 'Trust badge',
+              style: { height: Number(badge.height_px) || 72, width: 'auto', objectFit: 'contain', opacity: 0.95 },
+            }) : null,
+            React.createElement('button', {
+              type: 'button',
+              onClick: () => {
+                setChromeTrustBadges((prev) => prev.filter((_, i) => i !== idx));
+                if (chromeFocusBadgeId === badge.id) setChromeFocusBadgeId(null);
+                setHasUnsaved(true);
+                queueMicrotask(persist);
+              },
+              style: {
+                justifySelf: 'start', padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.red}44`,
+                background: C.surface, color: C.red, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-ui)',
+              },
+            }, 'Remove badge')
+          );
+        })
       ),
       React.createElement(Btn, {
         size: 'sm',

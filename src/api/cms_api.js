@@ -273,9 +273,12 @@ function injectCmsInspector(html) {
   body.cms-preview .cms-sec-dim { opacity: 0.42; transition: opacity 120ms ease; }
   body.cms-preview .cms-sec-active { opacity: 1 !important; outline: 2px solid #7c3aed; outline-offset: -2px; box-shadow: inset 0 0 0 1px rgba(124,58,237,0.25); }
   body.cms-preview .cms-sec-hover:not(.cms-sec-active) { outline: 1.5px dashed rgba(124,58,237,0.55); outline-offset: -2px; }
-  body.cms-preview [data-cms-field] { cursor: pointer; }
-  body.cms-preview [data-cms-field].cms-field-hover { outline: 1.5px solid rgba(124,58,237,0.7); outline-offset: 2px; border-radius: 4px; }
-  body.cms-preview [data-cms-field].cms-field-active { outline: 2px solid #7c3aed; outline-offset: 2px; border-radius: 4px; box-shadow: 0 0 0 3px rgba(124,58,237,0.18); }
+  body.cms-preview [data-cms-field],
+  body.cms-preview [data-cms-chrome="footer"] { cursor: pointer; }
+  body.cms-preview [data-cms-field].cms-field-hover,
+  body.cms-preview [data-cms-chrome="footer"].cms-field-hover { outline: 1.5px solid rgba(124,58,237,0.7); outline-offset: 2px; border-radius: 4px; }
+  body.cms-preview [data-cms-field].cms-field-active,
+  body.cms-preview [data-cms-chrome="footer"].cms-field-active { outline: 2px solid #7c3aed; outline-offset: 2px; border-radius: 4px; box-shadow: 0 0 0 3px rgba(124,58,237,0.18); }
 
   /* Let clicks reach hero photos under the full-width text column */
   body.cms-preview .hero-split > .hero-body { pointer-events: none; }
@@ -435,7 +438,7 @@ function injectCmsInspector(html) {
   }
 
   function clearFieldChrome() {
-    document.querySelectorAll('[data-cms-field].cms-field-hover, [data-cms-field].cms-field-active').forEach(function(n) {
+    document.querySelectorAll('[data-cms-field].cms-field-hover, [data-cms-field].cms-field-active, [data-cms-chrome].cms-field-hover, [data-cms-chrome].cms-field-active').forEach(function(n) {
       n.classList.remove('cms-field-hover', 'cms-field-active');
     });
   }
@@ -618,11 +621,34 @@ function injectCmsInspector(html) {
   document.addEventListener('pointerup', endDrag, true);
   document.addEventListener('pointercancel', endDrag, true);
 
+  function findChromeField(el) {
+    var cur = el;
+    while (cur && cur !== document.body) {
+      if (cur.getAttribute && cur.getAttribute('data-cms-chrome') === 'footer') return cur;
+      cur = cur.parentElement;
+    }
+    return null;
+  }
+
   document.addEventListener('click', function(e) {
     if (suppressClick) {
       e.preventDefault();
       e.stopPropagation();
       suppressClick = false;
+      return;
+    }
+    var chromeEl = findChromeField(e.target);
+    if (chromeEl) {
+      e.preventDefault();
+      e.stopPropagation();
+      clearFieldChrome();
+      chromeEl.classList.add('cms-field-active');
+      window.parent.postMessage({
+        type: 'cms:chrome-selected',
+        chrome: 'footer',
+        badgeId: chromeEl.getAttribute('data-cms-badge-id') || null,
+        field: chromeEl.getAttribute('data-cms-field') || null
+      }, '*');
       return;
     }
     var sec = findSection(e.target);

@@ -247,8 +247,8 @@ export async function assemblePage(env, route, opts = {}) {
   if (!sectionHtmls.length) return null;
 
   const [headerHtml, footerHtml] = await Promise.all([
-    getGlobalPartial("header", brand, env),
-    getGlobalPartial("footer", brand, env),
+    getGlobalPartial("header", brand, env, { preview }),
+    getGlobalPartial("footer", brand, env, { preview }),
   ]);
 
   let html = assembleFullPage(page, brand, headerHtml, sectionHtmls, footerHtml, { preview });
