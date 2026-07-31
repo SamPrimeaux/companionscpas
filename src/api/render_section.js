@@ -397,6 +397,7 @@ function renderTextImage(section) {
   const body = pickText(section, ["body"]) || pickText(config, ["body"]);
   const ctaLabel = pickText(section, ["cta_label"]) || pickText(config, ["cta_label"]);
   const ctaHref = pickText(section, ["cta_url", "cta_href"]) || pickText(config, ["cta_url", "cta_href"]);
+  const ctaAction = pickText(section, ["cta_action"]) || pickText(config, ["cta_action"]);
   const sectionKey = pickText(section, ["section_key"]);
   const imgFirst = imagePosition === "left";
   const mediaType = pickText(config, ["media_type"]).toLowerCase();
