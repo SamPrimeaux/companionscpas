@@ -389,7 +389,7 @@ function renderTextImage(section) {
   const config = safeJson(section.config_json, {});
   const imagePosition = pickText(config, ["image_position"]).toLowerCase() === "left" ? "left" : "right";
   const imageUrl = pickText(section, ["image_url"]) || pickText(config, ["image_url"]);
-  const imageAlt = pickText(section, ["image_alt", "heading"]) || pickText(config, ["image_alt"]) || "Section image";
+  const imageAlt = pickText(config, ["image_alt"]) || pickText(section, ["image_alt", "heading"]) || "Section image";
   const imageUrl2 = pickText(config, ["image_url_2"]);
   const imageAlt2 = pickText(config, ["image_alt_2"]) || imageAlt;
   const eyebrow = pickText(section, ["eyebrow"]) || pickText(config, ["eyebrow"]);
