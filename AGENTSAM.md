@@ -1,6 +1,6 @@
 # AGENTSAM.md — Companions of Caddo (companionsofcaddo.org)
 > SSOT for any agent picking up this project. Read completely before touching any file, table, or binding.
-> Last updated: 2026-07-27
+> Last updated: 2026-07-30 · CMS SSOT detail: [README.md § Sectionalized CMS System](README.md#sectionalized-cms-system)
 
 ---
 
@@ -34,33 +34,36 @@ Secrets (NOT bindings): AGENTSAM_BRIDGE_KEY, STRIPE_*, RESEND_API_KEY, OPENAI_AP
 
 ## Non-Negotiables
 1. ALL code changes in companionscpas repo ONLY. Never patch from IAM worker.
-2. CMS publish contract: D1 edit -> POST /api/cms/publish -> publishPageRoute() -> publishFragmentPageFromCms() -> R2 baked -> KV bust -> live.
-3. No manual R2 HTML edits. Dashboard Publish Live or scripted sync only.
-4. Deploy: bare 'npx wrangler deploy' from repo root. No --env production. No wrangler.production.toml (doesn't exist).
-5. After wrangler deploy, push changed R2 static files separately with --remote flag.
-6. INTERNAL_PUBLISH_KEY in production != AGENTSAM_BRIDGE_KEY in .dev.vars. Use /api/cms/publish (session auth) from dashboard.
+2. CMS publish contract: D1 edit → `POST /api/cms/publish` → `cms_pipeline.publishRoute` → section R2 sync + `assemblePage` → R2 baked index + KV `page:{route}` bust → live. Brand/footer save republishes **all** `cms_pages` routes.
+3. No manual R2 HTML edits of live page artifacts. Dashboard Publish Live, brand/footer save, or scripted sync only.
+4. Deploy: bare `npx wrangler deploy` from repo root (or `npm run deploy` / `deploy:full` on Mac). No `--env production`. No `wrangler.production.toml`.
+5. After wrangler deploy, push changed R2 static/dashboard files separately with `--remote` when needed.
+6. `INTERNAL_PUBLISH_KEY` in production ≠ `AGENTSAM_BRIDGE_KEY` in `.dev.vars`. Use `/api/cms/publish` (session auth) from dashboard.
+7. Live header/footer = `render_site_nav.js` + `footer_chrome.js`, **not** hand-edited `static/global/cpas-{header,footer}.html` (those are fallback/reference only).
 
 ---
 
-## CMS Pipeline
-D1 cms_page_sections <- dashboard Save Draft
-  -> Publish Live -> POST /api/cms/publish {route_path}
-  -> publishPageRoute() in cms_api.js (line 145)
-  -> for "/" and fragment pages: publishFragmentPageFromCms()
-  -> HOME_FRAGMENT_KEYS in render_home_fragments.js (order matters, regex-replace to edit — string replace fails due to [REDACTED] bracket):
-       1. static/pages/home/hero.html
-       2. static/pages/home/mission.html
-       3. static/pages/home/how-it-helps.html
-       4. static/pages/home/newsletter.html
-       5. static/pages/home/transport-win.html
-       6. static/pages/home/campaigns.html
-  -> D1 section data -> renderer -> R2 put -> KV page:/ bust -> live (no deploy needed)
+## CMS Pipeline (unified — see README for detail)
 
-Non-home pages: render_section.js -> full page HTML -> R2 index.html + KV bust
+```
+D1 (cms_pages / cms_page_sections / cms_brand_settings)
+  → Publish Live or brand save
+  → cms_pipeline.publishRoute
+       → syncRouteSectionsToR2 (cms_section_catalog.renderSectionByType)
+       → assemblePage (dynamic header/footer from render_site_nav)
+       → R2 static/pages…/index.html + KV bust
+Public GET → KV → assemblePage → else R2 artifact
+```
+
+**Home vs about:** same assemble/serve/publish path. Only *some* `section_key`s still use branded HTML in `render_home_section.js` / `render_about_section.js` via the catalog — not separate page pipelines. Legacy `*_cms_sync.js` / `render_*_fragments.js` = ops salvage, not live assemble.
+
+**Footer chrome:** edit in dashboard Pages → Footer panel (`footer_json` trust badges, column labels). Not Brand page ping-pong.
+
+Full agent SSOT: [README.md § Sectionalized CMS System](README.md#sectionalized-cms-system).
 
 ---
 
-## Home Page Sections (is_visible=1, 1:1 with R2 fragments)
+## Home Page Sections (typical visible set — confirm in D1)
 | sort | section_key | type | Editable fields |
 |------|-------------|------|-----------------|
 | 10 | hero | hero | eyebrow, heading, subheading, image_url, cta_href, cta_secondary_href |
@@ -70,24 +73,23 @@ Non-home pages: render_section.js -> full page HTML -> R2 index.html + KV bust
 | 50 | transport_win | home_story | heading, body, image_url |
 | 60 | newsletter | home_newsletter | heading, subheading |
 
-Hidden (is_visible=0) - do not re-enable without R2 fragment + HOME_FRAGMENT_KEYS entry:
-hero_main, impact_stats, foster_grid, testimonial, crisis_care, org_info
+Hidden rows may exist in D1 (`is_visible=0`). Visibility is D1-driven via the unified pipeline — do **not** require a `HOME_FRAGMENT_KEYS` allowlist to re-enable.
 
 ---
 
 ## Other Pages
 | Route | Status | Notes |
 |-------|--------|-------|
-| /about | Published | 6 sections. Needs: image resize, mission statement, CTA reroute from /community |
-| /adopt | Published | 4 sections. Needs image/content pass |
-| /contact | Published | 4 sections. Needs content pass |
-| /donate | Published | 6 sections. Dashboard section list OUT OF SYNC with live R2 - needs audit |
-| /community | Published | HIDE - reroute all CTAs pointing here to /foster or /adopt first |
-| /services | Published | Has 2 empty placeholder sections (28 and 42 bytes) - hide or fill |
+| /about | Published | Same pipeline as home; some keys use `render_about_section.js`. Needs: image resize, mission, CTA reroute from /community |
+| /adopt | Published | Needs image/content pass |
+| /contact | Published | Needs content pass |
+| /donate | Published | Audit dashboard vs live sections if drift appears |
+| /community | Published | Prefer hide after rerouting CTAs to /foster or /adopt |
+| /services | Published | Assembly may still be thin/broken — fix data/renderer, not a route allowlist |
 
 ---
 
-## Dashboard (view-cms.jsx, 2114 lines)
+## Dashboard (view-cms.jsx)
 Routes: CmsWebsiteView, CmsPagesView, CmsPageEditorView, CmsImagesView, CmsTemplatesView
 
 APIs:
@@ -99,6 +101,7 @@ APIs:
 What works:
 - Section list: drag reorder, click to select, eye toggle, drag-to-reorder (reorderSections())
 - Inspector: eyebrow/heading/subheading/body/image/CTA fields, Save Draft, Publish Live
+- Header/Footer chrome panels (footer: mission/org/socials, column titles, trust badges with caption/height/placement)
 - Live iframe preview bumped on save, desktop/tablet/mobile toggle
 - Image picker modal (Pick button)
 
@@ -175,7 +178,7 @@ What is broken/missing (priority order):
 ---
 
 ## Gotchas
-- HOME_FRAGMENT_KEYS has literal [REDACTED] string in source file. Use regex replace in Node to edit it.
+- Do not assume separate home/about page assemblers — live path is always `cms_pipeline`. Branded section overrides live only in `cms_section_catalog` → `render_home_section` / `render_about_section`.
 - companionscpas D1 != inneranimalmedia-business D1. Never confuse.
 - wrangler r2 object list syntax varies by wrangler version - use agentsam_r2_list MCP tool instead.
 - assets.companionsofcaddo.org is separate R2 custom domain - upload via dashboard Images, not wrangler.
