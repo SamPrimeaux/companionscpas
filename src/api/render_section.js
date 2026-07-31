@@ -421,7 +421,11 @@ function renderTextImage(section) {
       </div>`;
 
   return `
-<style>[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}</style>
+<style>
+[data-cpas-section="${escapeAttribute(sectionKey)}"]{background:#f5f2e9}
+[data-cpas-section="${escapeAttribute(sectionKey)}"] .story-block-img--pair{display:flex;gap:1rem;flex-wrap:wrap}
+[data-cpas-section="${escapeAttribute(sectionKey)}"] .story-block-img--pair img{flex:1 1 45%;min-width:180px;height:auto;border-radius:12px;object-fit:cover}
+</style>
 <section class="section s-light" data-cpas-section="${escapeAttribute(sectionKey)}" data-section-key="${escapeAttribute(sectionKey)}">
   <div class="container">
     <div class="story-block">
