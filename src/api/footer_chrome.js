@@ -53,11 +53,17 @@ export function normalizeTrustBadge(raw, index = 0) {
   const b = raw && typeof raw === "object" ? raw : {};
   const placement = String(b.placement || "organization").trim().toLowerCase();
   const height = Number(b.height_px);
+  const href = String(b.href || "").trim();
+  let caption = String(b.caption ?? "").trim();
+  // Backfill readable CTA for Candid rows that were saved before caption existed.
+  if (!caption && /candid\.org|guidestar\.org/i.test(href + " " + String(b.image_url || ""))) {
+    caption = "Visit our Candid Profile";
+  }
   return {
     id: String(b.id || "").trim() || newTrustBadgeId(),
     label: String(b.label || "").trim() || "Trust badge",
-    caption: String(b.caption ?? "").trim(),
-    href: String(b.href || "").trim(),
+    caption,
+    href,
     image_url: String(b.image_url || "").trim(),
     enabled: b.enabled !== false && b.enabled !== 0,
     height_px: Number.isFinite(height) && height > 0 ? Math.max(24, Math.min(160, Math.round(height))) : 72,
