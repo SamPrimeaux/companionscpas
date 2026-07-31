@@ -409,14 +409,15 @@ function renderTextImage(section) {
         ${eyebrow ? `<div class="ey-purple" data-cms-field="eyebrow">${escapeHtml(eyebrow)}</div>` : ""}
         ${heading ? `<h2 class="story-heading" data-cms-field="heading">${escapeHtml(heading)}</h2>` : ""}
         ${body ? `<p class="story-body" data-cms-field="body">${escapeHtml(body)}</p>` : ""}
-        ${ctaLabel ? `<a class="btn btn-primary" href="${safeUrl(ctaHref, "/adopt")}" data-cms-field="cta_label">${escapeHtml(ctaLabel)}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>` : ""}
+        ${ctaLabel ? renderActionCta(ctaLabel, ctaHref, ctaAction, "primary", "", { cmsField: "cta_label", className: "btn btn-primary" }) : ""}
       </div>`;
   const imgCol = mediaType === "shelter_map" && mapEmbed
     ? `<div class="story-block-img story-block-img--map" data-cms-field="image_url">
         <iframe title="${escapeAttribute(shelterName)}" src="${escapeAttribute(mapEmbed)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="border:0;width:100%;min-height:280px;border-radius:16px"></iframe>
       </div>`
-    : `<div class="story-block-img" data-cms-field="image_url">
+    : `<div class="story-block-img${imageUrl2 ? " story-block-img--pair" : ""}" data-cms-field="image_url">
         ${renderImage(imageUrl, imageAlt, "")}
+        ${imageUrl2 ? renderImage(imageUrl2, imageAlt2, "") : ""}
       </div>`;
 
   return `
