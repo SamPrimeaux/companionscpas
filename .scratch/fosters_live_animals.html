@@ -1,0 +1,131 @@
+
+<style>
+#aag-fosters_live_animals{ background:#f5f2ee; padding:clamp(48px,7vw,80px) 20px; font-family:var(--font-body,'DM Sans',system-ui,sans-serif); scroll-margin-top:96px; }
+#aag-fosters_live_animals *{ box-sizing:border-box; }
+#aag-fosters_live_animals .aag-shell{ max-width:1180px; margin:0 auto; }
+#aag-fosters_live_animals .aag-head{ display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:32px; gap:20px; flex-wrap:wrap; }
+#aag-fosters_live_animals .aag-eyebrow{ font-size:10px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:#7c3aed; margin:0 0 8px; }
+#aag-fosters_live_animals .aag-heading{ font-family:var(--font-display,'Fraunces',Georgia,serif); font-size:clamp(1.7rem,3vw,2.4rem); font-weight:700; color:#0f1623; line-height:1.1; letter-spacing:-.02em; margin:0; }
+#aag-fosters_live_animals .aag-filters{ display:flex; gap:8px; flex-wrap:wrap; }
+#aag-fosters_live_animals .aag-filter{ padding:7px 16px; border-radius:999px; border:1.5px solid rgba(15,22,35,.14); background:#fff; font-size:.82rem; font-weight:600; color:#5e6b7f; cursor:pointer; transition:all .14s; }
+#aag-fosters_live_animals .aag-filter:hover, #aag-fosters_live_animals .aag-filter.is-active{ border-color:#7c3aed; background:rgba(124,58,237,.08); color:#6d28d9; }
+#aag-fosters_live_animals .aag-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:20px; }
+#aag-fosters_live_animals .aag-card{ background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 2px 12px rgba(15,22,35,.08); transition:box-shadow .2s, transform .15s; display:flex; flex-direction:column; }
+#aag-fosters_live_animals .aag-card:hover{ box-shadow:0 8px 32px rgba(15,22,35,.13); transform:translateY(-3px); }
+#aag-fosters_live_animals .aag-card--overflow{ display:none; }
+#aag-fosters_live_animals .aag-card__img-link{ display:block; }
+#aag-fosters_live_animals .aag-card__img-wrap{ position:relative; aspect-ratio:1/1; overflow:hidden; background:#eae6df; }
+#aag-fosters_live_animals .aag-card__img{ width:100%; height:100%; object-fit:contain; object-position:center; display:block; }
+#aag-fosters_live_animals .aag-more-wrap{ grid-column:1 / -1; text-align:center; margin-top:8px; }
+#aag-fosters_live_animals .aag-more-btn{ padding:11px 26px; border-radius:999px; border:1.5px solid rgba(15,22,35,.14); background:#fff; font-size:.85rem; font-weight:700; color:#5e6b7f; cursor:pointer; transition:all .14s; }
+#aag-fosters_live_animals .aag-more-btn:hover{ border-color:#7c3aed; background:rgba(124,58,237,.08); color:#6d28d9; }
+#aag-fosters_live_animals .aag-hide-filter{ display:none; }
+#aag-fosters_live_animals .aag-status{ position:absolute; top:12px; left:12px; padding:4px 10px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; background:rgba(9,13,24,.72); color:#a78bfa; backdrop-filter:blur(6px); }
+#aag-fosters_live_animals .aag-status--foster{ color:#6ee7b7; }
+#aag-fosters_live_animals .aag-card__body{ padding:18px 20px 20px; flex:1; display:flex; flex-direction:column; }
+#aag-fosters_live_animals .aag-card__name{ font-family:var(--font-display,'Fraunces',Georgia,serif); font-size:1.15rem; font-weight:700; color:#0f1623; margin:0 0 4px; }
+#aag-fosters_live_animals .aag-card__meta{ font-size:.8rem; color:#8a94a6; margin:0 0 12px; }
+#aag-fosters_live_animals .aag-card__tags{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
+#aag-fosters_live_animals .aag-card__tag{ padding:3px 10px; border-radius:999px; background:rgba(124,58,237,.08); font-size:.74rem; font-weight:600; color:#6d28d9; }
+#aag-fosters_live_animals .aag-card__bio{ font-size:.82rem; color:#5e6b7f; line-height:1.5; margin:0 0 16px; flex:1; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+#aag-fosters_live_animals .aag-card__cta{ display:block; text-align:center; width:100%; padding:10px; border:none; border-radius:9px; background:#7c3aed; color:#fff; font-size:.86rem; font-weight:700; text-decoration:none; transition:opacity .15s; }
+#aag-fosters_live_animals .aag-card__cta:hover{ opacity:.88; }
+#aag-fosters_live_animals .aag-empty{ grid-column:1 / -1; text-align:center; padding:60px 20px; color:#8a94a6; }
+#aag-fosters_live_animals .aag-empty h3{ font-family:var(--font-display,'Fraunces',Georgia,serif); font-size:1.3rem; color:#0f1623; margin:0 0 8px; }
+@media(max-width:600px){ #aag-fosters_live_animals .aag-head{ flex-direction:column; align-items:flex-start; } }
+</style>
+<section id="aag-fosters_live_animals" data-anchor="needs-foster" class="adopt-live-gallery" data-section-key="fosters_live_animals" aria-label="Dogs needing foster">
+  <div id="needs-foster" style="position:relative;top:-80px;height:0;visibility:hidden" aria-hidden="true"></div>
+  <div class="aag-shell">
+    <div class="aag-head">
+      <div>
+        <p class="aag-eyebrow">Needs a Foster Home</p>
+        <h2 class="aag-heading">Dogs waiting for a temporary home.</h2>
+      </div>
+      
+    </div>
+    <div class="aag-grid" data-aag-grid>
+      <article class="aag-card">
+    <a class="aag-card__img-link" href="/adopt/dog/animal_sunflower_1785191326799" aria-label="View Sunflower's profile">
+      <div class="aag-card__img-wrap">
+        <img class="aag-card__img" src="https://assets.companionsofcaddo.org/static/cms/uploads/2026/07/1785120531387-Sunflower-Foster.jpg" alt="Sunflower" loading="lazy" />
+        <span class="aag-status aag-status--foster">Needs foster</span>
+      </div>
+    </a>
+    <div class="aag-card__body">
+      <h3 class="aag-card__name"><a href="/adopt/dog/animal_sunflower_1785191326799">Sunflower</a></h3>
+      <p class="aag-card__meta">Unknown</p>
+      <div class="aag-card__tags"><span class="aag-card__tag">Unknown</span></div>
+      
+      <a class="aag-card__cta" href="/adopt/dog/animal_sunflower_1785191326799">Meet Sunflower</a>
+    </div>
+  </article><article class="aag-card">
+    <a class="aag-card__img-link" href="/adopt/dog/animal_bennett_1784506284632" aria-label="View Bennett's profile">
+      <div class="aag-card__img-wrap">
+        <img class="aag-card__img" src="https://assets.companionsofcaddo.org/media/animals/animal_bennett_1784506284632/1784585046240-bennett.jpeg" alt="Bennett" loading="lazy" />
+        <span class="aag-status aag-status--foster">Needs foster</span>
+      </div>
+    </a>
+    <div class="aag-card__body">
+      <h3 class="aag-card__name"><a href="/adopt/dog/animal_bennett_1784506284632">Bennett</a></h3>
+      <p class="aag-card__meta">Male</p>
+      <div class="aag-card__tags"><span class="aag-card__tag">High</span></div>
+      <p class="aag-card__bio">In medical care. List as available once medical care is completed.</p>
+      <a class="aag-card__cta" href="/adopt/dog/animal_bennett_1784506284632">Meet Bennett</a>
+    </div>
+  </article><article class="aag-card">
+    <a class="aag-card__img-link" href="/adopt/dog/animal_delphine" aria-label="View Delphine's profile">
+      <div class="aag-card__img-wrap">
+        <img class="aag-card__img" src="https://assets.companionsofcaddo.org/static/cms/uploads/2026/06/1781880289544-delphinepic1closeup.jpg" alt="Delphine" loading="lazy" />
+        <span class="aag-status aag-status--foster">Needs foster</span>
+      </div>
+    </a>
+    <div class="aag-card__body">
+      <h3 class="aag-card__name"><a href="/adopt/dog/animal_delphine">Delphine</a></h3>
+      <p class="aag-card__meta">Terrier Mix · Female</p>
+      <div class="aag-card__tags"><span class="aag-card__tag">Unknown</span></div>
+      <p class="aag-card__bio">Delphine is a lively young pup who arrived as a stray and has thrived in foster care. She tested negative for Parvo and…</p>
+      <a class="aag-card__cta" href="/adopt/dog/animal_delphine">Meet Delphine</a>
+    </div>
+  </article>
+    </div>
+    
+  </div>
+</section>
+<script>
+(() => {
+  const root = document.getElementById("aag-fosters_live_animals");
+  if (!root || root.dataset.aagReady === "1") return;
+  root.dataset.aagReady = "1";
+  const cards = Array.from(root.querySelectorAll(".aag-card"));
+  const buttons = Array.from(root.querySelectorAll("[data-filter]"));
+  const showAllBtn = root.querySelector("[data-aag-show-all]");
+
+  function matchesFilter(card, filter) {
+    if (filter === "all") return true;
+    if (filter === "foster_needed") return !!card.querySelector(".aag-status--foster");
+    if (filter === "available") {
+      const badge = card.querySelector(".aag-status");
+      return !!(badge && badge.textContent.trim() === "Available");
+    }
+    return true;
+  }
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      buttons.forEach((b) => b.classList.toggle("is-active", b === btn));
+      const filter = btn.getAttribute("data-filter");
+      cards.forEach((card) => {
+        card.classList.toggle("aag-hide-filter", !matchesFilter(card, filter));
+      });
+    });
+  });
+
+  if (showAllBtn) {
+    showAllBtn.addEventListener("click", () => {
+      cards.forEach((card) => card.classList.remove("aag-card--overflow"));
+      showAllBtn.remove();
+    });
+  }
+})();
+</script>

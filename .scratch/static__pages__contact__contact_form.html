@@ -1,0 +1,42 @@
+<section class="contact-body" data-section-key="contact_form" data-cpas-section="contact-form">
+  <div class="container">
+    <div class="contact-form-wrap" style="max-width:40rem;margin:0 auto">
+      <h2 data-cms-field="heading">Send us a message</h2>
+      <p class="form-sub" data-cms-field="subheading">Interested in fostering, adopting, volunteering, or partnering with us? Tell us a bit about yourself.</p>
+      <form class="cf-form" id="contactForm">
+        <div class="cf-row">
+          <div class="cf-field">
+            <label for="cf_name">Name</label>
+            <input type="text" id="cf_name" name="name" placeholder="Jane Smith" required>
+          </div>
+          <div class="cf-field">
+            <label for="cf_email">Email</label>
+            <input type="email" id="cf_email" name="email" placeholder="jane@example.com" required>
+          </div>
+        </div>
+        <div class="cf-field">
+          <label for="cf_subject">I'm interested in</label>
+          <select id="cf_subject" name="subject" required>
+            <option value="" disabled selected>Choose a topic</option>
+            <option value="fostering">Fostering a dog</option>
+            <option value="adopting">Adopting a dog</option>
+            <option value="volunteering">Volunteering</option>
+            <option value="donating">Donations / Fundraising</option>
+            <option value="media">Press / Media inquiry</option>
+            <option value="other">Something else</option>
+          </select>
+        </div>
+        <div class="cf-field">
+          <label for="cf_message">Message</label>
+          <textarea id="cf_message" name="message" placeholder="Tell us a bit about yourself and what brings you here…" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary cf-submit" id="cfSubmit">Send message</button>
+      </form>
+      <div class="cf-success" id="cfSuccess">
+        <div class="cf-success-icon">🐾</div>
+        <div class="cf-success-title">Message sent.</div>
+        <div class="cf-success-msg">A volunteer will follow up by email. Follow us on Facebook and Instagram for daily updates from the shelter.</div>
+      </div>
+    </div>
+  </div>
+</section>
