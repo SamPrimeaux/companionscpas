@@ -601,7 +601,7 @@
 }
 .story-cta:hover { background: var(--purple-mid); transform: translateY(-1px); }
 
-.ways-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; }
+.ways-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 1.25rem; }
 .ways-card {
   display: flex;
   flex-direction: column;
@@ -613,7 +613,8 @@
   transition: transform 0.25s, box-shadow 0.25s;
 }
 .ways-card:hover { transform: translateY(-3px); box-shadow: 0 14px 40px rgba(28, 20, 32, 0.08); }
-.ways-card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+.ways-card img,
+.ways-card video { width: 100%; height: auto; aspect-ratio: auto; object-fit: contain; display: block; }
 .ways-card-body { padding: 1.35rem 1.5rem 1.5rem; display: flex; flex-direction: column; gap: 0.65rem; flex: 1; }
 .ways-card-body h3 { font-size: 1rem; font-weight: 700; color: var(--text-1); line-height: 1.25; }
 .ways-card-body p { font-size: 13px; color: var(--text-2); line-height: 1.65; flex: 1; }
@@ -780,7 +781,7 @@
   .mission-card { grid-template-columns: 1fr; padding: 2rem; }
   .story-block { grid-template-columns: 1fr; }
   .pillars-row { grid-template-columns: 1fr 1fr; }
-  .ways-grid { grid-template-columns: 1fr 1fr; }
+  .ways-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
   .site-footer .footer-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 760px) {

@@ -513,37 +513,105 @@ function renderCardGrid(section, blocks) {
 // "portrait" — 3:4 box, object-fit:cover. Tall format; maximizes vertical
 //   photo real-estate on cards, good for full-body animal or people shots.
 // ---------------------------------------------------------------------------
-const FEATURE_CARD_IMAGE_TEMPLATES = {
-  natural: (sk) => `[data-cpas-section="${sk}"] .ways-card-img-wrap{display:block;}
-[data-cpas-section="${sk}"] .ways-card-img-wrap img{width:100%;height:auto;display:block;border-radius:12px 12px 0 0;}`,
-
-  crop: (sk) => `[data-cpas-section="${sk}"] .ways-card-img-wrap{aspect-ratio:4/3;overflow:hidden;}
-[data-cpas-section="${sk}"] .ways-card-img-wrap img{width:100%;height:100%;object-fit:cover;object-position:center;display:block;border-radius:12px 12px 0 0;}`,
-
-  square: (sk) => `[data-cpas-section="${sk}"] .ways-card-img-wrap{aspect-ratio:1/1;overflow:hidden;}
-[data-cpas-section="${sk}"] .ways-card-img-wrap img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;border-radius:12px 12px 0 0;}`,
-
-  portrait: (sk) => `[data-cpas-section="${sk}"] .ways-card-img-wrap{aspect-ratio:3/4;overflow:hidden;}
-[data-cpas-section="${sk}"] .ways-card-img-wrap img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;border-radius:12px 12px 0 0;}`,
+const FEATURE_CARD_DISPLAY_ALIASES = {
+  natural: "natural",
+  contain: "natural",
+  crop: "crop",
+  "4:3": "crop",
+  "4/3": "crop",
+  square: "square",
+  "1:1": "square",
+  portrait: "portrait",
+  "3:4": "portrait",
+  "3/4": "portrait",
+  portrait_45: "portrait_45",
+  "4:5": "portrait_45",
+  "4/5": "portrait_45",
+  story: "story",
+  "9:16": "story",
+  "9/16": "story",
 };
+
+function resolveFeatureImageDisplay(raw, fallback = "natural") {
+  const key = String(raw || "").trim().toLowerCase();
+  return FEATURE_CARD_DISPLAY_ALIASES[key] || fallback;
+}
+
+function isVideoUrl(url) {
+  const raw = String(url || "").split("?")[0].toLowerCase();
+  return /\.(mp4|webm|mov|m4v)$/.test(raw) || /\/media\/videos\//.test(raw);
+}
+
+function featureMediaCss(selector, mode) {
+  const media = `${selector} img,${selector} video`;
+  if (mode === "crop") {
+    return `${selector}{aspect-ratio:4/3;overflow:hidden;}
+${media}{width:100%;height:100%;object-fit:cover;object-position:center;aspect-ratio:auto;display:block;border-radius:12px 12px 0 0;}`;
+  }
+  if (mode === "square") {
+    return `${selector}{aspect-ratio:1/1;overflow:hidden;}
+${media}{width:100%;height:100%;object-fit:cover;object-position:center top;aspect-ratio:auto;display:block;border-radius:12px 12px 0 0;}`;
+  }
+  if (mode === "portrait") {
+    return `${selector}{aspect-ratio:3/4;overflow:hidden;}
+${media}{width:100%;height:100%;object-fit:cover;object-position:center top;aspect-ratio:auto;display:block;border-radius:12px 12px 0 0;}`;
+  }
+  if (mode === "portrait_45") {
+    return `${selector}{aspect-ratio:4/5;overflow:hidden;}
+${media}{width:100%;height:100%;object-fit:cover;object-position:center top;aspect-ratio:auto;display:block;border-radius:12px 12px 0 0;}`;
+  }
+  if (mode === "story") {
+    return `${selector}{aspect-ratio:9/16;overflow:hidden;}
+${media}{width:100%;height:100%;object-fit:cover;object-position:center top;aspect-ratio:auto;display:block;border-radius:12px 12px 0 0;}`;
+  }
+  return `${selector}{display:block;aspect-ratio:auto;}
+${media}{width:100%;height:auto;aspect-ratio:auto;object-fit:contain;display:block;border-radius:12px 12px 0 0;}`;
+}
+
+function featureGridCss(sk, columns, count) {
+  const col = String(columns || "auto").trim().toLowerCase();
+  const n = Number(count) || 0;
+  let desktop;
+  if (col === "1" || (col === "auto" && n <= 1)) {
+    desktop = `[data-cpas-section="${sk}"] .ways-grid{grid-template-columns:minmax(0,min(100%,560px))!important;justify-content:center;justify-items:stretch}`;
+  } else if (["2", "3", "4"].includes(col)) {
+    desktop = `[data-cpas-section="${sk}"] .ways-grid{grid-template-columns:repeat(${col},minmax(0,1fr))!important}`;
+  } else {
+    desktop = `[data-cpas-section="${sk}"] .ways-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))!important}`;
+  }
+  return `${desktop}
+@media (max-width:760px){[data-cpas-section="${sk}"] .ways-grid{grid-template-columns:1fr!important;justify-items:stretch}}`;
+}
+
+function renderFeatureMedia(src, alt, bk, display) {
+  if (!src) return "";
+  const mode = escapeAttribute(display || "natural");
+  const inner = isVideoUrl(src)
+    ? `<video src="${src}" controls playsinline preload="metadata" aria-label="${escapeAttribute(alt || "")}"></video>`
+    : `<img src="${src}" alt="${escapeAttribute(alt || "")}" loading="lazy">`;
+  return `<div class="ways-card-img-wrap" data-cms-field="block_image" data-cms-block="${bk}" data-display="${mode}">${inner}</div>`;
+}
 
 function renderFeatureCards(section, blocks) {
   const sectionKey = pickText(section, ["section_key"]);
   const sk = escapeAttribute(sectionKey);
   const config = safeJson(section?.config_json, {});
+  const sorted = sortBlocks(blocks);
+  const sectionDisplay = resolveFeatureImageDisplay(config.image_display, "natural");
+  const usedDisplays = new Set([sectionDisplay]);
 
-  // Resolve image_display template — "natural" is default for curated card sets.
-  const rawDisplay = text(config.image_display).trim().toLowerCase();
-  const imageDisplay = FEATURE_CARD_IMAGE_TEMPLATES[rawDisplay] ? rawDisplay : "natural";
-  const imageCss = FEATURE_CARD_IMAGE_TEMPLATES[imageDisplay](sk);
-
-  const cards = sortBlocks(blocks).map((block) => {
+  const cards = sorted.map((block) => {
     const parts = cardParts(block);
     const imageSrc = parts.imageUrl ? safeUrl(parts.imageUrl, "") : "";
     const bk = escapeAttribute(pickText(block, ["block_key"]));
+    const blockDisplay = resolveFeatureImageDisplay(parts.blockConfig?.image_display, sectionDisplay);
+    usedDisplays.add(blockDisplay);
+    const mediaHtml = imageSrc
+      ? renderFeatureMedia(imageSrc, parts.imageAlt || parts.title || "", bk, blockDisplay)
+      : "";
     return `
     <article class="ways-card" data-cms-field="block_title" data-cms-block="${bk}">
-      ${imageSrc ? `<div class="ways-card-img-wrap" data-cms-field="block_image" data-cms-block="${bk}"><img src="${imageSrc}" alt="${escapeAttribute(parts.imageAlt || parts.title || "")}" loading="lazy"></div>` : ""}
+      ${mediaHtml}
       <div class="ways-card-body">
         ${parts.title ? `<h3 data-cms-field="block_title" data-cms-block="${bk}">${escapeHtml(parts.title)}</h3>` : ""}
         ${parts.body ? `<p data-cms-field="block_body" data-cms-block="${bk}">${escapeHtml(parts.body)}</p>` : ""}
@@ -552,15 +620,18 @@ function renderFeatureCards(section, blocks) {
     </article>`.trim();
   }).join("");
 
+  const displayCss = [...usedDisplays].map((mode) => {
+    const sel = mode === sectionDisplay
+      ? `[data-cpas-section="${sk}"] .ways-card-img-wrap`
+      : `[data-cpas-section="${sk}"] .ways-card-img-wrap[data-display="${mode}"]`;
+    return featureMediaCss(sel, mode);
+  }).join("\n");
+
   const hasSubheading = Boolean(pickText(section, ["subheading"]));
   const includeBody = !hasSubheading;
   const anchorId = sectionKey === "adoptable_dogs" ? ' id="adoptable-dogs"' : "";
-
-  // Background: intentional two-stop gradient from the brand purple (very faint)
-  // at the top edge into the warm parchment neutral — not accidental, not flat.
-  // The purple stop is low-opacity so it reads as a tint, not a color block.
-  // Bottom matches #f5f2e9 so the section bleeds cleanly into whatever follows.
   const sectionBg = `linear-gradient(175deg,rgba(123,47,190,.07) 0%,#f5f2e9 38%)`;
+  const gridCss = featureGridCss(sk, config.columns, sorted.length);
 
   return `
 <style>
@@ -572,7 +643,8 @@ function renderFeatureCards(section, blocks) {
 [data-cpas-section="${sk}"] .ways-card:hover{
   box-shadow:0 10px 36px rgba(15,22,35,.12);transform:translateY(-3px);
 }
-${imageCss}
+${gridCss}
+${displayCss}
 [data-cpas-section="${sk}"] .ways-card-body{padding:20px 22px 22px}
 [data-cpas-section="${sk}"] .ways-card-body h3{margin:0 0 8px}
 [data-cpas-section="${sk}"] .ways-card-body p{margin:0 0 16px}
@@ -585,7 +657,7 @@ ${imageCss}
     <div class="section-intro-center">
       ${renderSectionHeader(section, { includeBody })}
     </div>
-    <div class="ways-grid${blocks.length > 3 ? " ways-grid--auto" : ""}">
+    <div class="ways-grid ways-grid--auto">
       ${cards || `<p class="mission-body">No features available.</p>`}
     </div>
   </div>

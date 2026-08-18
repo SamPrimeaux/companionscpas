@@ -20,6 +20,7 @@ import {
   hydrateRawHtmlSectionForEditor,
 } from "./cms_raw_html_storage.js";
 import { clampHeaderLogoPx } from "./brand_tokens.js";
+import { loadEditorCatalog } from "./cms_editor_config.js";
 const TENANT_ID = "tenant_companionscpas";
 
 const R2_MEDIA_FOLDERS = new Set([
@@ -790,23 +791,10 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
   if (!env.DB) return json({ error: "DB binding missing" }, 500);
 
   if (path === "/api/cms/bootstrap" && method === "GET") {
-    const [pages, assets, brand, nav, themes] = await Promise.all([
-      env.DB.prepare("SELECT * FROM cms_pages WHERE tenant_id = ? ORDER BY sort_order, route_path").bind(TENANT_ID).all().catch(() => ({ results: [] })),
-      env.DB.prepare("SELECT * FROM cms_assets WHERE tenant_id = ? AND status != 'archived' ORDER BY updated_at DESC, created_at DESC LIMIT 200").bind(TENANT_ID).all().catch(() => ({ results: [] })),
-      env.DB.prepare("SELECT * FROM cms_brand_settings WHERE tenant_id = ? LIMIT 1").bind(TENANT_ID).first().catch(() => null),
-      env.DB.prepare("SELECT * FROM cms_navigation_items WHERE tenant_id = ? ORDER BY sort_order, label").bind(TENANT_ID).all().catch(() => ({ results: [] })),
-      env.DB.prepare("SELECT * FROM cms_themes WHERE tenant_id = ? ORDER BY is_active DESC, updated_at DESC LIMIT 20").bind(TENANT_ID).all().catch(() => ({ results: [] })),
-    ]);
-
-    return json({
-      success: true,
-      tenant_id: TENANT_ID,
-      pages: pages.results || [],
-      assets: assets.results || [],
-      brand,
-      nav: nav.results || [],
-      themes: themes.results || []
-    });
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+    const catalog = await loadEditorCatalog(env);
+    return json({ success: true, ...catalog });
   }
 
   // Donation payment URLs — CMS-editable without worker redeploy
@@ -977,27 +965,37 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     }
   }
 
-  // GET /api/cms/section/templates — addable section + form catalog (editor Add SSOT)
+  // GET /api/cms/section/templates — addable section catalog from D1 schemas
   if (path === "/api/cms/section/templates" && method === "GET") {
     const cmsUser = await requireCmsUser(request, env, sessionUser);
     if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
-    const { ADDABLE_SECTION_TYPES } = await import("./cms_section_catalog.js");
     const {
-      SECTION_TEMPLATE_META,
       FORM_TEMPLATE_ENTRIES,
     } = await import("./cms_section_preview_fixtures.js");
-    const sections = (ADDABLE_SECTION_TYPES || []).map((row) => {
-      const meta = SECTION_TEMPLATE_META[row.type] || { category: "content", icon: "layers" };
-      return {
-        type: row.type,
-        label: row.label,
-        desc: row.desc,
-        kind: "section",
-        category: meta.category,
-        icon: meta.icon,
-        preview_url: `/api/cms/section/preview?type=${encodeURIComponent(row.type)}`,
-      };
-    });
+
+    let sections = [];
+    try {
+      const catalog = await loadEditorCatalog(env);
+      sections = catalog.templates || [];
+    } catch (err) {
+      console.warn("[cms/section/templates] D1 catalog failed:", err?.message || err);
+    }
+    if (!sections.length) {
+      const { ADDABLE_SECTION_TYPES } = await import("./cms_section_catalog.js");
+      const { SECTION_TEMPLATE_META } = await import("./cms_section_preview_fixtures.js");
+      sections = (ADDABLE_SECTION_TYPES || []).map((row) => {
+        const meta = SECTION_TEMPLATE_META[row.type] || { category: "content", icon: "layers" };
+        return {
+          type: row.type,
+          label: row.label,
+          desc: row.desc,
+          kind: "section",
+          category: meta.category,
+          icon: meta.icon,
+          preview_url: `/api/cms/section/preview?type=${encodeURIComponent(row.type)}`,
+        };
+      });
+    }
     return json({
       success: true,
       sections,
@@ -1083,7 +1081,6 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
         cta_href = excluded.cta_href,
         cta_secondary_label = excluded.cta_secondary_label,
         cta_secondary_href = excluded.cta_secondary_href,
-        sort_order = excluded.sort_order,
         is_visible = excluded.is_visible,
         config_json = excluded.config_json,
         updated_at = datetime('now')
@@ -1164,7 +1161,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     await env.DB.prepare("UPDATE cms_pages SET updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?")
       .bind(TENANT_ID, page_route).run().catch(() => {});
 
-    await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`);
+    await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`, `page:${page_route}`);
 
     let fragmentSync = null;
     try {
@@ -1210,7 +1207,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       .run()
       .catch(() => {});
 
-    await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`);
+    await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`, `page:${page_route}`);
 
     let fragmentSync = null;
     try {
@@ -1288,7 +1285,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     await env.DB.prepare("UPDATE cms_pages SET updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?")
       .bind(TENANT_ID, page_route).run().catch(() => {});
 
-    await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`);
+    await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`, `page:${page_route}`);
 
     let fragmentSync = null;
     try {
@@ -1301,6 +1298,73 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
     }
 
     return json({ success: true, page_route, section_key, block_key, fragment_sync: fragmentSync });
+  }
+
+  if (path === "/api/cms/block/delete" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const page_route = normalizeRouteInput(data.page_route || "/");
+    const section_key = String(data.section_key || "").trim();
+    const block_key = String(data.block_key || "").trim();
+    if (!page_route || !section_key || !block_key) {
+      return json({ success: false, error: "page_route, section_key, and block_key required" }, 400);
+    }
+
+    await env.DB.prepare(`
+      DELETE FROM cms_page_content_blocks
+      WHERE tenant_id = ? AND page_route = ? AND section_key = ? AND block_key = ?
+    `).bind(TENANT_ID, page_route, section_key, block_key).run();
+
+    await env.DB.prepare("UPDATE cms_pages SET updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?")
+      .bind(TENANT_ID, page_route).run().catch(() => {});
+    await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`, `page:${page_route}`);
+
+    let fragmentSync = null;
+    try {
+      if (isFragmentPageRoute(page_route)) {
+        fragmentSync = await syncFragmentCmsToR2(env, page_route);
+      }
+    } catch (err) {
+      console.warn("[cms/block/delete] R2 sync failed:", err?.message || err);
+      fragmentSync = { error: String(err?.message || err) };
+    }
+
+    return json({ success: true, page_route, section_key, block_key, fragment_sync: fragmentSync });
+  }
+
+  if (path === "/api/cms/blocks/reorder" && method === "POST") {
+    const cmsUser = await requireCmsUser(request, env, sessionUser);
+    if (!cmsUser) return json({ success: false, error: "Not authenticated" }, 401);
+
+    const data = await body(request);
+    const page_route = normalizeRouteInput(data.page_route || "/");
+    const section_key = String(data.section_key || "").trim();
+    const keys = Array.isArray(data.block_keys)
+      ? data.block_keys.map((k) => String(k || "").trim()).filter(Boolean)
+      : [];
+    if (!page_route || !section_key) return json({ success: false, error: "page_route and section_key required" }, 400);
+    if (!keys.length) return json({ success: false, error: "block_keys required" }, 400);
+
+    for (let i = 0; i < keys.length; i++) {
+      await env.DB.prepare(`
+        UPDATE cms_page_content_blocks
+        SET sort_order = ?, updated_at = datetime('now')
+        WHERE tenant_id = ? AND page_route = ? AND section_key = ? AND block_key = ?
+      `).bind((i + 1) * 10, TENANT_ID, page_route, section_key, keys[i]).run();
+    }
+
+    await bustCache(env, `sections:${TENANT_ID}:${page_route}`, `bootstrap:${TENANT_ID}`, `page:${page_route}`);
+    let fragmentSync = null;
+    try {
+      if (isFragmentPageRoute(page_route)) {
+        fragmentSync = await syncFragmentCmsToR2(env, page_route);
+      }
+    } catch (err) {
+      fragmentSync = { error: String(err?.message || err) };
+    }
+    return json({ success: true, page_route, section_key, block_keys: keys, fragment_sync: fragmentSync });
   }
 
   if (path === "/api/cms/page/save" && method === "POST") {
@@ -1467,7 +1531,8 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
                      eyebrow, body, image_url, cta_label, cta_href,
                      sort_order, is_visible, config_json, created_at, updated_at
               FROM cms_page_sections
-              WHERE tenant_id = ?`;
+              WHERE tenant_id = ?
+                AND (deleted_at IS NULL OR deleted_at = '')`;
     const binds = [TENANT_ID];
     if (pageRoute) { q += " AND page_route = ?"; binds.push(pageRoute); }
     q += " ORDER BY page_route, sort_order";

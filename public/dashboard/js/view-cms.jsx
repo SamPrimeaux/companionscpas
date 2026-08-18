@@ -17,10 +17,10 @@ const CMS_CTA_ACTIONS = [
   { id: "custom", label: "Custom URL…", href: null },
 ];
 
-function cmsMatchCtaAction(href) {
+function cmsMatchCtaAction(href, actions = CMS_CTA_ACTIONS) {
   const h = String(href || "").trim();
   if (!h) return "custom";
-  const found = CMS_CTA_ACTIONS.find((a) => a.href && a.href === h);
+  const found = (actions || CMS_CTA_ACTIONS).find((a) => a.href && a.href === h);
   return found ? found.id : "custom";
 }
 
@@ -783,6 +783,15 @@ const CMS_SECTION_TYPES = [
   { type:'raw_html', label:'Custom Code', desc:'Paste HTML or embed from a URL' },
 ];
 
+const CMS_IMAGE_DISPLAY_PRESETS = [
+  { value: 'natural', label: 'Natural' },
+  { value: 'crop', label: '4:3' },
+  { value: 'square', label: '1:1' },
+  { value: 'portrait', label: '3:4' },
+  { value: 'portrait_45', label: '4:5' },
+  { value: 'story', label: '9:16' },
+];
+
 function useBp() {
   const [bp, setBp] = React.useState(() => window.innerWidth < 768 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop');
   React.useEffect(() => {
@@ -855,6 +864,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [busy, setBusy] = React.useState(false);
   const [dragKey, setDragKey] = React.useState(null);
   const [dragOverKey, setDragOverKey] = React.useState(null);
+  const [editorCatalog, setEditorCatalog] = React.useState({
+    cta_actions: CMS_CTA_ACTIONS,
+    cdn_base: R2_CDN_BASE,
+    templates: [],
+  });
   const [showImagePicker, setShowImagePicker] = React.useState(false);
   const [imageSearch, setImageSearch] = React.useState('');
   const [assets, setAssets] = React.useState([]);
@@ -878,8 +892,12 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [inspectorCollapsed, setInspectorCollapsed] = React.useState(true);
   const [hasUnsaved, setHasUnsaved] = React.useState(false);
   const imagePickTargetRef = React.useRef({ kind: 'section' });
+  const dragKeyRef = React.useRef(null);
   const pageSwitcherRef = React.useRef(null);
   const notify = (t, type='ok') => cmsNotify(setNotice, t, type);
+  const ctaActions = (editorCatalog.cta_actions && editorCatalog.cta_actions.length)
+    ? editorCatalog.cta_actions
+    : CMS_CTA_ACTIONS;
 
   const sortedSections = React.useMemo(() => [...(pageData.sections || [])].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)), [pageData.sections]);
   const selected = React.useMemo(() => {
@@ -1119,6 +1137,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       if (bd.success || bd.brand) {
         let cfg = {}; try { cfg = JSON.parse(bd.brand?.config_json || '{}'); } catch {}
         setActiveFont(cfg.active_font_preset || 'fraunces_dm');
+        setEditorCatalog({
+          cta_actions: Array.isArray(bd.cta_actions) && bd.cta_actions.length ? bd.cta_actions : CMS_CTA_ACTIONS,
+          cdn_base: bd.cdn_base || R2_CDN_BASE,
+          templates: Array.isArray(bd.templates) ? bd.templates : [],
+        });
       }
       if (brandData.brand) applyChromeBrand(brandData.brand);
       bumpPreview();
@@ -1226,6 +1249,14 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     }));
   };
 
+  const setBlockConfigPatch = (patch) => {
+    if (!selectedBlock) return;
+    let cfg = {};
+    try { cfg = JSON.parse(selectedBlock.config_json || '{}'); } catch { cfg = {}; }
+    const nextCfg = { ...cfg, ...patch };
+    setBlockField('config_json', JSON.stringify(nextCfg));
+  };
+
   const saveSelectedBlock = async (silent = false) => {
     if (!selectedBlock || !selected) return;
     setBusy(true);
@@ -1250,6 +1281,124 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       notify(e.message, 'error');
     }
     setBusy(false);
+  };
+
+  const persistBlock = async (block) => {
+    const res = await fetch('/api/cms/block/save', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        block: {
+          ...block,
+          page_route: route,
+          section_key: selected?.section_key || block.section_key,
+        },
+      }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!d.success) throw new Error(d.error || 'Block save failed');
+  };
+
+  const addCard = async () => {
+    if (!selected) return;
+    const existing = (pageData.blocks || []).filter(
+      (b) => cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(selected.section_key)
+    );
+    const maxOrder = existing.reduce((m, b) => Math.max(m, Number(b.sort_order) || 0), 0);
+    const block_key = `card_${Date.now()}`;
+    setBusy(true);
+    try {
+      await persistBlock({
+        page_route: route,
+        section_key: selected.section_key,
+        block_key,
+        block_type: 'card',
+        title: 'New card',
+        body: '',
+        image_url: '',
+        sort_order: maxOrder + 10,
+        is_visible: 1,
+        config_json: '{}',
+      });
+      await loadPage();
+      setSelectedBlockKey(block_key);
+      setSelectedField('block_title');
+      notify('Card added');
+    } catch (e) {
+      notify(e.message, 'error');
+    }
+    setBusy(false);
+  };
+
+  const deleteCard = async (block) => {
+    if (!selected || !block) return;
+    if (!window.confirm('Remove this card from the section?')) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/cms/block/delete', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          page_route: route,
+          section_key: selected.section_key,
+          block_key: block.block_key,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.success) throw new Error(d.error || 'Could not delete card');
+      if (selectedBlockKey === block.block_key) {
+        setSelectedBlockKey(null);
+        setSelectedField(null);
+      }
+      await loadPage();
+      notify('Card removed');
+    } catch (e) {
+      notify(e.message, 'error');
+    }
+    setBusy(false);
+  };
+
+  const nudgeCard = async (blockKey, dir) => {
+    if (!selected) return;
+    const list = [...(pageData.blocks || [])]
+      .filter((b) => cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(selected.section_key))
+      .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+    const i = list.findIndex((b) => b.block_key === blockKey);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    const next = [...list];
+    const [moved] = next.splice(i, 1);
+    next.splice(j, 0, moved);
+    const keys = next.map((b) => b.block_key);
+    const prev = pageData.blocks;
+    setPageData((p) => ({
+      ...p,
+      blocks: (p.blocks || []).map((b) => {
+        if (cmsNormalizeSectionKey(b.section_key) !== cmsNormalizeSectionKey(selected.section_key)) return b;
+        const idx = keys.indexOf(b.block_key);
+        return idx >= 0 ? { ...b, sort_order: (idx + 1) * 10 } : b;
+      }),
+    }));
+    try {
+      const res = await fetch('/api/cms/blocks/reorder', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          page_route: route,
+          section_key: selected.section_key,
+          block_keys: keys,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.success) throw new Error(d.error || 'Card reorder failed');
+      bumpPreview();
+    } catch (e) {
+      setPageData((p) => ({ ...p, blocks: prev }));
+      notify(e.message, 'error');
+    }
   };
 
   const publishPage = async () => {
@@ -1356,6 +1505,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const prevSections = pageData.sections;
     setPageData(prev => ({ ...prev, sections:reordered }));
     setDragKey(null); setDragOverKey(null);
+    dragKeyRef.current = null;
     try {
       const res = await fetch('/api/cms/sections/reorder', {
         method: 'POST',
@@ -1376,6 +1526,14 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     }
   };
 
+  const nudgeSection = (key, dir) => {
+    const list = sortedSections;
+    const i = list.findIndex((s) => s.section_key === key);
+    const target = list[i + dir];
+    if (i < 0 || !target) return;
+    reorderSections(key, target.section_key);
+  };
+
   const addSection = async (type) => {
     const maxOrder = sortedSections.reduce((m,s)=>Math.max(m, Number(s.sort_order)||0), 0);
     const newKey = `${type}_${cmsSlugForKey(route)}_${Date.now()}`;
@@ -1390,10 +1548,42 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       sort_order: maxOrder + 10,
       is_visible: 1,
       tenant_id: 'tenant_companionscpas',
-      ...(isRawHtml ? { config_json: JSON.stringify({ html_source: 'r2', html: '', r2_key: '', source_url: '' }) } : {}),
+      ...(isRawHtml
+        ? { config_json: JSON.stringify({ html_source: 'r2', html: '', r2_key: '', source_url: '' }) }
+        : type === 'feature_cards'
+          ? { config_json: JSON.stringify({ image_display: 'natural', columns: 'auto' }) }
+          : {}),
     };
     setBusy(true);
-    try { await saveSectionObject(section, true); setShowAddSection(false); await loadPage(); setSelectedKey(newKey); setMobileTab('edit'); notify('Section added'); }
+    try {
+      await saveSectionObject(section, true);
+      if (['feature_cards', 'card_grid', 'home_pillars'].includes(type)) {
+        await fetch('/api/cms/block/save', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            block: {
+              page_route: route,
+              section_key: newKey,
+              block_key: 'card_1',
+              block_type: 'card',
+              title: 'New card',
+              body: '',
+              image_url: '',
+              sort_order: 10,
+              is_visible: 1,
+              config_json: '{}',
+            },
+          }),
+        });
+      }
+      setShowAddSection(false);
+      await loadPage();
+      setSelectedKey(newKey);
+      setMobileTab('edit');
+      notify('Section added');
+    }
     catch(e) { notify(e.message, 'error'); }
     setBusy(false);
   };
@@ -1484,6 +1674,17 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const target = imagePickTargetRef.current || { kind: 'section' };
     if (target.kind === 'config_card' && target.cardId) {
       patchConfigCard(target.cardId, { image: url });
+    } else if (target.kind === 'block' && target.blockKey) {
+      setPageData((prev) => ({
+        ...prev,
+        blocks: (prev.blocks || []).map((b) =>
+          b.block_key === target.blockKey ? { ...b, image_url: url } : b
+        ),
+      }));
+      const block = (pageData.blocks || []).find((b) => b.block_key === target.blockKey);
+      if (block) {
+        persistBlock({ ...block, image_url: url }).then(() => bumpPreview()).catch((e) => notify(e.message, 'error'));
+      }
     } else {
       setFieldAndSave('image_url', url);
     }
@@ -1820,22 +2021,53 @@ function CmsPageEditorView({ pageId, onNavigate }) {
               return React.createElement('div', {
                 key:s.section_key,
                 id:'cms-section-row-' + s.section_key,
-                draggable:true,
-                onDragStart:()=>setDragKey(s.section_key),
-                onDragOver:e=>{ e.preventDefault(); setDragOverKey(s.section_key); },
-                onDrop:e=>{ e.preventDefault(); reorderSections(dragKey, s.section_key); },
+                onDragOver:e=>{ e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; setDragOverKey(s.section_key); },
+                onDrop:e=>{
+                  e.preventDefault();
+                  const from = dragKeyRef.current || (e.dataTransfer && e.dataTransfer.getData('text/plain')) || dragKey;
+                  reorderSections(from, s.section_key);
+                },
                 onClick:()=>{
                   selectSection(s.section_key, { clearUnsaved: true });
                 },
-                style:{ display:'grid', gridTemplateColumns:'18px minmax(0,1fr) auto 28px 28px', alignItems:'center', gap:8, padding:'10px 8px', marginBottom:6, borderRadius:12, cursor:'pointer', border:`2px solid ${active ? C.purple : dragOverKey === s.section_key ? C.purple + '55' : C.border}`, borderLeft:`5px solid ${active ? C.purple : color}`, background:active ? C.purpleDim : C.bg, opacity:hidden ? .55 : 1, boxShadow: active ? `0 0 0 2px ${C.purple}44` : 'none', transition:'all 0.12s' }
+                style:{ display:'grid', gridTemplateColumns:'18px minmax(0,1fr) auto 22px 22px 28px 28px', alignItems:'center', gap:6, padding:'10px 8px', marginBottom:6, borderRadius:12, cursor:'pointer', border:`2px solid ${active ? C.purple : dragOverKey === s.section_key ? C.purple + '55' : C.border}`, borderLeft:`5px solid ${active ? C.purple : color}`, background:active ? C.purpleDim : C.bg, opacity:hidden ? .55 : 1, boxShadow: active ? `0 0 0 2px ${C.purple}44` : 'none', transition:'all 0.12s' }
               },
-                React.createElement('span', { style:{ color:C.textMut, fontSize:14, cursor:'grab' } }, '≡'),
+                React.createElement('span', {
+                  draggable: true,
+                  title: 'Drag to reorder',
+                  onDragStart: (e) => {
+                    e.stopPropagation();
+                    dragKeyRef.current = s.section_key;
+                    setDragKey(s.section_key);
+                    try {
+                      e.dataTransfer.setData('text/plain', s.section_key);
+                      e.dataTransfer.effectAllowed = 'move';
+                    } catch (_) {}
+                  },
+                  onDragEnd: () => {
+                    dragKeyRef.current = null;
+                    setDragKey(null);
+                    setDragOverKey(null);
+                  },
+                  onClick: (e) => e.stopPropagation(),
+                  style:{ color:C.textMut, fontSize:14, cursor:'grab', display:'flex', alignItems:'center', justifyContent:'center' }
+                }, '≡'),
                 React.createElement('div', { style:{ minWidth:0 } },
                   React.createElement('div', { style:{ color:active ? C.purpleL : C.text, fontSize:12, fontWeight:800, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:hidden ? 'line-through' : 'none' } }, s.heading || s.section_key),
                   active && React.createElement('div', { style:{ fontSize:9, fontWeight:900, color:C.purpleL, letterSpacing:'.1em', textTransform:'uppercase', marginTop:2 } }, 'EDITING'),
                   React.createElement('div', { style:{ color:active ? C.purple : C.textMut, fontSize:10, fontFamily:'var(--font-mono)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, s.section_key)
                 ),
                 cmsTypeBadge(s.section_type),
+                React.createElement('button', {
+                  title: 'Move up',
+                  onClick: (e) => { e.stopPropagation(); nudgeSection(s.section_key, -1); },
+                  style: { width:22, height:22, border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, color:C.textSec, cursor:'pointer', fontSize:11, lineHeight:1 }
+                }, '↑'),
+                React.createElement('button', {
+                  title: 'Move down',
+                  onClick: (e) => { e.stopPropagation(); nudgeSection(s.section_key, 1); },
+                  style: { width:22, height:22, border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, color:C.textSec, cursor:'pointer', fontSize:11, lineHeight:1 }
+                }, '↓'),
                 React.createElement('button', { title:hidden ? 'Show section' : 'Hide section', onClick:e=>{ e.stopPropagation(); toggleVisible(s); }, style:{ width:28, height:28, border:`1px solid ${C.border}`, borderRadius:8, background:C.surface, color:hidden ? C.textMut : C.purpleL, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' } }, React.createElement(Icon, { name:hidden ? 'eyeOff' : 'eye', size:13 })),
                 React.createElement('button', {
                   title: 'Delete section',
@@ -2185,8 +2417,22 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       },
       style: { width:'100%', height:'100%', border:0, display:'block', background:'#fff' }
     });
+    const banner = React.createElement('div', {
+      style: {
+        flexShrink: 0,
+        padding: '7px 12px',
+        fontSize: 11,
+        color: C.textSec,
+        background: C.surface,
+        borderBottom: `1px solid ${C.border}`,
+        lineHeight: 1.4,
+      }
+    }, 'Preview is live from D1. Drag sections in the left rail (or use ↑↓). Publish Live updates the public site.');
+    const framed = React.createElement('div', {
+      style: { display:'flex', flexDirection:'column', width:'100%', height:'100%', minHeight:0 }
+    }, banner, React.createElement('div', { style:{ flex:1, minHeight:0 } }, iframe));
     if (isMobile && mobileTab === 'preview') {
-      return React.createElement('div', { className:'cms-canvas-stage', style:{ height:'calc(100vh - 110px)', minHeight:0 } }, iframe);
+      return React.createElement('div', { className:'cms-canvas-stage', style:{ height:'calc(100vh - 110px)', minHeight:0 } }, framed);
     }
     // Desktop/tablet: fill canvas column at 100% scale. Tablet/mobile modes only cap width (no zoom).
     return React.createElement('div', {
@@ -2210,7 +2456,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           overflow: 'hidden',
           boxShadow: deviceWidth ? '0 0 0 1px rgba(26,22,34,0.08)' : 'none'
         }
-      }, iframe)
+      }, framed)
     );
   }
 
@@ -2704,11 +2950,33 @@ function CmsPageEditorView({ pageId, onNavigate }) {
             ),
             React.createElement('div', null,
               cmsFieldLabel('Image URL'),
-              cmsTextInput(selectedBlock.image_url, v => setBlockField('image_url', v), () => saveSelectedBlock(true), 'https://assets.companionsofcaddo.org/...', true)
+              React.createElement('div', { style:{ display:'flex', gap:8 } },
+                React.createElement('div', { style:{ flex:1 } },
+                  cmsTextInput(selectedBlock.image_url, v => setBlockField('image_url', v), () => saveSelectedBlock(true), (editorCatalog.cdn_base || R2_CDN_BASE) + '/...', true)
+                ),
+                React.createElement(Btn, {
+                  size:'sm', variant:'secondary', icon:'image',
+                  onClick: () => openImagePicker({ kind: 'block', blockKey: selectedBlock.block_key }),
+                }, 'Pick')
+              )
             ),
             selectedBlock.image_url && React.createElement('div', { style:{ width:'100%', maxHeight:220, borderRadius:12, border:`1px solid ${C.border}`, background:C.bg, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center' } },
-              React.createElement('img', { src: selectedBlock.image_url, alt: '', style:{ width:'100%', height:'auto', maxHeight:220, objectFit:'contain', display:'block' } })
-            )
+              /\.(mp4|webm|mov)(\?|$)/i.test(String(selectedBlock.image_url || ''))
+                ? React.createElement('video', { src: selectedBlock.image_url, controls: true, playsInline: true, style:{ width:'100%', height:'auto', maxHeight:220, display:'block' } })
+                : React.createElement('img', { src: selectedBlock.image_url, alt: '', style:{ width:'100%', height:'auto', maxHeight:220, objectFit:'contain', display:'block' } })
+            ),
+            renderPresetRow('Card crop', (() => {
+              let cfg = {};
+              try { cfg = JSON.parse(selectedBlock.config_json || '{}'); } catch { cfg = {}; }
+              return cfg.image_display || '';
+            })(), [{ value: '', label: 'Section default' }, ...CMS_IMAGE_DISPLAY_PRESETS], (v) => {
+              setBlockConfigPatch({ image_display: v });
+              let cfg = {};
+              try { cfg = JSON.parse(selectedBlock.config_json || '{}'); } catch { cfg = {}; }
+              persistBlock({ ...selectedBlock, config_json: JSON.stringify({ ...cfg, image_display: v }) })
+                .then(() => { bumpPreview(); setHasUnsaved(false); })
+                .catch((e) => notify(e.message, 'error'));
+            })
           )
         : React.createElement('div', { style:{ color:C.textMut, fontSize:13 } }, 'Block not found in page data. Try reloading the editor.')
     );
@@ -3005,30 +3273,49 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         )
       ),
       usesCards && React.createElement('div', { style:{ display:'grid', gap:10 } },
-        React.createElement('h4', { style:groupTitleStyle() }, 'Cards in this section'),
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 } },
+          React.createElement('h4', { style:groupTitleStyle() }, 'Cards in this section'),
+          React.createElement(Btn, { size:'sm', variant:'secondary', onClick: addCard, disabled: busy }, 'Add card')
+        ),
+        React.createElement('div', { style:{ fontSize:12, color:C.textMut, lineHeight:1.45 } },
+          'One card is enough. Use crop presets for flyers (this 5K art is 3:4).'
+        ),
+        renderPresetRow('Image crop', cfg.image_display || 'natural', CMS_IMAGE_DISPLAY_PRESETS, (v) => setConfigPatch({ image_display: v })),
+        renderPresetRow('Cards per row', String(cfg.columns || 'auto'), [
+          { value:'1', label:'1' }, { value:'auto', label:'Auto' }, { value:'2', label:'2' }, { value:'3', label:'3' }, { value:'4', label:'4' }
+        ], (v) => setConfigPatch({ columns: v })),
         sectionBlocks.length
-          ? sectionBlocks.map((b) => React.createElement('button', {
+          ? [...sectionBlocks].sort((a,b)=>(Number(a.sort_order)||0)-(Number(b.sort_order)||0)).map((b) => React.createElement('div', {
               key: b.id || b.block_key,
-              type: 'button',
-              onClick: () => {
-                setSelectedBlockKey(b.block_key);
-                setSelectedField('block_title');
-                postHighlight(selected.section_key, 'block_title');
-                setMobileTab('edit');
-              },
               style: {
-                textAlign: 'left',
-                padding: '10px 12px',
+                display: 'grid',
+                gridTemplateColumns: '1fr auto auto auto',
+                gap: 6,
+                alignItems: 'center',
+                padding: '8px 10px',
                 borderRadius: 10,
                 border: `1px solid ${selectedBlockKey === b.block_key ? C.purple : C.border}`,
                 background: selectedBlockKey === b.block_key ? 'rgba(124,58,237,0.08)' : C.bg,
-                cursor: 'pointer',
               },
             },
-              React.createElement('div', { style:{ fontWeight:800, color:C.text, fontSize:13 } }, b.title || b.block_key || 'Card'),
-              React.createElement('div', { style:{ color:C.textMut, fontSize:11, marginTop:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, b.body || 'Edit card copy')
+              React.createElement('button', {
+                type: 'button',
+                onClick: () => {
+                  setSelectedBlockKey(b.block_key);
+                  setSelectedField('block_title');
+                  postHighlight(selected.section_key, 'block_title');
+                  setMobileTab('edit');
+                },
+                style: { textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 },
+              },
+                React.createElement('div', { style:{ fontWeight:800, color:C.text, fontSize:13 } }, b.title || b.block_key || 'Card'),
+                React.createElement('div', { style:{ color:C.textMut, fontSize:11, marginTop:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, b.body || 'Edit card copy')
+              ),
+              React.createElement('button', { type:'button', title:'Move up', onClick: () => nudgeCard(b.block_key, -1), style:{ width:22, height:22, border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, cursor:'pointer' } }, '↑'),
+              React.createElement('button', { type:'button', title:'Move down', onClick: () => nudgeCard(b.block_key, 1), style:{ width:22, height:22, border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, cursor:'pointer' } }, '↓'),
+              React.createElement('button', { type:'button', title:'Remove card', onClick: () => deleteCard(b), style:{ width:22, height:22, border:`1px solid ${C.red}44`, borderRadius:6, background:C.surface, color:C.red, cursor:'pointer', fontSize:14, lineHeight:1 } }, '×')
             ))
-          : React.createElement('div', { style:{ color:C.textMut, fontSize:12 } }, 'No cards yet — this section uses section fields only.')
+          : React.createElement('div', { style:{ color:C.textMut, fontSize:12 } }, 'No cards yet — Add card to put one event in this section.')
       ),
       !isRawHtml && !usesConfigCards && !isSplitInfoCard && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Links'),
@@ -3147,8 +3434,8 @@ function CmsPageEditorView({ pageId, onNavigate }) {
 
   function renderCtaFields(labelKey, hrefKey, title) {
     const hrefVal = selected[hrefKey] || '';
-    const actionId = cmsMatchCtaAction(hrefVal);
-    const action = CMS_CTA_ACTIONS.find((a) => a.id === actionId) || CMS_CTA_ACTIONS[CMS_CTA_ACTIONS.length - 1];
+    const actionId = cmsMatchCtaAction(hrefVal, ctaActions);
+    const action = ctaActions.find((a) => a.id === actionId) || ctaActions[ctaActions.length - 1];
     const cfg = cmsParseConfig(selected);
     const styleKey = hrefKey === 'cta_secondary_href' ? 'cta_secondary_style' : 'cta_style';
     const styleVal = cfg[styleKey] || (hrefKey === 'cta_secondary_href' ? 'outline' : 'solid');
@@ -3163,17 +3450,17 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         React.createElement('select', {
           value: actionId,
           onChange: (e) => {
-            const next = CMS_CTA_ACTIONS.find((a) => a.id === e.target.value);
+            const next = ctaActions.find((a) => a.id === e.target.value);
             if (!next) return;
             if (next.id === 'custom') {
-              setField(hrefKey, hrefVal && !CMS_CTA_ACTIONS.some((a) => a.href === hrefVal) ? hrefVal : '');
+              setField(hrefKey, hrefVal && !ctaActions.some((a) => a.href === hrefVal) ? hrefVal : '');
               setHasUnsaved(true);
               return;
             }
             setFieldAndSave(hrefKey, next.href);
           },
           style: { width:'100%', height:38, borderRadius:10, border:`1px solid ${C.border}`, background:C.surface, color:C.text, padding:'0 10px', fontSize:13 }
-        }, CMS_CTA_ACTIONS.map((a) => React.createElement('option', { key: a.id, value: a.id }, a.label)))
+        }, ctaActions.map((a) => React.createElement('option', { key: a.id, value: a.id }, a.label)))
       ),
       actionId === 'custom' && React.createElement('div', null,
         cmsFieldLabel('Custom URL or modal:key'),
