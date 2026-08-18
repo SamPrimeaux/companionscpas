@@ -210,3 +210,19 @@ function renderCmsFeatureCardsInspector({
       : React.createElement('div', { style: { color: C.textMut, fontSize: 12 } }, 'No cards yet — Add card to put one event in this section.')
   );
 }
+
+Object.assign(window, {
+  cmsRememberCatalog,
+  cmsBrandDomain,
+  cmsPublicOrigin,
+  cmsCdnBase,
+  cmsRewriteAssetUrl,
+  cmsUrlPlaceholder,
+  cmsDefaultPaymentMethods,
+  CMS_IMAGE_DISPLAY_PRESETS,
+  CMS_FEATURE_CARD_SECTION_TYPES,
+  cmsCardSectionKey,
+  cmsFeatureCardBlocks,
+  renderCmsFeatureCardNest,
+  renderCmsFeatureCardsInspector,
+});
