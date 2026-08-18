@@ -15,7 +15,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [chromeBrand, setChromeBrand] = React.useState(null);
   const [chromeOrg, setChromeOrg] = React.useState({});
   const [chromeSocials, setChromeSocials] = React.useState({});
-  const [chromeTrustBadges, setChromeTrustBadges] = React.useState([cmsNormalizeTrustBadge(DEFAULT_CANDID_TRUST_BADGE, 0)]);
+  const [chromeTrustBadges, setChromeTrustBadges] = React.useState([]);
   const [chromeColumnLabels, setChromeColumnLabels] = React.useState({ ...DEFAULT_FOOTER_COLUMN_LABELS });
   const [chromeLabelSize, setChromeLabelSize] = React.useState(15);
   const [chromeFocusBadgeId, setChromeFocusBadgeId] = React.useState(null);

@@ -5,14 +5,14 @@
 import { getBrand } from "./render_page.js";
 import { preferHeaderLogoUrl } from "./brand_tokens.js";
 import {
-  normalizeFooterChrome,
+  hydrateFooterChrome,
   badgesForPlacement,
   renderTrustBadgesHtml,
   colLabelAttr,
 } from "./footer_chrome.js";
+import { getComponentsByType } from "./cms_components.js";
 
 const TENANT_ID = "tenant_companionscpas";
-const DEFAULT_LOGO = "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/9a00de35-fa41-49da-e431-a5f004cf5e00/public";
 
 const PLACEMENTS = new Set(["primary", "more", "cta", "footer_only", "none"]);
 
@@ -116,9 +116,14 @@ export async function resolveNavModel(env) {
 }
 
 function headerLogoSrc(brand) {
-  const raw = brand?.logo_light_url || brand?.logo_url || DEFAULT_LOGO;
-  if (typeof raw !== "string" || !raw.trim()) return DEFAULT_LOGO;
-  return preferHeaderLogoUrl(raw.trim()) || DEFAULT_LOGO;
+  const raw = brand?.logo_light_url || brand?.logo_url || "";
+  if (typeof raw !== "string" || !raw.trim()) return "";
+  return preferHeaderLogoUrl(raw.trim()) || raw.trim();
+}
+
+function componentUrl(components, id) {
+  const row = (components || []).find((c) => c.id === id);
+  return String(row?.config?.url || "").trim();
 }
 
 function renderMoreDropdown(moreItems) {
@@ -140,7 +145,7 @@ export async function renderSiteHeader(env) {
     getBrand(env).catch(() => ({})),
   ]);
   const logoSrc = esc(headerLogoSrc(brand));
-  const logoAlt = esc(brand?.brand_name || "Companions of CPAS");
+  const logoAlt = esc(brand?.brand_name || brand?.organization?.legal_name || brand?.organization?.name || "");
 
   const primaryLis = nav.primary
     .map((item) => `<li><a href="${esc(item.route)}">${esc(item.label)}</a></li>`)
@@ -185,26 +190,30 @@ export async function renderSiteHeader(env) {
 
 export async function renderSiteFooter(env, opts = {}) {
   const preview = opts?.preview === true;
-  const [nav, brand] = await Promise.all([
+  const [nav, brand, trustBadgeComponents, socialLinks] = await Promise.all([
     resolveNavModel(env),
     getBrand(env).catch(() => ({})),
+    getComponentsByType("trust_badge", env),
+    getComponentsByType("social_link", env),
   ]);
 
   const org = brand?.organization || {};
   const socials = brand?.socials || {};
-  const chrome = normalizeFooterChrome(brand?.footer || {});
+  const chrome = hydrateFooterChrome(brand?.footer || {}, trustBadgeComponents);
 
-  const orgName = brand?.brand_name || org.legal_name || org.name || "Companions of CPAS";
-  const ein = org.ein || "88-4156327";
-  const email = org.email || "companionsCPAS@gmail.com";
-  const locationLine = String(org.city || org.parish || "Caddo Parish, Louisiana").trim() || "Caddo Parish, Louisiana";
-  const tagline = org.mission || "A volunteer-run nonprofit helping dogs at Caddo Parish Animal Services receive medical care, transport support, and second chances.";
-  const fbUrl = socials.facebook || "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
-  const igUrl = socials.instagram || "https://www.instagram.com/companionscpas";
+  const orgName = brand?.brand_name || org.legal_name || org.name || "";
+  const ein = String(org.ein || "").trim();
+  const email = String(org.email || "").trim();
+  const locationLine = String(org.city || org.parish || "").trim();
+  const tagline = String(org.mission || "").trim();
+  const taxExemptLabel = String(org.tax_exempt_label || org.tax_status || "").trim();
+  const taxShort = String(org.tax_status_short || org.tax_status || "").trim();
+  const fbUrl = String(socials.facebook || componentUrl(socialLinks, "social_facebook") || "").trim();
+  const igUrl = String(socials.instagram || componentUrl(socialLinks, "social_instagram") || "").trim();
 
   const logoSrc = headerLogoSrc(brand);
-  const iamLogo = brand?.developer_logo_light_url
-    || "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/238de9d1-a470-4fe5-5424-9182f4bc0500/avatar";
+  const iamLogo = String(brand?.developer_logo_light_url || brand?.footer?.iam_badge_light || "").trim();
+  const iamHref = String(brand?.footer?.developer_url || "").trim();
 
   const footerLis = nav.footer
     .map((item) => `<li><a href="${esc(item.route)}">${esc(item.label)}</a></li>`)
@@ -224,7 +233,7 @@ export async function renderSiteFooter(env, opts = {}) {
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <img src="${esc(logoSrc)}" alt="${esc(orgName)}" class="footer-brand-logo" />
+        <img src="${esc(logoSrc)}" alt="${esc(orgName)}" class="footer-brand-logo"${logoSrc ? "" : ' hidden'} />
         <p class="footer-tagline"${preview ? ' data-cms-chrome="footer" data-cms-field="organization.mission"' : ""}>${esc(tagline)}</p>
       </div>
       <div>
@@ -236,19 +245,19 @@ export async function renderSiteFooter(env, opts = {}) {
       <div>
         <p class="footer-col-label"${colLabelAttr("organization", preview)}>${esc(L.organization)}</p>
         <div class="footer-org-row">
-          <span><strong>${esc(orgName)}</strong></span>
-          <span>501(c)(3) Tax-Exempt</span>
-          <span>EIN: ${esc(ein)}</span>
-          <span>${esc(locationLine)}</span>
-          <span><a href="mailto:${esc(email)}">${esc(email)}</a></span>
+          ${orgName ? `<span><strong>${esc(orgName)}</strong></span>` : ""}
+          ${taxExemptLabel ? `<span>${esc(taxExemptLabel)}</span>` : ""}
+          ${ein ? `<span>EIN: ${esc(ein)}</span>` : ""}
+          ${locationLine ? `<span>${esc(locationLine)}</span>` : ""}
+          ${email ? `<span><a href="mailto:${esc(email)}">${esc(email)}</a></span>` : ""}
         </div>
         ${orgBadges}
       </div>
       <div>
         <p class="footer-col-label"${colLabelAttr("follow_us", preview)}>${esc(L.follow_us)}</p>
         <div class="footer-social-icons">
-          <a href="${esc(fbUrl)}" target="_blank" rel="noopener" class="footer-social-icon footer-social-icon--fb" aria-label="Facebook">${fbIcon}</a>
-          <a href="${esc(igUrl)}" target="_blank" rel="noopener" class="footer-social-icon footer-social-icon--ig" aria-label="Instagram">${igIcon}</a>
+          ${fbUrl ? `<a href="${esc(fbUrl)}" target="_blank" rel="noopener" class="footer-social-icon footer-social-icon--fb" aria-label="Facebook">${fbIcon}</a>` : ""}
+          ${igUrl ? `<a href="${esc(igUrl)}" target="_blank" rel="noopener" class="footer-social-icon footer-social-icon--ig" aria-label="Instagram">${igIcon}</a>` : ""}
         </div>
         ${followBadges}
         <p class="footer-col-label footer-staff-label"${colLabelAttr("staff", preview)}>${esc(L.staff)}</p>
@@ -258,12 +267,12 @@ export async function renderSiteFooter(env, opts = {}) {
       </div>
     </div>
     <div class="footer-bottom">
-      <p class="footer-ein">${esc(orgName)} &nbsp;·&nbsp; 501(c)(3) &nbsp;·&nbsp; EIN ${esc(ein)}</p>
+      <p class="footer-ein">${[orgName && esc(orgName), taxShort && esc(taxShort), ein && `EIN ${esc(ein)}`].filter(Boolean).join(" &nbsp;·&nbsp; ")}</p>
       ${bottomBadges}
-      <a href="https://inneranimalmedia.com" target="_blank" rel="noopener" class="footer-iam-mark" aria-label="Built by Inner Animal Media">
+      ${iamLogo ? `<a href="${esc(iamHref || "#")}"${iamHref ? ' target="_blank" rel="noopener"' : ""} class="footer-iam-mark" aria-label="Built by Inner Animal Media">
         <span class="footer-iam-label">Built by</span>
         <img src="${esc(iamLogo)}" alt="Inner Animal Media" class="footer-iam-logo" />
-      </a>
+      </a>` : ""}
     </div>
   </div>
 </footer>`;

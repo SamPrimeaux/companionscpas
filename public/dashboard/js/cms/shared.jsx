@@ -39,18 +39,6 @@ const DEFAULT_FOOTER_COLUMN_LABELS = {
   staff: "Staff",
 };
 
-const DEFAULT_CANDID_TRUST_BADGE = {
-  id: "badge_candid",
-  label: "Candid Seal of Transparency",
-  caption: "Visit our Candid Profile",
-  href: "https://app.candid.org/profile/14607574/companions-of-cpas-88-4156327/?pkId=ef6a3773-8ef0-42a2-b7df-ad52ac334f0e",
-  image_url: "https://widgets.guidestar.org/prod/v1/pdp/transparency-seal/14607574/svg",
-  enabled: true,
-  height_px: 72,
-  placement: "organization",
-  sort_order: 10,
-};
-
 function cmsParseJsonObject(raw, fallback = {}) {
   try {
     const parsed = typeof raw === "string" ? JSON.parse(raw || "{}") : (raw || {});
@@ -70,12 +58,10 @@ function cmsNormalizeTrustBadge(raw, index = 0) {
   const height = Number(b.height_px);
   const allowed = FOOTER_BADGE_PLACEMENTS.map((p) => p.value);
   const href = String(b.href || "").trim();
-  let caption = String(b.caption ?? "").trim();
-  if (!caption && /candid\.org|guidestar\.org/i.test(href + " " + String(b.image_url || ""))) {
-    caption = "Visit our Candid Profile";
-  }
+  const caption = String(b.caption ?? "").trim();
   return {
     id: String(b.id || "").trim() || cmsNewBadgeId(),
+    component_id: String(b.component_id || "").trim() || null,
     label: String(b.label || "").trim() || "Trust badge",
     caption,
     href,
@@ -106,7 +92,7 @@ function cmsNormalizeFooterChrome(footerJson) {
       ? footer.trust_badges.map((b, i) => cmsNormalizeTrustBadge(b, i))
       : [];
   } else {
-    trust_badges = [cmsNormalizeTrustBadge(DEFAULT_CANDID_TRUST_BADGE, 0)];
+    trust_badges = [];
   }
   trust_badges = [...trust_badges].sort((a, b) => (a.sort_order - b.sort_order) || a.label.localeCompare(b.label));
   return { column_labels, col_label_size_px, trust_badges };
@@ -159,7 +145,6 @@ Object.assign(window, {
   cmsNotify,
   FOOTER_BADGE_PLACEMENTS,
   DEFAULT_FOOTER_COLUMN_LABELS,
-  DEFAULT_CANDID_TRUST_BADGE,
   cmsParseJsonObject,
   cmsNewBadgeId,
   cmsNormalizeTrustBadge,

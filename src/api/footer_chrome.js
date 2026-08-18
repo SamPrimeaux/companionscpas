@@ -1,27 +1,18 @@
 /**
- * Sitewide footer chrome — SSOT shape for cms_brand_settings.footer_json.
- * render_site_nav.js paints from this; CMS page editor Footer panel writes it.
+ * Sitewide footer chrome — SSOT:
+ *   cms_components type=trust_badge  → reusable field catalog
+ *   cms_brand_settings.footer_json   → layout (placement, order, enabled, overrides)
+ * Renderers must not inject tenant URLs. Empty D1 → empty chrome.
  */
 
 export const FOOTER_PLACEMENTS = ["organization", "follow_us", "footer_bottom"];
 
+/** Schema labels for the four footer columns — not tenant content. Overridden by footer_json.column_labels. */
 export const DEFAULT_COLUMN_LABELS = {
   pages: "Pages",
   organization: "Organization",
   follow_us: "Follow Us",
   staff: "Staff",
-};
-
-export const DEFAULT_CANDID_BADGE = {
-  id: "badge_candid",
-  label: "Candid Seal of Transparency",
-  caption: "Visit our Candid Profile",
-  href: "https://app.candid.org/profile/14607574/companions-of-cpas-88-4156327/?pkId=ef6a3773-8ef0-42a2-b7df-ad52ac334f0e",
-  image_url: "https://widgets.guidestar.org/prod/v1/pdp/transparency-seal/14607574/svg",
-  enabled: true,
-  height_px: 72,
-  placement: "organization",
-  sort_order: 10,
 };
 
 function esc(v) {
@@ -53,22 +44,47 @@ export function normalizeTrustBadge(raw, index = 0) {
   const b = raw && typeof raw === "object" ? raw : {};
   const placement = String(b.placement || "organization").trim().toLowerCase();
   const height = Number(b.height_px);
-  const href = String(b.href || "").trim();
-  let caption = String(b.caption ?? "").trim();
-  // Backfill readable CTA for Candid rows that were saved before caption existed.
-  if (!caption && /candid\.org|guidestar\.org/i.test(href + " " + String(b.image_url || ""))) {
-    caption = "Visit our Candid Profile";
-  }
   return {
     id: String(b.id || "").trim() || newTrustBadgeId(),
+    component_id: String(b.component_id || "").trim() || null,
     label: String(b.label || "").trim() || "Trust badge",
-    caption,
-    href,
+    caption: String(b.caption ?? "").trim(),
+    href: String(b.href || "").trim(),
     image_url: String(b.image_url || "").trim(),
     enabled: b.enabled !== false && b.enabled !== 0,
     height_px: Number.isFinite(height) && height > 0 ? Math.max(24, Math.min(160, Math.round(height))) : 72,
     placement: FOOTER_PLACEMENTS.includes(placement) ? placement : "organization",
     sort_order: Number.isFinite(Number(b.sort_order)) ? Number(b.sort_order) : (index + 1) * 10,
+  };
+}
+
+export function trustBadgeFromComponent(component, index = 0) {
+  const cfg = component?.config && typeof component.config === "object" ? component.config : {};
+  const id = String(component?.id || "").trim() || newTrustBadgeId();
+  return normalizeTrustBadge({
+    id,
+    component_id: id,
+    label: cfg.label || component?.label,
+    caption: cfg.caption,
+    href: cfg.href || cfg.url,
+    image_url: cfg.image_url,
+    enabled: cfg.enabled !== false && cfg.enabled !== 0,
+    height_px: cfg.height_px,
+    placement: cfg.placement,
+    sort_order: cfg.sort_order ?? component?.sort_order,
+  }, index);
+}
+
+export function componentConfigFromTrustBadge(badge) {
+  const b = normalizeTrustBadge(badge, 0);
+  return {
+    label: b.label,
+    caption: b.caption,
+    href: b.href,
+    image_url: b.image_url,
+    height_px: b.height_px,
+    placement: b.placement,
+    enabled: b.enabled,
   };
 }
 
@@ -78,6 +94,7 @@ export function normalizeTrustBadge(raw, index = 0) {
  *   col_label_size_px: number,
  *   column_labels: Record<string,string>,
  *   trust_badges: ReturnType<typeof normalizeTrustBadge>[],
+ *   has_trust_badge_layout: boolean,
  * }}
  */
 export function normalizeFooterChrome(footerJson) {
@@ -94,20 +111,46 @@ export function normalizeFooterChrome(footerJson) {
     ? Math.max(10, Math.min(28, Math.round(sizeRaw)))
     : 15;
 
-  let trust_badges;
-  if (Object.prototype.hasOwnProperty.call(footer, "trust_badges")) {
-    trust_badges = Array.isArray(footer.trust_badges)
-      ? footer.trust_badges.map((b, i) => normalizeTrustBadge(b, i))
-      : [];
+  const has_trust_badge_layout = Object.prototype.hasOwnProperty.call(footer, "trust_badges");
+  const trust_badges = has_trust_badge_layout
+    ? (Array.isArray(footer.trust_badges) ? footer.trust_badges.map((b, i) => normalizeTrustBadge(b, i)) : [])
+    : [];
+
+  trust_badges.sort((a, b) => (a.sort_order - b.sort_order) || a.label.localeCompare(b.label));
+
+  return { col_label_size_px, column_labels, trust_badges, has_trust_badge_layout };
+}
+
+/** Merge footer_json layout with cms_components catalog. Never invent tenant URLs in code. */
+export function hydrateFooterChrome(footerJson, trustBadgeComponents = []) {
+  const footer = parseObj(footerJson, {});
+  const chrome = normalizeFooterChrome(footer);
+  const catalog = new Map((trustBadgeComponents || []).map((c) => [String(c.id), c]));
+
+  const mergeCatalog = (badge, index) => {
+    const cid = String(badge.component_id || (catalog.has(badge.id) ? badge.id : "")).trim();
+    const comp = cid ? catalog.get(cid) : null;
+    if (!comp) return badge;
+    const fromComp = trustBadgeFromComponent(comp, index);
+    return normalizeTrustBadge({
+      ...fromComp,
+      ...badge,
+      id: badge.id || fromComp.id,
+      component_id: cid,
+      label: badge.label || fromComp.label,
+      caption: badge.caption || fromComp.caption,
+      href: badge.href || fromComp.href,
+      image_url: badge.image_url || fromComp.image_url,
+    }, index);
+  };
+
+  if (chrome.has_trust_badge_layout) {
+    chrome.trust_badges = chrome.trust_badges.map(mergeCatalog);
   } else {
-    trust_badges = [normalizeTrustBadge(DEFAULT_CANDID_BADGE, 0)];
+    chrome.trust_badges = (trustBadgeComponents || []).map((c, i) => trustBadgeFromComponent(c, i));
   }
-
-  trust_badges = [...trust_badges].sort(
-    (a, b) => (a.sort_order - b.sort_order) || a.label.localeCompare(b.label)
-  );
-
-  return { col_label_size_px, column_labels, trust_badges };
+  chrome.trust_badges.sort((a, b) => (a.sort_order - b.sort_order) || a.label.localeCompare(b.label));
+  return chrome;
 }
 
 export function badgesForPlacement(chrome, placement) {

@@ -9,6 +9,7 @@
  *   // fb.config = { url, icon, label, brand_color }
  *
  *   const socials = await getComponentsByType('social_link', env);
+ *   const badges = await getComponentsByType('trust_badge', env);
  */
 
 /**
@@ -36,7 +37,7 @@ export async function getComponent(id, env) {
 
 /**
  * Fetch all active components of a given type, ordered by sort_order.
- * type: 'social_link' | 'payment_button' | 'share_action'
+ * type: 'social_link' | 'payment_button' | 'share_action' | 'trust_badge' | 'payment_modal'
  */
 export async function getComponentsByType(type, env) {
   if (!env?.DB) return [];

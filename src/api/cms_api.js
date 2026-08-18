@@ -21,6 +21,7 @@ import {
 } from "./cms_raw_html_storage.js";
 import { clampHeaderLogoPx } from "./brand_tokens.js";
 import { loadEditorCatalog } from "./cms_editor_config.js";
+import { normalizeFooterChrome, componentConfigFromTrustBadge } from "./footer_chrome.js";
 const TENANT_ID = "tenant_companionscpas";
 
 const R2_MEDIA_FOLDERS = new Set([
@@ -179,6 +180,55 @@ async function listAllCmsPageRoutes(env) {
   ).bind(TENANT_ID).all().catch(() => ({ results: [] }));
   const fromDb = (pages.results || []).map((row) => normalizeRouteInput(row.route_path)).filter(Boolean);
   return fromDb.length ? fromDb : PUBLIC_PAGE_ROUTES;
+}
+
+function parseJsonObject(raw, fallback = {}) {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw || "{}");
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
+/** Keep footer_json layout + cms_components catalog in sync. No JS tenant URLs. */
+async function persistFooterChrome(env, footerRaw) {
+  const footer = parseJsonObject(footerRaw, {});
+  const chrome = normalizeFooterChrome(footer);
+  const next = {
+    ...footer,
+    column_labels: chrome.column_labels,
+    col_label_size_px: chrome.col_label_size_px,
+  };
+  if (!chrome.has_trust_badge_layout) {
+    return JSON.stringify(next);
+  }
+  next.trust_badges = chrome.trust_badges;
+  for (const badge of chrome.trust_badges) {
+    const id = String(badge.component_id || badge.id || "").trim();
+    if (!id) continue;
+    const config = JSON.stringify(componentConfigFromTrustBadge(badge));
+    const existing = await env.DB.prepare(
+      "SELECT id FROM cms_components WHERE id = ? LIMIT 1"
+    ).bind(id).first().catch(() => null);
+    if (existing) {
+      await env.DB.prepare(
+        `UPDATE cms_components
+         SET label = ?, type = 'trust_badge', config_json = ?, sort_order = ?, updated_at = datetime('now')
+         WHERE id = ?`
+      ).bind(badge.label || id, config, Number(badge.sort_order) || 0, id).run();
+    } else {
+      await env.DB.prepare(
+        `INSERT INTO cms_components (id, label, type, config_json, sort_order, active, updated_at)
+         VALUES (?, ?, 'trust_badge', ?, ?, 1, datetime('now'))`
+      ).bind(id, badge.label || id, config, Number(badge.sort_order) || 0).run();
+    }
+  }
+  return JSON.stringify(next);
 }
 
 function pageArtifactKey(route) {
@@ -1846,6 +1896,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
 
     const data = await body(request);
     const brand = data.brand || data;
+    const footerJson = await persistFooterChrome(env, brand.footer_json);
 
     await env.DB.prepare(`
       UPDATE cms_brand_settings SET
@@ -1882,7 +1933,7 @@ export async function cmsRoutes(request, env, url, sessionUser = null) {
       brand.accent_color     || "#ee2336",
       brand.site_domain      || "",
       typeof brand.navigation_json === "string" ? brand.navigation_json : JSON.stringify(brand.navigation_json || []),
-      typeof brand.footer_json === "string"     ? brand.footer_json     : JSON.stringify(brand.footer_json || {}),
+      footerJson,
       typeof brand.socials_json === "string"    ? brand.socials_json    : JSON.stringify(brand.socials_json || {}),
       typeof brand.organization_json === "string" ? brand.organization_json : JSON.stringify(brand.organization_json || {}),
       typeof brand.seo_defaults_json === "string" ? brand.seo_defaults_json : JSON.stringify(brand.seo_defaults_json || {}),

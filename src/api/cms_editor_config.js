@@ -116,6 +116,9 @@ export async function loadEditorCatalog(env) {
     components: components.results || [],
     cdn_base: cdnBaseFromBrand(brand, env),
     cta_actions: buildCtaActions(pageRows, modalRows),
+    chrome: {
+      trust_badges: (components.results || []).filter((row) => row.type === "trust_badge"),
+    },
   };
 }
 

@@ -273,11 +273,11 @@ function cmsBindEditorChrome(ed) {
               style: chromeFocusField === 'caption' && focused ? { ...focusRing(true), padding: 6, borderRadius: 8 } : null,
             },
               cmsFieldLabel('Caption (above icon)'),
-              cmsTextInput(badge.caption || '', (v) => patchBadge(idx, { caption: v }), persist, 'Visit our Candid Profile')
+              cmsTextInput(badge.caption || '', (v) => patchBadge(idx, { caption: v }), persist, 'Caption above the seal')
             ),
             React.createElement('div', null,
               cmsFieldLabel('Accessibility label'),
-              cmsTextInput(badge.label || '', (v) => patchBadge(idx, { label: v }), persist, 'Candid Seal of Transparency')
+              cmsTextInput(badge.label || '', (v) => patchBadge(idx, { label: v }), persist, 'Trust badge')
             ),
             React.createElement('div', null,
               cmsFieldLabel('Link URL'),
@@ -287,7 +287,7 @@ function cmsBindEditorChrome(ed) {
               style: chromeFocusField === 'image_url' && focused ? { ...focusRing(true), padding: 6, borderRadius: 8 } : null,
             },
               cmsFieldLabel('Image URL'),
-              cmsTextInput(badge.image_url || '', (v) => patchBadge(idx, { image_url: v }), persist, 'https://widgets.guidestar.org/…', true)
+              cmsTextInput(badge.image_url || '', (v) => patchBadge(idx, { image_url: v }), persist, cmsUrlPlaceholder(undefined, 'cdn') || 'https://…', true)
             ),
             React.createElement('div', null,
               cmsFieldLabel('Placement'),
