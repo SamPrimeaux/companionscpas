@@ -105,7 +105,7 @@ export function normalizeCampaign(row) {
 
 export async function invalidateDonatePageCache(env) {
   try {
-    const { publishRoute } = await import('./cms_pipeline.js');
+    const { publishRoute } = await import('../cms_pipeline.js');
     await publishRoute(env, '/donate', 'donate_cache_warm');
   } catch (err) {
     console.warn('[donate-cache] publish warm failed:', err?.message || err);

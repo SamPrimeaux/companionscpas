@@ -118,7 +118,7 @@ async function handleFundraisingEntryAction(request, env, url, path, method) {
             updated_at = datetime('now')
         WHERE id = ? AND tenant_id = ?
       `).bind(session.email || session.user_id || 'dashboard', entryId, TENANT).run();
-      const { setCampaignUpdatePublicForEntry } = await import('./competition_campaign_updates.js');
+      const { setCampaignUpdatePublicForEntry } = await import('../competition_campaign_updates.js');
       await setCampaignUpdatePublicForEntry(env, entryId, true);
       // Clear entry-related admin alerts once reviewed.
       await env.DB.prepare(`
@@ -148,7 +148,7 @@ async function handleFundraisingEntryAction(request, env, url, path, method) {
             updated_at = datetime('now')
         WHERE id = ? AND tenant_id = ?
       `).bind(reason, entryId, TENANT).run();
-      const { setCampaignUpdatePublicForEntry } = await import('./competition_campaign_updates.js');
+      const { setCampaignUpdatePublicForEntry } = await import('../competition_campaign_updates.js');
       await setCampaignUpdatePublicForEntry(env, entryId, false);
       await invalidateDonatePageCache(env);
       return json({ ok: true, entry_id: entryId, moderation_status: 'rejected' });
@@ -162,7 +162,7 @@ async function handleFundraisingEntryAction(request, env, url, path, method) {
             updated_at = datetime('now')
         WHERE id = ? AND tenant_id = ?
       `).bind(entryId, TENANT).run();
-      const { setCampaignUpdatePublicForEntry } = await import('./competition_campaign_updates.js');
+      const { setCampaignUpdatePublicForEntry } = await import('../competition_campaign_updates.js');
       await setCampaignUpdatePublicForEntry(env, entryId, false);
       await invalidateDonatePageCache(env);
       return json({ ok: true, entry_id: entryId, archived: true });
@@ -205,7 +205,7 @@ async function handleFundraisingEntryAction(request, env, url, path, method) {
           AND related_id = ?
           AND email_type = 'competition_entry_thank_you'
       `).bind(TENANT, entryId).run().catch(() => null);
-      const { notifyCompetitionEntry } = await import('./competition_notifications.js');
+      const { notifyCompetitionEntry } = await import('../competition_notifications.js');
       const mail = await notifyCompetitionEntry(env, entryId, 'paid');
       return json({ ok: true, entry_id: entryId, email: mail });
     }
@@ -223,14 +223,14 @@ async function handleFundraisingEntryAction(request, env, url, path, method) {
       const {
         ensureResumePayToken,
         competitionResumePayUrl,
-      } = await import('./render_competition_resume_pay.js');
+      } = await import('../render_competition_resume_pay.js');
       const token = await ensureResumePayToken(env, entryId);
       if (!token) return json({ ok: false, error: 'Could not create pay link' }, 500);
       const payUrl = competitionResumePayUrl(token);
       const amount = ((Number(full.expected_amount_cents) || 1000) / 100).toFixed(2);
       const dog = full.dog_name || 'your pet';
       const first = String(full.owner_name || 'friend').trim().split(/\s+/)[0] || 'friend';
-      const { sendResend } = await import('./payments_email.js');
+      const { sendResend } = await import('../payments_email.js');
       const mail = await sendResend(env, {
         to: String(full.owner_email).trim().toLowerCase(),
         name: full.owner_name || null,
