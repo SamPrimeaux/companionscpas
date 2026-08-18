@@ -1,8 +1,7 @@
 // ── CMS Views — website, pages, page-editor, images, brand, templates ─────────
 // Routes: cms-website, cms-pages, cms-page-editor, cms-images, cms-brand
 // Removed: cms-navigation (merged into pages), cms-publish (inline Save/Publish buttons)
-
-const R2_CDN_BASE = "https://assets.companionsofcaddo.org";
+// Tenant URLs: cmsCdnBase / cmsPublicOrigin from bootstrap (cms/feature-cards.jsx).
 
 const CMS_CTA_ACTIONS = [
   { id: "modal_foster", label: "Open Foster Application", href: "modal:foster", formId: "form_foster_application" },
@@ -170,7 +169,10 @@ function CmsWebsiteView({ onNavigate }) {
     fetch("/api/cms/bootstrap", { credentials: "include" })
       .then(r => r.json())
       .then(d => {
-        if (d.success) setData(d);
+        if (d.success) {
+          cmsRememberCatalog(d);
+          setData(d);
+        }
         else setData({ pages: [] });
       })
       .catch(() => setData({ pages: [] }))
@@ -221,7 +223,7 @@ function CmsWebsiteView({ onNavigate }) {
     React.createElement(PageHeader, {
       title: "CMS Website", subtitle: "Manage and publish your public website",
       action: React.createElement("div", { style: { display: "flex", gap: 8 } },
-        React.createElement(Btn, { variant: "secondary", size: "sm", icon: "eye", onClick: () => window.open("https://companionsofcaddo.org", "_blank") }, "Preview Site"),
+        React.createElement(Btn, { variant: "secondary", size: "sm", icon: "eye", onClick: () => window.open(cmsPublicOrigin(data) || "/", "_blank") }, "Preview Site"),
         React.createElement(Btn, { size: "sm", icon: "edit", onClick: () => onNavigate("cms-pages") }, "Manage Pages")
       )
     }),
@@ -230,7 +232,7 @@ function CmsWebsiteView({ onNavigate }) {
       ? React.createElement(PageSkeleton, { title: "website", stats: 4, rows: 4, variant: "cards" })
       : React.createElement(React.Fragment, null,
     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 12, marginBottom: 28 } },
-      React.createElement(StatCard, { icon: "globe", iconColor: C.green, label: "Site Status", value: "Live", sub: "companionsofcaddo.org", subPositive: true }),
+      React.createElement(StatCard, { icon: "globe", iconColor: C.green, label: "Site Status", value: "Live", sub: cmsBrandDomain(data) || "Live", subPositive: true }),
       React.createElement(StatCard, { icon: "edit", iconColor: draftCount > 0 ? C.yellow : C.textMut, label: "Draft Changes", value: String(draftCount), sub: draftCount > 0 ? "Unpublished edits" : "All published" }),
       React.createElement(StatCard, { icon: "publish", iconColor: C.purple, label: "Last Published", value: lastPub ? new Date(lastPub.published_at || lastPub.updated_at).toLocaleDateString() : "—", sub: lastPub?.title || "" }),
       React.createElement(StatCard, { icon: "layers", iconColor: C.teal, label: "Total Pages", value: String(pages.length), sub: "Active pages" }),
@@ -325,6 +327,7 @@ function CmsPagesView({ onNavigate }) {
       const boot = await bootRes.json();
       const sec  = await secRes.json().catch(() => ({}));
       const dash = await dashRes.json().catch(() => ({}));
+      if (boot.success) cmsRememberCatalog(boot);
 
       const bootPages = boot.success && boot.pages?.length ? boot.pages : [];
       const dashPages = dash.pages?.length ? dash.pages : [];
@@ -441,7 +444,7 @@ function CmsPagesView({ onNavigate }) {
           React.createElement("div", null,
             React.createElement("div", { style: { fontWeight: 600, fontSize: 13, color: C.text, display: "flex", alignItems: "center", gap: 8 } },
               v || row.route_path,
-              React.createElement("a", { href: `https://companionsofcaddo.org${row.route_path}`, target: "_blank", onClick: e => e.stopPropagation(), style: { color: C.textMut, display: "inline-flex", lineHeight: 1 } },
+              React.createElement("a", { href: `${cmsPublicOrigin() || ""}${row.route_path}`, target: "_blank", onClick: e => e.stopPropagation(), style: { color: C.textMut, display: "inline-flex", lineHeight: 1 } },
                 React.createElement(Icon, { name: "eye", size: 12 })
               )
             ),
@@ -783,15 +786,6 @@ const CMS_SECTION_TYPES = [
   { type:'raw_html', label:'Custom Code', desc:'Paste HTML or embed from a URL' },
 ];
 
-const CMS_IMAGE_DISPLAY_PRESETS = [
-  { value: 'natural', label: 'Natural' },
-  { value: 'crop', label: '4:3' },
-  { value: 'square', label: '1:1' },
-  { value: 'portrait', label: '3:4' },
-  { value: 'portrait_45', label: '4:5' },
-  { value: 'story', label: '9:16' },
-];
-
 function useBp() {
   const [bp, setBp] = React.useState(() => window.innerWidth < 768 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop');
   React.useEffect(() => {
@@ -866,7 +860,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   const [dragOverKey, setDragOverKey] = React.useState(null);
   const [editorCatalog, setEditorCatalog] = React.useState({
     cta_actions: CMS_CTA_ACTIONS,
-    cdn_base: R2_CDN_BASE,
+    cdn_base: cmsCdnBase(),
     templates: [],
   });
   const [showImagePicker, setShowImagePicker] = React.useState(false);
@@ -1139,9 +1133,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         setActiveFont(cfg.active_font_preset || 'fraunces_dm');
         setEditorCatalog({
           cta_actions: Array.isArray(bd.cta_actions) && bd.cta_actions.length ? bd.cta_actions : CMS_CTA_ACTIONS,
-          cdn_base: bd.cdn_base || R2_CDN_BASE,
+          cdn_base: bd.cdn_base || cmsCdnBase(bd),
           templates: Array.isArray(bd.templates) ? bd.templates : [],
+          brand: bd.brand || null,
         });
+        cmsRememberCatalog({ ...bd, cdn_base: bd.cdn_base || cmsCdnBase(bd) });
       }
       if (brandData.brand) applyChromeBrand(brandData.brand);
       bumpPreview();
@@ -1283,7 +1279,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setBusy(false);
   };
 
-  const persistBlock = async (block) => {
+  const persistBlock = async (block, sectionKey) => {
     const res = await fetch('/api/cms/block/save', {
       method: 'POST',
       credentials: 'include',
@@ -1292,7 +1288,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         block: {
           ...block,
           page_route: route,
-          section_key: selected?.section_key || block.section_key,
+          section_key: sectionKey || selected?.section_key || block.section_key,
         },
       }),
     });
@@ -1320,7 +1316,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         sort_order: maxOrder + 10,
         is_visible: 1,
         config_json: '{}',
-      });
+      }, selected.section_key);
       await loadPage();
       setSelectedBlockKey(block_key);
       setSelectedField('block_title');
@@ -1331,9 +1327,10 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setBusy(false);
   };
 
-  const deleteCard = async (block) => {
-    if (!selected || !block) return;
-    if (!window.confirm('Remove this card from the section?')) return;
+  const deleteCard = async (block, section = selected) => {
+    const owner = section || selected;
+    if (!owner || !block) return;
+    if (!window.confirm(`Remove “${block.title || block.block_key}” from this section?`)) return;
     setBusy(true);
     try {
       const res = await fetch('/api/cms/block/delete', {
@@ -1342,7 +1339,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           page_route: route,
-          section_key: selected.section_key,
+          section_key: owner.section_key,
           block_key: block.block_key,
         }),
       });
@@ -1360,10 +1357,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setBusy(false);
   };
 
-  const nudgeCard = async (blockKey, dir) => {
-    if (!selected) return;
+  const nudgeCard = async (blockKey, dir, section = selected) => {
+    const owner = section || selected;
+    if (!owner) return;
     const list = [...(pageData.blocks || [])]
-      .filter((b) => cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(selected.section_key))
+      .filter((b) => cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(owner.section_key))
       .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
     const i = list.findIndex((b) => b.block_key === blockKey);
     const j = i + dir;
@@ -1376,7 +1374,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     setPageData((p) => ({
       ...p,
       blocks: (p.blocks || []).map((b) => {
-        if (cmsNormalizeSectionKey(b.section_key) !== cmsNormalizeSectionKey(selected.section_key)) return b;
+        if (cmsNormalizeSectionKey(b.section_key) !== cmsNormalizeSectionKey(owner.section_key)) return b;
         const idx = keys.indexOf(b.block_key);
         return idx >= 0 ? { ...b, sort_order: (idx + 1) * 10 } : b;
       }),
@@ -1388,7 +1386,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           page_route: route,
-          section_key: selected.section_key,
+          section_key: owner.section_key,
           block_keys: keys,
         }),
       });
@@ -1596,17 +1594,11 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     try {
       const res = await fetch('/api/cms/bootstrap', { credentials: 'include' });
       const d = await res.json().catch(() => ({}));
+      if (d.success) cmsRememberCatalog(d);
       const pages = (d.pages || []).filter((p) => p.route_path && p.route_path !== route);
-      setCopyPages(pages.length ? pages : [
-        { route_path: '/', title: 'Home' },
-        { route_path: '/donate', title: 'Donate' },
-        { route_path: '/adopt', title: 'Adopt' },
-        { route_path: '/fosters', title: 'Foster' },
-        { route_path: '/contact', title: 'Contact' },
-        { route_path: '/about', title: 'About' },
-      ].filter((p) => p.route_path !== route));
+      setCopyPages(pages);
     } catch {
-      setCopyPages([{ route_path: '/', title: 'Home' }, { route_path: '/donate', title: 'Donate' }].filter((p) => p.route_path !== route));
+      setCopyPages([]);
     }
   };
 
@@ -1807,7 +1799,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
   };
 
   const pageTitle = pageData.page?.title || route;
-  const liveUrl = `https://companionsofcaddo.org${route}`;
+  const liveUrl = `${cmsPublicOrigin(editorCatalog) || ''}${route}`;
   const previewSrc = `/api/cms/preview?route=${encodeURIComponent(route)}&v=${previewVersion}`;
 
   const handlePreviewNavigation = React.useCallback(() => {
@@ -2018,8 +2010,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
               const active = selected?.section_key === s.section_key;
               const hidden = s.is_visible === 0;
               const color = CMS_TYPE_COLOR[s.section_type] || CMS_TYPE_COLOR.content;
-              return React.createElement('div', {
-                key:s.section_key,
+              const row = React.createElement('div', {
                 id:'cms-section-row-' + s.section_key,
                 onDragOver:e=>{ e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; setDragOverKey(s.section_key); },
                 onDrop:e=>{
@@ -2030,7 +2021,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                 onClick:()=>{
                   selectSection(s.section_key, { clearUnsaved: true });
                 },
-                style:{ display:'grid', gridTemplateColumns:'18px minmax(0,1fr) auto 22px 22px 28px 28px', alignItems:'center', gap:6, padding:'10px 8px', marginBottom:6, borderRadius:12, cursor:'pointer', border:`2px solid ${active ? C.purple : dragOverKey === s.section_key ? C.purple + '55' : C.border}`, borderLeft:`5px solid ${active ? C.purple : color}`, background:active ? C.purpleDim : C.bg, opacity:hidden ? .55 : 1, boxShadow: active ? `0 0 0 2px ${C.purple}44` : 'none', transition:'all 0.12s' }
+                style:{ display:'grid', gridTemplateColumns:'18px minmax(0,1fr) auto 22px 22px 28px 28px', alignItems:'center', gap:6, padding:'10px 8px', borderRadius:12, cursor:'pointer', border:`2px solid ${active ? C.purple : dragOverKey === s.section_key ? C.purple + '55' : C.border}`, borderLeft:`5px solid ${active ? C.purple : color}`, background:active ? C.purpleDim : C.bg, opacity:hidden ? .55 : 1, boxShadow: active ? `0 0 0 2px ${C.purple}44` : 'none', transition:'all 0.12s' }
               },
                 React.createElement('span', {
                   draggable: true,
@@ -2078,6 +2069,19 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                     justifyContent: 'center', cursor: 'pointer',
                   },
                 }, React.createElement(Icon, { name: 'trash', size: 13 }))
+              );
+              return React.createElement('div', { key: s.section_key, style: { marginBottom: 6 } },
+                row,
+                renderCmsFeatureCardNest({
+                  section: s,
+                  blocks: pageData.blocks,
+                  selectedKey,
+                  selectedBlockKey,
+                  busy,
+                  onSelectCard: (section, b) => selectSection(section.section_key, { field: 'block_title', blockKey: b.block_key, clearUnsaved: true }),
+                  onNudgeCard: (section, key, dir) => nudgeCard(key, dir, section),
+                  onDeleteCard: (section, b) => deleteCard(b, section),
+                })
               );
             }),
         chromeRow('footer', 'Footer', 'Mission · org · socials · trust badges · sitewide')
@@ -2500,11 +2504,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       });
     }
     return [
-      { id:'zeffy', enabled:true, label:'', tooltip:'Donate with Zeffy — 100% goes to animals (fee-free)', show_label:false, note:'fee-free', url_field:'zeffy_donate_url', component_id:'payment_zeffy', style:'zeffy', logo_height:22, background:'#141018', border_color:'#141018', text_color:'#faf7f3', note_color:'#49e9d5', logo_url:'https://assets.companionsofcaddo.org/static/assets/zeffy-wordmark.webp' },
-      { id:'paypal', enabled:true, label:'', tooltip:'Donate via PayPal', show_label:false, note:'', url_field:'paypal_donate_url', component_id:'payment_paypal', style:'paypal', logo_height:22, background:'#eef5ff', border_color:'#9ec0ef', text_color:'#003087', logo_url:'https://assets.companionsofcaddo.org/static/assets/PayPal.svg.webp' },
-      { id:'venmo', enabled:true, label:'', tooltip:'Pay on Venmo', show_label:false, note:'', url_field:'venmo_donate_url', component_id:'payment_venmo', style:'venmo', logo_height:22, background:'#eaf6fc', border_color:'#7ec0e8', text_color:'#008CFF', logo_url:'https://assets.companionsofcaddo.org/static/assets/venmo-official-logo.svg' },
-      { id:'amazon_wishlist', enabled:true, label:'', tooltip:'Send supplies via Amazon Wishlist', show_label:false, note:'', url_field:'amazon_wishlist_url', component_id:'wishlist_amazon', style:'amazon', logo_height:28, background:'#fff6e8', border_color:'#f0c078', text_color:'#232f3e', logo_url:'https://assets.companionsofcaddo.org/static/assets/amz-wishlist-bttn.webp' },
-      { id:'stripe', enabled:true, label:'', tooltip:'Card or bank donation', show_label:false, note:'', action:'donate', component_id:'payment_stripe_donation_modal', style:'stripe', logo_height:22, background:'#f3f0ff', border_color:'#b8a9ff', text_color:'#3d348b', logo_url:'https://assets.companionsofcaddo.org/static/assets/stripe-wordmark.webp' },
+      ...cmsDefaultPaymentMethods(editorCatalog),
     ];
   }
 
@@ -2850,7 +2850,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     const sectionBlocks = (pageData.blocks || []).filter(
       (b) => cmsNormalizeSectionKey(b.section_key) === cmsNormalizeSectionKey(selected.section_key)
     );
-    const usesCards = !usesConfigCards && !isRawHtml && (['feature_cards', 'card_grid', 'home_pillars'].includes(selected.section_type) || sectionBlocks.length > 0);
+    const usesCards = !usesConfigCards && !isRawHtml && (CMS_FEATURE_CARD_SECTION_TYPES.includes(selected.section_type) || sectionBlocks.length > 0);
     const field = (label, key, type='text', opts={}) => React.createElement('div', { key, id: 'cms-field-' + key }, cmsFieldLabel(label), type === 'textarea' ? cmsTextArea(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.rows || 5) : cmsTextInput(selected[key], v=>{ setField(key,v); setHasUnsaved(true); }, ()=>{ saveSelected(true).then(()=>setHasUnsaved(false)); }, opts.placeholder, opts.mono));
 
     const isBlockField = selectedField === 'block_title' || selectedField === 'block_body' || selectedField === 'block_subtitle' || selectedField === 'block_image';
@@ -2903,7 +2903,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
         cmsFieldLabel('Image URL'),
         React.createElement('div', { style:{ display:'flex', gap:8 } },
           React.createElement('div', { style:{ flex:1 } },
-            cmsTextInput(selectedConfigCard.image || '', (v) => setConfigCardLocal(cardEditId, { image: v }), () => patchConfigCard(cardEditId, { image: selectedConfigCard.image || '' }), 'https://assets.companionsofcaddo.org/...', true)
+            cmsTextInput(selectedConfigCard.image || '', (v) => setConfigCardLocal(cardEditId, { image: v }), () => patchConfigCard(cardEditId, { image: selectedConfigCard.image || '' }), cmsUrlPlaceholder(editorCatalog, 'cdn'), true)
           ),
           React.createElement(Btn, {
             size:'sm', variant:'secondary', icon:'image',
@@ -2920,7 +2920,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
       ),
       React.createElement('div', null,
         cmsFieldLabel('CTA URL'),
-        cmsTextInput(selectedConfigCard.cta_href || '', (v) => setConfigCardLocal(cardEditId, { cta_href: v }), () => patchConfigCard(cardEditId, { cta_href: selectedConfigCard.cta_href || '' }), 'https://companionsofcaddo.org/#…', true)
+        cmsTextInput(selectedConfigCard.cta_href || '', (v) => setConfigCardLocal(cardEditId, { cta_href: v }), () => patchConfigCard(cardEditId, { cta_href: selectedConfigCard.cta_href || '' }), cmsUrlPlaceholder(editorCatalog, 'page'), true)
       ),
       React.createElement('label', { style:{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:C.textSec, cursor:'pointer' } },
         React.createElement('input', {
@@ -2952,7 +2952,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
               cmsFieldLabel('Image URL'),
               React.createElement('div', { style:{ display:'flex', gap:8 } },
                 React.createElement('div', { style:{ flex:1 } },
-                  cmsTextInput(selectedBlock.image_url, v => setBlockField('image_url', v), () => saveSelectedBlock(true), (editorCatalog.cdn_base || R2_CDN_BASE) + '/...', true)
+                  cmsTextInput(selectedBlock.image_url, v => setBlockField('image_url', v), () => saveSelectedBlock(true), cmsUrlPlaceholder(editorCatalog, 'cdn'), true)
                 ),
                 React.createElement(Btn, {
                   size:'sm', variant:'secondary', icon:'image',
@@ -3101,7 +3101,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
                   setHasUnsaved(true);
                 },
                 (e) => setConfigPatch({ source_url: String(e?.target?.value ?? cfg.source_url ?? '').trim(), html_source: 'url' }),
-                'https://assets.companionsofcaddo.org/...',
+                cmsUrlPlaceholder(editorCatalog, 'cdn'),
                 true
               )
             )
@@ -3272,51 +3272,24 @@ function CmsPageEditorView({ pageId, onNavigate }) {
           cmsTextInput(cfg.button_gap || '1rem', v => setConfigPatch({ button_gap: v }), () => {}, '1rem')
         )
       ),
-      usesCards && React.createElement('div', { style:{ display:'grid', gap:10 } },
-        React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 } },
-          React.createElement('h4', { style:groupTitleStyle() }, 'Cards in this section'),
-          React.createElement(Btn, { size:'sm', variant:'secondary', onClick: addCard, disabled: busy }, 'Add card')
-        ),
-        React.createElement('div', { style:{ fontSize:12, color:C.textMut, lineHeight:1.45 } },
-          'One card is enough. Use crop presets for flyers (this 5K art is 3:4).'
-        ),
-        renderPresetRow('Image crop', cfg.image_display || 'natural', CMS_IMAGE_DISPLAY_PRESETS, (v) => setConfigPatch({ image_display: v })),
-        renderPresetRow('Cards per row', String(cfg.columns || 'auto'), [
-          { value:'1', label:'1' }, { value:'auto', label:'Auto' }, { value:'2', label:'2' }, { value:'3', label:'3' }, { value:'4', label:'4' }
-        ], (v) => setConfigPatch({ columns: v })),
-        sectionBlocks.length
-          ? [...sectionBlocks].sort((a,b)=>(Number(a.sort_order)||0)-(Number(b.sort_order)||0)).map((b) => React.createElement('div', {
-              key: b.id || b.block_key,
-              style: {
-                display: 'grid',
-                gridTemplateColumns: '1fr auto auto auto',
-                gap: 6,
-                alignItems: 'center',
-                padding: '8px 10px',
-                borderRadius: 10,
-                border: `1px solid ${selectedBlockKey === b.block_key ? C.purple : C.border}`,
-                background: selectedBlockKey === b.block_key ? 'rgba(124,58,237,0.08)' : C.bg,
-              },
-            },
-              React.createElement('button', {
-                type: 'button',
-                onClick: () => {
-                  setSelectedBlockKey(b.block_key);
-                  setSelectedField('block_title');
-                  postHighlight(selected.section_key, 'block_title');
-                  setMobileTab('edit');
-                },
-                style: { textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 },
-              },
-                React.createElement('div', { style:{ fontWeight:800, color:C.text, fontSize:13 } }, b.title || b.block_key || 'Card'),
-                React.createElement('div', { style:{ color:C.textMut, fontSize:11, marginTop:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, b.body || 'Edit card copy')
-              ),
-              React.createElement('button', { type:'button', title:'Move up', onClick: () => nudgeCard(b.block_key, -1), style:{ width:22, height:22, border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, cursor:'pointer' } }, '↑'),
-              React.createElement('button', { type:'button', title:'Move down', onClick: () => nudgeCard(b.block_key, 1), style:{ width:22, height:22, border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, cursor:'pointer' } }, '↓'),
-              React.createElement('button', { type:'button', title:'Remove card', onClick: () => deleteCard(b), style:{ width:22, height:22, border:`1px solid ${C.red}44`, borderRadius:6, background:C.surface, color:C.red, cursor:'pointer', fontSize:14, lineHeight:1 } }, '×')
-            ))
-          : React.createElement('div', { style:{ color:C.textMut, fontSize:12 } }, 'No cards yet — Add card to put one event in this section.')
-      ),
+      usesCards && renderCmsFeatureCardsInspector({
+        cfg,
+        sectionBlocks,
+        selectedBlockKey,
+        busy,
+        renderPresetRow,
+        onAddCard: addCard,
+        onSelectCard: (b) => {
+          setSelectedBlockKey(b.block_key);
+          setSelectedField('block_title');
+          postHighlight(selected.section_key, 'block_title');
+          setMobileTab('edit');
+        },
+        onNudgeCard: (key, dir) => nudgeCard(key, dir, selected),
+        onDeleteCard: (b) => deleteCard(b, selected),
+        onCrop: (v) => setConfigPatch({ image_display: v }),
+        onColumns: (v) => setConfigPatch({ columns: v }),
+      }),
       !isRawHtml && !usesConfigCards && !isSplitInfoCard && React.createElement('div', { style:{ display:'grid', gap:12 } },
         React.createElement('h4', { style:groupTitleStyle() }, 'Links'),
         renderCtaFields('cta_label', 'cta_href', 'Primary CTA'),
@@ -3520,7 +3493,7 @@ function CmsPageEditorView({ pageId, onNavigate }) {
     return React.createElement('div', { style:{ display:'grid', gap:12 } },
       React.createElement('h4', { style:groupTitleStyle() }, 'Media'),
       React.createElement('div', null, cmsFieldLabel('Image'), React.createElement('div', { style:{ display:'flex', gap:8 } },
-        React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), 'https://assets.companionsofcaddo.org/...', true)),
+        React.createElement('div', { style:{ flex:1 } }, cmsTextInput(selected.image_url, v=>setField('image_url', v), ()=>saveSelected(true), cmsUrlPlaceholder(editorCatalog, 'cdn'), true)),
         React.createElement(Btn, { size:'sm', variant:'secondary', icon:'image', onClick:openImagePicker }, 'Pick')
       )),
       imgUrl && React.createElement('div', { style:{ display:'grid', gap:10 } },
@@ -3805,11 +3778,10 @@ function mediaAssetUrl(asset) {
   const cdn = String(asset.cdn_url || "").trim();
   const pub = String(asset.public_url || asset.pub_url || "").trim();
   const key = String(asset.r2_key || "").replace(/^\/+/, "").trim();
-  const raw = cdn || pub || (key ? `${R2_CDN_BASE}/${key}` : "") || String(asset.url || asset.image_url || "").trim();
+  const cdnBase = cmsCdnBase();
+  const raw = cdn || pub || (key ? `${cdnBase ? cdnBase + "/" : "/"}${key}` : "") || String(asset.url || asset.image_url || "").trim();
   if (!raw) return "";
-  return raw
-    .replace(/^https?:\/\/companionscpas\.meauxbility\.workers\.dev\/static\//i, `${R2_CDN_BASE}/`)
-    .replace(/^https?:\/\/companionscpas\.meauxbility\.workers\.dev\//i, "https://companionsofcaddo.org/");
+  return cmsRewriteAssetUrl(raw);
 }
 
 function mediaIsImageAsset(asset) {
@@ -4341,7 +4313,7 @@ function ImagesUploadTab({ onUploaded, notify }) {
     },
       React.createElement(Icon, { name: "image", size: 28, style: { opacity: .35, display: "block", margin: "0 auto 10px" } }),
       React.createElement("div", { style: { fontWeight: 600, color: C.text, marginBottom: 4 } }, "Drag images here or click to browse"),
-      React.createElement("div", { style: { fontSize: 12 } }, "JPG, PNG, WebP, GIF, SVG, AVIF · Max 10 MB · Saves to assets.companionsofcaddo.org"),
+      React.createElement("div", { style: { fontSize: 12 } }, `JPG, PNG, WebP, GIF, SVG, AVIF · Max 10 MB · Saves to ${cmsCdnBase() ? cmsCdnBase().replace(/^https?:\/\//, "") : "your media library"}`),
       React.createElement("input", { ref: fileInputRef, type: "file", accept: "image/*", multiple: true, style: { display: "none" }, onChange: e => addFiles(e.target.files) })
     ),
     // Queue
