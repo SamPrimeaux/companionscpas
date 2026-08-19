@@ -3,6 +3,7 @@
  * Pages/sections/blocks are already dynamic; this is the leftover JS-constant layer.
  */
 
+/** SSOT tenant id for CMS Worker modules (`src/api/cms/shared.js` re-exports this). */
 const TENANT_ID = "tenant_companionscpas";
 
 const CHROME_SECTION_TYPES = new Set(["nav", "footer"]);
