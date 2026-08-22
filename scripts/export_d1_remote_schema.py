@@ -256,29 +256,61 @@ def fetch_objects(client: WranglerD1, args: argparse.Namespace) -> list[dict[str
     return output
 
 
-def fetch_table_metadata(client: WranglerD1, table: str) -> dict[str, Any]:
-    ident = quote_identifier(table)
-    columns = client.query(f"PRAGMA table_xinfo({ident})")
-    foreign_keys = client.query(f"PRAGMA foreign_key_list({ident})")
-    indexes = client.query(f"PRAGMA index_list({ident})")
-    index_details = []
-    for index in indexes:
-        index_name = str(index.get("name", ""))
-        if not index_name:
-            continue
-        index_details.append(
-            {
-                **index,
-                "columns": client.query(
-                    f"PRAGMA index_xinfo({quote_identifier(index_name)})"
-                ),
-            }
-        )
-    return {
-        "columns": columns,
-        "foreign_keys": foreign_keys,
-        "indexes": index_details,
+def fetch_all_table_metadata(
+    client: WranglerD1, tables: list[str]
+) -> dict[str, dict[str, Any]]:
+    """Fetch all table metadata in four correlated PRAGMA queries.
+
+    D1/SQLite exposes PRAGMAs as table-valued functions. Correlating them with
+    sqlite_master avoids one Wrangler invocation per table/index, which is
+    important for large remote schemas and tunnel request time limits.
+    """
+    if not tables:
+        return {}
+    selected_tables = ", ".join(sql_literal(table) for table in tables)
+    columns = client.query(
+        "SELECT m.name AS table_name, p.* "
+        "FROM sqlite_master AS m JOIN pragma_table_xinfo(m.name) AS p "
+        f"WHERE m.type='table' AND m.name IN ({selected_tables}) "
+        "ORDER BY m.name, p.cid"
+    )
+    foreign_keys = client.query(
+        "SELECT m.name AS table_name, p.* "
+        "FROM sqlite_master AS m JOIN pragma_foreign_key_list(m.name) AS p "
+        f"WHERE m.type='table' AND m.name IN ({selected_tables}) "
+        "ORDER BY m.name, p.id, p.seq"
+    )
+    indexes = client.query(
+        "SELECT m.name AS table_name, p.* "
+        "FROM sqlite_master AS m JOIN pragma_index_list(m.name) AS p "
+        f"WHERE m.type='table' AND m.name IN ({selected_tables}) "
+        "ORDER BY m.name, p.seq"
+    )
+    index_columns = client.query(
+        "SELECT i.tbl_name AS table_name, i.name AS index_name, p.* "
+        "FROM sqlite_master AS i JOIN pragma_index_xinfo(i.name) AS p "
+        f"WHERE i.type='index' AND i.tbl_name IN ({selected_tables}) "
+        "ORDER BY i.tbl_name, i.name, p.seqno"
+    )
+
+    metadata: dict[str, dict[str, Any]] = {
+        table: {"columns": [], "foreign_keys": [], "indexes": []}
+        for table in tables
     }
+    for row in columns:
+        metadata[str(row["table_name"])]["columns"].append(row)
+    for row in foreign_keys:
+        metadata[str(row["table_name"])]["foreign_keys"].append(row)
+
+    index_columns_by_name: dict[str, list[dict[str, Any]]] = {}
+    for row in index_columns:
+        index_columns_by_name.setdefault(str(row["index_name"]), []).append(row)
+    for row in indexes:
+        index_name = str(row.get("name", ""))
+        metadata[str(row["table_name"])]["indexes"].append(
+            {**row, "columns": index_columns_by_name.get(index_name, [])}
+        )
+    return metadata
 
 
 def terminate_sql(sql: str) -> str:
@@ -384,10 +416,8 @@ def main() -> int:
                 + ", ".join(unknown_seed_tables)
             )
 
-        metadata: dict[str, Any] = {}
-        for index, table in enumerate(tables, start=1):
-            print(f"[{index}/{len(tables)}] Inspecting {table}", file=sys.stderr)
-            metadata[table] = fetch_table_metadata(client, table)
+        print(f"Inspecting metadata for {len(tables)} tables", file=sys.stderr)
+        metadata = fetch_all_table_metadata(client, tables)
 
         timestamp = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
         baseline = render_baseline(objects, args.database, timestamp)
