@@ -327,15 +327,6 @@ function App() {
     : { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0 };
 
   return React.createElement("div", { className: "cpas-shell" + (sidebarCollapsed && !isMobile ? " sidebar-collapsed" : "") },
-    React.createElement("div", { className: "cpas-desktop-only" },
-      React.createElement(Sidebar, {
-        view,
-        navigate,
-        onLogout: handleLogout,
-        collapsed: sidebarCollapsed,
-        onToggleCollapse: toggleSidebarCollapsed
-      })
-    ),
     React.createElement("div", { className: "cpas-main-col" },
       React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => setNavOpen(true), navigate }),
       React.createElement("main", {
@@ -344,17 +335,18 @@ function App() {
         style: mainScrollStyle
       }, renderView())
     ),
-    isMobile && React.createElement("div", {
+    React.createElement("div", {
       className: `cpas-drawer-backdrop ${navOpen ? "open" : ""}`,
       onClick: () => setNavOpen(false),
       "aria-hidden": "true"
     }),
-    isMobile && React.createElement(MobileDrawer, {
+    React.createElement(MobileDrawer, {
       open: navOpen, view, navigate,
       onClose: () => setNavOpen(false),
       onLogout: handleLogout
     }),
     React.createElement(AgentSamDrawer, null),
+    React.createElement(MiniAgentSamDock, null),
     typeof CmsSectionUndoToast === "function"
       ? React.createElement(CmsSectionUndoToast, null)
       : null

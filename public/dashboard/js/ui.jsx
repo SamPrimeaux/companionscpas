@@ -551,45 +551,23 @@ function Sidebar({ view, navigate, onLogout, collapsed = false, onToggleCollapse
   );
 }
 
-// TopBar — desktop light, mobile dark (matches nav)
-// Mail icon now routes to /dashboard/email
-function TopBar({ view, isMobile, navOpen, onOpenNav, navigate }) {
-  if (isMobile) {
-    const label = view === "cms-form-editor"
-      ? "Form Studio"
-      : (NAV_ITEMS.find(n=>n.key===view)?.label||"Dashboard");
-    return React.createElement("header", { className:"cpas-topbar mobile", style:{ display:"flex" } },
-      React.createElement("button", { className:"cpas-hamburger", onClick:onOpenNav, "aria-label":"Open navigation", "aria-expanded":String(navOpen), "aria-controls":"cpas-mobile-drawer" },
-        React.createElement("span", { style:{ width:18 } }),
-        React.createElement("span", { style:{ width:navOpen?18:12 } }),
-        React.createElement("span", { style:{ width:navOpen?18:15 } })
-      ),
-      React.createElement("span", { style:{ flex:1, fontSize:15, fontWeight:600, color:"rgba(255,255,255,0.92)", textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" } }, label),
-      React.createElement("button", {
-        onClick:()=>{ if(typeof window.__toggleAgentSam==="function") window.__toggleAgentSam(); else window.dispatchEvent(new Event("agentsam:toggle")); },
-        className:"agentsam-launcher", style:{ color:"rgba(255,255,255,0.6)" }, title:"Toggle Agent Sam"
-      }, React.createElement(Icon, { name:"bot", size:20 }))
-    );
-  }
-  return React.createElement("header", { className:"cpas-topbar" },
-    React.createElement("div", { style:{ flex:1 } }),
-    React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto" } },
-      // Mail → /dashboard/email (notifications live under Email → Smart Views)
-      React.createElement("button", {
-        onClick:()=>navigate("email"),
-        "aria-label": "Email inbox",
-        title: "Email",
-        style:{ background:"none", border:"none", color:"var(--nav-text-sec)", cursor:"pointer", display:"flex", padding:8, borderRadius:8, transition:"background .12s" },
-        onMouseEnter:e=>e.currentTarget.style.background="rgba(255,255,255,0.08)",
-        onMouseLeave:e=>e.currentTarget.style.background="none"
-      }, React.createElement(Icon, { name:"mail", size:20 })),
-      // Agent Sam
-      React.createElement("button", {
-        className:"agentsam-launcher",
-        onClick:()=>{ if(typeof window.__toggleAgentSam==="function") window.__toggleAgentSam(); else window.dispatchEvent(new Event("agentsam:toggle")); },
-        title:"Toggle Agent Sam",
-        "aria-label":"Toggle Agent Sam"
-      }, React.createElement(Icon, { name:"bot", size:20 }))
+// Two global controls instead of a full-width dashboard bar.
+function TopBar({ navOpen, onOpenNav }) {
+  return React.createElement("header", { className: "cpas-topbar cpas-mini-toolbar" },
+    React.createElement("button", { type: "button", className: "cpas-hamburger",
+      onClick: onOpenNav, "aria-label": "Open navigation",
+      "aria-expanded": String(navOpen), "aria-controls": "cpas-mobile-drawer" },
+      React.createElement("span", { style: { width: 18 } }),
+      React.createElement("span", { style: { width: 12 } }),
+      React.createElement("span", { style: { width: 15 } })
+    ),
+    React.createElement("button", { type: "button", className: "agentsam-launcher",
+      onClick: () => {
+        if (typeof window.__toggleAgentSam === "function") window.__toggleAgentSam();
+        else window.dispatchEvent(new Event("agentsam:toggle"));
+      },
+      title: "Open AgentSam", "aria-label": "Open AgentSam" },
+      React.createElement(Icon, { name: "bot", size: 20 })
     )
   );
 }

@@ -11,6 +11,79 @@ if (!document.getElementById("agentsam-global-style")) {
   document.head.appendChild(style);
 }
 
+// Portable @inneranimalmedia/agentsam-workbench MiniAgentSam annotation adapter.
+// The host owns authentication, messages and all mutations; the SDK only collects
+// explicit element selections. Existing AgentSamDrawer owns the chat transport.
+function MiniAgentSamDock() {
+  const [selecting, setSelecting] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
+  const [showDock, setShowDock] = React.useState(true);
+  const scope = React.useCallback(() => document.getElementById("main-scroll"), []);
+  const SDKMini = window.AgentSamSDK?.MiniAgentSam;
+  function openWithPrompt(prompt) {
+    const text = String(prompt || "").trim();
+    if (!text) return;
+    window.dispatchEvent(new CustomEvent("agentsam:open", { detail: { prompt: text } }));
+  }
+  const submit = e => {
+    e.preventDefault();
+    if (!draft.trim()) return;
+    openWithPrompt(draft.trim());
+    setDraft("");
+  };
+  const submitSelection = React.useCallback(async (prompt, selection) => {
+    const label = String(selection?.label || "Selected element").slice(0, 180);
+    const content = String(selection?.text || "").slice(0, 300);
+    openWithPrompt(
+      "Help me improve this part of the Companions dashboard. " +
+      "Selected element: " + label + ". Page: " + String(selection?.page || location.pathname) +
+      ". Visible text: " + content + ". My request: " + prompt
+    );
+  }, []);
+  return React.createElement(React.Fragment, null,
+    showDock && React.createElement("form", {
+      className: "cpas-mini-dock", "data-annotation-control": "true",
+      "aria-label": "Ask AgentSam", onSubmit: submit
+    },
+      React.createElement("button", {
+        className: "cpas-mini-select" + (selecting ? " is-active" : ""), type: "button",
+        disabled: !SDKMini, "aria-pressed": selecting,
+        "aria-label": selecting ? "Cancel element selection" : "Select page element",
+        title: selecting ? "Cancel selection" : "Select an element for AgentSam",
+        onClick: () => setSelecting(v => !v)
+      }, React.createElement(Icon, { name: "mouse-pointer", size: 17 })),
+      React.createElement("input", {
+        type: "text", value: draft, onChange: e => setDraft(e.target.value),
+        placeholder: "Ask AgentSam…", "aria-label": "Message AgentSam",
+        maxLength: 6000
+      }),
+      React.createElement("button", { className: "cpas-mini-expand", type: "button",
+        "aria-label": "Open full AgentSam conversation", title: "Expand chat",
+        onClick: () => {
+          if (draft.trim()) { openWithPrompt(draft.trim()); setDraft(""); }
+          else window.dispatchEvent(new CustomEvent("agentsam:open"));
+        }
+      }, React.createElement(Icon, { name: "maximize", size: 17 })),
+      React.createElement("button", { className: "cpas-mini-send", type: "submit",
+        disabled: !draft.trim(), "aria-label": "Send to AgentSam", title: "Send to AgentSam"
+      }, React.createElement(Icon, { name: "arrow-up", size: 18 })),
+      React.createElement("button", { className: "cpas-mini-hide", type: "button",
+        "aria-label": "Minimize AgentSam composer", title: "Minimize",
+        onClick: () => setShowDock(false)
+      }, React.createElement(Icon, { name: "close", size: 13 }))
+    ),
+    !showDock && React.createElement("button", { type: "button",
+      className: "cpas-mini-restore", "data-annotation-control": "true",
+      onClick: () => setShowDock(true), "aria-label": "Show miniAgentSam",
+      title: "Show miniAgentSam"
+    }, React.createElement(Icon, { name: "bot", size: 21 })),
+    SDKMini && React.createElement(SDKMini, {
+      selecting, onSelectingChange: setSelecting,
+      onSubmit: submitSelection, scope
+    })
+  );
+}
+
 function AgentSamDrawer() {
   const [open, setOpen] = React.useState(false);
   const [mode] = React.useState("auto");
@@ -152,7 +225,7 @@ function AgentSamDrawer() {
     textMut: "var(--nav-text-muted)",
     hover:   "rgba(255,255,255,0.08)",
   };
-  return React.createElement("aside", { style:{ width:330, borderLeft:`1px solid ${NV.border}`, background:NV.bg, display:"flex", flexDirection:"column", minHeight:0 } },
+  return React.createElement("aside", { className: "cpas-agentsam-drawer", style:{ width:330, borderLeft:`1px solid ${NV.border}`, background:NV.bg, display:"flex", flexDirection:"column", minHeight:0 } },
     React.createElement("div", { style:{ padding:16, borderBottom:`1px solid ${NV.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 } },
       React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:10 } },
         React.createElement("button", {
