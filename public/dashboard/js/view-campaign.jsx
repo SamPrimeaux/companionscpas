@@ -826,10 +826,20 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     config: { show_on_donate: false, show_on_services: false },
   });
 
+  React.useEffect(() => {
+    if (!dirty && !uploadBusy) return;
+    const guard = event => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [dirty, uploadBusy]);
+
   function setField(k, v) { setDirty(true); setSaveMsg(""); setForm(prev => Object.assign({}, prev, { [k]: v })); }
   function setSurface(k, v) { setDirty(true); setSaveMsg(""); setForm(prev => Object.assign({}, prev, { config: Object.assign({}, prev.config, { [k]: v }) })); }
 
-  async function loadCampaign() {
+  async function loadCampaign(preserveUnsaved = false) {
     if (isNew) return;
     setLoading(true);
     try {
@@ -838,8 +848,9 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       if (!d.ok && !d.campaign) throw new Error(d.error || "Campaign not found");
       const c = d.campaign;
       const cfg = c.config || {};
-      setDirty(false);
-      setForm({
+      if (!preserveUnsaved || !dirty) {
+        setDirty(false);
+        setForm({
         id: c.id, title: c.title || "",
         description: c.description || c.short_description || "",
         is_public: Number(c.is_public) === 1 ? 1 : 0,
@@ -849,7 +860,8 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         cover_asset_id: c.cover_asset_id || null,
         attachments: attachmentsFromCampaign(c, cfg),
         config: Object.assign({ show_on_donate: false, show_on_services: false }, cfg),
-      });
+        });
+      }
       const rawEntries = Array.isArray(d.entries) ? d.entries : [];
       setEntries(rawEntries);
       // Always sync from server — do not keep stale local vote state.
@@ -865,7 +877,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     finally { setLoading(false); }
   }
 
-  React.useEffect(function() { loadCampaign(); }, [campaignId, isNew]);
+  React.useEffect(function() { loadCampaign(false); }, [campaignId, isNew]);
 
   async function entryAction(entryId, action, body) {
     setEntryBusy(entryId + ":" + action); setError("");
@@ -887,7 +899,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         });
         setSaveMsg("Payment link emailed to entrant.");
       }
-      await loadCampaign();
+      await loadCampaign(true);
       try { window.dispatchEvent(new CustomEvent("cpas:fundraising-review-changed")); } catch (_) {}
       return d;
     } catch (e) { setError(e.message || "Entry action failed"); return null; }
@@ -1004,7 +1016,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } },
         viewBtn("Grid", "grid", GridIcon),
         viewBtn("Gallery", "gallery", MasonryIcon),
-        React.createElement(Btn, { variant: "secondary", size: "sm", onClick: loadCampaign, disabled: !!entryBusy }, "Refresh")
+        React.createElement(Btn, { variant: "secondary", size: "sm", onClick: () => loadCampaign(true), disabled: !!entryBusy }, "Refresh")
       )
     ),
 
@@ -1114,7 +1126,10 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     React.createElement("div", { className: "camp-topbar" },
       React.createElement("div", null,
         React.createElement("button", { type: "button", className: "camp-back",
-          onClick: () => onNavigate && onNavigate("fundraising") }, "← Giving"),
+          onClick: () => {
+             if ((dirty || uploadBusy) && !window.confirm("Leave campaign editor? Unsaved changes or uploads will be lost.")) return;
+             onNavigate && onNavigate("fundraising");
+           } }, "← Giving"),
         React.createElement("h1", { className: "camp-title" }, isNew ? "New Campaign" : (form.title || "Campaign")),
         !isNew && React.createElement(Badge, { label: form.status, dot: true }),
         saveMsg && React.createElement("div", { className: "camp-save-msg" }, saveMsg),
