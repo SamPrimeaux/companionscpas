@@ -608,6 +608,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   const [form, setForm] = React.useState({
     id: "", title: "", description: "",
     is_public: 0, status: "draft",
+    goal_amount_cents: 0, starts_at: null, ends_at: null, cover_asset_id: null,
     attachments: [],
     config: { show_on_donate: false, show_on_services: false },
   });
@@ -630,6 +631,9 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         description: c.description || c.short_description || "",
         is_public: Number(c.is_public) === 1 ? 1 : 0,
         status: c.status || "draft",
+        goal_amount_cents: Number(c.goal_amount_cents || 0),
+        starts_at: c.starts_at || null, ends_at: c.ends_at || null,
+        cover_asset_id: c.cover_asset_id || null,
         attachments: attachmentsFromCampaign(c, cfg),
         config: Object.assign({ show_on_donate: false, show_on_services: false }, cfg),
       });
@@ -686,6 +690,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   async function save() {
     if (uploadBusy) { setError("Finish uploading attachments before saving this campaign."); return; }
     if (!form.title.trim()) { setError("Title is required."); return; }
+    if (form.starts_at && form.ends_at && form.ends_at < form.starts_at) { setError("End date cannot be before the start date."); return; }
     setSaving(true); setError(""); setSaveMsg("");
     try {
       const isPublic = form.is_public === 1;
@@ -699,7 +704,10 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         description: form.description.trim(),
         short_description: form.description.trim().slice(0, 240),
         is_public: isPublic ? 1 : 0, status: isPublic ? "active" : "draft",
-        goal_amount_cents: 0, campaign_type: "fundraiser", config_json: configJson,
+        goal_amount_cents: Number(form.goal_amount_cents || 0),
+        starts_at: form.starts_at || null, ends_at: form.ends_at || null,
+        cover_asset_id: firstImage?.asset_id || (coverUrl && coverUrl === form.config?.cover_url ? form.cover_asset_id : null),
+        campaign_type: "fundraiser", config_json: configJson,
       };
       const res = await fetch("/api/dashboard/fundraising", {
         method: isNew || !form.id ? "POST" : "PUT", credentials: "include",
@@ -917,6 +925,21 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
             value: form.description, onChange: e => setField("description", e.target.value),
             className: "camp-textarea camp-textarea--lg", rows: 8,
             placeholder: "Tell people why this campaign matters...",
+          })),
+          field("Fundraising goal (USD, optional)", React.createElement("input", {
+            type: "number", min: 0, step: "0.01", className: "camp-title-input",
+            value: String(Number(form.goal_amount_cents || 0) / 100),
+            onChange: e => setField("goal_amount_cents", Math.max(0, Math.round(Number(e.target.value || 0) * 100))),
+          })),
+          field("Start date (optional)", React.createElement("input", {
+            type: "date", className: "camp-title-input",
+            value: String(form.starts_at || "").slice(0, 10),
+            onChange: e => setField("starts_at", e.target.value || null),
+          })),
+          field("End date (optional)", React.createElement("input", {
+            type: "date", className: "camp-title-input",
+            value: String(form.ends_at || "").slice(0, 10),
+            onChange: e => setField("ends_at", e.target.value || null),
           })),
           field("Attachments", React.createElement(CampaignAttachments, {
             media: form.attachments, onChange: v => setField("attachments", v), disabled: saving,

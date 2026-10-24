@@ -297,7 +297,7 @@ export async function saveCampaignRecord(env, b, existingId = null) {
   const configJson = typeof b.config_json === 'string'
     ? b.config_json
     : JSON.stringify(b.config_json || b.config || {});
-  const goalCents = Math.max(0, Number(b.goal_amount_cents || 0));
+  const goalCents = b.goal_amount_cents == null ? null : Math.max(0, Number(b.goal_amount_cents || 0));
   const isPublic = b.is_public === 0 || b.is_public === false ? 0 : 1;
   const shortDesc = String(b.short_description || b.description || '').slice(0, 240);
 
@@ -305,14 +305,22 @@ export async function saveCampaignRecord(env, b, existingId = null) {
     await env.DB.prepare(`
       UPDATE fundraising_campaigns SET
         title = ?, slug = ?, description = ?, short_description = ?,
-        goal_amount_cents = ?, status = ?, starts_at = ?, ends_at = ?,
-        is_public = ?, campaign_type = ?, cover_asset_id = ?, config_json = ?,
+        goal_amount_cents = COALESCE(?, goal_amount_cents), status = ?,
+        starts_at = CASE WHEN ? = 1 THEN ? ELSE starts_at END,
+        ends_at = CASE WHEN ? = 1 THEN ? ELSE ends_at END,
+        is_public = ?, campaign_type = ?,
+        cover_asset_id = CASE WHEN ? = 1 THEN ? ELSE cover_asset_id END,
+        config_json = CASE WHEN ? = 1 THEN ? ELSE config_json END,
         updated_at = ?
       WHERE id = ?
     `).bind(
       title, slug, b.description || '', shortDesc,
-      goalCents, b.status || 'active', b.starts_at || null, b.ends_at || null,
-      isPublic, b.campaign_type || 'fundraiser', b.cover_asset_id || null, configJson,
+      goalCents, b.status || 'active',
+      Object.prototype.hasOwnProperty.call(b, 'starts_at') ? 1 : 0, b.starts_at || null,
+      Object.prototype.hasOwnProperty.call(b, 'ends_at') ? 1 : 0, b.ends_at || null,
+      isPublic, b.campaign_type || 'fundraiser',
+      Object.prototype.hasOwnProperty.call(b, 'cover_asset_id') ? 1 : 0, b.cover_asset_id || null,
+      (Object.prototype.hasOwnProperty.call(b, 'config_json') || Object.prototype.hasOwnProperty.call(b, 'config')) ? 1 : 0, configJson,
       now, existingId
     ).run();
     return id;
@@ -326,21 +334,9 @@ export async function saveCampaignRecord(env, b, existingId = null) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
   `).bind(
     id, TENANT, TENANT, title, slug, b.description || '', shortDesc,
-    goalCents, b.status || 'draft', b.starts_at || null, b.ends_at || null,
+    goalCents ?? 0, b.status || 'draft', b.starts_at || null, b.ends_at || null,
     isPublic, b.campaign_type || 'fundraiser', b.cover_asset_id || null, configJson,
     now, now
-  ).run().catch(async () => {
-    await env.DB.prepare(`
-      INSERT INTO fundraising_campaigns
-        (id, organization_id, title, slug, description, short_description,
-         goal_amount_cents, raised_amount_cents, status, starts_at, ends_at, is_public,
-         campaign_type, donor_count, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, ?, ?)
-    `).bind(
-      id, TENANT, title, slug, b.description || '', shortDesc,
-      goalCents, b.status || 'draft', b.starts_at || null, b.ends_at || null,
-      isPublic, b.campaign_type || 'fundraiser', now, now
-    ).run();
-  });
+  ).run();
   return id;
 }
