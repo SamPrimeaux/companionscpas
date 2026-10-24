@@ -205,6 +205,7 @@ function CampaignAttachments({ media, onChange, disabled, onUploadingChange }) {
 
   function removeAt(idx) {
     if (uploading || disabled) return;
+    if (!window.confirm("Remove " + (items[idx]?.name || "this file") + " from this campaign? It will remain in your media library.")) return;
     onChange(items.filter((_, i) => i !== idx));
     if (preview?.url === items[idx]?.url) setPreview(null);
   }
@@ -314,10 +315,15 @@ function CampaignAttachments({ media, onChange, disabled, onUploadingChange }) {
               : React.createElement("span", { className: "camp-attach-file" },
                   React.createElement(Icon, { name: item.type === "video" ? "video" : "file", size: 24 }),
                   React.createElement("span", { className: "camp-attach-filename" }, item.name || "Document"),
-                  React.createElement("span", { className: "camp-media-view-label" }, "Click to preview")
+                  React.createElement("span", { className: "camp-media-view-label" }, "Preview file")
                 )
           ),
           activeCover?.url === item.url && React.createElement("span", { className: "camp-attach-badge" }, "Cover"),
+          React.createElement("button", {
+            type: "button", className: "camp-attach-remove", disabled: disabled || uploading,
+            onClick: () => removeAt(idx), title: "Remove from campaign",
+            "aria-label": "Remove " + (item.name || "attachment") + " from campaign",
+          }, "×"),
           React.createElement("div", { className: "camp-media-tile-actions" },
             item.type === "image" && activeCover?.url !== item.url && React.createElement("button", {
               type: "button", onClick: () => makeCover(idx), disabled: disabled || uploading,
@@ -330,11 +336,7 @@ function CampaignAttachments({ media, onChange, disabled, onUploadingChange }) {
             React.createElement("button", {
               type: "button", onClick: () => moveAt(idx, 1), disabled: idx === items.length - 1 || disabled || uploading,
               title: "Move later", "aria-label": "Move later",
-            }, "→"),
-            React.createElement("button", {
-              type: "button", onClick: () => removeAt(idx), disabled: disabled || uploading,
-              title: "Remove from campaign", "aria-label": "Remove " + (item.name || "attachment"),
-            }, "×")
+            }, "→")
           )
         )),
         addTile
@@ -356,7 +358,10 @@ function CampaignAttachments({ media, onChange, disabled, onUploadingChange }) {
       ),
       React.createElement("footer", { className: "camp-media-modal-footer" },
         React.createElement("a", { href: preview.url, target: "_blank", rel: "noopener noreferrer" }, "Open original file ↗"),
-        React.createElement("span", null, "Preview only — save the campaign to publish attachments")
+        React.createElement("button", { type: "button", className: "camp-preview-remove-file",
+          disabled: uploading || disabled,
+          onClick: () => { const i = items.findIndex(a => a.url === preview.url); if (i >= 0) removeAt(i); },
+        }, "Remove from campaign")
       )
     ), () => setPreview(null)),
     libraryOpen && modal("Choose existing media", React.createElement("div", { className: "camp-media-library" },
@@ -408,6 +413,61 @@ function CampaignLivePreview({ title, description, attachments }) {
         React.createElement("p", null, excerpt || "Description will appear here on the website card."),
         items.length > 0 && React.createElement("span", { className: "camp-preview-count" },
           items.length + " media attachment" + (items.length === 1 ? "" : "s"))
+      )
+    )
+  );
+}
+
+// Full-screen pre-publish preview reads the actual in-memory editor form, without publishing.
+function CampaignWebsitePreview({ form, onClose }) {
+  const [mode, setMode] = React.useState("page");
+  const files = form.attachments || [];
+  const visual = files.find(a => a.type === "image") || files.find(a => a.type === "video" || a.type === "pdf");
+  React.useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return React.createElement("div", { className: "camp-webpreview-backdrop",
+    onMouseDown: e => { if (e.target === e.currentTarget) onClose(); } },
+    React.createElement("section", { className: "camp-webpreview", role: "dialog",
+      "aria-modal": "true", "aria-label": "Campaign website preview" },
+      React.createElement("header", { className: "camp-webpreview-header" },
+        React.createElement("div", null, React.createElement("strong", null, "Website preview"),
+          React.createElement("small", null, "Current edits — nothing published yet")),
+        React.createElement("button", { type: "button", onClick: onClose, "aria-label": "Close preview" }, "Close ×")),
+      React.createElement("nav", { className: "camp-webpreview-modes", "aria-label": "Preview layout" },
+        React.createElement("button", { type: "button", className: mode === "page" ? "is-active" : "",
+          "aria-pressed": mode === "page", onClick: () => setMode("page") }, "Page section"),
+        React.createElement("button", { type: "button", className: mode === "card" ? "is-active" : "",
+          "aria-pressed": mode === "card", onClick: () => setMode("card") }, "Website card")),
+      React.createElement("div", { className: "camp-webpreview-scroll" },
+        mode === "card"
+          ? React.createElement("div", { className: "camp-webpreview-card" },
+              React.createElement(CampaignLivePreview, {
+                title: form.title, description: form.description, attachments: files }))
+          : React.createElement("article", { className: "camp-webpreview-page" },
+              React.createElement("div", { className: "camp-webpreview-story" },
+                React.createElement("p", { className: "camp-webpreview-eyebrow" }, "Community fundraiser"),
+                React.createElement("h1", null, form.title || "Campaign title"),
+                form.starts_at && React.createElement("p", { className: "camp-webpreview-date" },
+                  new Date(String(form.starts_at).slice(0,10) + "T12:00:00")
+                    .toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })),
+                React.createElement("p", { className: "camp-webpreview-copy" },
+                  form.description || "Your campaign story will appear here.")),
+              visual && React.createElement("div", { className: "camp-webpreview-media" },
+                visual.type === "image"
+                  ? React.createElement("img", { src: visual.url, alt: visual.name || "Campaign image" })
+                  : visual.type === "video"
+                    ? React.createElement("video", { src: visual.url, controls: true, playsInline: true })
+                    : React.createElement("iframe", { src: visual.url + "#toolbar=1&navpanes=0",
+                        title: visual.name || "Campaign PDF" })),
+              files.length > 0 && React.createElement("div", { className: "camp-webpreview-resources" },
+                React.createElement("h2", null, "Campaign media"),
+                files.map((f, i) => React.createElement("a", {
+                  key: (f.asset_id || f.url) + ":" + i, href: f.url, target: "_blank",
+                  rel: "noopener noreferrer" }, f.name || "Open attachment")))
+            )
       )
     )
   );
@@ -812,6 +872,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   const [dirty, setDirty] = React.useState(false);
   const [error, setError] = React.useState("");
   const [saveMsg, setSaveMsg] = React.useState("");
+  const [websitePreviewOpen, setWebsitePreviewOpen] = React.useState(false);
   const [entries, setEntries] = React.useState([]);
   const [entryBusy, setEntryBusy] = React.useState("");
   const [votes, setVotes] = React.useState({});
@@ -820,7 +881,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   const [entryView, setEntryView] = React.useState("grid"); // 'grid' | 'gallery'
   const [form, setForm] = React.useState({
     id: "", title: "", description: "",
-    is_public: 0, status: "draft",
+    campaign_type: "fundraiser", is_public: 0, status: "draft",
     goal_amount_cents: 0, starts_at: null, ends_at: null, cover_asset_id: null,
     attachments: [],
     config: { show_on_donate: false, show_on_services: false },
@@ -853,6 +914,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         setForm({
         id: c.id, title: c.title || "",
         description: c.description || c.short_description || "",
+        campaign_type: c.campaign_type || "fundraiser",
         is_public: Number(c.is_public) === 1 ? 1 : 0,
         status: c.status || "draft",
         goal_amount_cents: Number(c.goal_amount_cents || 0),
@@ -932,7 +994,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         goal_amount_cents: Number(form.goal_amount_cents || 0),
         starts_at: form.starts_at || null, ends_at: form.ends_at || null,
         cover_asset_id: firstImage?.asset_id || (coverUrl && coverUrl === form.config?.cover_url ? form.cover_asset_id : null),
-        campaign_type: "fundraiser", config_json: configJson,
+        campaign_type: form.campaign_type || "fundraiser", config_json: configJson,
       };
       const res = await fetch("/api/dashboard/fundraising", {
         method: isNew || !form.id ? "POST" : "PUT", credentials: "include",
@@ -997,20 +1059,22 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
   }, React.createElement(Icon));
 
-  const entriesPanel = !isNew && React.createElement(React.Fragment, null,
+  const usesEntries = entries.length > 0 || /competition|contest/i.test(form.campaign_type || "") ||
+    form.config?.allow_entries === true || form.config?.competition_enabled === true;
+  const entriesPanel = !isNew && usesEntries && React.createElement(React.Fragment, null,
     React.createElement(Card, { className: "camp-form-card", style: { marginTop: 16 } },
     // Header
     React.createElement("div", { style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between",
       gap: 12, flexWrap: "wrap", marginBottom: 14 } },
       React.createElement("div", null,
-        React.createElement("h3", { style: { margin: 0, fontSize: 15, fontWeight: 700 } }, "Competition entries"),
+        React.createElement("h3", { style: { margin: 0, fontSize: 15, fontWeight: 700 } }, "Participant entries"),
         React.createElement("p", { style: { margin: "3px 0 0", fontSize: 12, color: "var(--dash-text-muted)" } },
           entryCounts.paid + " paid · " + entryCounts.unreviewed + " awaiting review · " + entryCounts.pending + " pending" +
           (entryCounts.demo ? " · " + entryCounts.demo + " demo/test" : "") +
           (totalVotes > 0 ? " · " + totalVotes + " total votes" : "")
         ),
         React.createElement("p", { style: { margin: "4px 0 0", fontSize: 11, color: "var(--dash-text-muted)" } },
-          "Click an entry to view details, contact the entrant, or set votes to match Facebook reactions."
+          "Review participants and submissions. Competition campaigns can also manage voting."
         )
       ),
       React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } },
@@ -1039,7 +1103,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     // Content
     entries.length === 0
       ? React.createElement("p", { style: { margin: 0, fontSize: 13, color: "var(--dash-text-muted)" } },
-          "No entries yet. Paid submissions appear here.")
+          "No participant submissions yet.")
 
       // Grid view
       : entryView === "grid"
@@ -1110,11 +1174,10 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       React.createElement("div", { className: "camp-publish-actions" },
         React.createElement(Btn, { onClick: save, disabled: saving || uploadBusy || !form.title.trim(), style: { width: "100%" } },
           saving ? "Saving..." : (form.is_public ? "Save & publish" : "Save draft")),
-        form.is_public === 1 && React.createElement(Btn, {
-          variant: "secondary", size: "sm", icon: "arrowR",
-          onClick: () => window.open("https://companionsofcaddo.org/donate", "_blank", "noopener"),
+        React.createElement(Btn, {
+          variant: "secondary", size: "sm", onClick: () => setWebsitePreviewOpen(true),
           style: { width: "100%" },
-        }, "Preview website")
+        }, "Full-screen preview")
       )
     )
   );
@@ -1136,6 +1199,16 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         !saveMsg && dirty && React.createElement("div", { className: "camp-save-msg", role: "status" }, uploadBusy ? "Uploading attachments…" : "Unsaved changes — save your campaign to keep them.")
       ),
       React.createElement("div", { className: "camp-top-actions" },
+        React.createElement("button", {
+          type: "button", className: "camp-preview-trigger",
+          title: "Preview campaign before publishing", "aria-label": "Preview campaign",
+          onClick: () => setWebsitePreviewOpen(true),
+        },
+          React.createElement("svg", { viewBox: "0 0 24 24", width: 20, height: 20,
+            fill: "none", stroke: "currentColor", strokeWidth: 2, "aria-hidden": "true" },
+            React.createElement("path", { d: "M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z" }),
+            React.createElement("circle", { cx: 12, cy: 12, r: 2.5 })),
+          React.createElement("span", null, "Preview")),
         React.createElement(Btn, { onClick: save, disabled: saving || uploadBusy || !form.title.trim() },
           saving ? "Saving..." : (form.is_public ? "Save & publish" : "Save draft"))
       )
@@ -1177,7 +1250,10 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         entriesPanel
       ),
       publishPanel
-    )
+    ),
+    websitePreviewOpen && React.createElement(CampaignWebsitePreview, {
+      form, onClose: () => setWebsitePreviewOpen(false),
+    })
   );
 }
 
