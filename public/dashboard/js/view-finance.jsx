@@ -85,113 +85,7 @@ function useFinanceData() {
   return { loading, error, campaigns, donations, reload: load };
 }
 
-function CampaignModal({ open, onClose, onSaved, campaign }) {
-  const [title, setTitle] = React.useState("");
-  const [description, setDescription] = React.useState("");
-  const [goal, setGoal] = React.useState("");
-  const [category, setCategory] = React.useState("medical");
-  const [status, setStatus] = React.useState("active");
-  const [startsAt, setStartsAt] = React.useState("");
-  const [endsAt, setEndsAt] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState("");
-
-  React.useEffect(() => {
-    if (!open) return;
-    setTitle(campaign?.title || "");
-    setDescription(campaign?.description || campaign?.short_description || "");
-    setGoal(campaign ? String(financeDollarsFromCents(campaign.goal_cents ?? campaign.goal_amount_cents)) : "");
-    setCategory(campaign?.campaign_type || campaign?.category || "medical");
-    setStatus(campaign?.status || "active");
-    const sd = financeDate(campaign?.starts_at);
-    const ed = financeDate(campaign?.ends_at);
-    setStartsAt(sd || "");
-    setEndsAt(ed || "");
-    setError("");
-  }, [open, campaign]);
-
-  async function save() {
-    setSaving(true);
-    setError("");
-    try {
-      const res = await fetch("/api/dashboard/fundraising", {
-        method: campaign?.id ? "PUT" : "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: campaign?.id,
-          title,
-          description,
-          goal_amount_cents: financeCentsFromDollars(goal),
-          campaign_type: category,
-          status,
-          starts_at: startsAt || null,
-          ends_at: endsAt || null,
-          is_public: 1
-        })
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok || payload.ok === false) throw new Error(payload.error || "Campaign save failed");
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError(err.message || "Campaign save failed");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return React.createElement(Modal, { open, onClose, title: campaign?.id ? "Edit Campaign" : "New Campaign", width: 560 },
-    React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
-      error && React.createElement(FinanceNotice, null, error),
-      React.createElement("div", null,
-        React.createElement("label", { style: { fontSize: 12, color: C.textSec, display: "block", marginBottom: 6 } }, "Campaign Title"),
-        React.createElement(Input, { value: title, onChange: setTitle, placeholder: "Campaign name" })
-      ),
-      React.createElement("div", null,
-        React.createElement("label", { style: { fontSize: 12, color: C.textSec, display: "block", marginBottom: 6 } }, "Description"),
-        React.createElement("textarea", {
-          value: description,
-          onChange: e => setDescription(e.target.value),
-          placeholder: "What will this campaign fund?",
-          style: {
-            width: "100%", background: C.raised, border: `1px solid ${C.border}`,
-            borderRadius: 8, padding: "10px 12px", color: C.text, fontSize: 13,
-            resize: "vertical", minHeight: 84, outline: "none", boxSizing: "border-box"
-          }
-        })
-      ),
-      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
-        React.createElement("div", null,
-          React.createElement("label", { style: { fontSize: 12, color: C.textSec, display: "block", marginBottom: 6 } }, "Goal Amount"),
-          React.createElement(Input, { value: goal, onChange: setGoal, placeholder: "$0.00" })
-        ),
-        React.createElement("div", null,
-          React.createElement("label", { style: { fontSize: 12, color: C.textSec, display: "block", marginBottom: 6 } }, "Type"),
-          React.createElement(Select, { value: category, onChange: setCategory, options: ["medical", "transport", "foster", "general", "fundraiser"].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) })
-        )
-      ),
-      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
-        React.createElement("div", null,
-          React.createElement("label", { style: { fontSize: 12, color: C.textSec, display: "block", marginBottom: 6 } }, "Start Date"),
-          React.createElement(Input, { value: startsAt, onChange: setStartsAt, placeholder: "YYYY-MM-DD" })
-        ),
-        React.createElement("div", null,
-          React.createElement("label", { style: { fontSize: 12, color: C.textSec, display: "block", marginBottom: 6 } }, "End Date"),
-          React.createElement(Input, { value: endsAt, onChange: setEndsAt, placeholder: "YYYY-MM-DD" })
-        )
-      ),
-      React.createElement("div", null,
-        React.createElement("label", { style: { fontSize: 12, color: C.textSec, display: "block", marginBottom: 6 } }, "Status"),
-        React.createElement(Select, { value: status, onChange: setStatus, options: ["active", "draft", "paused", "completed"].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) })
-      ),
-      React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "flex-end" } },
-        React.createElement(Btn, { variant: "secondary", onClick: onClose }, "Cancel"),
-        React.createElement(Btn, { onClick: save, disabled: saving || !title || !goal }, saving ? "Saving..." : "Save Campaign")
-      )
-    )
-  );
-}
+// CampaignWorkspaceView owns all campaign CRUD; no disconnected modal.
 
 function DonationModal({ open, onClose, onSaved, campaigns }) {
   const [donorName, setDonorName] = React.useState("");
@@ -369,28 +263,28 @@ function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab, onDele
   const cover = campaign.cover_url || campaign.config?.cover_url;
   const [deleting, setDeleting] = React.useState(false);
 
-  async function hardDelete(e) {
+  async function updateCampaignStatus(e, archive) {
     e.stopPropagation();
-    const ok = window.confirm(
-      `Permanently delete "${campaign.title}"?\n\nThis hard-deletes the campaign, its competition entries, and campaign updates. Donation history is kept but unlinked. This cannot be undone.`
-    );
-    if (!ok) return;
+    if (archive && !window.confirm(
+      "Archive " + campaign.title + "? It will be hidden from the website and can be restored."
+    )) return;
     setDeleting(true);
     try {
-      const res = await fetch("/api/dashboard/fundraising/" + encodeURIComponent(campaign.id), {
-        method: "DELETE",
-        credentials: "include",
+      const res = await fetch("/api/dashboard/fundraising", {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: campaign.id, title: campaign.title,
+          description: campaign.description || campaign.short_description || "",
+          campaign_type: campaign.campaign_type || campaign.category || "fundraiser",
+          status: archive ? "archived" : "draft", is_public: 0,
+        }),
       });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok || d.ok === false) {
-        throw new Error(d.error || (`Delete failed (${res.status})`));
-      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw Error(data.error || "Could not update campaign");
       if (onDeleted) onDeleted(campaign.id);
-    } catch (err) {
-      window.alert(err.message || "Delete failed");
-    } finally {
-      setDeleting(false);
-    }
+    } catch (error) { window.alert(error.message || "Could not update campaign"); }
+    finally { setDeleting(false); }
   }
 
   return React.createElement(Card, {
@@ -439,14 +333,12 @@ function CampaignListCard({ campaign, accent, onNavigate, onDonationsTab, onDele
           React.createElement("div", { style: { display: "flex", gap: 8 }, onClick: e => e.stopPropagation() },
             React.createElement(Btn, { variant: "secondary", size: "sm", icon: "edit", onClick: () => onNavigate && onNavigate("campaign-detail", { campaignId: campaign.id }) }, "Open"),
             React.createElement(Btn, {
-              variant: "secondary",
-              size: "sm",
-              icon: "trash",
+              variant: "secondary", size: "sm",
+              icon: campaign.status === "archived" ? "arrowR" : "archive",
               disabled: deleting,
-              onClick: hardDelete,
-              title: "Permanently delete campaign",
-              style: { color: "#a61b38" },
-            }, deleting ? "…" : ""),
+              onClick: e => updateCampaignStatus(e, campaign.status !== "archived"),
+              title: campaign.status === "archived" ? "Restore private draft" : "Archive campaign (reversible)",
+            }, deleting ? "Working…" : (campaign.status === "archived" ? "Restore" : "Archive")),
             React.createElement(Btn, { variant: "secondary", size: "sm", icon: "arrowR", onClick: onDonationsTab }, "Donations")
           )
         )
@@ -519,7 +411,7 @@ function GivingView({ initialTab, onNavigate }) {
       title: "Giving",
       subtitle: "Campaigns, donations, and fundraising goals",
       action: React.createElement("div", { style: { display: "flex", gap: 8 } },
-        React.createElement(Btn, { variant: "secondary", size: "sm", icon: "download" }, "Export"),
+        
         React.createElement(Btn, { variant: "secondary", size: "sm", icon: "plus", onClick: () => onNavigate && onNavigate("campaign-detail", { campaignId: "new" }) }, "New Campaign"),
         React.createElement(Btn, { icon: "plus", size: "sm", onClick: () => setShowDonationModal(true) }, "Record Donation")
       )

@@ -14,7 +14,172 @@ import {
   loadUsagesByAssetIds,
 } from "./shared.js";
 
+// Multipart campaign uploads: 8 MB binary chunks, maximum 512 MB videos.
+// Pending sessions live in cms_assets (D1). There are no new schema tables.
+const CAMPAIGN_VIDEO_MAX_BYTES = 512 * 1024 * 1024;
+const CAMPAIGN_PART_BYTES = 8 * 1024 * 1024;
+const CAMPAIGN_UPLOAD_MAX_AGE = 24 * 60 * 60 * 1000;
+const CAMPAIGN_UPLOAD_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
+const CAMPAIGN_CDN_ORIGIN = "https://assets.companionsofcaddo.org";
+
+function uploadOperator(user) {
+  return String(user?.id || user?.user_id || user?.email || "dashboard").trim();
+}
+
+function campaignUploadSession(row, user) {
+  if (!row || row.status !== "uploading" || row.tenant_id !== TENANT_ID) return null;
+  if (row.created_by !== uploadOperator(user)) return null;
+  try {
+    const meta = JSON.parse(row.metadata_json || "{}");
+    if (!meta.upload_id || !Number.isSafeInteger(meta.size) || !Number.isSafeInteger(meta.part_size)) return null;
+    if (Date.now() - Number(meta.created_ms || 0) > CAMPAIGN_UPLOAD_MAX_AGE) return null;
+    return meta;
+  } catch { return null; }
+}
+
+async function campaignMultipartRoutes(request, env, path, method, sessionUser) {
+  if (!path.startsWith("/api/cms/asset/multipart/")) return null;
+  const user = await requireCmsUser(request, env, sessionUser);
+  if (!user) return json({ success: false, error: "Not authenticated" }, 401);
+  if (!env.WEBSITE_ASSETS?.createMultipartUpload || !env.WEBSITE_ASSETS?.resumeMultipartUpload) {
+    return json({ success: false, error: "Large-media storage is unavailable" }, 503);
+  }
+  if (path === "/api/cms/asset/multipart/start" && method === "POST") {
+    const input = await request.json().catch(() => ({}));
+    const filename = String(input.filename || "").trim();
+    const mime = String(input.mime_type || "").toLowerCase();
+    const size = Number(input.size);
+    if (!filename || filename.length > 220 || !CAMPAIGN_UPLOAD_TYPES.has(mime)
+      || !Number.isSafeInteger(size) || size <= 25 * 1024 * 1024 || size > CAMPAIGN_VIDEO_MAX_BYTES) {
+      return json({ success: false, error: "Use MP4, WebM, or MOV videos between 25 MB and 512 MB" }, 400);
+    }
+    const safeName = filename.normalize("NFC").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+    const r2Key = "media/campaign/" + crypto.randomUUID() + "-" + safeName;
+    let multipart;
+    try {
+      multipart = await env.WEBSITE_ASSETS.createMultipartUpload(r2Key, {
+        httpMetadata: { contentType: mime, cacheControl: "public, max-age=31536000, immutable" },
+        customMetadata: { tenant_id: TENANT_ID, uploaded_by: uploadOperator(user) },
+      });
+    } catch (e) {
+      console.error("[campaign-multipart] start:", e?.message || e);
+      return json({ success: false, error: "Could not create video upload session" }, 502);
+    }
+    const assetId = id("asset");
+    const assetKey = "upload_" + crypto.randomUUID().replace(/-/g, "");
+    const publicUrl = CAMPAIGN_CDN_ORIGIN + "/" + r2Key;
+    const metadata = JSON.stringify({
+      upload_id: multipart.uploadId, size, part_size: CAMPAIGN_PART_BYTES,
+      created_ms: Date.now(),
+    });
+    try {
+      await env.DB.prepare(`
+        INSERT INTO cms_assets (
+          id, tenant_id, project_id, asset_key, label, filename, original_filename,
+          mime_type, size, category, asset_type, r2_key, r2_bucket,
+          pub_url, cdn_url, public_url, usage_context, status,
+          is_live, created_by, metadata_json, created_at, updated_at
+        ) VALUES (
+          ?, ?, 'proj_companionscpas', ?, ?, ?, ?, ?, ?, 'campaign', 'video',
+          ?, 'companionscpas', ?, ?, ?, 'campaign_cover', 'uploading',
+          0, ?, ?, datetime('now'), datetime('now')
+        )
+      `).bind(
+        assetId, TENANT_ID, assetKey, filename, safeName, filename,
+        mime, size, r2Key, publicUrl, publicUrl, publicUrl,
+        uploadOperator(user), metadata
+      ).run();
+    } catch (e) {
+      console.error("[campaign-multipart] session registration:", e?.message || e);
+      try { await multipart.abort(); } catch (_) {}
+      return json({ success: false, error: "Could not register video upload session" }, 500);
+    }
+    return json({ success: true, id: assetId, part_size: CAMPAIGN_PART_BYTES });
+  }
+
+  const match = path.match(/^\/api\/cms\/asset\/multipart\/([^/]+)\/(part|complete|abort)$/);
+  if (!match) return json({ success: false, error: "Unknown upload operation" }, 404);
+  const assetId = decodeURIComponent(match[1]);
+  const action = match[2];
+  const asset = await env.DB.prepare(
+    "SELECT * FROM cms_assets WHERE id = ? AND tenant_id = ? AND status = 'uploading' LIMIT 1"
+  ).bind(assetId, TENANT_ID).first().catch(() => null);
+  const meta = campaignUploadSession(asset, user);
+  if (!meta) return json({ success: false, error: "Upload session expired or unavailable. Retry the upload." }, 404);
+  const multipart = env.WEBSITE_ASSETS.resumeMultipartUpload(asset.r2_key, meta.upload_id);
+  const expectedParts = Math.ceil(meta.size / meta.part_size);
+
+  if (action === "part" && method === "PUT") {
+    const number = Number(new URL(request.url).searchParams.get("number"));
+    if (!Number.isInteger(number) || number < 1 || number > expectedParts) {
+      return json({ success: false, error: "Invalid video chunk number" }, 400);
+    }
+    const expectedBytes = Math.min(meta.part_size, meta.size - (number - 1) * meta.part_size);
+    const lengthHeader = request.headers.get("Content-Length");
+    if (lengthHeader && Number(lengthHeader) !== expectedBytes) {
+      return json({ success: false, error: "Incorrect chunk length" }, 400);
+    }
+    const bytes = await request.arrayBuffer();
+    if (bytes.byteLength !== expectedBytes) {
+      return json({ success: false, error: "Incorrect chunk length" }, 400);
+    }
+    try {
+      const uploaded = await multipart.uploadPart(number, bytes);
+      return json({ success: true, part_number: number, etag: uploaded.etag });
+    } catch (e) {
+      console.error("[campaign-multipart] chunk:", e?.message || e);
+      return json({ success: false, error: "Video chunk failed. Retry upload." }, 502);
+    }
+  }
+
+  if (action === "complete" && method === "POST") {
+    const data = await request.json().catch(() => ({}));
+    const parts = data.parts;
+    if (!Array.isArray(parts) || parts.length !== expectedParts ||
+      parts.some((p, i) => p?.partNumber !== i + 1 || typeof p.etag !== "string" || !p.etag || p.etag.length > 200)) {
+      return json({ success: false, error: "Incomplete or invalid video chunks" }, 400);
+    }
+    try {
+      await multipart.complete(parts);
+      const stored = await env.WEBSITE_ASSETS.head(asset.r2_key);
+      if (!stored || stored.size !== meta.size) {
+        await env.WEBSITE_ASSETS.delete(asset.r2_key).catch(() => {});
+        return json({ success: false, error: "Video failed storage integrity check" }, 502);
+      }
+      try {
+        await env.DB.prepare(`
+          UPDATE cms_assets SET status = 'active', is_live = 1,
+          metadata_json = ?, updated_at = datetime('now')
+          WHERE id = ? AND tenant_id = ? AND status = 'uploading'
+        `).bind(JSON.stringify({ upload_kind: "multipart", size: meta.size }), assetId, TENANT_ID).run();
+      } catch (dbError) {
+        console.error("[campaign-multipart] final registration:", dbError?.message || dbError);
+        await env.WEBSITE_ASSETS.delete(asset.r2_key).catch(() => {});
+        return json({ success: false, error: "Video storage succeeded but registration failed" }, 500);
+      }
+      return json({
+        success: true, id: assetId, public_url: asset.public_url, r2_key: asset.r2_key,
+        mime_type: asset.mime_type, asset_type: "video", filename: asset.original_filename,
+      });
+    } catch (e) {
+      console.error("[campaign-multipart] finalize:", e?.message || e);
+      return json({ success: false, error: "Could not finalize video upload" }, 502);
+    }
+  }
+
+  if (action === "abort" && method === "POST") {
+    try { await multipart.abort(); } catch (e) { console.warn("[campaign-multipart] abort:", e?.message || e); }
+    await env.DB.prepare(
+      "UPDATE cms_assets SET status = 'archived', updated_at = datetime('now') WHERE id = ? AND tenant_id = ?"
+    ).bind(assetId, TENANT_ID).run().catch(() => {});
+    return json({ success: true, aborted: true });
+  }
+  return json({ success: false, error: "Method not allowed" }, 405);
+}
+
 export async function routesAssets(request, env, url, path, method, sessionUser = null) {
+  const multiResponse = await campaignMultipartRoutes(request, env, path, method, sessionUser);
+  if (multiResponse) return multiResponse;
     // GET /api/cms/assets/stats
   if (path === "/api/cms/assets/stats" && method === "GET") {
     const summary = await env.DB.prepare(
@@ -51,7 +216,7 @@ export async function routesAssets(request, env, url, path, method, sessionUser 
   if (path === "/api/cms/assets" && method === "GET") {
     const context = url.searchParams.get("context") || null;
     const category = url.searchParams.get("category") || null;
-    let q = "SELECT * FROM cms_assets WHERE tenant_id = ? AND status != 'archived'";
+    let q = "SELECT * FROM cms_assets WHERE tenant_id = ? AND status = 'active'";
     const binds = [TENANT_ID];
     if (context) { q += " AND usage_context = ?"; binds.push(context); }
     if (category) { q += " AND category = ?"; binds.push(category); }

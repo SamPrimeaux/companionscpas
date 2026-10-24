@@ -108,6 +108,14 @@ function renderStoryHeroCard(opts) {
     </article>`;
 }
 
+function campaignFlyerLinks(campaign) {
+  const attachments = Array.isArray(cfg(campaign).attachments) ? cfg(campaign).attachments : [];
+  return attachments.filter(a => a?.type === "pdf" && a?.url).map(a => {
+    const url = safeUrl(a.url);
+    if (!url) return "";
+    return `<a class="dv2-campaign-flyer-link" href="${escAttr(url)}" target="_blank" rel="noopener noreferrer">View ${esc(a.name || "campaign flyer")} (PDF) ↗</a>`;
+  }).join("");
+}
 function renderFosterCardMedia(campaign, alt) {
   const cc = cfg(campaign);
   const fb = pickText(cc, ["facebook_reel_url"]);
@@ -117,6 +125,17 @@ function renderFosterCardMedia(campaign, alt) {
   const cover = campaignCoverUrl(campaign);
   if (cover) {
     return `<div class="foster-img-wrap"><img class="foster-img foster-img--contain" src="${escAttr(cover)}" alt="${escAttr(alt || campaign?.title || "")}" loading="lazy" decoding="async" /></div>`;
+  }
+  const flyer = (Array.isArray(cc.attachments) ? cc.attachments : [])
+    .find(a => a?.type === "pdf" && safeUrl(a.url));
+  if (flyer) {
+    const url = safeUrl(flyer.url);
+    return url.startsWith(CDN + "/")
+      ? `<div class="foster-img-wrap" style="position:relative;min-height:240px">
+           <iframe title="Campaign flyer preview" src="${escAttr(url)}#page=1&amp;toolbar=0" loading="lazy" tabindex="-1" style="width:100%;height:260px;border:0;pointer-events:none;background:#fff"></iframe>
+           <a href="${escAttr(url)}" target="_blank" rel="noopener noreferrer" style="position:absolute;bottom:10px;left:10px;right:10px;background:#fff;padding:9px;border-radius:8px;text-align:center;font-weight:700">Open flyer PDF ↗</a>
+         </div>`
+      : `<div class="foster-img-wrap"><a href="${escAttr(url)}" target="_blank" rel="noopener noreferrer">Open campaign flyer (PDF) ↗</a></div>`;
   }
   return `<div class="foster-img-wrap"><div class="foster-img-placeholder">Photo coming soon</div></div>`;
 }
@@ -705,6 +724,7 @@ async function renderDonateCampaignGrid(section, blocks, brand, env) {
           <h3>${esc(c.title || "Campaign")}</h3>
           <p>${esc(body)}</p>
           ${stat}
+          ${campaignFlyerLinks(c)}
           ${donateBtn(cta, { campaignId: c.id, red: false })}
         </div>
       </article>`;
