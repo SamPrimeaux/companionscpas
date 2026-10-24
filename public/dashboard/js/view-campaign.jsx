@@ -56,36 +56,69 @@ const MasonryIcon = () =>
   );
 
 // ── Attachments uploader ───────────────────────────────────────────────────
-function CampaignAttachments({ media, onChange, disabled }) {
+function CampaignAttachments({ media, onChange, disabled, onUploadingChange }) {
   const [uploading, setUploading] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
   const [error, setError] = React.useState("");
   const dragDepth = React.useRef(0);
   const MAX = 10;
+  const MAX_BYTES = 25 * 1024 * 1024;
   const items = media || [];
 
   async function uploadFiles(fileList) {
-    const files = Array.from(fileList || []).filter(f =>
-      f.type.startsWith("image/") || f.type.startsWith("video/") || f.type === "application/pdf"
-    );
-    if (!files.length || disabled) return;
-    if (items.length + files.length > MAX) { setError("Maximum " + MAX + " attachments."); return; }
-    setUploading(true); setError("");
-    let next = items.slice();
-    for (const file of files) {
-      try {
-        const fd = new FormData();
-        fd.append("file", file); fd.append("usage_context", "campaign_cover");
-        fd.append("category", "campaign"); fd.append("label", file.name);
-        const res = await fetch("/api/cms/asset/upload", { method: "POST", credentials: "include", body: fd });
-        const d = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(d.error || "Upload failed");
-        const url = d.public_url || d.cdn_url || d.pub_url || d.url;
-        if (!url) throw new Error("Upload succeeded but no URL returned.");
-        next.push({ url, type: mediaTypeFromUpload(d, file), name: file.name, mime_type: d.mime_type || file.type });
-      } catch (e) { setError(e.message || "Upload failed"); break; }
+    if (uploading || disabled) return;
+    const selected = Array.from(fileList || []);
+    const allowed = f => f.type.startsWith("image/") || f.type.startsWith("video/") ||
+      f.type === "application/pdf" || /\\.(pdf|png|jpe?g|gif|webp|avif|svg|mp4|mov|webm)$/i.test(f.name);
+    const files = selected.filter(allowed);
+    const rejected = selected.filter(f => !allowed(f));
+    if (!selected.length) return;
+    if (items.length + files.length > MAX) {
+      setError("Maximum " + MAX + " attachments. Remove files before adding more.");
+      return;
     }
-    onChange(next); setUploading(false);
+    setUploading(true);
+    if (onUploadingChange) onUploadingChange(true);
+    setError("");
+    const next = items.slice();
+    const errors = rejected.map(f => f.name + ": unsupported file format");
+    try {
+      for (const file of files) {
+        if (file.size > MAX_BYTES) {
+          errors.push(file.name + ": exceeds the 25 MB limit");
+          continue;
+        }
+        try {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("usage_context", "campaign_cover");
+          fd.append("category", "campaign");
+          fd.append("r2_folder", "media/campaign");
+          fd.append("label", file.name);
+          const res = await fetch("/api/cms/asset/upload", {
+            method: "POST", credentials: "include", body: fd,
+          });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok || d.success === false) {
+            throw new Error(d.error || ("Server rejected upload (HTTP " + res.status + ")"));
+          }
+          const url = d.public_url || d.cdn_url || d.pub_url || d.url;
+          if (!url) throw new Error("Upload response did not include a URL");
+          next.push({
+            url, asset_id: d.id || null, r2_key: d.r2_key || null,
+            type: mediaTypeFromUpload(d, file), name: file.name,
+            mime_type: d.mime_type || file.type,
+          });
+        } catch (e) {
+          errors.push(file.name + ": " + (e.message || "Upload failed"));
+        }
+      }
+      if (next.length !== items.length) onChange(next);
+      setError(errors.join(" · "));
+    } finally {
+      setUploading(false);
+      if (onUploadingChange) onUploadingChange(false);
+    }
   }
 
   function removeAt(idx) { const copy = items.slice(); copy.splice(idx, 1); onChange(copy); }
@@ -142,7 +175,7 @@ function CampaignAttachments({ media, onChange, disabled }) {
     ),
     React.createElement("p", { className: "camp-attach-hint" },
       items.length ? "First image is the card thumbnail · " + items.length + " / " + MAX
-        : "Drag and drop or click + to add up to " + MAX + " files"
+        : "Drag and drop or click + to add up to " + MAX + " files (25 MB each)"
     ),
     error && React.createElement("div", { className: "camp-attach-error" }, error)
   );
@@ -562,6 +595,8 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   const isNew = !campaignId || campaignId === "new";
   const [loading, setLoading] = React.useState(!isNew);
   const [saving, setSaving] = React.useState(false);
+  const [uploadBusy, setUploadBusy] = React.useState(false);
+  const [dirty, setDirty] = React.useState(false);
   const [error, setError] = React.useState("");
   const [saveMsg, setSaveMsg] = React.useState("");
   const [entries, setEntries] = React.useState([]);
@@ -577,8 +612,8 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
     config: { show_on_donate: false, show_on_services: false },
   });
 
-  function setField(k, v) { setForm(prev => Object.assign({}, prev, { [k]: v })); }
-  function setSurface(k, v) { setForm(prev => Object.assign({}, prev, { config: Object.assign({}, prev.config, { [k]: v }) })); }
+  function setField(k, v) { setDirty(true); setSaveMsg(""); setForm(prev => Object.assign({}, prev, { [k]: v })); }
+  function setSurface(k, v) { setDirty(true); setSaveMsg(""); setForm(prev => Object.assign({}, prev, { config: Object.assign({}, prev.config, { [k]: v }) })); }
 
   async function loadCampaign() {
     if (isNew) return;
@@ -589,6 +624,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       if (!d.ok && !d.campaign) throw new Error(d.error || "Campaign not found");
       const c = d.campaign;
       const cfg = c.config || {};
+      setDirty(false);
       setForm({
         id: c.id, title: c.title || "",
         description: c.description || c.short_description || "",
@@ -648,6 +684,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   }
 
   async function save() {
+    if (uploadBusy) { setError("Finish uploading attachments before saving this campaign."); return; }
     if (!form.title.trim()) { setError("Title is required."); return; }
     setSaving(true); setError(""); setSaveMsg("");
     try {
@@ -670,9 +707,10 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.ok === false) throw new Error(d.error || "Save failed");
-      setSaveMsg(isPublic ? "Published — visible on site after cache refresh." : "Saved as draft.");
+      setDirty(false);
+      setSaveMsg(isPublic ? "Campaign saved as live. Check its website placement and preview." : "Campaign draft saved.");
       if (isNew && d.id && onNavigate) { onNavigate("campaign-detail", { campaignId: d.id }); return; }
-      if (d.id) setField("id", d.id);
+      if (d.id) setForm(prev => Object.assign({}, prev, { id: d.id, status: isPublic ? "active" : "draft" }));
     } catch (e) { setError(e.message || "Save failed"); }
     finally { setSaving(false); }
   }
@@ -837,7 +875,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         )
       ),
       React.createElement("div", { className: "camp-publish-actions" },
-        React.createElement(Btn, { onClick: save, disabled: saving || !form.title.trim(), style: { width: "100%" } },
+        React.createElement(Btn, { onClick: save, disabled: saving || uploadBusy || !form.title.trim(), style: { width: "100%" } },
           saving ? "Saving..." : (form.is_public ? "Save & publish" : "Save draft")),
         form.is_public === 1 && React.createElement(Btn, {
           variant: "secondary", size: "sm", icon: "arrowR",
@@ -858,10 +896,11 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
           onClick: () => onNavigate && onNavigate("fundraising") }, "← Giving"),
         React.createElement("h1", { className: "camp-title" }, isNew ? "New Campaign" : (form.title || "Campaign")),
         !isNew && React.createElement(Badge, { label: form.status, dot: true }),
-        saveMsg && React.createElement("div", { className: "camp-save-msg" }, saveMsg)
+        saveMsg && React.createElement("div", { className: "camp-save-msg" }, saveMsg),
+        !saveMsg && dirty && React.createElement("div", { className: "camp-save-msg", role: "status" }, uploadBusy ? "Uploading attachments…" : "Unsaved changes — save your campaign to keep them.")
       ),
       React.createElement("div", { className: "camp-top-actions" },
-        React.createElement(Btn, { onClick: save, disabled: saving || !form.title.trim() },
+        React.createElement(Btn, { onClick: save, disabled: saving || uploadBusy || !form.title.trim() },
           saving ? "Saving..." : (form.is_public ? "Save & publish" : "Save draft"))
       )
     ),
@@ -881,6 +920,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
           })),
           field("Attachments", React.createElement(CampaignAttachments, {
             media: form.attachments, onChange: v => setField("attachments", v), disabled: saving,
+            onUploadingChange: setUploadBusy,
           }))
         ),
         entriesPanel

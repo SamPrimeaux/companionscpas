@@ -9,6 +9,7 @@ import {
   bustCache,
   requireCmsUser,
   resolveUploadR2Key,
+  R2_MEDIA_FOLDERS,
   rebuildCmsAssetUsages,
   loadUsagesByAssetIds,
 } from "./shared.js";
@@ -85,7 +86,7 @@ export async function routesAssets(request, env, url, path, method, sessionUser 
       "application/pdf",
       "video/mp4","video/quicktime","video/webm",
     ]);
-    const MAX_SIZE = 25 * 1024 * 1024; // 25 MB (video/PDF)
+    const MAX_SIZE = 25 * 1024 * 1024; // Larger files require direct-to-R2 uploads.
 
     let formData;
     try { formData = await request.formData(); }
@@ -106,10 +107,10 @@ export async function routesAssets(request, env, url, path, method, sessionUser 
       return json({ success: false, error: `MIME type not allowed: ${file.type}` }, 400);
     }
 
-    const fileBytes = await file.arrayBuffer();
-    if (fileBytes.byteLength > MAX_SIZE) {
-      return json({ success: false, error: "File exceeds 10 MB limit" }, 400);
+    if (file.size > MAX_SIZE) {
+      return json({ success: false, error: "File exceeds the 25 MB upload limit." }, 413);
     }
+    const fileBytes = await file.arrayBuffer();
 
     const safeName = file.name
       .normalize("NFC")
@@ -154,7 +155,8 @@ export async function routesAssets(request, env, url, path, method, sessionUser 
     const assetType = file.type.startsWith("video/") ? "video"
       : file.type === "application/pdf" ? "document"
       : "image";
-    await env.DB.prepare(
+    try {
+      await env.DB.prepare(
       `INSERT INTO cms_assets
          (id, tenant_id, project_id, asset_key, label, filename, original_filename,
           mime_type, size, category, asset_type, r2_key, r2_bucket,
@@ -175,6 +177,12 @@ export async function routesAssets(request, env, url, path, method, sessionUser 
       usageContext,
       cmsUser.id || "unknown"
     ).run();
+    } catch (err) {
+      console.error("[cms-upload] asset registration failed:", err?.message || err);
+      try { await env.WEBSITE_ASSETS.delete(r2Key); }
+      catch (cleanupErr) { console.error("[cms-upload] rollback failed:", cleanupErr?.message || cleanupErr); }
+      return json({ success: false, error: "Could not register the uploaded file. Please retry." }, 500);
+    }
 
     return json({
       success: true,
