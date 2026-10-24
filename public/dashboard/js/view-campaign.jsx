@@ -55,25 +55,98 @@ const MasonryIcon = () =>
     React.createElement("rect", { x: 3, y: 17, width: 7, height: 4 })
   );
 
-// ── Attachments uploader ───────────────────────────────────────────────────
+// ── Campaign media: upload, reuse, preview and curate ────────────────────
 function CampaignAttachments({ media, onChange, disabled, onUploadingChange }) {
   const [uploading, setUploading] = React.useState(false);
+  const [uploadProgress, setUploadProgress] = React.useState("");
   const [dragging, setDragging] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [preview, setPreview] = React.useState(null);
+  const [libraryOpen, setLibraryOpen] = React.useState(false);
+  const [libraryLoading, setLibraryLoading] = React.useState(false);
+  const [libraryError, setLibraryError] = React.useState("");
+  const [libraryAssets, setLibraryAssets] = React.useState([]);
   const dragDepth = React.useRef(0);
   const MAX = 10;
-  const MAX_BYTES = 25 * 1024 * 1024;
+  const MAX_DIRECT_BYTES = 25 * 1024 * 1024;
+  const MAX_VIDEO_BYTES = 512 * 1024 * 1024;
   const items = media || [];
+
+  React.useEffect(() => {
+    if (!preview && !libraryOpen) return;
+    const onKey = e => {
+      if (e.key === "Escape") { setPreview(null); setLibraryOpen(false); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [preview, libraryOpen]);
+
+  function fileType(asset) {
+    const mime = String(asset.mime_type || "").toLowerCase();
+    if (mime.startsWith("video/") || asset.asset_type === "video") return "video";
+    if (mime === "application/pdf" || asset.asset_type === "document") return "pdf";
+    return "image";
+  }
+
+  function assetToAttachment(asset) {
+    return {
+      asset_id: asset.id || asset.asset_id || null,
+      r2_key: asset.r2_key || null,
+      url: asset.public_url || asset.cdn_url || asset.pub_url || asset.url,
+      name: asset.original_filename || asset.filename || asset.name || "Attachment",
+      mime_type: asset.mime_type || "",
+      type: fileType(asset),
+    };
+  }
+
+  async function uploadLargeVideo(file) {
+    // Eight-MB chunks keep each Worker request below the platform body limit.
+    const jsonRequest = async (url, method, payload) => {
+      const res = await fetch(url, {
+        method, credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw Error(data.error || ("HTTP " + res.status));
+      return data;
+    };
+    const started = await jsonRequest("/api/cms/asset/multipart/start", "POST", {
+      filename: file.name, mime_type: file.type, size: file.size,
+    });
+    const base = "/api/cms/asset/multipart/" + encodeURIComponent(started.id);
+    const parts = [];
+    try {
+      const piece = Number(started.part_size);
+      if (!Number.isSafeInteger(piece) || piece < 5 * 1024 * 1024 || piece > 16 * 1024 * 1024) {
+        throw Error("Unexpected upload chunk size");
+      }
+      for (let i = 0; i < Math.ceil(file.size / piece); i++) {
+        setUploadProgress(file.name + " — " + Math.round(i / Math.ceil(file.size / piece) * 100) + "%");
+        const res = await fetch(base + "/part?number=" + (i + 1), {
+          method: "PUT", credentials: "include",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: file.slice(i * piece, Math.min(file.size, (i + 1) * piece)),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false || !data.etag) {
+          throw Error(data.error || ("Chunk " + (i + 1) + " upload failed"));
+        }
+        parts.push({ partNumber: i + 1, etag: data.etag });
+      }
+      setUploadProgress(file.name + " — finalizing");
+      return jsonRequest(base + "/complete", "POST", { parts });
+    } catch (e) {
+      try { await jsonRequest(base + "/abort", "POST", {}); } catch (_) {}
+      throw e;
+    }
+  }
 
   async function uploadFiles(fileList) {
     if (uploading || disabled) return;
     const selected = Array.from(fileList || []);
-    const allowed = f => f.type.startsWith("image/") || f.type.startsWith("video/") ||
-      f.type === "application/pdf" || /\\.(pdf|png|jpe?g|gif|webp|avif|svg|mp4|mov|webm)$/i.test(f.name);
-    const files = selected.filter(allowed);
-    const rejected = selected.filter(f => !allowed(f));
     if (!selected.length) return;
-    if (items.length + files.length > MAX) {
+    if (items.length + selected.length > MAX) {
       setError("Maximum " + MAX + " attachments. Remove files before adding more.");
       return;
     }
@@ -81,66 +154,144 @@ function CampaignAttachments({ media, onChange, disabled, onUploadingChange }) {
     if (onUploadingChange) onUploadingChange(true);
     setError("");
     const next = items.slice();
-    const errors = rejected.map(f => f.name + ": unsupported file format");
+    const errors = [];
     try {
-      for (const file of files) {
-        if (file.size > MAX_BYTES) {
-          errors.push(file.name + ": exceeds the 25 MB limit");
+      for (const file of selected) {
+        const mime = String(file.type || "").toLowerCase();
+        const isVideo = ["video/mp4", "video/webm", "video/quicktime"].includes(mime);
+        const supported = /^image\/(jpeg|png|webp|gif|avif|svg\+xml)$/.test(mime)
+          || mime === "application/pdf" || isVideo;
+        if (!supported) { errors.push(file.name + ": unsupported file type"); continue; }
+        if (file.size > (isVideo ? MAX_VIDEO_BYTES : MAX_DIRECT_BYTES)) {
+          errors.push(file.name + ": exceeds " + (isVideo ? "512 MB video" : "25 MB") + " limit");
           continue;
         }
         try {
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("usage_context", "campaign_cover");
-          fd.append("category", "campaign");
-          fd.append("r2_folder", "media/campaign");
-          fd.append("label", file.name);
-          const res = await fetch("/api/cms/asset/upload", {
-            method: "POST", credentials: "include", body: fd,
-          });
-          const d = await res.json().catch(() => ({}));
-          if (!res.ok || d.success === false) {
-            throw new Error(d.error || ("Server rejected upload (HTTP " + res.status + ")"));
+          setUploadProgress(file.name + " — uploading");
+          let data;
+          if (isVideo && file.size > MAX_DIRECT_BYTES) {
+            data = await uploadLargeVideo(file);
+          } else {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("usage_context", "campaign_cover");
+            fd.append("category", "campaign");
+            fd.append("r2_folder", "media/campaign");
+            fd.append("label", file.name);
+            const res = await fetch("/api/cms/asset/upload", {
+              method: "POST", credentials: "include", body: fd,
+            });
+            data = await res.json().catch(() => ({}));
+            if (!res.ok || data.success === false) throw Error(data.error || ("HTTP " + res.status));
           }
-          const url = d.public_url || d.cdn_url || d.pub_url || d.url;
-          if (!url) throw new Error("Upload response did not include a URL");
-          next.push({
-            url, asset_id: d.id || null, r2_key: d.r2_key || null,
-            type: mediaTypeFromUpload(d, file), name: file.name,
-            mime_type: d.mime_type || file.type,
-          });
+          const attachment = assetToAttachment(Object.assign({}, data, {
+            name: file.name, filename: file.name, mime_type: data.mime_type || mime,
+          }));
+          if (!attachment.url) throw Error("Upload returned no file URL");
+          next.push(attachment);
+          // Show each confirmed file immediately, even if a later file fails.
+          onChange(next.slice());
         } catch (e) {
           errors.push(file.name + ": " + (e.message || "Upload failed"));
         }
       }
-      if (next.length !== items.length) onChange(next);
       setError(errors.join(" · "));
     } finally {
+      setUploadProgress("");
       setUploading(false);
       if (onUploadingChange) onUploadingChange(false);
     }
   }
 
-  function removeAt(idx) { const copy = items.slice(); copy.splice(idx, 1); onChange(copy); }
-  function onDragEnter(e) { e.preventDefault(); dragDepth.current += 1; if (!disabled && !uploading) setDragging(true); }
-  function onDragLeave(e) { e.preventDefault(); dragDepth.current -= 1; if (dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false); } }
-  function onDrop(e) { e.preventDefault(); dragDepth.current = 0; setDragging(false); if (!uploading && !disabled) uploadFiles(e.dataTransfer.files); }
+  function removeAt(idx) {
+    if (uploading || disabled) return;
+    onChange(items.filter((_, i) => i !== idx));
+    if (preview?.url === items[idx]?.url) setPreview(null);
+  }
+  function moveAt(idx, step) {
+    const to = idx + step;
+    if (to < 0 || to >= items.length || uploading || disabled) return;
+    const next = items.slice();
+    [next[idx], next[to]] = [next[to], next[idx]];
+    onChange(next);
+  }
+  function makeCover(idx) {
+    if (uploading || disabled || items[idx]?.type !== "image") return;
+    const next = items.slice();
+    const chosen = next.splice(idx, 1)[0];
+    onChange([chosen, ...next]);
+  }
+  function onDragEnter(e) {
+    e.preventDefault(); dragDepth.current += 1;
+    if (!uploading && !disabled) setDragging(true);
+  }
+  function onDragLeave(e) {
+    e.preventDefault(); dragDepth.current -= 1;
+    if (dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false); }
+  }
+  function onDrop(e) {
+    e.preventDefault(); dragDepth.current = 0; setDragging(false);
+    if (!uploading && !disabled) uploadFiles(e.dataTransfer.files);
+  }
 
+  async function openLibrary() {
+    setLibraryOpen(true); setLibraryError(""); setLibraryLoading(true);
+    try {
+      const res = await fetch("/api/cms/assets?category=campaign", { credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw Error(data.error || "Cannot load media library");
+      setLibraryAssets((data.assets || []).filter(a =>
+        a.status === "active" && ["image", "video", "document"].includes(a.asset_type)
+      ));
+    } catch (e) { setLibraryError(e.message || "Unable to load media"); }
+    finally { setLibraryLoading(false); }
+  }
+  function attachFromLibrary(asset) {
+    const attachment = assetToAttachment(asset);
+    if (!attachment.url) { setLibraryError("That file has no usable URL"); return; }
+    if (items.length >= MAX) { setLibraryError("Remove an attachment to make room"); return; }
+    if (items.some(x => (x.asset_id && x.asset_id === attachment.asset_id) || x.url === attachment.url)) {
+      setLibraryError("This file is already attached"); return;
+    }
+    onChange([...items, attachment]); setLibraryOpen(false); setLibraryError("");
+  }
+
+  const modal = (title, contents, close) => React.createElement("div", {
+    className: "camp-media-modal-backdrop", role: "presentation",
+    onMouseDown: e => { if (e.target === e.currentTarget) close(); },
+  },
+    React.createElement("section", {
+      className: "camp-media-modal", role: "dialog", "aria-modal": "true", "aria-label": title,
+    },
+      React.createElement("header", { className: "camp-media-modal-header" },
+        React.createElement("strong", null, title),
+        React.createElement("button", { type: "button", onClick: close, "aria-label": "Close preview" }, "×")
+      ),
+      contents
+    )
+  );
+
+  const activeCover = items.find(a => a.type === "image");
   const addTile = items.length < MAX && React.createElement("label", {
     className: "camp-attach-add" + (uploading || disabled ? " is-disabled" : ""),
   },
     React.createElement("span", { className: "camp-attach-plus", "aria-hidden": "true" }, "+"),
-    React.createElement("span", { className: "camp-attach-add-label" }, uploading ? "Uploading..." : "Drop files here"),
-    React.createElement("span", { className: "camp-attach-add-sub" }, "Images · Videos · PDFs"),
+    React.createElement("span", { className: "camp-attach-add-label" }, uploading ? "Uploading…" : "Add files"),
+    React.createElement("span", { className: "camp-attach-add-sub" }, "Images · Video · PDF"),
     React.createElement("input", {
-      type: "file", multiple: true,
-      accept: "image/*,application/pdf,video/mp4,video/quicktime,video/webm",
+      type: "file", multiple: true, accept: "image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,application/pdf,video/mp4,video/quicktime,video/webm",
       disabled: uploading || disabled,
       onChange: e => { uploadFiles(e.target.files); e.target.value = ""; },
     })
   );
 
   return React.createElement("div", { className: "camp-attach" },
+    React.createElement("div", { className: "camp-media-toolbar" },
+      React.createElement("span", null, items.length + " of " + MAX + " files"),
+      React.createElement("button", {
+        type: "button", onClick: openLibrary, disabled: uploading || disabled || items.length >= MAX,
+      }, "Choose from media library")
+    ),
     React.createElement("div", {
       className: "camp-attach-zone" + (dragging ? " is-dragging" : "") + (items.length ? " has-items" : " is-empty"),
       onDragEnter, onDragOver: e => e.preventDefault(), onDragLeave, onDrop,
@@ -149,52 +300,114 @@ function CampaignAttachments({ media, onChange, disabled, onUploadingChange }) {
         React.createElement("span", { className: "camp-attach-plus camp-attach-plus--lg" }, "+"),
         React.createElement("span", null, "Drop to add")
       ),
-      items.length
-        ? React.createElement("div", { className: "camp-attach-grid" },
-            items.map((item, idx) =>
-              React.createElement("div", {
-                key: item.url + idx,
-                className: "camp-attach-tile" + (idx === 0 && item.type === "image" ? " is-cover" : ""),
-              },
-                idx === 0 && item.type === "image" ? React.createElement("span", { className: "camp-attach-badge" }, "Cover") : null,
-                item.type === "image"
-                  ? React.createElement("img", { src: item.url, alt: item.name || "Attachment" })
-                  : React.createElement("div", { className: "camp-attach-file" },
-                      React.createElement(Icon, { name: item.type === "video" ? "video" : "file", size: 24 }),
-                      React.createElement("span", { className: "camp-attach-filename" }, item.name || item.type)
-                    ),
-                React.createElement("button", {
-                  type: "button", className: "camp-attach-remove",
-                  onClick: () => removeAt(idx), "aria-label": "Remove",
-                }, "×")
-              )
-            ),
-            addTile
+      React.createElement("div", { className: "camp-attach-grid" },
+        items.map((item, idx) => React.createElement("div", {
+          key: (item.asset_id || item.url) + ":" + idx, className: "camp-attach-tile",
+        },
+          React.createElement("button", {
+            type: "button", className: "camp-media-open",
+            onClick: () => setPreview(item),
+            title: "Preview " + (item.name || "attachment"),
+          },
+            item.type === "image"
+              ? React.createElement("img", { src: item.url, alt: item.name || "Campaign image" })
+              : React.createElement("span", { className: "camp-attach-file" },
+                  React.createElement(Icon, { name: item.type === "video" ? "video" : "file", size: 24 }),
+                  React.createElement("span", { className: "camp-attach-filename" }, item.name || "Document"),
+                  React.createElement("span", { className: "camp-media-view-label" }, "Click to preview")
+                )
+          ),
+          activeCover?.url === item.url && React.createElement("span", { className: "camp-attach-badge" }, "Cover"),
+          React.createElement("div", { className: "camp-media-tile-actions" },
+            item.type === "image" && activeCover?.url !== item.url && React.createElement("button", {
+              type: "button", onClick: () => makeCover(idx), disabled: disabled || uploading,
+              title: "Use as campaign cover", "aria-label": "Use " + item.name + " as cover",
+            }, "Cover"),
+            React.createElement("button", {
+              type: "button", onClick: () => moveAt(idx, -1), disabled: idx === 0 || disabled || uploading,
+              title: "Move earlier", "aria-label": "Move earlier",
+            }, "←"),
+            React.createElement("button", {
+              type: "button", onClick: () => moveAt(idx, 1), disabled: idx === items.length - 1 || disabled || uploading,
+              title: "Move later", "aria-label": "Move later",
+            }, "→"),
+            React.createElement("button", {
+              type: "button", onClick: () => removeAt(idx), disabled: disabled || uploading,
+              title: "Remove from campaign", "aria-label": "Remove " + (item.name || "attachment"),
+            }, "×")
           )
-        : addTile
+        )),
+        addTile
+      )
     ),
     React.createElement("p", { className: "camp-attach-hint" },
-      items.length ? "First image is the card thumbnail · " + items.length + " / " + MAX
-        : "Drag and drop or click + to add up to " + MAX + " files (25 MB each)"
+      uploadProgress || "Click an attachment to preview · PDFs and images up to 25 MB · videos up to 512 MB · save campaign to keep changes"
     ),
-    error && React.createElement("div", { className: "camp-attach-error" }, error)
+    error && React.createElement("div", { className: "camp-attach-error", role: "alert" }, error),
+    preview && modal(preview.name || "Media preview", React.createElement(React.Fragment, null,
+      React.createElement("div", { className: "camp-media-viewer" },
+        preview.type === "pdf"
+          ? React.createElement("iframe", {
+              src: preview.url + "#toolbar=1&navpanes=0", title: "PDF: " + (preview.name || "Document"),
+            })
+          : preview.type === "video"
+            ? React.createElement("video", { src: preview.url, controls: true, preload: "metadata", playsInline: true })
+            : React.createElement("img", { src: preview.url, alt: preview.name || "Image preview" })
+      ),
+      React.createElement("footer", { className: "camp-media-modal-footer" },
+        React.createElement("a", { href: preview.url, target: "_blank", rel: "noopener noreferrer" }, "Open original file ↗"),
+        React.createElement("span", null, "Preview only — save the campaign to publish attachments")
+      )
+    ), () => setPreview(null)),
+    libraryOpen && modal("Choose existing media", React.createElement("div", { className: "camp-media-library" },
+      libraryError && React.createElement("p", { className: "camp-attach-error", role: "alert" }, libraryError),
+      libraryLoading
+        ? React.createElement("p", null, "Loading uploaded files…")
+        : libraryAssets.length === 0
+          ? React.createElement("p", null, "No existing campaign media. Use Add files to upload.")
+          : React.createElement("div", { className: "camp-media-library-grid" },
+              libraryAssets.map(asset => React.createElement("button", {
+                key: asset.id, type: "button", onClick: () => attachFromLibrary(asset),
+                disabled: items.some(x => x.asset_id === asset.id),
+              },
+                asset.asset_type === "image"
+                  ? React.createElement("img", { src: asset.public_url || asset.cdn_url, alt: "" })
+                  : React.createElement("span", { className: "camp-media-library-icon" },
+                      React.createElement(Icon, { name: asset.asset_type === "video" ? "video" : "file", size: 26 })
+                    ),
+                React.createElement("span", null, asset.original_filename || asset.filename),
+                items.some(x => x.asset_id === asset.id) && React.createElement("small", null, "Already attached")
+              ))
+            )
+    ), () => setLibraryOpen(false))
   );
 }
 
 // ── Card preview sidebar ───────────────────────────────────────────────────
 function CampaignLivePreview({ title, description, attachments }) {
-  const cover = (attachments || []).find(a => a.type === "image");
+  const items = attachments || [];
+  const cover = items.find(a => a.type === "image");
+  const fallback = items.find(a => a.type === "video" || a.type === "pdf");
   const excerpt = String(description || "").trim().slice(0, 160);
   return React.createElement("div", { className: "camp-preview" },
-    React.createElement("p", { className: "camp-preview-label" }, "Card preview"),
+    React.createElement("p", { className: "camp-preview-label" }, "Website card preview"),
     React.createElement("article", { className: "camp-preview-card" },
       React.createElement("div", { className: "camp-preview-media" },
-        cover ? React.createElement("img", { src: cover.url, alt: title || "Preview" })
-          : React.createElement("div", { className: "camp-preview-ph" }, "Add a photo")
+        cover ? React.createElement("img", { src: cover.url, alt: title || "Campaign cover" })
+          : fallback?.type === "pdf"
+            ? React.createElement("div", { className: "camp-preview-document" },
+                React.createElement("iframe", { src: fallback.url + "#page=1&toolbar=0", title: "Document preview", tabIndex: -1 }),
+                React.createElement("a", { href: fallback.url, target: "_blank", rel: "noopener noreferrer" }, "Open campaign PDF ↗")
+              )
+            : fallback?.type === "video"
+              ? React.createElement("video", { src: fallback.url, controls: true, preload: "metadata", playsInline: true })
+              : React.createElement("div", { className: "camp-preview-ph" }, "Add an image, PDF, or video")
       ),
       React.createElement("div", { className: "camp-preview-body" },
         React.createElement("h3", null, title || "Campaign title"),
-        React.createElement("p", null, excerpt || "Description will appear here on the website card.")
+        React.createElement("p", null, excerpt || "Description will appear here on the website card."),
+        items.length > 0 && React.createElement("span", { className: "camp-preview-count" },
+          items.length + " media attachment" + (items.length === 1 ? "" : "s"))
       )
     )
   );
@@ -608,6 +821,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   const [form, setForm] = React.useState({
     id: "", title: "", description: "",
     is_public: 0, status: "draft",
+    goal_amount_cents: 0, starts_at: null, ends_at: null, cover_asset_id: null,
     attachments: [],
     config: { show_on_donate: false, show_on_services: false },
   });
@@ -630,6 +844,9 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         description: c.description || c.short_description || "",
         is_public: Number(c.is_public) === 1 ? 1 : 0,
         status: c.status || "draft",
+        goal_amount_cents: Number(c.goal_amount_cents || 0),
+        starts_at: c.starts_at || null, ends_at: c.ends_at || null,
+        cover_asset_id: c.cover_asset_id || null,
         attachments: attachmentsFromCampaign(c, cfg),
         config: Object.assign({ show_on_donate: false, show_on_services: false }, cfg),
       });
@@ -686,6 +903,7 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
   async function save() {
     if (uploadBusy) { setError("Finish uploading attachments before saving this campaign."); return; }
     if (!form.title.trim()) { setError("Title is required."); return; }
+    if (form.starts_at && form.ends_at && form.ends_at < form.starts_at) { setError("End date cannot be before the start date."); return; }
     setSaving(true); setError(""); setSaveMsg("");
     try {
       const isPublic = form.is_public === 1;
@@ -699,7 +917,10 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
         description: form.description.trim(),
         short_description: form.description.trim().slice(0, 240),
         is_public: isPublic ? 1 : 0, status: isPublic ? "active" : "draft",
-        goal_amount_cents: 0, campaign_type: "fundraiser", config_json: configJson,
+        goal_amount_cents: Number(form.goal_amount_cents || 0),
+        starts_at: form.starts_at || null, ends_at: form.ends_at || null,
+        cover_asset_id: firstImage?.asset_id || (coverUrl && coverUrl === form.config?.cover_url ? form.cover_asset_id : null),
+        campaign_type: "fundraiser", config_json: configJson,
       };
       const res = await fetch("/api/dashboard/fundraising", {
         method: isNew || !form.id ? "POST" : "PUT", credentials: "include",
@@ -917,6 +1138,21 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
             value: form.description, onChange: e => setField("description", e.target.value),
             className: "camp-textarea camp-textarea--lg", rows: 8,
             placeholder: "Tell people why this campaign matters...",
+          })),
+          field("Fundraising goal (USD, optional)", React.createElement("input", {
+            type: "number", min: 0, step: "0.01", className: "camp-title-input",
+            value: String(Number(form.goal_amount_cents || 0) / 100),
+            onChange: e => setField("goal_amount_cents", Math.max(0, Math.round(Number(e.target.value || 0) * 100))),
+          })),
+          field("Start date (optional)", React.createElement("input", {
+            type: "date", className: "camp-title-input",
+            value: String(form.starts_at || "").slice(0, 10),
+            onChange: e => setField("starts_at", e.target.value || null),
+          })),
+          field("End date (optional)", React.createElement("input", {
+            type: "date", className: "camp-title-input",
+            value: String(form.ends_at || "").slice(0, 10),
+            onChange: e => setField("ends_at", e.target.value || null),
           })),
           field("Attachments", React.createElement(CampaignAttachments, {
             media: form.attachments, onChange: v => setField("attachments", v), disabled: saving,

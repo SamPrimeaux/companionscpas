@@ -2170,3 +2170,42 @@ html, body, #root, .cpas-shell, .cpas-main-col, #main-scroll {
   outline: 2px solid rgba(124, 58, 237, 0.35);
   outline-offset: 1px;
 }
+
+/* Campaign media workspace: previews and curated attachments */
+.camp-media-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:12px;color:var(--dash-text-muted)}
+.camp-media-toolbar button{background:transparent;color:var(--brand-primary);font:inherit;font-weight:700;border:1px solid var(--dash-border);padding:8px 12px;border-radius:9px;cursor:pointer}
+.camp-media-toolbar button:disabled,.camp-media-tile-actions button:disabled{opacity:.4;cursor:not-allowed}
+.camp-attach-grid{width:100%}
+.camp-attach-tile{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.camp-media-open{width:100%;min-height:126px;flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer;border:0;background:transparent;color:inherit;padding:0;text-align:center}
+.camp-media-open:focus-visible,.camp-media-tile-actions button:focus-visible,.camp-media-toolbar button:focus-visible{outline:3px solid var(--brand-primary);outline-offset:2px}
+.camp-media-open img{width:100%;height:100%;object-fit:cover}
+.camp-media-open .camp-attach-file{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:15px;width:100%;height:100%}
+.camp-media-view-label{font-size:10px;opacity:.8}
+.camp-media-tile-actions{display:flex;gap:3px;justify-content:center;align-items:center;width:100%;padding:5px 7px;border-top:1px solid var(--dash-border);background:var(--dash-bg2)}
+.camp-media-tile-actions button{cursor:pointer;border:0;background:transparent;color:var(--dash-text-sec);padding:4px 7px;border-radius:6px;font-size:12px}
+.camp-media-tile-actions button:hover:not(:disabled){background:var(--dash-bg);color:var(--dash-text)}
+.camp-media-modal-backdrop{position:fixed;inset:0;z-index:11000;background:rgba(17,16,20,.82);display:flex;align-items:center;justify-content:center;padding:clamp(10px,3vw,32px)}
+.camp-media-modal{width:min(1080px,100%);max-height:94dvh;overflow:hidden;background:var(--dash-bg,#fff);color:var(--dash-text,#111);border-radius:16px;display:flex;flex-direction:column;box-shadow:0 24px 90px rgba(0,0,0,.3)}
+.camp-media-modal-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--dash-border);font-size:14px;min-width:0}
+.camp-media-modal-header strong{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.camp-media-modal-header button{border:0;background:transparent;color:inherit;font-size:28px;cursor:pointer}
+.camp-media-viewer{flex:1;min-height:min(70vh,560px);background:var(--dash-bg2);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.camp-media-viewer iframe{height:min(75vh,720px);width:100%;border:0;background:#fff}
+.camp-media-viewer img,.camp-media-viewer video{max-height:min(75vh,720px);max-width:100%;object-fit:contain}
+.camp-media-modal-footer{padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px}
+.camp-media-modal-footer a{color:var(--brand-primary);font-weight:700}
+.camp-media-modal-footer span{color:var(--dash-text-muted)}
+.camp-media-library{overflow:auto;padding:18px;min-height:180px}
+.camp-media-library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.camp-media-library-grid button{display:flex;flex-direction:column;align-items:center;text-align:left;gap:8px;padding:10px;background:var(--dash-bg2);border:1px solid var(--dash-border);border-radius:12px;color:inherit;font:inherit;font-size:11px;cursor:pointer;min-width:0}
+.camp-media-library-grid button:disabled{opacity:.5;cursor:not-allowed}
+.camp-media-library-grid button img{width:100%;height:92px;object-fit:cover;border-radius:8px}
+.camp-media-library-grid button>span:last-of-type{width:100%;overflow-wrap:anywhere}
+.camp-media-library-icon{height:92px;display:flex;align-items:center;justify-content:center}
+.camp-preview-document{width:100%;height:100%;position:relative}
+.camp-preview-document iframe{width:100%;height:100%;border:0;pointer-events:none}
+.camp-preview-document a{position:absolute;bottom:10px;left:10px;right:10px;text-align:center;padding:9px;background:var(--dash-bg,#fff);border-radius:8px;color:var(--brand-primary);font-size:12px;font-weight:700}
+.camp-preview-media video{width:100%;height:100%;object-fit:contain}
+.camp-preview-count{display:block;margin-top:10px;color:var(--dash-text-muted);font-size:11px}
+@media(max-width:640px){.camp-media-modal-backdrop{padding:0}.camp-media-modal{height:100dvh;max-height:none;border-radius:0}.camp-media-viewer{min-height:0}.camp-media-viewer iframe{height:calc(100dvh - 140px)}}
