@@ -140,6 +140,9 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
     if (type === "embedded_form") {
       return String(await renderEmbeddedForm(section, blocks, brand, env, { preview }) || "");
     }
+    if (type === "event_landing") {
+      return String(await renderEventLanding(section, blocks, brand, env) || "");
+    }
 
     // Plain content (non-About). About mission_statement uses branded fragment below.
     if (type === "content" && !(route === "/about" && key === "mission_statement")) {
