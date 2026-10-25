@@ -43,6 +43,7 @@ export const D1_SECTION_TYPES = [
   "donate_medical_story",
   "donate_stories_help",
   "embedded_form",
+  "event_landing",
   "facebook_embeds",
   "feature_cards",
   "footer",
