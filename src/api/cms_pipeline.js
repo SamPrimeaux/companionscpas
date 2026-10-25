@@ -262,7 +262,6 @@ export async function assemblePage(env, route, opts = {}) {
 export async function publishRoute(env, route, jobId = null) {
   const r = normalizeCmsRoute(route);
   await syncRouteSectionsToR2(env, r);
-  await bustPageCache(env, r);
   const html = await assemblePage(env, r, { preferR2: false });
   if (!html) throw new Error(`Assembly failed for route ${r}`);
 
@@ -270,6 +269,8 @@ export async function publishRoute(env, route, jobId = null) {
   await env.WEBSITE_ASSETS.put(artifactKey, html, {
     httpMetadata: { contentType: "text/html; charset=utf-8" },
   });
+  // Keep the previous cached public page until the replacement artifact exists.
+  await bustPageCache(env, r);
   if (env.CMS_CACHE) {
     await env.CMS_CACHE.put(`page:${r}`, html, { expirationTtl: PAGE_CACHE_TTL }).catch(() => {});
   }

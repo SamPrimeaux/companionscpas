@@ -262,29 +262,28 @@ export function pageArtifactKey(route) {
   return normalized === "/" ? "static/pages/index.html" : `static/pages${normalized}/index.html`;
 }
 
-export async function publishPageRoute(env, route, triggeredBy) {
+export async function publishPageRoute(env, route, triggeredBy, publishPage = publishFragmentPageFromCms) {
   const normalizedRoute = normalizeRouteInput(route);
   if (!normalizedRoute) {
     return { success: false, route_path: route, error: "Invalid route" };
   }
 
-  await bustCache(env, `page:${normalizedRoute}`);
-
   const jobId = await createPublishJob(env, normalizedRoute, triggeredBy);
-  const artifactKey = pageArtifactKey(normalizedRoute);
-
-  await env.DB.prepare(`
-    UPDATE cms_pages
-    SET status = 'published',
-        published_at = datetime('now'),
-        updated_at = datetime('now'),
-        published_by = ?
-    WHERE tenant_id = ? AND route_path = ?
-  `).bind(triggeredBy, TENANT_ID, normalizedRoute).run();
 
   try {
-    // One pipeline for every cms_pages route (home, donate, contact, …)
-    const published = await publishFragmentPageFromCms(env, normalizedRoute, jobId || `pub_${Date.now()}`);
+    // Render and persist the R2 artifact before making the page published in D1.
+    // A failed render must never leave a draft marked as successfully published.
+    const published = await publishPage(env, normalizedRoute, jobId || `pub_${Date.now()}`);
+    if (!published?.artifact_key) throw new Error("CMS publish did not produce an artifact");
+    await env.DB.prepare(`
+      UPDATE cms_pages
+      SET status = 'published',
+          published_at = datetime('now'),
+          updated_at = datetime('now'),
+          published_by = ?
+      WHERE tenant_id = ? AND route_path = ?
+    `).bind(triggeredBy, TENANT_ID, normalizedRoute).run();
+
     await updatePublishJob(env, jobId, "done", {
       artifactPath: published.artifact_key,
       resultJson: { success: true, route_path: normalizedRoute, artifact_key: published.artifact_key, source: "cms_pipeline" },
