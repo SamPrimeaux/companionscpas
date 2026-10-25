@@ -247,6 +247,7 @@ export const ADDABLE_SECTION_TYPES = [
   { type: "embedded_form", label: "Form (Forms Studio)", desc: "Embed a published form — Join Our Team, volunteer, etc." },
   { type: "contact_team", label: "Team", desc: "Group photo + member list" },
   { type: "contact_socials", label: "Contact Info Cards", desc: "Email, location, org cards" },
+  { type: "event_landing", label: "Event Landing", desc: "Full event page from a campaign: schedule, tickets, route, rules" },
   { type: "raw_html", label: "Custom Code", desc: "Paste HTML or embed from a URL" },
 ];
 
