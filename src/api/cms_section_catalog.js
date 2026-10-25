@@ -21,6 +21,7 @@ import {
 import { renderRawHtml } from "./render_raw_html.js";
 import { renderEmbeddedForm } from "./render_embedded_form.js";
 import { renderSplitInfoCard } from "./render_split_info_card.js";
+import { renderEventLanding } from "./render_event_landing.js";
 
 const TENANT_ID = "tenant_companionscpas";
 
