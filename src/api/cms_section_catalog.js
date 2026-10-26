@@ -21,6 +21,7 @@ import {
 import { renderRawHtml } from "./render_raw_html.js";
 import { renderEmbeddedForm } from "./render_embedded_form.js";
 import { renderSplitInfoCard } from "./render_split_info_card.js";
+import { renderEventLanding } from "./render_event_landing.js";
 
 const TENANT_ID = "tenant_companionscpas";
 
@@ -42,6 +43,7 @@ export const D1_SECTION_TYPES = [
   "donate_medical_story",
   "donate_stories_help",
   "embedded_form",
+  "event_landing",
   "facebook_embeds",
   "feature_cards",
   "footer",
@@ -137,6 +139,9 @@ export async function renderSectionByType(section, blocks = [], brand = {}, env 
     }
     if (type === "embedded_form") {
       return String(await renderEmbeddedForm(section, blocks, brand, env, { preview }) || "");
+    }
+    if (type === "event_landing") {
+      return String(await renderEventLanding(section, blocks, brand, env) || "");
     }
 
     // Plain content (non-About). About mission_statement uses branded fragment below.
@@ -242,6 +247,7 @@ export const ADDABLE_SECTION_TYPES = [
   { type: "embedded_form", label: "Form (Forms Studio)", desc: "Embed a published form — Join Our Team, volunteer, etc." },
   { type: "contact_team", label: "Team", desc: "Group photo + member list" },
   { type: "contact_socials", label: "Contact Info Cards", desc: "Email, location, org cards" },
+  { type: "event_landing", label: "Event Landing", desc: "Full event page from a campaign: schedule, tickets, route, rules" },
   { type: "raw_html", label: "Custom Code", desc: "Paste HTML or embed from a URL" },
 ];
 
