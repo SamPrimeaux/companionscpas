@@ -128,6 +128,7 @@ ${S} .ev-block--white{background:#fff}
 ${S} .ev-block--dark{background:var(--ev-ground);color:#fff}
 ${S} .ev-block--dark .ev-eyebrow{color:var(--purple-light,#c47db0)}
 ${S} .ev-block--dark .ev-lede{color:#e6d9ee}
+${S} .ev-block--dark .ev-h2{color:#fff}
 ${S} .ev-block--soft{background:var(--ev-soft)}
 ${S} .ev-schedule{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:24px;margin-top:22px}
 ${S} .ev-slot{padding-top:14px;border-top:4px solid var(--ev-primary)}
