@@ -111,7 +111,7 @@ ${S} .ev-hero-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.
 ${S} .ev-hero-grid.ev-solo{grid-template-columns:minmax(0,1fr)}
 ${S} .ev-kickerrow{display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:14px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ev-soft)}
 ${S} .ev-badge{padding:7px 14px;border-radius:6px;background:var(--ev-accent);color:#fff}
-${S} .ev-title{margin:26px 0 0;font-family:var(--font-display,'Playfair Display',Georgia,serif);font-weight:900;font-size:clamp(52px,8vw,112px);line-height:.95;letter-spacing:-.03em}
+${S} .ev-title{margin:26px 0 0;color:#fff;font-family:var(--font-display,'Playfair Display',Georgia,serif);font-weight:900;font-size:clamp(52px,8vw,112px);line-height:.95;letter-spacing:-.03em}
 ${S} .ev-title em{font-style:italic;color:var(--purple-light,#c47db0)}
 ${S} .ev-sub{display:flex;align-items:center;gap:16px;margin-top:12px;font-size:clamp(18px,2.2vw,28px);font-weight:800;letter-spacing:.3em;text-transform:uppercase}
 ${S} .ev-sub::after{content:"";flex:0 1 160px;height:2px;background:var(--ev-accent)}
