@@ -88,6 +88,7 @@ function slugKey(label) {
 
 function CmsFormsView({ onNavigate }) {
   const [forms, setForms] = React.useState([]);
+  const [templates, setTemplates] = React.useState([]);
   const [stats, setStats] = React.useState({});
   const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState("all");
@@ -102,6 +103,7 @@ function CmsFormsView({ onNavigate }) {
       .then((r) => r.json())
       .then((d) => {
         setForms(d.forms || []);
+        setTemplates(d.templates || []);
         setStats(d.stats || {});
       })
       .catch(() => notify("Could not load forms", "error"))
@@ -110,14 +112,14 @@ function CmsFormsView({ onNavigate }) {
 
   React.useEffect(() => { load(); }, [load]);
 
-  const createForm = async (title) => {
+  const createForm = async (title, templateKey = "basic") => {
     setCreating(true);
     try {
       const res = await fetch("/api/cms/forms", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: title || "New form" }),
+        body: JSON.stringify({ title: title || "New form", template_key: templateKey }),
       });
       const d = await res.json();
       if (!d.success || !d.form) {
@@ -168,6 +170,30 @@ function CmsFormsView({ onNavigate }) {
         disabled: creating,
         onClick: () => createForm("New form"),
       }, creating ? "Creating…" : "Create form")
+    ),
+
+    // Starter cards are resolved from the same backend registry that creates the actual form fields.
+    React.createElement("section", { style: { marginBottom: 20 } },
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", marginBottom: 10 } },
+        React.createElement("strong", { style: { fontSize: 13, color: C.text } }, "Start with a working form"),
+        React.createElement("span", { style: { fontSize: 11, color: C.textMut } }, "Edit every field, style, and message after creation")
+      ),
+      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(178px,1fr))", gap: 9 } },
+        templates.map((t) => React.createElement("button", {
+          key: t.key, type: "button", disabled: creating, onClick: () => createForm(t.title, t.key),
+          style: { display: "grid", gap: 7, textAlign: "left", padding: "16px 15px", border: `1px solid ${C.border}`, borderRadius: 12, background: C.surface,
+            color: C.text, cursor: creating ? "wait" : "pointer", fontFamily: "var(--font-ui)", transition: "border-color .2s,transform .2s" },
+          onMouseEnter: (e) => { e.currentTarget.style.borderColor = C.purple; e.currentTarget.style.transform = "translateY(-2px)"; },
+          onMouseLeave: (e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = ""; },
+        },
+          React.createElement("span", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } },
+            React.createElement(Icon, { name: t.icon || "docs", size: 20 }),
+            React.createElement("small", { style: { fontSize: 10, color: C.textMut } }, t.field_count + " fields")
+          ),
+          React.createElement("strong", { style: { fontSize: 13 } }, t.title),
+          React.createElement("span", { style: { fontSize: 11, color: C.textMut, lineHeight: 1.45 } }, t.description)
+        ))
+      )
     ),
 
     React.createElement("div", {
