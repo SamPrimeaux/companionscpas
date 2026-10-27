@@ -84,6 +84,109 @@ function slugKey(label) {
     .slice(0, 40) || "field";
 }
 
+
+/** Global donation modal presentation; backed by the existing cms_modals.donate_cta record. */
+function DonationModalSettingsPanel({ onClose }) {
+  const h = React.createElement;
+  const [config, setConfig] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [saved, setSaved] = React.useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    fetch("/api/cms/donation-modal", { credentials: "include" })
+      .then(async r => { const d = await r.json(); if (!r.ok || !d.success) throw Error(d.error || "Unable to load"); return d.config; })
+      .then(c => { if (mounted) setConfig(c); })
+      .catch(e => { if (mounted) setError(e.message); })
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
+  }, []);
+  const patch = (key, value) => { setConfig(c => ({ ...c, [key]: value })); setSaved(false); };
+  const patchStyle = (key, value) => { setConfig(c => ({ ...c, theme: { ...c.theme, [key]: value } })); setSaved(false); };
+  const save = async () => {
+    if (!config || saving) return;
+    setSaving(true); setError(""); setSaved(false);
+    try {
+      const res = await fetch("/api/cms/donation-modal", { method: "PUT", credentials: "include",
+        headers: { "content-type": "application/json" }, body: JSON.stringify(config) });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw Error(data.error || "Save failed");
+      setConfig(data.config); setSaved(true);
+    } catch (e) { setError(e.message); } finally { setSaving(false); }
+  };
+  const smallLabel = text => h("label", { style: { display: "block", fontSize: 10, fontWeight: 760,
+    textTransform: "uppercase", letterSpacing: ".08em", color: C.textMut, marginBottom: 6 } }, text);
+  const field = (label, key, multi = false) => h("div", { key },
+    smallLabel(label),
+    h(multi ? "textarea" : "input", { value: config?.[key] || "",
+      onChange: e => patch(key, e.target.value), rows: multi ? 3 : undefined,
+      style: { width: "100%", minHeight: multi ? 70 : 37, boxSizing: "border-box", padding: "9px 11px",
+        borderRadius: 9, border: `1px solid ${C.border}`, background: C.bg2, color: C.text, fontSize: 13 } })
+  );
+  return h("section", { style: { marginBottom: 24, padding: 18, borderRadius: 15, border: `1px solid ${C.border}`,
+    background: C.surface, display: "grid", gap: 18 } },
+    h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 } },
+      h("div", null,
+        h("h2", { style: { margin: 0, fontSize: 18, color: C.text } }, "Donation modal · appearance"),
+        h("p", { style: { margin: "5px 0 0", color: C.textMut, fontSize: 12 } },
+          "Controls the existing general Stripe donation modal. No new payment pipeline.")
+      ),
+      h(Btn, { size: "sm", variant: "secondary", onClick: onClose }, "Close")
+    ),
+    loading ? h("div", { style: { padding: 18, color: C.textMut } }, "Loading saved modal settings…") :
+    !config ? h("div", { style: { color: C.red, fontSize: 12 } }, error || "Configuration unavailable") :
+    h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 20 } },
+      h("div", { style: { display: "grid", gap: 14, alignContent: "start" } },
+        field("Eyebrow", "eyebrow"),
+        field("Headline", "title"),
+        field("Supporting copy", "subtitle", true),
+        h("div", null, smallLabel("Accent"),
+          h("div", { style: { display: "flex", gap: 9, alignItems: "center" } },
+            h("input", { type: "color", value: config.theme?.accent || "#7c3aed",
+              onChange: e => patchStyle("accent", e.target.value), style: { width: 45, height: 34, border: 0, cursor: "pointer" } }),
+            h("input", { value: config.theme?.accent || "#7c3aed",
+              onChange: e => patchStyle("accent", e.target.value), style: { width: 110, height: 34, border: `1px solid ${C.border}`,
+                borderRadius: 8, background: C.bg2, color: C.text, padding: 8 } })
+          )
+        ),
+        h("label", { style: { display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: C.text } },
+          h("input", { type: "checkbox", checked: config.allow_monthly !== false,
+            onChange: e => patch("allow_monthly", e.target.checked) }), "Offer monthly gifts"),
+        h("label", { style: { display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: C.text } },
+          h("input", { type: "checkbox", checked: config.theme?.compact === true,
+            onChange: e => patchStyle("compact", e.target.checked) }), "Compact spacing"),
+        h("div", null, smallLabel(`Corner radius · ${config.theme?.radius || 14}px`),
+          h("input", { type: "range", min: 6, max: 24, value: config.theme?.radius || 14,
+            onChange: e => patchStyle("radius", Number(e.target.value)), style: { width: "100%", accentColor: config.theme?.accent || "#7c3aed" } })),
+        h("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+          h(Btn, { variant: "primary", onClick: save, disabled: saving }, saving ? "Saving…" : "Save modal settings"),
+          saved && h("span", { role: "status", style: { color: C.green, fontSize: 12 } }, "Saved to CMS"),
+          error && h("span", { role: "alert", style: { color: C.red, fontSize: 12 } }, error)
+        )
+      ),
+      h("div", { style: { background: C.bg2, borderRadius: 12, padding: 20,
+        display: "grid", alignContent: "center", justifyItems: "center", minHeight: 300 } },
+        h("div", { style: { width: "100%", maxWidth: 390, padding: 22, boxSizing: "border-box",
+          background: "#f5f2e9", borderRadius: (config.theme?.radius || 14),
+          boxShadow: "0 18px 55px rgba(15,23,42,.12)" } },
+          h("div", { style: { color: config.theme?.accent || "#7c3aed", fontSize: 10, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase" } }, config.eyebrow),
+          h("h3", { style: { color: "#0f1f3d", fontSize: 24, fontFamily: "Georgia,serif", margin: "9px 0" } }, config.title),
+          h("p", { style: { color: "#4b5563", fontSize: 12, lineHeight: 1.5 } }, config.subtitle),
+          h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+            ["$25","$50","$100","$250"].map(n => h("div", { key: n, style: { border: "1px solid #e5e7eb", borderRadius: 9, background: "#fff",
+              padding: 13, color: "#0f1f3d", fontWeight: 750, fontSize: 15 } }, n))),
+          h("div", { style: { marginTop: 13, background: "#fff", borderRadius: 9, height: 48, border: "1px solid #e5e7eb" } }),
+          h("button", { type: "button", disabled: true,
+            style: { width: "100%", marginTop: 14, background: config.theme?.accent || "#7c3aed", border: 0,
+              color: "#fff", minHeight: 42, borderRadius: 9, fontWeight: 800 } }, "Secure donation")
+        ),
+        h("span", { style: { marginTop: 12, fontSize: 11, color: C.textMut } }, "Visual preview only · real checkout stays in Stripe")
+      )
+    )
+  );
+}
+
 // ── List ─────────────────────────────────────────────────────────────────────
 
 function CmsFormsView({ onNavigate }) {
@@ -95,6 +198,7 @@ function CmsFormsView({ onNavigate }) {
   const [search, setSearch] = React.useState("");
   const [notice, setNotice] = React.useState({});
   const [creating, setCreating] = React.useState(false);
+  const [editingDonation, setEditingDonation] = React.useState(false);
   const notify = (t, type) => formsNotify(setNotice, t, type);
 
   const load = React.useCallback(() => {
@@ -164,6 +268,8 @@ function CmsFormsView({ onNavigate }) {
         React.createElement("p", { style: { margin: "8px 0 0", maxWidth: 560, color: C.textSec, fontSize: 13, lineHeight: 1.5 } },
           "Create, publish, and manage how people apply and get in touch — no code required. Appearance follows Brand & Settings.")
       ),
+      React.createElement(Btn, { variant: "secondary", onClick: () => setEditingDonation(v => !v) },
+        editingDonation ? "Close donation editor" : "Customize donation modal"),
       React.createElement(Btn, {
         variant: "primary",
         icon: "plus",
@@ -171,6 +277,8 @@ function CmsFormsView({ onNavigate }) {
         onClick: () => createForm("New form"),
       }, creating ? "Creating…" : "Create form")
     ),
+
+    editingDonation && React.createElement(DonationModalSettingsPanel, { onClose: () => setEditingDonation(false) }),
 
     // Starter cards are resolved from the same backend registry that creates the actual form fields.
     React.createElement("section", { style: { marginBottom: 20 } },
