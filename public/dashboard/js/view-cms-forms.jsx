@@ -446,7 +446,7 @@ function FormDesignPanel({ form, fields, theme, accent, patchTheme, uploadThemeL
       ),
       h("span", { style: { color: C.textMut, fontSize: 11 } }, "Changes save with the form · Publish to go live")
     ),
-    h("div", { style: { display: "grid", gridTemplateColumns: "minmax(250px,320px) minmax(0,1fr)", gap: 20, alignItems: "start" } },
+    h("div", { className: "form-design-grid", style: { display: "grid", gridTemplateColumns: "minmax(250px,320px) minmax(0,1fr)", gap: 20, alignItems: "start" } },
       h("aside", { style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, display: "grid", gap: 18, minWidth: 0 } },
         h("div", null, toolbarLabel("Style presets"),
           h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
@@ -793,6 +793,20 @@ function CmsFormEditorView({ formId, onNavigate }) {
     className: "cms-form-studio",
     style: { display: "flex", flexDirection: "column", flex: 1, minHeight: 0, background: C.bg },
   },
+    React.createElement("style", null, `
+      .cms-form-studio input:focus-visible,.cms-form-studio button:focus-visible,.cms-form-studio select:focus-visible,
+      .cms-form-studio textarea:focus-visible { outline: 2px solid #7c3aed;outline-offset:2px }
+      @media(max-width:1000px){
+        .cms-form-builder-grid{display:flex!important;flex-direction:column!important;overflow:auto}
+        .cms-form-builder-grid>aside{border:0!important;border-bottom:1px solid rgba(127,127,127,.18)!important;overflow:visible!important}
+        .cms-form-builder-grid>div:nth-child(2){overflow:visible!important;min-height:490px}
+        .form-design-grid{grid-template-columns:minmax(0,1fr)!important}
+      }
+      @media(max-width:600px){
+        .form-design-workspace{padding:12px!important}
+        .cms-form-studio .dm-mobile-grid{grid-template-columns:minmax(0,1fr)!important}
+      }
+    `),
     React.createElement(FormsNotice, { n: notice }),
 
     // Top bar
@@ -826,6 +840,7 @@ function CmsFormEditorView({ formId, onNavigate }) {
     ),
 
     tab === "build" && React.createElement("div", {
+      className: "cms-form-builder-grid",
       style: {
         flex: 1, minHeight: 0, display: "grid",
         gridTemplateColumns: "240px minmax(0,1fr) 280px",
