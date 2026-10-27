@@ -85,8 +85,8 @@ export async function createDonationPaymentIntent(env, data = {}) {
     ).bind(
       localIntentId,
       TENANT_ID,
-      donorName,
-      donorEmail,
+      donorName || '',
+      donorEmail || '',
       chargeCents,
       frequency,
       campaignId === "general" ? null : campaignId,
@@ -101,7 +101,8 @@ export async function createDonationPaymentIntent(env, data = {}) {
       })
     ).run();
   } catch (err) {
-    console.warn("[create-intent] donation_intents insert skipped:", err?.message);
+    console.error("[create-intent] donation_intents insert failed:", err?.message);
+    return { ok: false, status: 503, error: "Could not record payment attempt" };
   }
 
   return {

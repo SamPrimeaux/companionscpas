@@ -1,5 +1,6 @@
 import { notifyDonationReceived } from "./notifications.js";
-import { resolveDonationAmounts } from "./donation_fees.js";
+import { resolveDonationAmounts, calculateWithFees } from "./donation_fees.js";
+import { resolveCheckoutIntent, recordEventRegistration } from "./checkout_modals.js";
 import { sanitizePublicAssetUrls } from "./asset_urls.js";
 
 const TENANT_ID = "tenant_companionscpas";
@@ -751,8 +752,19 @@ export async function paymentsEmailRoutes(request, env, url) {
         data.campaign_id = entryRow.campaign_id;
       }
 
+      // Fixed-price admissions: CMS/D1 defines prices, never the browser.
+      let modalCtx = null;
+      if (data.modal_key && !entryId) {
+        modalCtx = await resolveCheckoutIntent(env, data);
+        if (modalCtx.error) return json({ error: modalCtx.error }, modalCtx.status || 400);
+        intendedCents = modalCtx.intendedCents;
+        if (!modalCtx.coverFeesAllowed) coverFees = false;
+        chargeCents = coverFees ? calculateWithFees(intendedCents) : intendedCents;
+        data.campaign_id = modalCtx.campaignId;
+      }
       if (!intendedCents || intendedCents < 100) return json({ error: "Minimum donation is $1.00" }, 400);
-      const donorNote = String(data.note || data.message || "").trim().slice(0, 500) || null;
+      let donorNote = String(data.note || data.message || "").trim().slice(0, 500) || null;
+      if (modalCtx) donorNote = [modalCtx.notePrefix, modalCtx.summary].filter(Boolean).join(": ").slice(0, 500) || donorNote;
       const localIntentId = id("intent");
       const form = new URLSearchParams();
       form.set("amount", String(chargeCents));
@@ -760,7 +772,8 @@ export async function paymentsEmailRoutes(request, env, url) {
       form.set("automatic_payment_methods[enabled]", "true");
       form.set("metadata[tenant_id]", TENANT_ID);
       form.set("metadata[local_intent_id]", localIntentId);
-      form.set("metadata[source]", entryId ? "campaign_entry" : "donate_modal");
+      form.set("metadata[source]", entryId ? "campaign_entry" : (modalCtx ? "event_checkout" : "donate_modal"));
+      if (modalCtx) { form.set("metadata[modal_key]", modalCtx.modalKey); form.set("metadata[items]", modalCtx.compact); }
       form.set("metadata[intended_cents]", String(intendedCents));
       form.set("metadata[cover_fees]", coverFees ? "true" : "false");
       if (data.campaign_id) form.set("metadata[campaign_id]", String(data.campaign_id));
@@ -788,6 +801,7 @@ export async function paymentsEmailRoutes(request, env, url) {
             charge_cents: chargeCents,
             note: donorNote,
             entry_id: entryId,
+            modal: modalCtx ? { key: modalCtx.modalKey, campaign_id: modalCtx.campaignId, lines: modalCtx.lines, hands: modalCtx.hands, fields: {} } : undefined,
           })
         ).run();
       } catch (err) {
@@ -859,7 +873,7 @@ export async function paymentsEmailRoutes(request, env, url) {
       await upsertDonor(env, { donorEmail: donor_email, donorName: null, amountCents: amount_cents || 2500, isRecurring: true, stripeCustomerId: customer.id, stripeSubscriptionId: sub.id });
       await env.DB.prepare(
         `INSERT INTO donation_intents (id, tenant_id, donor_name, donor_email, amount_cents, frequency, provider, provider_checkout_id, status, resend_receipt_status, updated_at)
-         VALUES (?, ?, NULL, ?, ?, 'month', 'stripe', ?, 'subscription_active', 'pending_after_payment', datetime('now'))`
+         VALUES (?, ?, '', ?, ?, 'month', 'stripe', ?, 'subscription_active', 'pending_after_payment', datetime('now'))`
       ).bind(id("sub"), TENANT_ID, donor_email || null, amount_cents || 2500, sub.id).run();
     } catch (err) { console.warn("subscription D1 write skipped:", err?.message); }
     return json({ success: true, subscription_id: sub.id, customer_id: customer.id });
@@ -981,13 +995,13 @@ export async function paymentsEmailRoutes(request, env, url) {
         `INSERT INTO donation_intents
          (id, tenant_id, donor_name, donor_email, amount_cents, frequency, campaign_id, note, provider,
           provider_checkout_id, provider_checkout_url, status, resend_receipt_status, metadata_json, updated_at)
-         VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, 'stripe', ?, ?, 'checkout_created', 'pending_after_payment', ?, datetime('now'))`
+         VALUES (?, ?, '', '', ?, ?, ?, ?, 'stripe', ?, ?, 'checkout_created', 'pending_after_payment', ?, datetime('now'))`
       ).bind(
         checkoutId, TENANT_ID, amountCents, isRecurring ? (data.interval || "month") : "one_time",
         data.campaign_id || null, data.message || null, stripe.id, stripe.url,
         JSON.stringify({ stripe_session_id: stripe.id, price_id: data.price_id || null, title: data.title || "Donation to Companions of CPAS" })
       ).run();
-    } catch (err) { console.warn("donation_intents insert skipped:", err?.message); }
+    } catch (err) { console.error("donation_intents insert failed:", err?.message); return json({ error: "Checkout record could not be saved" }, 503); }
     return json({ success: true, checkout_url: stripe.url, stripe_session_id: stripe.id, id: checkoutId }, 201);
   }
 
@@ -1047,6 +1061,14 @@ export async function paymentsEmailRoutes(request, env, url) {
             currency: pi.currency || "usd",
             campaignId: campaignId || meta.campaign_id || null,
           }).catch((err) => console.warn("competition_entries settle skipped:", err?.message || err));
+        }
+        // Stripe can retry a webhook after a partially completed registration.
+        // Always attempt the idempotent registration insert, even for an existing donation.
+        if (meta.modal_key || intentMeta.modal) {
+          await recordEventRegistration(env, {
+            paymentIntentId, intentRecord, donationId: result.donationId || null,
+            donorEmail, donorName, totalCents: intendedAmountCents,
+          });
         }
         return json({ received: true, processed: !result.duplicate, duplicate: result.duplicate || false });
       }
