@@ -131,6 +131,8 @@
   let stripeInst = null, elements = null, isSubmitting = false;
   let stripePk = null, stripeTestMode = false, configPromise = null;
   let reinitTimer = null;
+  // Data-driven popup state (null = classic donation modal, unchanged).
+  let modalCfg = null, modalKey = null, itemQty = {}, currentClientSecret = null;
 
   function calculateWithFees(intendedCents) {
     return Math.ceil((intendedCents + 30) / (1 - 0.029));
@@ -176,15 +178,1207 @@
     return modalSettings;
   }
 
-  function money(v) { const n = Number(v); return Number.isFinite(n) ? '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$0'; }
-  function moneyExact(cents) { return '$' + (Number(cents || 0) / 100).toFixed(2); }
-  function getAmount() { const c = document.getElementById('dm-custom'); const v = c && c.value ? Number(c.value) : 0; return v > 0 ? v : selectedAmount; }
+  function money(v) { const n = Number(v); return Number.isFinite(n) ? '
+    return new Promise((res, rej) => {
+      if (window.Stripe) return res(window.Stripe);
+      const s = document.createElement('script'); s.src = 'https://js.stripe.com/v3/';
+      s.onload = () => res(window.Stripe); s.onerror = rej; document.head.appendChild(s);
+    });
+  }
+
+  async function fetchTiers() {
+    try {
+      const r = await fetch(ENDPOINT_TIERS); if (!r.ok) throw 0;
+      const d = await r.json(); if (Array.isArray(d.tiers) && d.tiers.length) return d.tiers;
+    } catch {}
+    return FALLBACK_TIERS;
+  }
+
+  function buildHTML() {
+    if (modalCfg) return buildItemsHTML();
+    const customDefault = presetAmount ? String(presetAmount) : '1';
+    const tierBtns = tiers.map((t, i) => {
+      const amt = t.amount_cents / 100;
+      const active = presetAmount && presetAmount === amt;
+      return `
+      <button type="button" class="dm-tier${active ? ' active' : ''}" data-idx="${i}" data-amount="${amt}">
+        <span class="dm-tier-amt">${money(amt)}</span>
+        <span class="dm-tier-lbl">${t.label}</span>
+      </button>`;
+    }).join('');
+
+    return `
+      <div class="dm-header">
+        <button class="dm-close" id="dm-close" type="button" aria-label="Close">&times;</button>
+        <div class="dm-eyebrow">${htmlText(modalSettings.eyebrow)}</div>
+        <h2 class="dm-title" id="dm-title">${htmlText(modalSettings.title)}</h2>
+        <p class="dm-sub">${htmlText(modalSettings.subtitle)}</p>
+        <div class="dm-test-banner${stripeTestMode ? ' is-visible' : ''}" id="dm-test-banner">Stripe test mode — use card <strong>4242 4242 4242 4242</strong>, any future expiry &amp; CVC. No real charges.</div>
+      </div>
+      <div class="dm-body">
+        <div class="dm-section">
+          <span class="dm-label">Choose an amount</span>
+          <div class="dm-tiers">${tierBtns}</div>
+          <div class="dm-custom-wrap">
+            <span class="dm-dollar">$</span>
+            <input id="dm-custom" class="dm-custom" type="number" min="1" max="50000" step="0.01" inputmode="decimal" placeholder="Custom amount" autocomplete="off" value="${customDefault}" />
+          </div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">Payment details</span>
+          <div class="dm-stripe-wrap">
+            <div id="dm-skeleton" class="dm-skeleton"></div>
+            <div id="dm-mount" style="display:none"></div>
+          </div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">Gift frequency</span>
+          <div class="dm-freq">
+            <button type="button" class="active" data-freq="one_time">One-time</button>
+            <button type="button" data-freq="monthly">Monthly</button>
+          </div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">Receipt &amp; updates <span style="color:#9ca3af;font-weight:500;text-transform:none;letter-spacing:0">— optional</span></span>
+          <div class="dm-contact">
+            <input id="receipt-email" class="dm-email" type="email" placeholder="Email address" autocomplete="email" name="email" />
+            <label class="dm-nl-row" for="dm-newsletter">
+              <input type="checkbox" id="dm-newsletter" />
+              <span class="dm-nl-lbl"><strong>Subscribe to updates</strong>Occasional news on animals helped. No spam.</span>
+            </label>
+            <label class="dm-nl-row" for="dm-save-info">
+              <input type="checkbox" id="dm-save-info" />
+              <span class="dm-nl-lbl"><strong>Save my information</strong>Faster checkout next time you donate.</span>
+            </label>
+          </div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">Donation purpose <span style="color:#9ca3af;font-weight:500;text-transform:none;letter-spacing:0">— optional</span></span>
+          <input id="dm-memo" class="dm-memo" type="text" maxlength="200" placeholder="e.g. Transport fund, Biscuit's vet care, general..." autocomplete="off" />
+        </div>
+      </div>
+      <div class="dm-footer">
+        <div id="dm-cover-fees-wrap">
+          <label class="dm-fee-row" for="dm-cover-fees">
+            <input type="checkbox" id="dm-cover-fees" checked />
+            <span class="dm-fee-copy">
+              <strong id="fee-label">Cover processing fees (+$0.33)</strong>
+              100% of your gift goes to the animals.
+            </span>
+          </label>
+        </div>
+        <button class="dm-submit" id="dm-submit" type="button" disabled>Donate $1.33</button>
+        <div class="dm-error" id="dm-error"></div>
+        <div class="dm-secure">Secured by Stripe &middot; PCI compliant &middot; Receipt emailed when payment succeeds</div>
+      </div>
+      <div class="dm-success" id="dm-success">
+        <div class="dm-success-icon">&#10003;</div>
+        <h3>Thank you for your gift.</h3>
+        <p id="dm-success-msg">Every dollar helps bridge the gap from urgent to safe.</p>
+      </div>`;
+  }
+
+  function getDonorEmail() {
+    const receipt = document.getElementById('receipt-email') || document.getElementById('dm-email');
+    const receiptVal = receipt?.value?.trim() || '';
+    if (receiptVal) return receiptVal;
+    const pageEmail = document.querySelector('input[type="email"]:not([disabled])');
+    return pageEmail?.value?.trim() || '';
+  }
+
+  function friendlyStripeError(err) {
+    const msg = String(err?.message || err || '');
+    if (/billing_details\.email/i.test(msg)) {
+      return 'Please enter your email address above to complete your donation.';
+    }
+    return msg || 'Payment failed. Please try again.';
+  }
+
+  function mirrorReceiptEmail() {
+    const receiptEmail = document.getElementById('receipt-email') || document.getElementById('dm-email');
+    if (!receiptEmail) return;
+    const linkEmail = document.querySelector('input[name="email"], input[autocomplete="email"]');
+    if (linkEmail && linkEmail !== receiptEmail) {
+      linkEmail.addEventListener('input', () => {
+        if (!receiptEmail.value) receiptEmail.value = linkEmail.value;
+      });
+    }
+  }
+
+  async function initElements() {
+    try {
+      await fetchStripeConfig();
+      const Stripe = await loadStripe();
+      if (!stripeInst) stripeInst = Stripe(stripePk);
+      if (modalCfg && getSelectedAmountCents() < 100) {
+        const sk0 = document.getElementById('dm-skeleton'), mt0 = document.getElementById('dm-mount'), b0 = document.getElementById('dm-submit');
+        if (sk0) { sk0.style.display = 'block'; sk0.style.animation = 'none'; sk0.innerHTML = '<div style="padding:16px;text-align:center;font-size:.85rem;opacity:.8">Choose at least one entry to continue.</div>'; }
+        if (mt0) mt0.style.display = 'none';
+        if (b0) b0.disabled = true;
+        return;
+      }
+      const isMonthly = frequency === 'monthly';
+      const intendedCents = getSelectedAmountCents();
+      const payload = {
+        mode: isMonthly ? 'setup' : 'payment',
+        intended_cents: intendedCents,
+        cover_fees: !isMonthly && coverFees,
+        amount_cents: isMonthly ? intendedCents : chargeAmountCents(),
+        currency: 'usd',
+      };
+      if (presetCampaignId) payload.campaign_id = presetCampaignId;
+      if (modalCfg) { payload.modal_key = modalKey; payload.items = itemsPayload(); }
+      if (presetEntryId) payload.entry_id = presetEntryId;
+      // Include memo at intent creation time so it's stored in D1 + Stripe metadata
+      const note = getDonorNote() || presetDonorNote;
+      if (note) payload.note = note;
+      const res = await fetch(ENDPOINT_INTENT, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.client_secret) throw new Error(data.error || 'Could not initialize payment.');
+      currentClientSecret = data.client_secret;
+      elements = stripeInst.elements({ clientSecret: data.client_secret, appearance: APPEARANCE });
+      const pe = elements.create('payment', { layout: { type: 'tabs', defaultCollapsed: false }, fields: { billingDetails: { name: 'auto', email: 'never' } } });
+      const skeleton = document.getElementById('dm-skeleton');
+      const mount = document.getElementById('dm-mount');
+      pe.on('ready', () => {
+        if (skeleton) skeleton.style.display = 'none';
+        if (mount) mount.style.display = 'block';
+        const btn = document.getElementById('dm-submit');
+        if (btn) { btn.disabled = false; updateLabel(); }
+      });
+      pe.mount('#dm-mount');
+    } catch (err) {
+      const sk = document.getElementById('dm-skeleton');
+      const msg = err.message || 'Could not load payment form.';
+      if (sk) { sk.style.animation = 'none'; sk.style.background = 'rgba(248,113,113,.07)'; sk.innerHTML = `<div style="padding:16px;color:#fca5a5;font-size:.82rem;text-align:center;line-height:1.5">${msg}<br><a href="/donate" style="color:#a78bfa;text-decoration:underline">Try the donate page</a></div>`; }
+    }
+  }
+
+  async function submit() {
+    if (isSubmitting || !elements || !stripeInst) return;
+    const amt = getAmount();
+    if (!amt || amt < 1) { setErr('Please select or enter an amount.'); return; }
+    const email = getDonorEmail();
+    if (!email) {
+      setErr('Please enter your email address above to complete your donation.');
+      return;
+    }
+    setErr('');
+    if (modalCfg) { const missing = missingRequiredField(); if (missing) { setErr(`${missing} is required.`); return; } }
+    isSubmitting = true;
+    const btn = document.getElementById('dm-submit');
+    if (btn) { btn.disabled = true; btn.classList.add('loading'); btn.textContent = 'Processing...'; }
+    const nlOptIn = document.getElementById('dm-newsletter')?.checked || false;
+    const saveInfo = document.getElementById('dm-save-info')?.checked || false;
+    const isMonthly = frequency === 'monthly';
+    const tier = getActiveTier();
+    const intendedCents = getSelectedAmountCents();
+    const chargeCents = isMonthly ? intendedCents : chargeAmountCents();
+    const billingDetails = { email };
+    try {
+      if (!isMonthly) {
+        if (modalCfg) await attachFields();
+        const { error, paymentIntent } = await stripeInst.confirmPayment({
+          elements, redirect: 'if_required',
+          confirmParams: {
+            return_url: `${location.origin}/donate/thank-you`,
+            payment_method_data: { billing_details: billingDetails },
+          },
+        });
+        if (error) throw new Error(friendlyStripeError(error));
+        if (email || paymentIntent?.id) {
+          fetch(ENDPOINT_AFTER, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              donor_email: email,
+              nl_opt_in: nlOptIn,
+              save_my_info: saveInfo,
+              amount_cents: chargeCents,
+              intended_cents: intendedCents,
+              cover_fees: !isMonthly && coverFees,
+              payment_intent_id: paymentIntent?.id || null,
+              entry_id: presetEntryId || null,
+              campaign_id: presetCampaignId || null,
+            }),
+          }).catch(() => {});
+        }
+        showSuccess(email, false);
+      } else {
+        const { error, setupIntent } = await stripeInst.confirmSetup({
+          elements, redirect: 'if_required',
+          confirmParams: {
+            return_url: `${location.origin}/donate/thank-you`,
+            payment_method_data: { billing_details: billingDetails },
+          },
+        });
+        if (error) throw new Error(friendlyStripeError(error));
+        const subRes = await fetch(ENDPOINT_SUB, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_method_id: setupIntent.payment_method, price_id: tier?.stripe_price_id_monthly || null, amount_cents: tier ? null : intendedCents, donor_email: email, nl_opt_in: nlOptIn, save_my_info: saveInfo }),
+        });
+        const subData = await subRes.json();
+        if (!subData.success) throw new Error(subData.error || 'Subscription could not be created.');
+        showSuccess(email, true);
+      }
+    } catch (err) {
+      setErr(friendlyStripeError(err));
+      isSubmitting = false;
+      if (btn) { btn.disabled = false; btn.classList.remove('loading'); updateLabel(); }
+    }
+  }
+
+  function updateFeeDisplay() {
+    const wrap = document.getElementById('dm-cover-fees-wrap');
+    const feeLabel = document.getElementById('fee-label');
+    const btn = document.getElementById('dm-submit');
+    const cb = document.getElementById('dm-cover-fees');
+    if (cb) coverFees = cb.checked;
+    if (frequency !== 'one_time') {
+      if (wrap) wrap.style.display = 'none';
+      if (btn && !btn.disabled && !isSubmitting) {
+        btn.textContent = `Donate ${money(getAmount())}/mo`;
+      }
+      return;
+    }
+    if (wrap) wrap.style.display = '';
+    const intendedCents = getSelectedAmountCents();
+    const feeCents = feeAmount(intendedCents);
+    const totalCents = coverFees ? calculateWithFees(intendedCents) : intendedCents;
+    if (feeLabel) feeLabel.textContent = `Cover processing fees (+${moneyExact(feeCents)})`;
+    if (btn && !btn.disabled && !isSubmitting) {
+      btn.textContent = modalCfg ? String(modalCfg.submit_label || 'Pay {total}').replace('{total}', moneyExact(totalCents)) : `Donate ${moneyExact(totalCents)}`;
+    }
+  }
+
+  function updateLabel() {
+    updateFeeDisplay();
+  }
+
+  function scheduleReinitElements() {
+    if (frequency !== 'one_time') return;
+    clearTimeout(reinitTimer);
+    reinitTimer = setTimeout(function() { reinitElements(); }, 450);
+  }
+  function setErr(msg) { const el = document.getElementById('dm-error'); if (!el) return; el.textContent = msg || ''; el.style.display = msg ? 'block' : 'none'; }
+  function showSuccess(email, isMonthly) {
+    const modal = document.getElementById('dm-modal');
+    if (!modal) return;
+    [...modal.children].forEach(el => { el.style.display = el.id === 'dm-success' ? 'block' : 'none'; });
+    const msg = document.getElementById('dm-success-msg');
+    if (modalCfg) {
+      const h = modal.querySelector('#dm-success h3'); if (h && modalCfg.success_title) h.textContent = modalCfg.success_title;
+      if (msg) msg.textContent = modalCfg.success_message || (email ? `Receipt headed to ${email}. Thank you.` : 'Thank you.');
+      setTimeout(close, 12000); return;
+    }
+    if (msg) msg.textContent = isMonthly
+      ? (email ? `Your monthly gift is active. Confirmation headed to ${email}.` : 'Your monthly gift is active. Thank you.')
+      : (email ? `Receipt headed to ${email}. Every dollar helps bridge the gap from urgent to safe.` : 'Every dollar helps bridge the gap from urgent to safe.');
+    setTimeout(close, 6000);
+  }
+
+  function reinitElements() {
+    elements = null;
+    const sk = document.getElementById('dm-skeleton'); const mt = document.getElementById('dm-mount');
+    if (sk) { sk.style.display = 'block'; sk.style.animation = ''; sk.style.background = ''; sk.innerHTML = ''; }
+    if (mt) { mt.style.display = 'none'; mt.innerHTML = ''; }
+    const btn = document.getElementById('dm-submit'); if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+    initElements();
+  }
+
+  function open(eventOrOpts) {
+    const opts = (eventOrOpts && typeof eventOrOpts === 'object' && typeof eventOrOpts.preventDefault !== 'function')
+      ? eventOrOpts
+      : null;
+    if (!opts && eventOrOpts && typeof eventOrOpts.preventDefault === 'function') eventOrOpts.preventDefault();
+    if (document.getElementById('dm-overlay')) return;
+    const trigger = opts ? null : (
+      eventOrOpts?.currentTarget?.closest?.('[data-action="donate"],[data-donate]')
+      || eventOrOpts?.target?.closest?.('[data-action="donate"],[data-donate]')
+    );
+    presetCampaignId = opts?.campaign_id || opts?.campaignId || trigger?.dataset?.campaignId || null;
+    presetEntryId = opts?.entry_id || opts?.entryId || trigger?.dataset?.entryId || null;
+    presetDonorEmail = opts?.donor_email || opts?.donorEmail || null;
+    presetDonorNote = opts?.note || null;
+    const wantedModalKey = opts?.modal_key || opts?.modalKey || trigger?.dataset?.modalKey || null;
+    const wantedTicket = opts?.ticket_key || trigger?.dataset?.eventTicket || null;
+    const presetAmt = Number(opts?.amount || trigger?.dataset?.amount || 0);
+    const presetCents = Number(opts?.amount_cents || opts?.amountCents || trigger?.dataset?.amountCents || 0);
+    presetAmount = presetAmt > 0 ? presetAmt : (presetCents > 0 ? presetCents / 100 : null);
+    injectStyles();
+    selectedAmount = presetAmount || 1;
+    frequency = 'one_time';
+    coverFees = true;
+    elements = null; isSubmitting = false;
+    stripeInst = null; configPromise = null;
+    const tiersPromise = fetchTiers();
+    const modalSettingsPromise = fetchModalSettings();
+    const modalPromise = wantedModalKey ? fetchModalConfig(wantedModalKey) : Promise.resolve(null);
+    const configLoad = fetchStripeConfig().catch(() => null);
+    loadStripe().catch(() => {});
+    const overlay = document.createElement('div');
+    overlay.id = 'dm-overlay'; overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-labelledby', 'dm-title');
+    const modal = document.createElement('div'); modal.id = 'dm-modal';
+    modal.innerHTML = '<div style="padding:40px 28px"><div style="height:28px;width:70%;border-radius:6px;background:rgba(255,255,255,.06);margin-bottom:20px;animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:44px;border-radius:10px;background:rgba(255,255,255,.06);margin-bottom:10px;animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px"><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div></div><div style="height:130px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div></div>';
+    overlay.appendChild(modal); document.body.appendChild(overlay);
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    modal.setAttribute('tabindex', '-1'); modal.focus({ preventScroll: true });
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    modalKeyHandler = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+      if (e.key !== 'Tab') return;
+      const focusable = [...modal.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]')].filter(el => el.offsetParent !== null);
+      if (!focusable.length) { e.preventDefault(); return; }
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', modalKeyHandler);
+    tiersPromise.then(async (loaded) => {
+      await Promise.all([configLoad, modalSettingsPromise]);
+      tiers = loaded;
+      const chosenModal = await modalPromise;
+      if (wantedModalKey && !chosenModal) {
+        modal.innerHTML = '<div style="padding:28px"><h2>Registration unavailable</h2><p>This checkout is not published yet. Please contact the event organizer.</p><button type="button" id="dm-close-unavailable">Close</button></div>';
+        modal.querySelector('#dm-close-unavailable')?.addEventListener('click', close);
+        return;
+      }
+      applyModalConfig(chosenModal, wantedTicket);
+      if (!document.getElementById('dm-overlay')) return;
+      const style = modalCfg ? (modalCfg.theme || {}) : (modalSettings.theme || {});
+      modal.style.setProperty('--dm-accent', /^#[0-9a-f]{6}$/i.test(style.accent || '') ? style.accent : '#7c3aed');
+      modal.style.borderRadius = (Math.min(24, Math.max(6, Number(style.radius) || 14))) + 'px';
+      modal.classList.toggle('dm-compact', style.compact === true);
+      modal.classList.toggle('dm-no-monthly', modalSettings.allow_monthly === false);
+      modal.innerHTML = buildHTML(); bindEvents(); if (modalCfg) bindItems(); mirrorReceiptEmail();
+      if (presetDonorEmail) {
+        const emailInput = document.getElementById('receipt-email');
+        if (emailInput) emailInput.value = presetDonorEmail;
+      }
+      if (presetDonorNote) {
+        const memo = document.getElementById('dm-memo');
+        if (memo) memo.value = presetDonorNote;
+      }
+      initElements();
+    });
+  }
+
+  function close() {
+    const el = document.getElementById('dm-overlay'); if (el) el.remove();
+    if (modalKeyHandler) { document.removeEventListener('keydown', modalKeyHandler); modalKeyHandler = null; }
+    if (previousBodyOverflow !== null) { document.body.style.overflow = previousBodyOverflow; previousBodyOverflow = null; }
+    elements = null; isSubmitting = false;
+    presetCampaignId = null; presetAmount = null; presetEntryId = null;
+    presetDonorEmail = null; presetDonorNote = null;
+    modalCfg = null; modalKey = null; itemQty = {}; currentClientSecret = null;
+  }
+
+  function bindEvents() {
+    document.getElementById('dm-close').addEventListener('click', close);
+    document.querySelectorAll('.dm-freq button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (modalSettings.allow_monthly === false) return;
+        frequency = btn.dataset.freq;
+        document.querySelectorAll('.dm-freq button').forEach(b => b.classList.toggle('active', b === btn));
+        updateFeeDisplay();
+        reinitElements();
+      });
+    });
+    document.querySelectorAll('.dm-tier').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); selectedAmount = Number(btn.dataset.amount);
+        const c = document.getElementById('dm-custom'); if (c) c.value = '';
+        updateFeeDisplay();
+        scheduleReinitElements();
+      });
+    });
+    document.getElementById('dm-custom')?.addEventListener('input', function () {
+      document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
+      selectedAmount = Number(this.value) || 0;
+      updateFeeDisplay();
+      scheduleReinitElements();
+    });
+    document.getElementById('dm-cover-fees')?.addEventListener('change', function () {
+      coverFees = this.checked;
+      updateFeeDisplay();
+      reinitElements();
+    });
+    // Re-init when memo changes so the note is captured at intent creation time
+    document.getElementById('dm-memo')?.addEventListener('change', function () {
+      reinitElements();
+    });
+    const customInput = document.getElementById('dm-custom');
+    if (presetAmount) {
+      document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
+      const match = document.querySelector(`.dm-tier[data-amount="${presetAmount}"]`);
+      if (match) match.classList.add('active');
+      selectedAmount = presetAmount;
+      updateLabel();
+    } else if (customInput) {
+      selectedAmount = Number(customInput.value) || 1;
+      updateLabel();
+      requestAnimationFrame(() => { customInput.focus(); customInput.select(); });
+    }
+    document.getElementById('dm-submit').addEventListener('click', submit);
+  }
+
+  function wireButtons() {
+    document.querySelectorAll('[data-donate],[data-action="donate"]').forEach(el => {
+      if (el.dataset.dmWired === '1') return; el.dataset.dmWired = '1';
+      el.addEventListener('click', open);
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-donate],[data-action="donate"]');
+    if (!el) return;
+    e.preventDefault();
+    open(e);
+  });
+
+  function ensureShareOverlay() {
+    if (document.getElementById('dv2-share-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'dv2-share-overlay';
+    overlay.hidden = true;
+    overlay.innerHTML = `
+      <div class="dv2-share-panel" role="dialog" aria-modal="true" aria-labelledby="dv2-share-title">
+        <h3 class="dv2-share-title" id="dv2-share-title">Share This Campaign</h3>
+        <p class="dv2-share-copy" id="dv2-share-text"></p>
+        <div class="dv2-share-actions">
+          <button type="button" class="dv2-share-btn dv2-share-btn--fb" data-share-channel="facebook">Share on Facebook</button>
+          <button type="button" class="dv2-share-btn dv2-share-btn--email" data-share-channel="email">Share by Email</button>
+          <button type="button" class="dv2-share-btn" data-share-channel="copy">Copy Link</button>
+        </div>
+        <p class="dv2-share-status" id="dv2-share-status" aria-live="polite"></p>
+        <button type="button" class="dv2-share-close" data-share-close>Close</button>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay || e.target.closest('[data-share-close]')) closeShare();
+    });
+    overlay.querySelector('[data-share-channel="facebook"]')?.addEventListener('click', () => {
+      const url = overlay.dataset.shareUrl || window.location.href;
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer,width=640,height=560');
+    });
+    overlay.querySelector('[data-share-channel="email"]')?.addEventListener('click', () => {
+      const url = overlay.dataset.shareUrl || window.location.href;
+      const title = overlay.dataset.shareTitle || 'Help Kita Heal';
+      const text = overlay.dataset.shareText || '';
+      window.location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${text}\n\n${url}`)}`;
+    });
+    overlay.querySelector('[data-share-channel="copy"]')?.addEventListener('click', async () => {
+      const url = overlay.dataset.shareUrl || window.location.href;
+      const status = document.getElementById('dv2-share-status');
+      try {
+        await navigator.clipboard.writeText(url);
+        if (status) status.textContent = 'Link copied. Paste it on Instagram or anywhere you share.';
+      } catch {
+        if (status) status.textContent = url;
+      }
+    });
+  }
+
+  function openShare(trigger) {
+    ensureShareOverlay();
+    const overlay = document.getElementById('dv2-share-overlay');
+    if (!overlay) return;
+    const url = trigger?.dataset?.shareUrl || `${window.location.origin}/donate#donate-medical-story`;
+    const title = trigger?.dataset?.shareTitle || 'Help Kita Heal — Companions of Caddo';
+    const text = trigger?.dataset?.shareText || 'Kita needs amputation surgery and recovery care. Please help if you can.';
+    overlay.dataset.shareUrl = url;
+    overlay.dataset.shareTitle = title;
+    overlay.dataset.shareText = text;
+    const copyEl = document.getElementById('dv2-share-text');
+    if (copyEl) copyEl.textContent = text;
+    const status = document.getElementById('dv2-share-status');
+    if (status) status.textContent = '';
+    overlay.hidden = false;
+  }
+
+  function closeShare() {
+    const overlay = document.getElementById('dv2-share-overlay');
+    if (overlay) overlay.hidden = true;
+  }
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="share-campaign"]');
+    if (!btn) return;
+    e.preventDefault();
+    openShare(btn);
+  });
+
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', wireButtons); } else { wireButtons(); }
+  window.DonateModal = { open, close };
+  window.openDonateModal = open;
+})();
+ + n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$0'; }
+  function moneyExact(cents) { return '
+    return new Promise((res, rej) => {
+      if (window.Stripe) return res(window.Stripe);
+      const s = document.createElement('script'); s.src = 'https://js.stripe.com/v3/';
+      s.onload = () => res(window.Stripe); s.onerror = rej; document.head.appendChild(s);
+    });
+  }
+
+  async function fetchTiers() {
+    try {
+      const r = await fetch(ENDPOINT_TIERS); if (!r.ok) throw 0;
+      const d = await r.json(); if (Array.isArray(d.tiers) && d.tiers.length) return d.tiers;
+    } catch {}
+    return FALLBACK_TIERS;
+  }
+
+  function buildHTML() {
+    const customDefault = presetAmount ? String(presetAmount) : '1';
+    const tierBtns = tiers.map((t, i) => {
+      const amt = t.amount_cents / 100;
+      const active = presetAmount && presetAmount === amt;
+      return `
+      <button type="button" class="dm-tier${active ? ' active' : ''}" data-idx="${i}" data-amount="${amt}">
+        <span class="dm-tier-amt">${money(amt)}</span>
+        <span class="dm-tier-lbl">${t.label}</span>
+      </button>`;
+    }).join('');
+
+    return `
+      <div class="dm-header">
+        <button class="dm-close" id="dm-close" type="button" aria-label="Close">&times;</button>
+        <div class="dm-eyebrow">${htmlText(modalSettings.eyebrow)}</div>
+        <h2 class="dm-title" id="dm-title">${htmlText(modalSettings.title)}</h2>
+        <p class="dm-sub">${htmlText(modalSettings.subtitle)}</p>
+        <div class="dm-test-banner${stripeTestMode ? ' is-visible' : ''}" id="dm-test-banner">Stripe test mode — use card <strong>4242 4242 4242 4242</strong>, any future expiry &amp; CVC. No real charges.</div>
+      </div>
+      <div class="dm-body">
+        <div class="dm-section">
+          <span class="dm-label">Choose an amount</span>
+          <div class="dm-tiers">${tierBtns}</div>
+          <div class="dm-custom-wrap">
+            <span class="dm-dollar">$</span>
+            <input id="dm-custom" class="dm-custom" type="number" min="1" max="50000" step="0.01" inputmode="decimal" placeholder="Custom amount" autocomplete="off" value="${customDefault}" />
+          </div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">Payment details</span>
+          <div class="dm-stripe-wrap">
+            <div id="dm-skeleton" class="dm-skeleton"></div>
+            <div id="dm-mount" style="display:none"></div>
+          </div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">Gift frequency</span>
+          <div class="dm-freq">
+            <button type="button" class="active" data-freq="one_time">One-time</button>
+            <button type="button" data-freq="monthly">Monthly</button>
+          </div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">Receipt &amp; updates <span style="color:#9ca3af;font-weight:500;text-transform:none;letter-spacing:0">— optional</span></span>
+          <div class="dm-contact">
+            <input id="receipt-email" class="dm-email" type="email" placeholder="Email address" autocomplete="email" name="email" />
+            <label class="dm-nl-row" for="dm-newsletter">
+              <input type="checkbox" id="dm-newsletter" />
+              <span class="dm-nl-lbl"><strong>Subscribe to updates</strong>Occasional news on animals helped. No spam.</span>
+            </label>
+            <label class="dm-nl-row" for="dm-save-info">
+              <input type="checkbox" id="dm-save-info" />
+              <span class="dm-nl-lbl"><strong>Save my information</strong>Faster checkout next time you donate.</span>
+            </label>
+          </div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">Donation purpose <span style="color:#9ca3af;font-weight:500;text-transform:none;letter-spacing:0">— optional</span></span>
+          <input id="dm-memo" class="dm-memo" type="text" maxlength="200" placeholder="e.g. Transport fund, Biscuit's vet care, general..." autocomplete="off" />
+        </div>
+      </div>
+      <div class="dm-footer">
+        <div id="dm-cover-fees-wrap">
+          <label class="dm-fee-row" for="dm-cover-fees">
+            <input type="checkbox" id="dm-cover-fees" checked />
+            <span class="dm-fee-copy">
+              <strong id="fee-label">Cover processing fees (+$0.33)</strong>
+              100% of your gift goes to the animals.
+            </span>
+          </label>
+        </div>
+        <button class="dm-submit" id="dm-submit" type="button" disabled>Donate $1.33</button>
+        <div class="dm-error" id="dm-error"></div>
+        <div class="dm-secure">Secured by Stripe &middot; PCI compliant &middot; Receipt emailed when payment succeeds</div>
+      </div>
+      <div class="dm-success" id="dm-success">
+        <div class="dm-success-icon">&#10003;</div>
+        <h3>Thank you for your gift.</h3>
+        <p id="dm-success-msg">Every dollar helps bridge the gap from urgent to safe.</p>
+      </div>`;
+  }
+
+  function getDonorEmail() {
+    const receipt = document.getElementById('receipt-email') || document.getElementById('dm-email');
+    const receiptVal = receipt?.value?.trim() || '';
+    if (receiptVal) return receiptVal;
+    const pageEmail = document.querySelector('input[type="email"]:not([disabled])');
+    return pageEmail?.value?.trim() || '';
+  }
+
+  function friendlyStripeError(err) {
+    const msg = String(err?.message || err || '');
+    if (/billing_details\.email/i.test(msg)) {
+      return 'Please enter your email address above to complete your donation.';
+    }
+    return msg || 'Payment failed. Please try again.';
+  }
+
+  function mirrorReceiptEmail() {
+    const receiptEmail = document.getElementById('receipt-email') || document.getElementById('dm-email');
+    if (!receiptEmail) return;
+    const linkEmail = document.querySelector('input[name="email"], input[autocomplete="email"]');
+    if (linkEmail && linkEmail !== receiptEmail) {
+      linkEmail.addEventListener('input', () => {
+        if (!receiptEmail.value) receiptEmail.value = linkEmail.value;
+      });
+    }
+  }
+
+  async function initElements() {
+    try {
+      await fetchStripeConfig();
+      const Stripe = await loadStripe();
+      if (!stripeInst) stripeInst = Stripe(stripePk);
+      const isMonthly = frequency === 'monthly';
+      const intendedCents = getSelectedAmountCents();
+      const payload = {
+        mode: isMonthly ? 'setup' : 'payment',
+        intended_cents: intendedCents,
+        cover_fees: !isMonthly && coverFees,
+        amount_cents: isMonthly ? intendedCents : chargeAmountCents(),
+        currency: 'usd',
+      };
+      if (presetCampaignId) payload.campaign_id = presetCampaignId;
+      if (presetEntryId) payload.entry_id = presetEntryId;
+      // Include memo at intent creation time so it's stored in D1 + Stripe metadata
+      const note = getDonorNote() || presetDonorNote;
+      if (note) payload.note = note;
+      const res = await fetch(ENDPOINT_INTENT, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.client_secret) throw new Error(data.error || 'Could not initialize payment.');
+      elements = stripeInst.elements({ clientSecret: data.client_secret, appearance: APPEARANCE });
+      const pe = elements.create('payment', { layout: { type: 'tabs', defaultCollapsed: false }, fields: { billingDetails: { name: 'auto', email: 'never' } } });
+      const skeleton = document.getElementById('dm-skeleton');
+      const mount = document.getElementById('dm-mount');
+      pe.on('ready', () => {
+        if (skeleton) skeleton.style.display = 'none';
+        if (mount) mount.style.display = 'block';
+        const btn = document.getElementById('dm-submit');
+        if (btn) { btn.disabled = false; updateLabel(); }
+      });
+      pe.mount('#dm-mount');
+    } catch (err) {
+      const sk = document.getElementById('dm-skeleton');
+      const msg = err.message || 'Could not load payment form.';
+      if (sk) { sk.style.animation = 'none'; sk.style.background = 'rgba(248,113,113,.07)'; sk.innerHTML = `<div style="padding:16px;color:#fca5a5;font-size:.82rem;text-align:center;line-height:1.5">${msg}<br><a href="/donate" style="color:#a78bfa;text-decoration:underline">Try the donate page</a></div>`; }
+    }
+  }
+
+  async function submit() {
+    if (isSubmitting || !elements || !stripeInst) return;
+    const amt = getAmount();
+    if (!amt || amt < 1) { setErr('Please select or enter an amount.'); return; }
+    const email = getDonorEmail();
+    if (!email) {
+      setErr('Please enter your email address above to complete your donation.');
+      return;
+    }
+    setErr('');
+    isSubmitting = true;
+    const btn = document.getElementById('dm-submit');
+    if (btn) { btn.disabled = true; btn.classList.add('loading'); btn.textContent = 'Processing...'; }
+    const nlOptIn = document.getElementById('dm-newsletter')?.checked || false;
+    const saveInfo = document.getElementById('dm-save-info')?.checked || false;
+    const isMonthly = frequency === 'monthly';
+    const tier = getActiveTier();
+    const intendedCents = getSelectedAmountCents();
+    const chargeCents = isMonthly ? intendedCents : chargeAmountCents();
+    const billingDetails = { email };
+    try {
+      if (!isMonthly) {
+        const { error, paymentIntent } = await stripeInst.confirmPayment({
+          elements, redirect: 'if_required',
+          confirmParams: {
+            return_url: `${location.origin}/donate/thank-you`,
+            payment_method_data: { billing_details: billingDetails },
+          },
+        });
+        if (error) throw new Error(friendlyStripeError(error));
+        if (email || paymentIntent?.id) {
+          fetch(ENDPOINT_AFTER, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              donor_email: email,
+              nl_opt_in: nlOptIn,
+              save_my_info: saveInfo,
+              amount_cents: chargeCents,
+              intended_cents: intendedCents,
+              cover_fees: !isMonthly && coverFees,
+              payment_intent_id: paymentIntent?.id || null,
+              entry_id: presetEntryId || null,
+              campaign_id: presetCampaignId || null,
+            }),
+          }).catch(() => {});
+        }
+        showSuccess(email, false);
+      } else {
+        const { error, setupIntent } = await stripeInst.confirmSetup({
+          elements, redirect: 'if_required',
+          confirmParams: {
+            return_url: `${location.origin}/donate/thank-you`,
+            payment_method_data: { billing_details: billingDetails },
+          },
+        });
+        if (error) throw new Error(friendlyStripeError(error));
+        const subRes = await fetch(ENDPOINT_SUB, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_method_id: setupIntent.payment_method, price_id: tier?.stripe_price_id_monthly || null, amount_cents: tier ? null : intendedCents, donor_email: email, nl_opt_in: nlOptIn, save_my_info: saveInfo }),
+        });
+        const subData = await subRes.json();
+        if (!subData.success) throw new Error(subData.error || 'Subscription could not be created.');
+        showSuccess(email, true);
+      }
+    } catch (err) {
+      setErr(friendlyStripeError(err));
+      isSubmitting = false;
+      if (btn) { btn.disabled = false; btn.classList.remove('loading'); updateLabel(); }
+    }
+  }
+
+  function updateFeeDisplay() {
+    const wrap = document.getElementById('dm-cover-fees-wrap');
+    const feeLabel = document.getElementById('fee-label');
+    const btn = document.getElementById('dm-submit');
+    const cb = document.getElementById('dm-cover-fees');
+    if (cb) coverFees = cb.checked;
+    if (frequency !== 'one_time') {
+      if (wrap) wrap.style.display = 'none';
+      if (btn && !btn.disabled && !isSubmitting) {
+        btn.textContent = `Donate ${money(getAmount())}/mo`;
+      }
+      return;
+    }
+    if (wrap) wrap.style.display = '';
+    const intendedCents = getSelectedAmountCents();
+    const feeCents = feeAmount(intendedCents);
+    const totalCents = coverFees ? calculateWithFees(intendedCents) : intendedCents;
+    if (feeLabel) feeLabel.textContent = `Cover processing fees (+${moneyExact(feeCents)})`;
+    if (btn && !btn.disabled && !isSubmitting) {
+      btn.textContent = `Donate ${moneyExact(totalCents)}`;
+    }
+  }
+
+  function updateLabel() {
+    updateFeeDisplay();
+  }
+
+  function scheduleReinitElements() {
+    if (frequency !== 'one_time') return;
+    clearTimeout(reinitTimer);
+    reinitTimer = setTimeout(function() { reinitElements(); }, 450);
+  }
+  function setErr(msg) { const el = document.getElementById('dm-error'); if (!el) return; el.textContent = msg || ''; el.style.display = msg ? 'block' : 'none'; }
+  function showSuccess(email, isMonthly) {
+    const modal = document.getElementById('dm-modal');
+    if (!modal) return;
+    [...modal.children].forEach(el => { el.style.display = el.id === 'dm-success' ? 'block' : 'none'; });
+    const msg = document.getElementById('dm-success-msg');
+    if (msg) msg.textContent = isMonthly
+      ? (email ? `Your monthly gift is active. Confirmation headed to ${email}.` : 'Your monthly gift is active. Thank you.')
+      : (email ? `Receipt headed to ${email}. Every dollar helps bridge the gap from urgent to safe.` : 'Every dollar helps bridge the gap from urgent to safe.');
+    setTimeout(close, 6000);
+  }
+
+  function reinitElements() {
+    elements = null;
+    const sk = document.getElementById('dm-skeleton'); const mt = document.getElementById('dm-mount');
+    if (sk) { sk.style.display = 'block'; sk.style.animation = ''; sk.style.background = ''; sk.innerHTML = ''; }
+    if (mt) { mt.style.display = 'none'; mt.innerHTML = ''; }
+    const btn = document.getElementById('dm-submit'); if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+    initElements();
+  }
+
+  function open(eventOrOpts) {
+    const opts = (eventOrOpts && typeof eventOrOpts === 'object' && typeof eventOrOpts.preventDefault !== 'function')
+      ? eventOrOpts
+      : null;
+    if (!opts && eventOrOpts && typeof eventOrOpts.preventDefault === 'function') eventOrOpts.preventDefault();
+    if (document.getElementById('dm-overlay')) return;
+    const trigger = opts ? null : (
+      eventOrOpts?.currentTarget?.closest?.('[data-action="donate"],[data-donate]')
+      || eventOrOpts?.target?.closest?.('[data-action="donate"],[data-donate]')
+    );
+    presetCampaignId = opts?.campaign_id || opts?.campaignId || trigger?.dataset?.campaignId || null;
+    presetEntryId = opts?.entry_id || opts?.entryId || trigger?.dataset?.entryId || null;
+    presetDonorEmail = opts?.donor_email || opts?.donorEmail || null;
+    presetDonorNote = opts?.note || null;
+    const presetAmt = Number(opts?.amount || trigger?.dataset?.amount || 0);
+    const presetCents = Number(opts?.amount_cents || opts?.amountCents || trigger?.dataset?.amountCents || 0);
+    presetAmount = presetAmt > 0 ? presetAmt : (presetCents > 0 ? presetCents / 100 : null);
+    injectStyles();
+    selectedAmount = presetAmount || 1;
+    frequency = 'one_time';
+    coverFees = true;
+    elements = null; isSubmitting = false;
+    stripeInst = null; configPromise = null;
+    const tiersPromise = fetchTiers();
+    const modalSettingsPromise = fetchModalSettings();
+    const configLoad = fetchStripeConfig().catch(() => null);
+    loadStripe().catch(() => {});
+    const overlay = document.createElement('div');
+    overlay.id = 'dm-overlay'; overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-labelledby', 'dm-title');
+    const modal = document.createElement('div'); modal.id = 'dm-modal';
+    modal.innerHTML = '<div style="padding:40px 28px"><div style="height:28px;width:70%;border-radius:6px;background:rgba(255,255,255,.06);margin-bottom:20px;animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:44px;border-radius:10px;background:rgba(255,255,255,.06);margin-bottom:10px;animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px"><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div><div style="height:66px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div></div><div style="height:130px;border-radius:10px;background:rgba(255,255,255,.06);animation:dm-shimmer 1.4s infinite;background-size:200% 100%"></div></div>';
+    overlay.appendChild(modal); document.body.appendChild(overlay);
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    modal.setAttribute('tabindex', '-1'); modal.focus({ preventScroll: true });
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    modalKeyHandler = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+      if (e.key !== 'Tab') return;
+      const focusable = [...modal.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]')].filter(el => el.offsetParent !== null);
+      if (!focusable.length) { e.preventDefault(); return; }
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', modalKeyHandler);
+    tiersPromise.then(async (loaded) => {
+      await Promise.all([configLoad, modalSettingsPromise]);
+      tiers = loaded;
+      if (!document.getElementById('dm-overlay')) return;
+      const style = modalSettings.theme || {};
+      modal.style.setProperty('--dm-accent', /^#[0-9a-f]{6}$/i.test(style.accent || '') ? style.accent : '#7c3aed');
+      modal.style.borderRadius = (Math.min(24, Math.max(6, Number(style.radius) || 14))) + 'px';
+      modal.classList.toggle('dm-compact', style.compact === true);
+      modal.classList.toggle('dm-no-monthly', modalSettings.allow_monthly === false);
+      modal.innerHTML = buildHTML(); bindEvents(); mirrorReceiptEmail();
+      if (presetDonorEmail) {
+        const emailInput = document.getElementById('receipt-email');
+        if (emailInput) emailInput.value = presetDonorEmail;
+      }
+      if (presetDonorNote) {
+        const memo = document.getElementById('dm-memo');
+        if (memo) memo.value = presetDonorNote;
+      }
+      initElements();
+    });
+  }
+
+  function close() {
+    const el = document.getElementById('dm-overlay'); if (el) el.remove();
+    if (modalKeyHandler) { document.removeEventListener('keydown', modalKeyHandler); modalKeyHandler = null; }
+    if (previousBodyOverflow !== null) { document.body.style.overflow = previousBodyOverflow; previousBodyOverflow = null; }
+    elements = null; isSubmitting = false;
+    presetCampaignId = null; presetAmount = null; presetEntryId = null;
+    presetDonorEmail = null; presetDonorNote = null;
+  }
+
+  function bindEvents() {
+    document.getElementById('dm-close').addEventListener('click', close);
+    document.querySelectorAll('.dm-freq button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (modalSettings.allow_monthly === false) return;
+        frequency = btn.dataset.freq;
+        document.querySelectorAll('.dm-freq button').forEach(b => b.classList.toggle('active', b === btn));
+        updateFeeDisplay();
+        reinitElements();
+      });
+    });
+    document.querySelectorAll('.dm-tier').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); selectedAmount = Number(btn.dataset.amount);
+        const c = document.getElementById('dm-custom'); if (c) c.value = '';
+        updateFeeDisplay();
+        scheduleReinitElements();
+      });
+    });
+    document.getElementById('dm-custom')?.addEventListener('input', function () {
+      document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
+      selectedAmount = Number(this.value) || 0;
+      updateFeeDisplay();
+      scheduleReinitElements();
+    });
+    document.getElementById('dm-cover-fees')?.addEventListener('change', function () {
+      coverFees = this.checked;
+      updateFeeDisplay();
+      reinitElements();
+    });
+    // Re-init when memo changes so the note is captured at intent creation time
+    document.getElementById('dm-memo')?.addEventListener('change', function () {
+      reinitElements();
+    });
+    const customInput = document.getElementById('dm-custom');
+    if (presetAmount) {
+      document.querySelectorAll('.dm-tier').forEach(b => b.classList.remove('active'));
+      const match = document.querySelector(`.dm-tier[data-amount="${presetAmount}"]`);
+      if (match) match.classList.add('active');
+      selectedAmount = presetAmount;
+      updateLabel();
+    } else if (customInput) {
+      selectedAmount = Number(customInput.value) || 1;
+      updateLabel();
+      requestAnimationFrame(() => { customInput.focus(); customInput.select(); });
+    }
+    document.getElementById('dm-submit').addEventListener('click', submit);
+  }
+
+  function wireButtons() {
+    document.querySelectorAll('[data-donate],[data-action="donate"]').forEach(el => {
+      if (el.dataset.dmWired === '1') return; el.dataset.dmWired = '1';
+      el.addEventListener('click', open);
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-donate],[data-action="donate"]');
+    if (!el) return;
+    e.preventDefault();
+    open(e);
+  });
+
+  function ensureShareOverlay() {
+    if (document.getElementById('dv2-share-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'dv2-share-overlay';
+    overlay.hidden = true;
+    overlay.innerHTML = `
+      <div class="dv2-share-panel" role="dialog" aria-modal="true" aria-labelledby="dv2-share-title">
+        <h3 class="dv2-share-title" id="dv2-share-title">Share This Campaign</h3>
+        <p class="dv2-share-copy" id="dv2-share-text"></p>
+        <div class="dv2-share-actions">
+          <button type="button" class="dv2-share-btn dv2-share-btn--fb" data-share-channel="facebook">Share on Facebook</button>
+          <button type="button" class="dv2-share-btn dv2-share-btn--email" data-share-channel="email">Share by Email</button>
+          <button type="button" class="dv2-share-btn" data-share-channel="copy">Copy Link</button>
+        </div>
+        <p class="dv2-share-status" id="dv2-share-status" aria-live="polite"></p>
+        <button type="button" class="dv2-share-close" data-share-close>Close</button>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay || e.target.closest('[data-share-close]')) closeShare();
+    });
+    overlay.querySelector('[data-share-channel="facebook"]')?.addEventListener('click', () => {
+      const url = overlay.dataset.shareUrl || window.location.href;
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer,width=640,height=560');
+    });
+    overlay.querySelector('[data-share-channel="email"]')?.addEventListener('click', () => {
+      const url = overlay.dataset.shareUrl || window.location.href;
+      const title = overlay.dataset.shareTitle || 'Help Kita Heal';
+      const text = overlay.dataset.shareText || '';
+      window.location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${text}\n\n${url}`)}`;
+    });
+    overlay.querySelector('[data-share-channel="copy"]')?.addEventListener('click', async () => {
+      const url = overlay.dataset.shareUrl || window.location.href;
+      const status = document.getElementById('dv2-share-status');
+      try {
+        await navigator.clipboard.writeText(url);
+        if (status) status.textContent = 'Link copied. Paste it on Instagram or anywhere you share.';
+      } catch {
+        if (status) status.textContent = url;
+      }
+    });
+  }
+
+  function openShare(trigger) {
+    ensureShareOverlay();
+    const overlay = document.getElementById('dv2-share-overlay');
+    if (!overlay) return;
+    const url = trigger?.dataset?.shareUrl || `${window.location.origin}/donate#donate-medical-story`;
+    const title = trigger?.dataset?.shareTitle || 'Help Kita Heal — Companions of Caddo';
+    const text = trigger?.dataset?.shareText || 'Kita needs amputation surgery and recovery care. Please help if you can.';
+    overlay.dataset.shareUrl = url;
+    overlay.dataset.shareTitle = title;
+    overlay.dataset.shareText = text;
+    const copyEl = document.getElementById('dv2-share-text');
+    if (copyEl) copyEl.textContent = text;
+    const status = document.getElementById('dv2-share-status');
+    if (status) status.textContent = '';
+    overlay.hidden = false;
+  }
+
+  function closeShare() {
+    const overlay = document.getElementById('dv2-share-overlay');
+    if (overlay) overlay.hidden = true;
+  }
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="share-campaign"]');
+    if (!btn) return;
+    e.preventDefault();
+    openShare(btn);
+  });
+
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', wireButtons); } else { wireButtons(); }
+  window.DonateModal = { open, close };
+  window.openDonateModal = open;
+})();
+ + (Number(cents || 0) / 100).toFixed(2); }
+  function getAmount() { if (modalCfg) return itemsTotalCents() / 100; const c = document.getElementById('dm-custom'); const v = c && c.value ? Number(c.value) : 0; return v > 0 ? v : selectedAmount; }
   function getActiveTier() { return tiers.find(t => t.amount_cents === getAmount() * 100) || null; }
+
   function getDonorNote() { return (document.getElementById('dm-memo')?.value || '').trim().slice(0, 500) || null; }
+
+  // ── Data-driven checkout popup (cms_globals checkout_modal) ─────────────────────────────
+  const ITEMS_CSS = `
+    .dm-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid rgba(124,58,237,.18);border-radius:12px;margin-bottom:10px;background:rgba(255,255,255,.55)}
+    .dm-item-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+    .dm-item-label{font-weight:800;font-size:.98rem}
+    .dm-item-price{font-weight:700;color:#7c3aed;font-size:.9rem}
+    .dm-item-note{font-size:.78rem;opacity:.7;line-height:1.35}
+    .dm-step-wrap{display:flex;align-items:center;gap:10px;flex:none}
+    .dm-step{width:36px;height:36px;border-radius:50%;border:1px solid rgba(124,58,237,.4);background:#fff;font-size:1.15rem;font-weight:800;line-height:1;cursor:pointer;color:#4c1d95}
+    .dm-step:hover{background:#f3e8ff}
+    .dm-qty{min-width:22px;text-align:center;font-weight:800;font-size:1.05rem}
+    .dm-hands{font-size:.8rem;opacity:.75;margin-top:2px}
+    .dm-fields{display:grid;gap:10px}`;
+  function escHtml(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  async function fetchModalConfig(key) {
+    try {
+      const r = await fetch('/api/checkout/modals/' + encodeURIComponent(key));
+      if (!r.ok) return null;
+      const d = await r.json();
+      return (d && d.mode === 'items' && Array.isArray(d.items) && d.items.length) ? d : null;
+    } catch { return null; }
+  }
+  function applyModalConfig(cfg, ticketKey) {
+    if (!cfg) { modalCfg = null; modalKey = null; itemQty = {}; return; }
+    modalCfg = cfg; modalKey = cfg.key;
+    itemQty = {};
+    cfg.items.forEach(it => { itemQty[it.key] = it.default_qty || 0; });
+    if (ticketKey && Object.prototype.hasOwnProperty.call(itemQty, ticketKey)) itemQty[ticketKey] = Math.max(1, itemQty[ticketKey]);
+    if (cfg.campaign_id) presetCampaignId = cfg.campaign_id;
+    presetAmount = null;
+    coverFees = !!(cfg.cover_fees && cfg.cover_fees.enabled && cfg.cover_fees.default);
+  }
+  function itemsTotalCents() {
+    if (!modalCfg) return 0;
+    return modalCfg.items.reduce((sum, it) => sum + (itemQty[it.key] || 0) * it.price_cents, 0);
+  }
+  function itemsPayload() {
+    return modalCfg.items.map(it => ({ key: it.key, qty: itemQty[it.key] || 0 })).filter(l => l.qty > 0);
+  }
+  function handsCount() { return modalCfg ? modalCfg.items.reduce((n, it) => n + (itemQty[it.key] || 0), 0) : 0; }
+  function missingRequiredField() {
+    for (const f of (modalCfg?.fields || [])) {
+      const el = document.getElementById('dmf-' + f.key);
+      if (f.required && !(el && el.value.trim())) return f.label;
+    }
+    if (modalCfg && (itemQty.passenger || 0) > 0 && !document.getElementById('dmf-passenger_name')?.value?.trim()) return 'Passenger name';
+    return null;
+  }
+  async function attachFields() {
+    const pi = String(currentClientSecret || '').split('_secret_')[0];
+    const fields = {};
+    (modalCfg.fields || []).forEach(f => { const el = document.getElementById('dmf-' + f.key); if (el && el.value.trim()) fields[f.key] = el.value.trim(); });
+    const r = await fetch('/api/checkout/intent-fields', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payment_intent_id: pi, client_secret: currentClientSecret, modal_key: modalKey, fields }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Could not save your registration details.');
+  }
+  function buildItemsHTML() {
+    const c = modalCfg;
+    const rows = c.items.map(it => `
+      <div class="dm-item">
+        <div class="dm-item-info">
+          <span class="dm-item-label">${escHtml(it.label)}</span>
+          <span class="dm-item-price">${moneyExact(it.price_cents)}</span>
+          ${it.note ? `<span class="dm-item-note">${escHtml(it.note)}</span>` : ''}
+        </div>
+        <div class="dm-step-wrap">
+          <button type="button" class="dm-step" data-step="-1" data-key="${escHtml(it.key)}" aria-label="Fewer ${escHtml(it.label)}">&minus;</button>
+          <span class="dm-qty" id="dm-qty-${escHtml(it.key)}" aria-live="polite">${itemQty[it.key] || 0}</span>
+          <button type="button" class="dm-step" data-step="1" data-key="${escHtml(it.key)}" aria-label="More ${escHtml(it.label)}">+</button>
+        </div>
+      </div>`).join('');
+    const fieldInputs = (c.fields || []).map(f => `
+      <input id="dmf-${escHtml(f.key)}" class="dm-email" type="${escHtml(f.type)}" placeholder="${escHtml(f.label)}${f.required ? ' *' : ''}" aria-label="${escHtml(f.label)}" autocomplete="off" />`).join('');
+    const feeWrap = (c.cover_fees && c.cover_fees.enabled) ? `
+        <div id="dm-cover-fees-wrap">
+          <label class="dm-fee-row" for="dm-cover-fees">
+            <input type="checkbox" id="dm-cover-fees" ${coverFees ? 'checked' : ''} />
+            <span class="dm-fee-copy"><strong id="fee-label">Cover processing fees</strong>More of your payment goes to the animals.</span>
+          </label>
+        </div>` : '';
+    return `
+      <div class="dm-header">
+        <button class="dm-close" id="dm-close" type="button" aria-label="Close">&times;</button>
+        <div class="dm-eyebrow">${escHtml(c.eyebrow || 'Companions of CPAS')}</div>
+        <h2 class="dm-title">${escHtml(c.title)}</h2>
+        ${c.subtitle ? `<p class="dm-sub">${escHtml(c.subtitle)}</p>` : ''}
+        <div class="dm-test-banner${stripeTestMode ? ' is-visible' : ''}" id="dm-test-banner">Stripe test mode. No real charges.</div>
+      </div>
+      <div class="dm-body">
+        <div class="dm-section">
+          <span class="dm-label">${escHtml(c.items_title || 'Choose your entries')}</span>
+          ${rows}
+          <div class="dm-hands" id="dm-hands"></div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">${escHtml(c.details_title || 'Your details')}</span>
+          <div class="dm-fields">
+            <input id="receipt-email" class="dm-email" type="email" placeholder="Email for your receipt *" aria-label="Email" autocomplete="email" name="email" />
+            ${fieldInputs}
+          </div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">Payment details</span>
+          <div class="dm-stripe-wrap">
+            <div id="dm-skeleton" class="dm-skeleton"></div>
+            <div id="dm-mount" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+      <div class="dm-footer">
+        ${feeWrap}
+        <button class="dm-submit" id="dm-submit" type="button" disabled>Loading...</button>
+        <div class="dm-error" id="dm-error"></div>
+        <div class="dm-secure">Secured by Stripe &middot; PCI compliant &middot; Receipt emailed when payment succeeds</div>
+      </div>
+      <div class="dm-success" id="dm-success">
+        <div class="dm-success-icon">&#10003;</div>
+        <h3>Thank you.</h3>
+        <p id="dm-success-msg"></p>
+      </div>`;
+  }
+  function refreshItems() {
+    modalCfg.items.forEach(it => { const el = document.getElementById('dm-qty-' + it.key); if (el) el.textContent = itemQty[it.key] || 0; });
+    const h = document.getElementById('dm-hands'); const n = handsCount();
+    if (h) h.textContent = n ? `${n} hand${n === 1 ? '' : 's'}` : 'Choose at least one entry';
+    updateFeeDisplay();
+  }
+  function bindItems() {
+    document.querySelectorAll('.dm-step').forEach(b => b.addEventListener('click', () => {
+      const it = modalCfg.items.find(i => i.key === b.dataset.key); if (!it) return;
+      itemQty[it.key] = Math.max(it.min || 0, Math.min(it.max, (itemQty[it.key] || 0) + Number(b.dataset.step)));
+      refreshItems(); scheduleReinitElements();
+    }));
+    refreshItems();
+  }
 
   function injectStyles() {
     if (document.getElementById('dm-styles')) return;
-    const s = document.createElement('style'); s.id = 'dm-styles'; s.textContent = CSS; document.head.appendChild(s);
+    const s = document.createElement('style'); s.id = 'dm-styles'; s.textContent = CSS + ITEMS_CSS; document.head.appendChild(s);
   }
 
   function loadStripe() {
