@@ -24,6 +24,7 @@ const ROUTE_REGISTRY = [
   { path: "/dashboard/cms/images",       view: "cms-images" },
   { path: "/dashboard/cms/forms/",       view: "cms-form-editor",    paramKey: "formId" },
   { path: "/dashboard/cms/forms",        view: "cms-forms" },
+  { path: "/dashboard/cms/checkouts",    view: "cms-checkouts" },
   { path: "/dashboard/cms/brand",        view: "cms-brand" },
   { path: "/dashboard/cms",              view: "cms-website" },
   {
@@ -291,6 +292,10 @@ function App() {
         return typeof CmsFormsView === "function"
           ? React.createElement(CmsFormsView,     { onNavigate: navigate })
           : cmsShell("Forms", "Loading…");
+      case "cms-checkouts":
+        return typeof CmsCheckoutsView === "function"
+          ? React.createElement(CmsCheckoutsView, { onNavigate: navigate })
+          : cmsShell("Modals & Checkout", "Loading…");
       case "cms-form-editor":
         return typeof CmsFormEditorView === "function"
           ? React.createElement(CmsFormEditorView, { formId: params.formId, onNavigate: navigate })
