@@ -270,10 +270,12 @@ function validateSubmission(fields, data) {
     const key = f.field_key;
     if (!key) continue;
     const raw = data[key];
+    const type = String(f.field_type || "").toLowerCase();
     const empty =
       raw == null ||
       (typeof raw === "string" && !raw.trim()) ||
-      (Array.isArray(raw) && raw.length === 0);
+      (Array.isArray(raw) && raw.length === 0) ||
+      (type === "checkbox" && raw !== true);
     if (empty) errors.push(`${f.label || key} is required`);
   }
   return errors;
