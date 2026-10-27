@@ -56,6 +56,18 @@ function fieldControl(f) {
     ].join("");
     return `<select id="${id}" name="${name}"${req}>${options}</select>`;
   }
+  // Real controls for choice field types — the old renderer reduced these to text inputs.
+  if (type === "radio" || type === "multiselect") {
+    const choices = opts.map((o, i) => {
+      const val = typeof o === "object" ? o.value || o.label : o;
+      const label = typeof o === "object" ? o.label || o.value : o;
+      const choiceId = `${id}_${i}`;
+      const multiAttr = type === "multiselect" ? ' data-multiselect="1"' : "";
+      return `<label class="cms-ef-choice" for="${choiceId}"><input type="${type === "radio" ? "radio" : "checkbox"}" id="${choiceId}" name="${name}" value="${esc(val)}"${multiAttr}><span>${esc(label)}</span></label>`;
+    }).join("");
+    return `<div class="cms-ef-choices" role="group" aria-label="${esc(f.label || f.field_key)}">${choices}</div>`;
+  }
+  if (type === "checkbox") return `<input type="checkbox" id="${id}" name="${name}" value="true"${req}>`;
   const inputType =
     type === "email" ? "email" : type === "tel" || type === "phone" ? "tel" : type === "number" ? "number" : "text";
   return `<input type="${inputType}" id="${id}" name="${name}" placeholder="${ph}"${req}>`;
@@ -83,7 +95,11 @@ function embedSubmitScript(formDomId, formKey, submitLabel) {
     for (var i = 0; i < fields.length; i++) {
       var el = fields[i];
       if (!el.name) continue;
-      if (el.type === 'checkbox') data[el.name] = el.checked;
+      if (el.type === 'checkbox' && el.hasAttribute('data-multiselect')) {
+        if (!Array.isArray(data[el.name])) data[el.name] = [];
+        if (el.checked) data[el.name].push(el.value);
+      } else if (el.type === 'checkbox') data[el.name] = el.checked;
+      else if (el.type === 'radio') { if (el.checked) data[el.name] = el.value; }
       else data[el.name] = el.value;
     }
     fetch('/api/forms/${safeKey}/submit', {
@@ -237,6 +253,10 @@ export async function renderEmbeddedForm(section, _blocks = [], _brand = {}, env
 .cms-embedded-form.cms-ef--filled .cms-ef-field input,.cms-embedded-form.cms-ef--filled .cms-ef-field select,.cms-embedded-form.cms-ef--filled .cms-ef-field textarea{border-color:transparent}
 .cms-embedded-form .cms-ef-field input:focus-visible,.cms-embedded-form .cms-ef-field select:focus-visible,.cms-embedded-form .cms-ef-field textarea:focus-visible{outline:2px solid var(--ef-accent);outline-offset:2px}
 .cms-embedded-form .cms-ef-field textarea{min-height:96px;resize:vertical}
+.cms-embedded-form .cms-ef-choices{display:flex;flex-wrap:wrap;gap:8px}
+.cms-embedded-form .cms-ef-choice{display:flex!important;align-items:center;gap:9px;border:1px solid var(--ef-border);padding:9px 12px;border-radius:var(--ef-radius);font-size:.83rem!important;font-weight:500!important;letter-spacing:0!important;text-transform:none!important;cursor:pointer}
+.cms-embedded-form .cms-ef-choice input{width:16px!important;height:16px!important;min-width:16px;margin:0;accent-color:var(--ef-accent)}
+.cms-embedded-form .cms-ef-field>input[type=checkbox]{width:18px;height:18px;accent-color:var(--ef-accent)}
 .cms-embedded-form .cms-ef-submit{margin-top:18px;appearance:none;border:0;border-radius:var(--ef-radius,12px);padding:12px 22px;font-weight:700;cursor:pointer;background:var(--ef-accent,#6b21e8);color:#fff}
 .cms-embedded-form.cms-ef--full-button .cms-ef-submit{width:100%}
 .cms-embedded-form .cms-ef-header{display:flex;align-items:center;gap:12px;font:700 .8rem/1.4 var(--ef-font,Inter,system-ui,sans-serif);color:var(--ef-text,#171a21);padding:0 0 14px;margin-bottom:22px;border-bottom:1px solid var(--ef-border,#e5e7eb)}
