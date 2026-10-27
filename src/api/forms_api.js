@@ -5,6 +5,48 @@
 
 const TENANT = "tenant_companionscpas";
 
+const DONATION_MODAL_DEFAULTS = {
+  eyebrow: "Companions of CPAS",
+  title: "Support Our Mission",
+  subtitle: "Your gift helps dogs move from crisis to care.",
+  theme: { accent: "#7c3aed", mode: "light", radius: 14, compact: false },
+  allow_monthly: true,
+};
+function cleanDonationModalSettings(input = {}) {
+  const title = String(input.title ?? DONATION_MODAL_DEFAULTS.title).trim().slice(0, 100) || DONATION_MODAL_DEFAULTS.title;
+  const subtitle = String(input.subtitle ?? DONATION_MODAL_DEFAULTS.subtitle).trim().slice(0, 300);
+  const eyebrow = String(input.eyebrow ?? DONATION_MODAL_DEFAULTS.eyebrow).trim().slice(0, 80);
+  const theme = input.theme && typeof input.theme === "object" ? input.theme : {};
+  const accent = /^#[0-9a-f]{6}$/i.test(theme.accent || "") ? theme.accent : "#7c3aed";
+  return {
+    eyebrow, title, subtitle,
+    theme: {
+      accent,
+      mode: theme.mode === "dark" ? "dark" : "light",
+      radius: Math.max(6, Math.min(24, Number(theme.radius) || 14)),
+      compact: theme.compact === true,
+    },
+    allow_monthly: input.allow_monthly !== false,
+  };
+}
+async function loadDonationModalSettings(env) {
+  const row = await env.DB.prepare(
+    "SELECT title, subtitle, body, config_json FROM cms_modals WHERE tenant_id = ? AND modal_key = 'donate_cta' LIMIT 1"
+  ).bind(TENANT).first().catch(() => null);
+  if (!row) return { ...DONATION_MODAL_DEFAULTS };
+  const cfg = safeJson(row.config_json, {});
+  const ui = cfg.donation_ui || {};
+  return cleanDonationModalSettings({
+    ...DONATION_MODAL_DEFAULTS,
+    eyebrow: ui.eyebrow ?? DONATION_MODAL_DEFAULTS.eyebrow,
+    title: ui.title ?? row.title ?? DONATION_MODAL_DEFAULTS.title,
+    subtitle: ui.subtitle ?? row.subtitle ?? row.body ?? DONATION_MODAL_DEFAULTS.subtitle,
+    theme: ui.theme || DONATION_MODAL_DEFAULTS.theme,
+    allow_monthly: ui.allow_monthly ?? true,
+  });
+}
+
+
 const SYSTEM_FIELD_KEYS = new Set([
   "first_name",
   "last_name",
@@ -440,11 +482,39 @@ export async function formsRoutes(request, env, url) {
     });
   }
 
+  // Public read contains presentation only, never Stripe credentials or donor records.
+  if (path === "/api/public/donation-modal" && method === "GET") {
+    return json({ success: true, config: await loadDonationModalSettings(env) });
+  }
+
   // Admin routes below
-  if (!path.startsWith("/api/cms/forms")) return null;
+  if (!path.startsWith("/api/cms/forms") && path !== "/api/cms/donation-modal") return null;
 
   const user = await requireUser(request, env);
   if (!user) return json({ success: false, error: "Not authenticated" }, 401);
+
+  // Edit the existing cms_modals donation configuration; no separate modal table.
+  if (path === "/api/cms/donation-modal" && method === "GET") {
+    return json({ success: true, config: await loadDonationModalSettings(env) });
+  }
+  if (path === "/api/cms/donation-modal" && method === "PUT") {
+    const data = await request.json().catch(() => ({}));
+    const config = cleanDonationModalSettings(data);
+    const existing = await env.DB.prepare(
+      "SELECT id, config_json FROM cms_modals WHERE tenant_id = ? AND modal_key = 'donate_cta' LIMIT 1"
+    ).bind(TENANT).first().catch(() => null);
+    if (existing) {
+      const otherConfig = safeJson(existing.config_json, {});
+      await env.DB.prepare(
+        "UPDATE cms_modals SET config_json = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?"
+      ).bind(JSON.stringify({ ...otherConfig, donation_ui: config }), existing.id, TENANT).run();
+    } else {
+      await env.DB.prepare(
+        "INSERT INTO cms_modals (id,tenant_id,modal_key,title,config_json) VALUES (?,?,?,?,?)"
+      ).bind(uid("modal"), TENANT, "donate_cta", config.title, JSON.stringify({ donation_ui: config })).run();
+    }
+    return json({ success: true, config });
+  }
 
   // GET /api/cms/forms — list
   if (path === "/api/cms/forms" && method === "GET") {
