@@ -769,12 +769,15 @@ export async function paymentsEmailRoutes(request, env, url) {
       const res = await fetch("https://api.stripe.com/v1/payment_intents", { method: "POST", headers: stripeHeaders, body: form });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) return json({ error: d?.error?.message || "Stripe error" }, 500);
+      // Intent starts before Stripe PaymentElement collects billing details.
+      // D1 donor_name/donor_email are NOT NULL; use empty pending values until
+      // /after-payment or the verified Stripe webhook fills them in.
       try {
         await env.DB.prepare(
           `INSERT INTO donation_intents
            (id, tenant_id, donor_name, donor_email, amount_cents, frequency, campaign_id, note, provider,
             provider_checkout_id, status, resend_receipt_status, metadata_json, updated_at)
-           VALUES (?, ?, NULL, NULL, ?, 'one_time', ?, ?, 'stripe', ?, 'pending_payment', 'pending_after_payment', ?, datetime('now'))`
+           VALUES (?, ?, '', '', ?, 'one_time', ?, ?, 'stripe', ?, 'pending_payment', 'pending_after_payment', ?, datetime('now'))`
         ).bind(
           localIntentId, TENANT_ID, chargeCents, data.campaign_id || null, donorNote, d.id,
           JSON.stringify({
@@ -787,7 +790,11 @@ export async function paymentsEmailRoutes(request, env, url) {
             entry_id: entryId,
           })
         ).run();
-      } catch (err) { console.warn("donation_intents insert skipped:", err?.message); }
+      } catch (err) {
+        // Never report a ready checkout with no local reconciliation record.
+        console.error("donation_intents insert failed:", err?.message);
+        return json({ error: "Unable to record payment attempt. No payment has been collected; please try again." }, 503);
+      }
       if (entryId) {
         try {
           await env.DB.prepare(`
