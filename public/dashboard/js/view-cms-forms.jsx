@@ -294,6 +294,130 @@ function CmsFormsView({ onNavigate }) {
   );
 }
 
+
+/** Reusable style presets. All values are saved into the form's settings_json.theme. */
+const FORM_DESIGN_PRESETS = [
+  { key: "clean", label: "Clean", note: "Bright · structured", theme: { mode: "light", accent: "#7c3aed", radius: 12, spacing: "comfortable", field_style: "outline", button_style: "inline", font_style: "sans", max_width: 680 } },
+  { key: "editorial", label: "Editorial", note: "Warm · refined", theme: { mode: "light", accent: "#98492f", radius: 6, spacing: "airy", field_style: "underline", button_style: "inline", font_style: "serif", max_width: 760 } },
+  { key: "night", label: "Night", note: "Dark · focused", theme: { mode: "dark", accent: "#8b5cf6", radius: 14, spacing: "comfortable", field_style: "filled", button_style: "full", font_style: "sans", max_width: 680 } },
+  { key: "soft", label: "Soft", note: "Calm · approachable", theme: { mode: "light", accent: "#1f8a78", radius: 20, spacing: "airy", field_style: "filled", button_style: "full", font_style: "sans", max_width: 680 } },
+  { key: "compact", label: "Compact", note: "Dense · practical", theme: { mode: "light", accent: "#315df4", radius: 8, spacing: "compact", field_style: "outline", button_style: "full", font_style: "sans", max_width: 600 } },
+];
+
+function FormDesignPanel({ form, fields, theme, accent, patchTheme, uploadThemeLogo }) {
+  const h = React.createElement;
+  const light = theme.mode === "light";
+  const radius = Number(theme.radius) || 12;
+  const spacing = theme.spacing === "compact" ? 10 : theme.spacing === "airy" ? 22 : 15;
+  const foreground = light ? "#171a21" : "#f7f7fc";
+  const muted = light ? "#6b7280" : "#a5a8b9";
+  const surface = light ? "#fff" : "#151827";
+  const inputBg = theme.field_style === "filled" ? (light ? "#f3f4f6" : "#292c39") : (light ? "#fff" : "#101321");
+  const textFont = theme.font_style === "serif" ? "Georgia,serif" : "Inter,system-ui,sans-serif";
+  const cardWidth = Math.max(480, Math.min(900, Number(theme.max_width) || 680));
+  const toolbarLabel = (t) => h("span", { style: { display: "block", marginBottom: 8, fontSize: 10, textTransform: "uppercase", letterSpacing: ".11em", color: C.textMut, fontWeight: 760 } }, t);
+  const control = (items, value, cb) => h("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
+    items.map(([v, label]) => h("button", { type: "button", key: v, onClick: () => cb(v),
+      "aria-pressed": value === v,
+      style: { border: `1px solid ${value === v ? C.purple : C.border}`, color: value === v ? C.purpleL : C.textSec,
+        background: value === v ? C.purpleDim : C.bg2, fontSize: 11, fontWeight: 650, minHeight: 34,
+        borderRadius: 8, padding: "7px 11px", cursor: "pointer", fontFamily: "var(--font-ui)" } }, label))
+  );
+  const styleField = { width: "100%", minHeight: theme.spacing === "compact" ? 34 : 42,
+    padding: "9px 12px", background: inputBg, color: foreground,
+    border: theme.field_style === "underline" ? "0" : `1px solid ${light ? "#d9dce5" : "#343a4c"}`,
+    borderBottom: theme.field_style === "underline" ? `2px solid ${light ? "#c1c6d0" : "#62677a"}` : undefined,
+    borderRadius: theme.field_style === "underline" ? 0 : Math.max(4, Math.min(14, radius - 2)),
+    outlineOffset: 2, boxSizing: "border-box", font: "inherit" };
+
+  return h("div", { className: "form-design-workspace", style: { padding: "22px clamp(12px,3vw,32px) 44px", overflow: "auto", flex: 1 } },
+    h("div", { style: { display: "flex", gap: 12, justifyContent: "space-between", flexWrap: "wrap", alignItems: "center", marginBottom: 19 } },
+      h("div", null,
+        h("h2", { style: { color: C.text, fontSize: 21, letterSpacing: "-.02em", margin: 0 } }, "Form design studio"),
+        h("p", { style: { color: C.textSec, fontSize: 12, margin: "5px 0 0" } }, "One editor, real saved styles, and an interactive preview of the public form.")
+      ),
+      h("span", { style: { color: C.textMut, fontSize: 11 } }, "Changes save with the form · Publish to go live")
+    ),
+    h("div", { style: { display: "grid", gridTemplateColumns: "minmax(250px,320px) minmax(0,1fr)", gap: 20, alignItems: "start" } },
+      h("aside", { style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, display: "grid", gap: 18, minWidth: 0 } },
+        h("div", null, toolbarLabel("Style presets"),
+          h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+            FORM_DESIGN_PRESETS.map((preset) => h("button", { type: "button", key: preset.key,
+              onClick: () => patchTheme(preset.theme),
+              style: { minHeight: 81, padding: 11, cursor: "pointer", textAlign: "left", fontFamily: "var(--font-ui)",
+                background: preset.theme.mode === "dark" ? "#171928" : "#f7f7f7", border: `1px solid ${C.border}`, borderRadius: 10 } },
+              h("span", { style: { display: "block", width: 32, height: 4, borderRadius: 6, background: preset.theme.accent, marginBottom: 11 } }),
+              h("strong", { style: { display: "block", fontSize: 12, color: preset.theme.mode === "dark" ? "#fff" : "#1f2937" } }, preset.label),
+              h("span", { style: { fontSize: 10, color: preset.theme.mode === "dark" ? "#acafbf" : "#6b7280" } }, preset.note)
+            ))
+          )
+        ),
+        h("div", null, toolbarLabel("Accent"), h("div", { style: { display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" } },
+          ["#7c3aed","#315df4","#1f8a78","#e87524","#98492f","#e8314a","#202228"].map(color =>
+            h("button", { type: "button", key: color, onClick: () => patchTheme({ accent: color }),
+              "aria-label": "Set accent " + color, style: { cursor: "pointer", height: 28, width: 28, borderRadius: 8,
+                background: color, border: "2px solid #fff", boxShadow: accent === color ? "0 0 0 2px " + color : "none" } })),
+          h("input", { type: "color", "aria-label": "Custom accent", value: /^#[0-9a-f]{6}$/i.test(accent) ? accent : "#7c3aed",
+            onChange: e => patchTheme({ accent: e.target.value }), style: { width: 32, height: 30, border: 0, cursor: "pointer" } })
+        )),
+        h("div", null, toolbarLabel("Canvas"), control([["light","Light"],["dark","Dark"]], theme.mode || "dark", mode => patchTheme({ mode }))),
+        h("div", null, toolbarLabel("Field treatment"), control([["outline","Outlined"],["filled","Filled"],["underline","Underlined"]], theme.field_style || "outline", field_style => patchTheme({ field_style }))),
+        h("div", null, toolbarLabel("Spacing"), control([["compact","Compact"],["comfortable","Balanced"],["airy","Airy"]], theme.spacing || "comfortable", spacing => patchTheme({ spacing }))),
+        h("div", null, toolbarLabel("Action button"), control([["inline","Inline"],["full","Full width"]], theme.button_style || "inline", button_style => patchTheme({ button_style }))),
+        h("div", null, toolbarLabel("Type style"), control([["sans","Modern"],["serif","Editorial"]], theme.font_style || "sans", font_style => patchTheme({ font_style }))),
+        h("div", null, toolbarLabel(`Corner radius · ${radius}px`),
+          h("input", { type: "range", min: 4, max: 24, value: radius, onChange: e => patchTheme({ radius: Number(e.target.value) }), style: { width: "100%", accentColor: accent } })),
+        h("div", null, toolbarLabel(`Form width · ${cardWidth}px`),
+          h("input", { type: "range", min: 480, max: 900, step: 20, value: cardWidth, onChange: e => patchTheme({ max_width: Number(e.target.value) }), style: { width: "100%", accentColor: accent } })),
+        h("label", { style: { display: "flex", alignItems: "center", gap: 9, fontSize: 12, color: C.text } },
+          h("input", { type: "checkbox", checked: theme.show_header !== false, onChange: e => patchTheme({ show_header: e.target.checked }) }), "Show organization header"),
+        h("div", null, toolbarLabel("Organization label"),
+          h("input", { value: theme.org_name || "", placeholder: "Companions of CPAS", onChange: e => patchTheme({ org_name: e.target.value }),
+            style: { width: "100%", boxSizing: "border-box", minHeight: 36, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text } })),
+        h("div", null, toolbarLabel("Brand image"),
+          h("input", { type: "file", accept: "image/*", onChange: e => uploadThemeLogo(e.target.files?.[0]), style: { fontSize: 11, color: C.textSec, maxWidth: "100%" } }),
+          h("input", { value: theme.logo_url || "", placeholder: "Or paste an asset URL", onChange: e => patchTheme({ logo_url: e.target.value }),
+            style: { width: "100%", marginTop: 8, boxSizing: "border-box", minHeight: 36, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text } }))
+      ),
+      h("section", { style: { minWidth: 0, border: `1px solid ${C.border}`, borderRadius: 16,
+        background: C.bg2, padding: "24px clamp(12px,2vw,28px)", display: "grid", justifyItems: "center", overflow: "auto" } },
+        h("div", { style: { width: "100%", maxWidth: cardWidth, boxSizing: "border-box",
+          borderRadius: radius + 4, overflow: "hidden", boxShadow: "0 25px 70px rgba(0,0,0,.13)",
+          background: surface, color: foreground, fontFamily: textFont, transition: "background .2s,border-radius .2s" } },
+          theme.show_header !== false && h("div", { style: { display: "flex", alignItems: "center", gap: 10, padding: "13px 22px", fontSize: 12,
+            fontWeight: 700, borderBottom: `1px solid ${light ? "#eaebef" : "#353744"}` } },
+            theme.logo_url && h("img", { src: theme.logo_url, alt: "", style: { height: 27, maxWidth: 100, objectFit: "contain" } }),
+            theme.org_name || "Companions of CPAS"),
+          h("div", { style: { padding: theme.spacing === "airy" ? 30 : theme.spacing === "compact" ? 18 : 24 } },
+            h("div", { style: { fontSize: 10, fontWeight: 800, color: accent, letterSpacing: ".12em", textTransform: "uppercase" } }, form.intro?.eyebrow || "Get involved"),
+            h("h3", { style: { fontSize: 25, fontFamily: textFont, margin: "9px 0 5px", lineHeight: 1.18 } }, form.intro?.heading || form.title),
+            h("p", { style: { fontSize: 13, color: muted, margin: "0 0 22px" } }, form.intro?.subheading || form.description || "Tell us a little about yourself."),
+            h("div", { style: { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: spacing } },
+              fields.map(f => h("label", { key: f.id, style: { gridColumn: ["textarea","checkbox","radio","multiselect"].includes(f.field_type) ? "span 2" : "span 1",
+                minWidth: 0, fontSize: 11, fontWeight: 680 } },
+                h("span", { style: { display: "block", marginBottom: 6 } }, f.label, f.is_required ? " *" : ""),
+                f.field_type === "textarea" ? h("textarea", { placeholder: f.placeholder || "Enter your response", rows: 3, style: styleField }) :
+                f.field_type === "select" ? h("select", { defaultValue: "", style: styleField },
+                  h("option", { value: "", disabled: true }, f.placeholder || "Select..."),
+                  (f.options || []).map(o => h("option", { key: String(o), value: String(o) }, String(o)))) :
+                f.field_type === "checkbox" ? h("input", { type: "checkbox", style: { accentColor: accent } }) :
+                h("input", { type: ["email","tel","number"].includes(f.field_type) ? f.field_type : "text",
+                  placeholder: f.placeholder || "Enter an answer", style: styleField })
+              ))
+            ),
+            h("button", { type: "button", title: "Preview only. Publish to enable collection.", style: {
+              marginTop: 24, width: theme.button_style === "full" ? "100%" : "auto", minHeight: 43,
+              background: accent, color: "#fff", borderRadius: radius, border: 0, cursor: "default",
+              padding: "10px 23px", fontSize: 13, fontWeight: 750, fontFamily: textFont } }, form.settings?.submit_label || "Submit")
+          )
+        ),
+        h("p", { style: { fontSize: 11, color: C.textMut, textAlign: "center", lineHeight: 1.5, marginTop: 13 } },
+          "Interactive field preview · no submissions are sent from the editor")
+      )
+    )
+  );
+}
+
 // ── Builder ──────────────────────────────────────────────────────────────────
 
 function FakeControl({ field }) {
@@ -811,99 +935,7 @@ function CmsFormEditorView({ formId, onNavigate }) {
       )
     ),
 
-    tab === "design" && React.createElement("div", { style: { flex: 1, overflow: "auto", padding: "28px clamp(18px,4vw,48px)" } },
-      React.createElement("h2", { style: { margin: "0 0 6px", fontSize: 20, color: C.text } }, "Form appearance"),
-      React.createElement("p", { style: { margin: "0 0 20px", color: C.textSec, fontSize: 13, maxWidth: 620 } },
-        "Customize this form's modal look. Changes apply after Save & Publish — no code deploy needed. Site-wide brand can still be edited separately if you want a global default."),
-      React.createElement("div", {
-        style: { maxWidth: 560, display: "grid", gap: 16, padding: 18, border: `1px solid ${C.border}`, borderRadius: 12, background: C.surface },
-      },
-        React.createElement("div", null,
-          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 8, textTransform: "uppercase" } }, "Accent color"),
-          React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" } },
-            ["#7c3aed", "#315df4", "#7259d9", "#1f8a78", "#db6a28", "#e8314a", "#202228"].map((c) =>
-              React.createElement("button", {
-                key: c, type: "button", onClick: () => patchTheme({ accent: c }),
-                style: {
-                  width: 30, height: 30, borderRadius: 8, background: c, cursor: "pointer",
-                  border: accent === c ? "2px solid #fff" : "2px solid transparent",
-                  boxShadow: accent === c ? `0 0 0 3px ${C.purpleDim}` : "inset 0 0 0 1px rgba(255,255,255,.2)",
-                },
-              })
-            ),
-            React.createElement("input", {
-              type: "text", value: accent, onChange: (e) => patchTheme({ accent: e.target.value }),
-              style: { width: 100, height: 32, padding: "0 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text, fontFamily: "var(--font-mono)", fontSize: 11 },
-            })
-          )
-        ),
-        React.createElement("div", null,
-          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 8, textTransform: "uppercase" } }, "Theme mode"),
-          React.createElement("div", { style: { display: "flex", gap: 8 } },
-            [["dark", "Dark modal"], ["light", "Light modal"]].map(([mode, label]) =>
-              React.createElement("button", {
-                key: mode, type: "button", onClick: () => patchTheme({ mode }),
-                style: {
-                  height: 34, padding: "0 14px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 650,
-                  border: `1px solid ${(theme.mode || "dark") === mode ? C.purple : C.border}`,
-                  background: (theme.mode || "dark") === mode ? C.purpleDim : C.bg2,
-                  color: (theme.mode || "dark") === mode ? C.purpleL : C.textSec,
-                  fontFamily: "var(--font-ui)",
-                },
-              }, label)
-            )
-          )
-        ),
-        React.createElement("label", {
-          style: { display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13, color: C.text },
-        },
-          "Show organization header",
-          React.createElement("input", {
-            type: "checkbox",
-            checked: theme.show_header !== false,
-            onChange: (e) => patchTheme({ show_header: e.target.checked }),
-          })
-        ),
-        React.createElement("div", null,
-          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 6, textTransform: "uppercase" } }, "Header org name"),
-          React.createElement("input", {
-            value: theme.org_name || "",
-            placeholder: "Companions of CPAS",
-            onChange: (e) => patchTheme({ org_name: e.target.value }),
-            style: { width: "100%", height: 36, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text },
-          })
-        ),
-        React.createElement("div", null,
-          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 6, textTransform: "uppercase" } }, "Logo"),
-          theme.logo_url && React.createElement("img", {
-            src: theme.logo_url, alt: "", style: { height: 40, marginBottom: 8, objectFit: "contain", display: "block" },
-          }),
-          React.createElement("input", {
-            type: "file", accept: "image/*",
-            onChange: (e) => uploadThemeLogo(e.target.files?.[0]),
-            style: { fontSize: 12, color: C.textSec },
-          }),
-          React.createElement("input", {
-            value: theme.logo_url || "",
-            placeholder: "Or paste image URL",
-            onChange: (e) => patchTheme({ logo_url: e.target.value }),
-            style: { width: "100%", marginTop: 8, height: 34, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg2, color: C.text, fontSize: 12 },
-          })
-        ),
-        React.createElement("div", null,
-          React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: C.textSec, marginBottom: 6, textTransform: "uppercase" } },
-            `Corner radius (${theme.radius || 12}px)`),
-          React.createElement("input", {
-            type: "range", min: 4, max: 24, value: Number(theme.radius) || 12,
-            onChange: (e) => patchTheme({ radius: Number(e.target.value) }),
-            style: { width: "100%", accentColor: accent },
-          })
-        ),
-        React.createElement("div", {
-          style: { padding: 12, borderRadius: 10, background: C.bg2, color: C.textSec, fontSize: 12, lineHeight: 1.45 },
-        }, "Preview updates live in the Build tab. Publish to push this look to the public site modal.")
-      )
-    ),
+    tab === "design" && React.createElement(FormDesignPanel, { form, fields, theme, accent, patchTheme, uploadThemeLogo }),
 
     tab === "settings" && React.createElement("div", { style: { flex: 1, overflow: "auto", padding: "28px clamp(18px,4vw,48px)" } },
       React.createElement("h2", { style: { margin: "0 0 6px", fontSize: 20, color: C.text } }, "Form settings"),
