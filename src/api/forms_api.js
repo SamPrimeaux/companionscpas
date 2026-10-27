@@ -13,6 +13,56 @@ const SYSTEM_FIELD_KEYS = new Set([
   "agree_terms",
 ]);
 
+/**
+ * Curated reusable starters for the existing Forms Studio.
+ * These are ordinary data-collection forms, not payment or raffle checkouts.
+ * POST /api/cms/forms accepts template_key; saved fields remain fully editable.
+ */
+const FORM_STARTERS = {
+  basic: {
+    title: "General inquiry", description: "Collect a name, email, and optional phone number.", icon: "message-square",
+    fields: [
+      { key: "full_name", label: "Full name", type: "text", req: 1 },
+      { key: "email", label: "Email", type: "email", req: 1 },
+      { key: "phone", label: "Phone", type: "tel", req: 0 },
+    ],
+  },
+  volunteer: {
+    title: "Volunteer interest", description: "Learn who can help and how they'd like to contribute.", icon: "heart-handshake",
+    fields: [
+      { key: "full_name", label: "Full name", type: "text", req: 1 },
+      { key: "email", label: "Email", type: "email", req: 1 },
+      { key: "phone", label: "Phone", type: "tel", req: 0 },
+      { key: "volunteer_role", label: "I'm interested in", type: "select", req: 1, options: ["Fostering", "Transport", "Events", "Outreach", "Other"] },
+      { key: "availability", label: "Availability", type: "select", req: 0, options: ["Weekdays", "Weekends", "Flexible"] },
+      { key: "message", label: "Tell us about yourself", type: "textarea", req: 0 },
+    ],
+  },
+  event_rsvp: {
+    title: "Event RSVP", description: "Collect event attendance details, without collecting payments.", icon: "calendar-days",
+    fields: [
+      { key: "full_name", label: "Primary attendee name", type: "text", req: 1 },
+      { key: "email", label: "Contact email", type: "email", req: 1 },
+      { key: "phone", label: "Phone", type: "tel", req: 0 },
+      { key: "additional_attendee", label: "Additional attendee name", type: "text", req: 0 },
+      { key: "message", label: "Accessibility requests or notes", type: "textarea", req: 0 },
+    ],
+  },
+  feedback: {
+    title: "Feedback", description: "Get meaningful feedback without requiring personal details.", icon: "message-circle",
+    fields: [
+      { key: "feedback_topic", label: "What would you like to share?", type: "select", req: 1, options: ["Suggestion", "Question", "Something went well", "Something needs attention"] },
+      { key: "message", label: "Your feedback", type: "textarea", req: 1 },
+      { key: "email", label: "Email for a reply", type: "email", req: 0 },
+    ],
+  },
+  blank: {
+    title: "Blank form", description: "A clean canvas. Add exactly the fields you need.", icon: "file-plus",
+    fields: [],
+  },
+};
+
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -440,6 +490,7 @@ export async function formsRoutes(request, env, url) {
     return json({
       success: true,
       forms,
+      templates: Object.entries(FORM_STARTERS).map(([key, t]) => ({ key, title: t.title, description: t.description, icon: t.icon, field_count: t.fields.length })),
       stats: {
         total: forms.length,
         published,
@@ -451,7 +502,10 @@ export async function formsRoutes(request, env, url) {
   // POST /api/cms/forms — create blank / from template
   if (path === "/api/cms/forms" && method === "POST") {
     const data = await request.json().catch(() => ({}));
-    const title = String(data.title || "New form").trim() || "New form";
+    const templateKey = String(data.template_key || "basic");
+    const starter = FORM_STARTERS[templateKey];
+    if (!starter) return json({ success: false, error: "Unknown form template" }, 400);
+    const title = String(data.title || starter.title).trim() || "New form";
     const formKey =
       String(data.form_key || "")
         .trim()
@@ -496,20 +550,16 @@ export async function formsRoutes(request, env, url) {
       .bind(stepId, formId)
       .run();
 
-    // Seed a few starter fields
-    const starters = [
-      { key: "full_name", label: "Full name", type: "text", req: 1, order: 10 },
-      { key: "email", label: "Email", type: "email", req: 1, order: 20 },
-      { key: "phone", label: "Phone", type: "tel", req: 0, order: 30 },
-    ];
-    for (const s of starters) {
+    // Seed only the selected data-driven starter; never duplicate form records.
+    for (const [index, item] of starter.fields.entries()) {
       await env.DB.prepare(
         `INSERT INTO cpas_application_fields
          (id, form_id, step_id, field_key, label, placeholder, field_type, is_required, options_json, validation_json, sort_order)
-         VALUES (?, ?, ?, ?, ?, '', ?, ?, '[]', '{}', ?)`
-      )
-        .bind(uid("fld"), formId, stepId, s.key, s.label, s.type, s.req, s.order)
-        .run();
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?)`
+      ).bind(
+        uid("fld"), formId, stepId, item.key, item.label, item.placeholder || "",
+        item.type, item.req ? 1 : 0, JSON.stringify(item.options || []), (index + 1) * 10
+      ).run();
     }
 
     const bundle = await loadFormBundle(env, formId);
