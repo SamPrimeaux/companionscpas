@@ -161,18 +161,41 @@
   else initNavMore();
 })();
 
-// Newsletter
+// Newsletter: form-level requirements; imported/API contacts can still omit names.
 (() => {
-  document.addEventListener('submit',async e=>{
-    const form=e.target.closest('[data-newsletter-form]');if(!form)return;e.preventDefault();
-    const email=form.querySelector('input[type="email"]')?.value?.trim();
-    const status=form.querySelector('[data-newsletter-status]');
-    if(!email){if(status)status.textContent='Please enter your email.';return;}
-    if(status)status.textContent='Subscribing...';
-    try{
-      const res=await fetch('/api/newsletter/subscribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,source:'home_newsletter'})});
-      if(!res.ok)throw new Error();
-      if(status)status.textContent='You are subscribed. Check your inbox for a confirmation.';form.reset();
-    }catch{if(status)status.textContent='Could not subscribe. Please try again.';}
+  document.addEventListener('submit', async (e) => {
+    const form = e.target.closest('[data-newsletter-form]');
+    if (!form) return;
+    e.preventDefault();
+    const email = form.querySelector('input[type="email"]')?.value?.trim() || '';
+    const firstName = form.querySelector('[name="first_name"]')?.value?.trim() || '';
+    const required = (form.dataset.requiredFields || 'email,first_name').split(',').map((v) => v.trim());
+    const status = form.querySelector('[data-newsletter-status]');
+    if (!email) { if (status) status.textContent = 'Please enter your email.'; return; }
+    if (required.includes('first_name') && !firstName) {
+      if (status) status.textContent = 'Please enter your first name.';
+      form.querySelector('[name="first_name"]')?.focus();
+      return;
+    }
+    if (status) status.textContent = 'Saving your signup...';
+    try {
+      const res = await fetch('/api/newsletter/subscribe', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email, first_name: firstName,
+          source: 'home_newsletter',
+          component_id: form.dataset.componentId || 'home_newsletter',
+          path: window.location.pathname,
+        }),
+      });
+      if (!res.ok) throw new Error('signup_failed');
+      const result = await res.json().catch(() => ({}));
+      if (status) status.textContent = result.confirmation_required
+        ? 'Check your inbox to confirm your subscription.'
+        : 'Thanks for signing up. Please check your inbox.';
+      form.reset();
+    } catch {
+      if (status) status.textContent = 'Could not save your signup. Please try again.';
+    }
   });
 })();

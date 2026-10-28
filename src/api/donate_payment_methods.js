@@ -194,24 +194,29 @@ function resolveLogoFromCatalog(method) {
 }
 
 async function resolveLogoUrl(env, method, component) {
-  const fromMethod = text(method.logo_url);
-  if (fromMethod) return fromMethod;
-  const fromComponent = text(component?.config?.logo_url);
-  if (fromComponent) return fromComponent;
-  const assetKey = text(method.logo_asset_key) || text(component?.config?.logo_asset_key);
+  // Prefer the canonical asset reference over hardcoded CDN URLs. Keep the
+  // explicit URL fallback for legacy sites and custom method overrides.
+  const assetKey = text(component?.config?.logo_asset_key) || text(method.logo_asset_key);
   if (assetKey) {
     const fromAsset = await loadAssetUrlByKey(env, assetKey);
     if (fromAsset) return fromAsset;
   }
+  const fromMethod = text(method.logo_url);
+  if (fromMethod) return fromMethod;
+  const fromComponent = text(component?.config?.logo_url);
+  if (fromComponent) return fromComponent;
   return resolveLogoFromCatalog(method);
 }
 
 function resolveHref(method, settings, component) {
   if (text(method.action) === "donate" || text(method.id) === "stripe") return "";
+  // Component action_value is authoritative after v2 cutover. The adapter
+  // exposes it as config.url; payment editor writes that same canonical field.
+  const canonicalUrl = text(component?.config?.url);
+  if (canonicalUrl) return canonicalUrl;
   if (text(method.url)) return text(method.url);
   const field = text(method.url_field);
   if (field && text(settings[field])) return text(settings[field]);
-  if (text(component?.config?.url)) return text(component.config.url);
   return "";
 }
 
