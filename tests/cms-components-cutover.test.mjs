@@ -31,7 +31,7 @@ test("CMS components cutover preserves IDs, Stripe release data, v2 columns, and
       INSERT INTO cms_components(id,label,type,config_json) VALUES
         ('payment_stripe_donation_modal','Old Stripe','payment_modal',
           '{"active_version":"v7","rollback_asset_url":"https://assets.example.org/rollback.js","sha256":"abc"}'),
-        ('payment_paypal','PayPal','payment_button','{"url":"https://example.org/old"}');
+        ('payment_paypal','PayPal','payment_button','{"url":"https://example.org/new"}');
       INSERT INTO cms_components_new(id,type,provider,label,action_type,action_value,style_json,config_json,placement)
         VALUES
         ('payment_stripe','button','stripe','Card donate','event','donate','{"background":"#fff"}','{"tooltip":"Card"}','donate_options'),
