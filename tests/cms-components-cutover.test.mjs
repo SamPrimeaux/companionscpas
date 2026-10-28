@@ -37,8 +37,16 @@ test("CMS components cutover preserves IDs, Stripe release data, v2 columns, and
         ('payment_stripe','button','stripe','Card donate','event','donate','{"background":"#fff"}','{"tooltip":"Card"}','donate_options'),
         ('payment_paypal','button','paypal','PayPal','href','https://example.org/new','{"background":"#eef5ff"}','{"tooltip":"PayPal"}','donate_options');
     `);
+    // Exactly 10 rows, matching the audited production cohort.
+    for (let i = 0; i < 8; i++) {
+      const id = "additional_" + i;
+      db.prepare("INSERT INTO cms_components(id,label,type,config_json) VALUES (?,?,'share_action','{}')")
+        .run(id, id);
+      db.prepare("INSERT INTO cms_components_new(id,label,type,action_type,config_json) VALUES (?,?,'share_action','copy','{}')")
+        .run(id, id);
+    }
     db.exec("BEGIN IMMEDIATE;\n" + migration + "\nCOMMIT;");
-    assert.equal(db.prepare("SELECT COUNT(*) n FROM cms_components").get().n, 2);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM cms_components").get().n, 10);
     assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name='cms_components_new'").get(), undefined);
     const oldId = db.prepare("SELECT type,provider,action_type,action_value,style_json,config_json FROM cms_components WHERE id='payment_stripe_donation_modal'").get();
     assert.equal(oldId.type, "button");
