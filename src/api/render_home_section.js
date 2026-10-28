@@ -515,7 +515,7 @@ function renderNewsletterFragment(section) {
       </div>
     </div>
     <div class="cta-band-right">
-      <form class="cta-email-form" data-newsletter-form data-required-fields="${escapeHtml(requiredFields.join(","))}">
+      <form class="cta-email-form" data-newsletter-form data-component-id="${escAttr(section.id || "home_newsletter")}" data-required-fields="${escapeHtml(requiredFields.join(","))}">
         <input type="text" name="first_name" class="cta-email-input" placeholder="First name" aria-label="First name" autocomplete="given-name" maxlength="80" ${firstNameRequired ? "required" : ""} />
         <input type="email" name="email" class="cta-email-input" placeholder="Your email address" aria-label="Email" autocomplete="email" required />
         <button class="cta-email-btn" type="submit">Subscribe</button>
