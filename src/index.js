@@ -14,6 +14,7 @@ import { competitionEntriesRoutes } from './api/competition_entries_api.js';
 import { contactApiRoutes } from './api/contact_api.js';
 import { donationApiRoutes } from './api/donation_api.js';
 import { paymentsEmailRoutes } from './api/payments_email.js';
+import { checkoutModalRoutes } from './api/checkout_modals.js';
 import { socialRoutes } from './api/social.js';
 import { driveRoutes } from './api/drive_api.js';
 import { renderPage, getBrand, getGlobalPartial, assembleFullPage } from "./api/render_page.js";
@@ -311,6 +312,7 @@ export default {
         contactApiRoutes,
         donationApiRoutes,
         paymentsEmailRoutes,
+        checkoutModalRoutes,
         driveRoutes,
         socialRoutes
       ];

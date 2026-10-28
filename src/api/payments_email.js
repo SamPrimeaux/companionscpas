@@ -1,5 +1,6 @@
 import { notifyDonationReceived } from "./notifications.js";
-import { resolveDonationAmounts } from "./donation_fees.js";
+import { resolveDonationAmounts, calculateWithFees } from "./donation_fees.js";
+import { resolveCheckoutIntent, recordEventRegistration } from "./checkout_modals.js";
 import { sanitizePublicAssetUrls } from "./asset_urls.js";
 
 const TENANT_ID = "tenant_companionscpas";
@@ -751,8 +752,20 @@ export async function paymentsEmailRoutes(request, env, url) {
         data.campaign_id = entryRow.campaign_id;
       }
 
+      // Event/ticket popups: the server prices the cart from D1. Browser amounts are ignored.
+      let modalCtx = null;
+      if (data.modal_key && !entryId) {
+        modalCtx = await resolveCheckoutIntent(env, data);
+        if (modalCtx.error) return json({ error: modalCtx.error }, modalCtx.status || 400);
+        intendedCents = modalCtx.intendedCents;
+        if (!modalCtx.coverFeesAllowed) coverFees = false;
+        chargeCents = coverFees ? calculateWithFees(intendedCents) : intendedCents;
+        data.campaign_id = modalCtx.campaignId || data.campaign_id;
+      }
+
       if (!intendedCents || intendedCents < 100) return json({ error: "Minimum donation is $1.00" }, 400);
-      const donorNote = String(data.note || data.message || "").trim().slice(0, 500) || null;
+      let donorNote = String(data.note || data.message || "").trim().slice(0, 500) || null;
+      if (modalCtx) donorNote = [modalCtx.notePrefix, modalCtx.summary].filter(Boolean).join(": ").slice(0, 500) || donorNote;
       const localIntentId = id("intent");
       const form = new URLSearchParams();
       form.set("amount", String(chargeCents));
@@ -760,7 +773,8 @@ export async function paymentsEmailRoutes(request, env, url) {
       form.set("automatic_payment_methods[enabled]", "true");
       form.set("metadata[tenant_id]", TENANT_ID);
       form.set("metadata[local_intent_id]", localIntentId);
-      form.set("metadata[source]", entryId ? "campaign_entry" : "donate_modal");
+      form.set("metadata[source]", entryId ? "campaign_entry" : (modalCtx ? "event_checkout" : "donate_modal"));
+      if (modalCtx) { form.set("metadata[modal_key]", modalCtx.modalKey); form.set("metadata[items]", modalCtx.compact); }
       form.set("metadata[intended_cents]", String(intendedCents));
       form.set("metadata[cover_fees]", coverFees ? "true" : "false");
       if (data.campaign_id) form.set("metadata[campaign_id]", String(data.campaign_id));
@@ -788,6 +802,7 @@ export async function paymentsEmailRoutes(request, env, url) {
             charge_cents: chargeCents,
             note: donorNote,
             entry_id: entryId,
+            modal: modalCtx ? { key: modalCtx.modalKey, campaign_id: modalCtx.campaignId, lines: modalCtx.lines, hands: modalCtx.hands, participant_items: modalCtx.participantItems, fields: {} } : undefined,
           })
         ).run();
       } catch (err) {
@@ -1047,6 +1062,12 @@ export async function paymentsEmailRoutes(request, env, url) {
             currency: pi.currency || "usd",
             campaignId: campaignId || meta.campaign_id || null,
           }).catch((err) => console.warn("competition_entries settle skipped:", err?.message || err));
+        }
+        if (!result.duplicate && (meta.modal_key || intentMeta.modal)) {
+          await recordEventRegistration(env, {
+            paymentIntentId, intentRecord, donationId: result.donationId || null,
+            donorEmail, donorName, totalCents: intendedAmountCents,
+          }).catch((err) => console.warn("event_registrations insert skipped:", err?.message || err));
         }
         return json({ received: true, processed: !result.duplicate, duplicate: result.duplicate || false });
       }
