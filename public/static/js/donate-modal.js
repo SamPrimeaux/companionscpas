@@ -131,6 +131,8 @@
   let stripeInst = null, elements = null, isSubmitting = false;
   let stripePk = null, stripeTestMode = false, configPromise = null;
   let reinitTimer = null;
+  // Data-driven popup state (null = classic donation modal, unchanged).
+  let modalCfg = null, modalKey = null, itemQty = {}, currentClientSecret = null;
 
   function calculateWithFees(intendedCents) {
     return Math.ceil((intendedCents + 30) / (1 - 0.029));
@@ -178,13 +180,202 @@
 
   function money(v) { const n = Number(v); return Number.isFinite(n) ? '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$0'; }
   function moneyExact(cents) { return '$' + (Number(cents || 0) / 100).toFixed(2); }
-  function getAmount() { const c = document.getElementById('dm-custom'); const v = c && c.value ? Number(c.value) : 0; return v > 0 ? v : selectedAmount; }
+  function getAmount() { if (modalCfg) return itemsTotalCents() / 100; const c = document.getElementById('dm-custom'); const v = c && c.value ? Number(c.value) : 0; return v > 0 ? v : selectedAmount; }
   function getActiveTier() { return tiers.find(t => t.amount_cents === getAmount() * 100) || null; }
+
   function getDonorNote() { return (document.getElementById('dm-memo')?.value || '').trim().slice(0, 500) || null; }
+
+  // ── Data-driven checkout popup (cms_globals checkout_modal) ─────────────────────────────
+  const ITEMS_CSS = `
+    .dm-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid rgba(124,58,237,.18);border-radius:12px;margin-bottom:10px;background:rgba(255,255,255,.55)}
+    .dm-item-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+    .dm-item-label{font-weight:800;font-size:.98rem}
+    .dm-item-price{font-weight:700;color:#7c3aed;font-size:.9rem}
+    .dm-item-note{font-size:.78rem;opacity:.7;line-height:1.35}
+    .dm-step-wrap{display:flex;align-items:center;gap:10px;flex:none}
+    .dm-step{width:36px;height:36px;border-radius:50%;border:1px solid rgba(124,58,237,.4);background:#fff;font-size:1.15rem;font-weight:800;line-height:1;cursor:pointer;color:#4c1d95}
+    .dm-step:hover{background:#f3e8ff}
+    .dm-qty{min-width:22px;text-align:center;font-weight:800;font-size:1.05rem}
+    .dm-hands{font-size:.8rem;opacity:.75;margin-top:2px}
+    .dm-fields{display:grid;gap:10px}
+    .dm-participants{display:grid;gap:10px}
+    .dm-person-label{display:grid;gap:5px;color:#4b5563;font-size:11px;font-weight:700}
+    #dm-modal.is-items{width:min(100%,480px);border-radius:20px}
+    #dm-modal.is-items .dm-item{min-height:78px;border:1px solid rgba(15,31,61,.12);border-radius:12px;background:#fff;padding:13px 14px;margin-bottom:8px}
+    #dm-modal.is-items .dm-header{padding:25px 25px 0}
+    #dm-modal.is-items .dm-body{padding:18px 25px 0}
+    #dm-modal.is-items .dm-footer{padding:8px 25px 24px}
+    #dm-modal.is-items .dm-section{border-radius:14px;border:1px solid #e5e3e0;background:rgba(255,255,255,.5);padding:16px;margin-bottom:12px}
+    #dm-modal.is-items .dm-title{font-size:clamp(1.5rem,4.5vw,2rem)}
+    @media(max-width:460px){#dm-modal.is-items{width:100%;border-radius:18px 18px 0 0;max-height:94dvh}#dm-modal.is-items .dm-header{padding:20px 18px 0}#dm-modal.is-items .dm-body{padding:14px 15px 0}#dm-modal.is-items .dm-footer{padding:8px 18px 20px}}
+    @media(prefers-reduced-motion:reduce){#dm-overlay,#dm-modal{animation:none}}`;
+  function escHtml(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  async function fetchModalConfig(key) {
+    try {
+      const r = await fetch('/api/checkout/modals/' + encodeURIComponent(key));
+      if (!r.ok) return null;
+      const d = await r.json();
+      return (d && d.mode === 'items' && Array.isArray(d.items) && d.items.length) ? d : null;
+    } catch { return null; }
+  }
+  function applyModalConfig(cfg, ticketKey) {
+    if (!cfg) { modalCfg = null; modalKey = null; itemQty = {}; return; }
+    modalCfg = cfg; modalKey = cfg.key;
+    itemQty = {};
+    cfg.items.forEach(it => { itemQty[it.key] = it.default_qty || 0; });
+    if (ticketKey && Object.prototype.hasOwnProperty.call(itemQty, ticketKey)) itemQty[ticketKey] = Math.max(1, itemQty[ticketKey]);
+    if (cfg.campaign_id) presetCampaignId = cfg.campaign_id;
+    presetAmount = null;
+    coverFees = !!(cfg.cover_fees && cfg.cover_fees.enabled && cfg.cover_fees.default);
+  }
+  function itemsTotalCents() {
+    if (!modalCfg) return 0;
+    return modalCfg.items.reduce((sum, it) => sum + (itemQty[it.key] || 0) * it.price_cents, 0);
+  }
+  function itemsPayload() {
+    return modalCfg.items.map(it => ({ key: it.key, qty: itemQty[it.key] || 0 })).filter(l => l.qty > 0);
+  }
+  function handsCount() { return modalCfg ? modalCfg.items.reduce((n, it) => n + (itemQty[it.key] || 0), 0) : 0; }
+  function participantDrafts() {
+    const cache = new Map();
+    document.querySelectorAll('[data-participant-key]').forEach((el) => {
+      cache.set(el.dataset.participantKey + ':' + el.dataset.participantIndex, el.value);
+    });
+    return cache;
+  }
+  function participantInputs() {
+    const enabled = new Set(modalCfg?.participant_items || []);
+    const container = document.getElementById('dm-participants');
+    if (!container) return;
+    const old = participantDrafts();
+    let html = '';
+    (modalCfg.items || []).forEach((item) => {
+      if (!enabled.has(item.key)) return;
+      for (let i = 1; i <= (itemQty[item.key] || 0); i++) {
+        html += `<label class="dm-person-label">${escHtml(item.label)} ${i} · Full name *
+          <input class="dm-email dm-person" type="text" autocomplete="off" required maxlength="100"
+            data-participant-key="${escHtml(item.key)}" data-participant-index="${i}"
+            aria-label="${escHtml(item.label)} ${i} full name" placeholder="First and last name" /></label>`;
+      }
+    });
+    container.innerHTML = html;
+    container.querySelectorAll('.dm-person').forEach((el) => {
+      el.value = old.get(el.dataset.participantKey + ':' + el.dataset.participantIndex) || '';
+    });
+  }
+  function collectedParticipantNames() {
+    return [...document.querySelectorAll('#dm-participants .dm-person')].map((el) => ({
+      key: el.dataset.participantKey, index: Number(el.dataset.participantIndex), name: el.value.trim(),
+    }));
+  }
+  function missingRequiredField() {
+    for (const f of (modalCfg?.fields || [])) {
+      const el = document.getElementById('dmf-' + f.key);
+      if (f.required && !(el && el.value.trim())) return f.label;
+    }
+    if (collectedParticipantNames().some((item) => !item.name)) return 'Each participant name';
+    return null;
+  }
+  async function attachFields() {
+    const pi = String(currentClientSecret || '').split('_secret_')[0];
+    const fields = {};
+    (modalCfg.fields || []).forEach(f => {
+      const el = document.getElementById('dmf-' + f.key);
+      if (el && el.value.trim()) fields[f.key] = el.value.trim();
+    });
+    const r = await fetch('/api/checkout/intent-fields', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payment_intent_id: pi, modal_key: modalKey,
+        fields, participant_names: collectedParticipantNames() }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Could not save your registration details.');
+  }
+  function buildItemsHTML() {
+    const c = modalCfg;
+    const rows = c.items.map(it => `
+      <div class="dm-item">
+        <div class="dm-item-info">
+          <span class="dm-item-label">${escHtml(it.label)}</span>
+          <span class="dm-item-price">${moneyExact(it.price_cents)}</span>
+          ${it.note ? `<span class="dm-item-note">${escHtml(it.note)}</span>` : ''}
+        </div>
+        <div class="dm-step-wrap">
+          <button type="button" class="dm-step" data-step="-1" data-key="${escHtml(it.key)}" aria-label="Fewer ${escHtml(it.label)}">&minus;</button>
+          <span class="dm-qty" id="dm-qty-${escHtml(it.key)}" aria-live="polite">${itemQty[it.key] || 0}</span>
+          <button type="button" class="dm-step" data-step="1" data-key="${escHtml(it.key)}" aria-label="More ${escHtml(it.label)}">+</button>
+        </div>
+      </div>`).join('');
+    const fieldInputs = (c.fields || []).map(f => `
+      <input id="dmf-${escHtml(f.key)}" class="dm-email" type="${escHtml(f.type)}" placeholder="${escHtml(f.label)}${f.required ? ' *' : ''}" aria-label="${escHtml(f.label)}" autocomplete="off" />`).join('');
+    const feeWrap = (c.cover_fees && c.cover_fees.enabled) ? `
+        <div id="dm-cover-fees-wrap">
+          <label class="dm-fee-row" for="dm-cover-fees">
+            <input type="checkbox" id="dm-cover-fees" ${coverFees ? 'checked' : ''} />
+            <span class="dm-fee-copy"><strong id="fee-label">Cover processing fees</strong>More of your payment goes to the animals.</span>
+          </label>
+        </div>` : '';
+    return `
+      <div class="dm-header">
+        <button class="dm-close" id="dm-close" type="button" aria-label="Close">&times;</button>
+        <div class="dm-eyebrow">${escHtml(c.eyebrow || 'Companions of CPAS')}</div>
+        <h2 class="dm-title">${escHtml(c.title)}</h2>
+        ${c.subtitle ? `<p class="dm-sub">${escHtml(c.subtitle)}</p>` : ''}
+        <div class="dm-test-banner${stripeTestMode ? ' is-visible' : ''}" id="dm-test-banner">Stripe test mode. No real charges.</div>
+      </div>
+      <div class="dm-body">
+        <div class="dm-section">
+          <span class="dm-label">${escHtml(c.items_title || 'Choose your entries')}</span>
+          ${rows}
+          <div class="dm-hands" id="dm-hands"></div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">${escHtml(c.details_title || 'Your details')}</span>
+          <div class="dm-fields">
+            <input id="receipt-email" class="dm-email" type="email" placeholder="Email for your receipt *" aria-label="Email" autocomplete="email" name="email" />
+            ${fieldInputs}
+            <div id="dm-participants" class="dm-participants" aria-label="Participant names"></div>
+          </div>
+        </div>
+        <div class="dm-section">
+          <span class="dm-label">Payment details</span>
+          <div class="dm-stripe-wrap">
+            <div id="dm-skeleton" class="dm-skeleton"></div>
+            <div id="dm-mount" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+      <div class="dm-footer">
+        ${feeWrap}
+        <button class="dm-submit" id="dm-submit" type="button" disabled>Loading...</button>
+        <div class="dm-error" id="dm-error"></div>
+        <div class="dm-secure">Secured by Stripe &middot; PCI compliant &middot; Receipt emailed when payment succeeds</div>
+      </div>
+      <div class="dm-success" id="dm-success">
+        <div class="dm-success-icon">&#10003;</div>
+        <h3>Thank you.</h3>
+        <p id="dm-success-msg"></p>
+      </div>`;
+  }
+  function refreshItems() {
+    modalCfg.items.forEach(it => { const el = document.getElementById('dm-qty-' + it.key); if (el) el.textContent = itemQty[it.key] || 0; });
+    const h = document.getElementById('dm-hands'); const n = handsCount();
+    if (h) h.textContent = n ? `${n} selected entr${n === 1 ? 'y' : 'ies'}` : 'Choose at least one entry';
+    participantInputs();
+    updateFeeDisplay();
+  }
+  function bindItems() {
+    document.querySelectorAll('.dm-step').forEach(b => b.addEventListener('click', () => {
+      const it = modalCfg.items.find(i => i.key === b.dataset.key); if (!it) return;
+      itemQty[it.key] = Math.max(it.min || 0, Math.min(it.max, (itemQty[it.key] || 0) + Number(b.dataset.step)));
+      refreshItems(); scheduleReinitElements();
+    }));
+    refreshItems();
+  }
 
   function injectStyles() {
     if (document.getElementById('dm-styles')) return;
-    const s = document.createElement('style'); s.id = 'dm-styles'; s.textContent = CSS; document.head.appendChild(s);
+    const s = document.createElement('style'); s.id = 'dm-styles'; s.textContent = CSS + ITEMS_CSS; document.head.appendChild(s);
   }
 
   function loadStripe() {
@@ -204,6 +395,7 @@
   }
 
   function buildHTML() {
+    if (modalCfg) return buildItemsHTML();
     const customDefault = presetAmount ? String(presetAmount) : '1';
     const tierBtns = tiers.map((t, i) => {
       const amt = t.amount_cents / 100;
@@ -318,6 +510,13 @@
       await fetchStripeConfig();
       const Stripe = await loadStripe();
       if (!stripeInst) stripeInst = Stripe(stripePk);
+      if (modalCfg && getSelectedAmountCents() < 100) {
+        const sk0 = document.getElementById('dm-skeleton'), mt0 = document.getElementById('dm-mount'), b0 = document.getElementById('dm-submit');
+        if (sk0) { sk0.style.display = 'block'; sk0.style.animation = 'none'; sk0.innerHTML = '<div style="padding:16px;text-align:center;font-size:.85rem;opacity:.8">Choose at least one entry to continue.</div>'; }
+        if (mt0) mt0.style.display = 'none';
+        if (b0) b0.disabled = true;
+        return;
+      }
       const isMonthly = frequency === 'monthly';
       const intendedCents = getSelectedAmountCents();
       const payload = {
@@ -328,6 +527,7 @@
         currency: 'usd',
       };
       if (presetCampaignId) payload.campaign_id = presetCampaignId;
+      if (modalCfg) { payload.modal_key = modalKey; payload.items = itemsPayload(); }
       if (presetEntryId) payload.entry_id = presetEntryId;
       // Include memo at intent creation time so it's stored in D1 + Stripe metadata
       const note = getDonorNote() || presetDonorNote;
@@ -338,6 +538,7 @@
       });
       const data = await res.json();
       if (!data.client_secret) throw new Error(data.error || 'Could not initialize payment.');
+      currentClientSecret = data.client_secret;
       elements = stripeInst.elements({ clientSecret: data.client_secret, appearance: APPEARANCE });
       const pe = elements.create('payment', { layout: { type: 'tabs', defaultCollapsed: false }, fields: { billingDetails: { name: 'auto', email: 'never' } } });
       const skeleton = document.getElementById('dm-skeleton');
@@ -366,6 +567,7 @@
       return;
     }
     setErr('');
+    if (modalCfg) { const missing = missingRequiredField(); if (missing) { setErr(`${missing} is required.`); return; } }
     isSubmitting = true;
     const btn = document.getElementById('dm-submit');
     if (btn) { btn.disabled = true; btn.classList.add('loading'); btn.textContent = 'Processing...'; }
@@ -378,6 +580,7 @@
     const billingDetails = { email };
     try {
       if (!isMonthly) {
+        if (modalCfg) await attachFields();
         const { error, paymentIntent } = await stripeInst.confirmPayment({
           elements, redirect: 'if_required',
           confirmParams: {
@@ -447,7 +650,7 @@
     const totalCents = coverFees ? calculateWithFees(intendedCents) : intendedCents;
     if (feeLabel) feeLabel.textContent = `Cover processing fees (+${moneyExact(feeCents)})`;
     if (btn && !btn.disabled && !isSubmitting) {
-      btn.textContent = `Donate ${moneyExact(totalCents)}`;
+      btn.textContent = modalCfg ? String(modalCfg.submit_label || 'Pay {total}').replace('{total}', moneyExact(totalCents)) : `Donate ${moneyExact(totalCents)}`;
     }
   }
 
@@ -466,6 +669,11 @@
     if (!modal) return;
     [...modal.children].forEach(el => { el.style.display = el.id === 'dm-success' ? 'block' : 'none'; });
     const msg = document.getElementById('dm-success-msg');
+    if (modalCfg) {
+      const h = modal.querySelector('#dm-success h3'); if (h && modalCfg.success_title) h.textContent = modalCfg.success_title;
+      if (msg) msg.textContent = modalCfg.success_message || (email ? `Receipt headed to ${email}. Thank you.` : 'Thank you.');
+      setTimeout(close, 12000); return;
+    }
     if (msg) msg.textContent = isMonthly
       ? (email ? `Your monthly gift is active. Confirmation headed to ${email}.` : 'Your monthly gift is active. Thank you.')
       : (email ? `Receipt headed to ${email}. Every dollar helps bridge the gap from urgent to safe.` : 'Every dollar helps bridge the gap from urgent to safe.');
@@ -495,6 +703,8 @@
     presetEntryId = opts?.entry_id || opts?.entryId || trigger?.dataset?.entryId || null;
     presetDonorEmail = opts?.donor_email || opts?.donorEmail || null;
     presetDonorNote = opts?.note || null;
+    const wantedModalKey = opts?.modal_key || opts?.modalKey || trigger?.dataset?.modalKey || null;
+    const wantedTicket = opts?.ticket_key || trigger?.dataset?.eventTicket || null;
     const presetAmt = Number(opts?.amount || trigger?.dataset?.amount || 0);
     const presetCents = Number(opts?.amount_cents || opts?.amountCents || trigger?.dataset?.amountCents || 0);
     presetAmount = presetAmt > 0 ? presetAmt : (presetCents > 0 ? presetCents / 100 : null);
@@ -504,6 +714,7 @@
     coverFees = true;
     elements = null; isSubmitting = false;
     stripeInst = null; configPromise = null;
+    const modalPromise = wantedModalKey ? fetchModalConfig(wantedModalKey) : Promise.resolve(null);
     const tiersPromise = fetchTiers();
     const modalSettingsPromise = fetchModalSettings();
     const configLoad = fetchStripeConfig().catch(() => null);
@@ -530,13 +741,15 @@
     tiersPromise.then(async (loaded) => {
       await Promise.all([configLoad, modalSettingsPromise]);
       tiers = loaded;
+      applyModalConfig(await modalPromise, wantedTicket);
       if (!document.getElementById('dm-overlay')) return;
       const style = modalSettings.theme || {};
       modal.style.setProperty('--dm-accent', /^#[0-9a-f]{6}$/i.test(style.accent || '') ? style.accent : '#7c3aed');
       modal.style.borderRadius = (Math.min(24, Math.max(6, Number(style.radius) || 14))) + 'px';
       modal.classList.toggle('dm-compact', style.compact === true);
       modal.classList.toggle('dm-no-monthly', modalSettings.allow_monthly === false);
-      modal.innerHTML = buildHTML(); bindEvents(); mirrorReceiptEmail();
+      modal.classList.toggle('is-items', !!modalCfg);
+      modal.innerHTML = buildHTML(); bindEvents(); if (modalCfg) bindItems(); mirrorReceiptEmail();
       if (presetDonorEmail) {
         const emailInput = document.getElementById('receipt-email');
         if (emailInput) emailInput.value = presetDonorEmail;
@@ -556,6 +769,7 @@
     elements = null; isSubmitting = false;
     presetCampaignId = null; presetAmount = null; presetEntryId = null;
     presetDonorEmail = null; presetDonorNote = null;
+    modalCfg = null; modalKey = null; itemQty = {}; currentClientSecret = null;
   }
 
   function bindEvents() {
