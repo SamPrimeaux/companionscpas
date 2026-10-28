@@ -43,7 +43,12 @@ export function rowToComponent(row) {
     const style = safeObj(row.style_json);
     const value = row.action_value || '';
     if (row.logo_asset_key && !config.logo_asset_key) config.logo_asset_key = row.logo_asset_key;
-    if (!config.url && (row.action_type === 'href' || row.action_type === 'mailto') && value) config.url = value;
+    // Action columns are authoritative after the v2 migration: never let a
+    // duplicated/stale config_json URL override an edited provider link.
+    if (row.action_type === 'href' || row.action_type === 'mailto') {
+      if (value) config.url = value;
+      else delete config.url;
+    }
     config.action_type = row.action_type;
     config.action_value = value;
     if (row.provider) config.provider = row.provider;
@@ -77,10 +82,18 @@ export async function getComponent(id, env) {
 export async function getComponentsByType(type, env) {
   if (!env?.DB) return [];
   try {
-    const { results } = await env.DB.prepare(
-      'SELECT * FROM cms_components WHERE type = ? ORDER BY sort_order ASC'
-    ).bind(type).all();
-    return (results || []).filter(isActiveRow).map(rowToComponent);
+    // Legacy donation callers still ask for payment_button; v2 stores generic
+    // buttons with provider + placement, without copying one-off payment types.
+    const legacyButtons = type === 'payment_button';
+    const sql = legacyButtons
+      ? "SELECT * FROM cms_components WHERE type IN ('payment_button', 'button') ORDER BY sort_order ASC"
+      : 'SELECT * FROM cms_components WHERE type = ? ORDER BY sort_order ASC';
+    const stmt = env.DB.prepare(sql);
+    const { results } = await (legacyButtons ? stmt.all() : stmt.bind(type).all());
+    return (results || [])
+      .filter(isActiveRow)
+      .filter(row => !legacyButtons || row.type === 'payment_button' || row.placement === 'donate_options')
+      .map(rowToComponent);
   } catch {
     return [];
   }
