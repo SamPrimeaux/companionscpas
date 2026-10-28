@@ -933,13 +933,12 @@ export async function paymentsEmailRoutes(request, env, url) {
 
       // 3. Newsletter subscriber table — nl_opt_in = explicit content subscription
       if (donorEmail && nlOptIn) {
-        await env.DB.prepare(
-          `INSERT INTO newsletter_subscribers (id, tenant_id, email, status, source, created_at)
-           VALUES (?, ?, ?, 'subscribed', 'donate_modal', datetime('now'))
-           ON CONFLICT(tenant_id, email) DO UPDATE SET
-             status = 'subscribed',
-             unsubscribed_at = NULL`
-        ).bind(id("ns"), TENANT_ID, donorEmail).run();
+        await upsertNewsletterSubscriber(env, {
+          email: donorEmail,
+          sourceType: "checkout",
+          sourceRef: "donate_modal",
+          consentText: "Checked newsletter opt-in during donation",
+        });
       }
     } catch (err) {
       console.warn("[after-payment] error:", err?.message || err);
