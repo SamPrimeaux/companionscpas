@@ -97,7 +97,7 @@ export async function loadEditorCatalog(env) {
       ORDER BY sort_order, label
     `).bind(TENANT_ID).all().catch(() => ({ results: [] })),
     env.DB.prepare("SELECT * FROM cms_modals WHERE tenant_id = ? AND is_active = 1 ORDER BY modal_key").bind(TENANT_ID).all().catch(() => ({ results: [] })),
-    env.DB.prepare("SELECT * FROM cms_components WHERE active = 1 ORDER BY sort_order, label").all().catch(() => ({ results: [] })),
+    env.DB.prepare("SELECT * FROM cms_components ORDER BY sort_order, label").all().then((r) => ({ results: (r.results || []).filter((row) => (row.status !== undefined && row.status !== null ? row.status === "active" : Number(row.active) === 1)) })).catch(() => ({ results: [] })),
   ]);
 
   const pageRows = pages.results || [];
