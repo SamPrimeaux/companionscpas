@@ -241,7 +241,14 @@
     modalCfg = cfg; modalKey = cfg.key;
     itemQty = {};
     cfg.items.forEach(it => { itemQty[it.key] = it.default_qty || 0; });
-    if (ticketKey && Object.prototype.hasOwnProperty.call(itemQty, ticketKey)) itemQty[ticketKey] = Math.max(1, itemQty[ticketKey]);
+    // An explicitly clicked ticket wins. Otherwise seed one *optional* entry
+    // from the saved modal settings; this is not a purchase minimum.
+    if (ticketKey && Object.prototype.hasOwnProperty.call(itemQty, ticketKey)) {
+      itemQty[ticketKey] = Math.max(1, itemQty[ticketKey]);
+    } else if (cfg.initial_item_key && Object.prototype.hasOwnProperty.call(itemQty, cfg.initial_item_key)
+      && !Object.values(itemQty).some(qty => qty > 0)) {
+      itemQty[cfg.initial_item_key] = 1;
+    }
     if (cfg.campaign_id) presetCampaignId = cfg.campaign_id;
     presetAmount = null;
     coverFees = !!(cfg.cover_fees && cfg.cover_fees.enabled && cfg.cover_fees.default);
@@ -801,7 +808,10 @@
       await Promise.all([configLoad, modalSettingsPromise]);
       tiers = loaded;
       applyModalConfig(await modalPromise, wantedTicket);
-      itemPaymentRequested = false;
+      // Opt-in per published modal: show Stripe immediately for a preselected
+      // amount. A PaymentIntent is prepared, but no payment is confirmed until
+      // the customer explicitly submits. Other checkouts retain Continue first.
+      itemPaymentRequested = !!(modalCfg && modalCfg.auto_prepare_payment && itemsTotalCents() >= 100);
       if (!document.getElementById('dm-overlay')) return;
       // A published checkout's appearance is scoped to its own D1 configuration.
       // Ordinary donation modals continue using the existing global theme.
