@@ -134,6 +134,16 @@ export function cleanFields(defs, input) {
   return { ok: true, values };
 }
 
+export function normalizeCheckoutAppearance(raw) {
+  const color = str(raw?.accent, 7);
+  return {
+    accent: /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : "#7c3aed",
+    surface: raw?.surface === "dark" ? "dark" : "light",
+    radius: Math.min(24, Math.max(6, Math.round(Number(raw?.radius) || 14))),
+    compact: raw?.compact === true,
+  };
+}
+
 function toPublic(key, content, items, fields) {
   return {
     key,
@@ -153,6 +163,7 @@ function toPublic(key, content, items, fields) {
     },
     items,
     fields,
+    appearance: normalizeCheckoutAppearance(content.appearance),
     participant_items: Array.isArray(content.participant_items) ? content.participant_items.filter((k) => items.some((i) => i.key === k)).slice(0, 12) : [],
   };
 }
@@ -206,6 +217,20 @@ export function validateParticipantNames(lines, participantItems, submitted) {
   return { ok: true, values };
 }
 
+/** Published modal drafts are private metadata, never a live-status transition. */
+export function planCheckoutSave(requestedStatus, liveStatus, previousMetadata, nextContent) {
+  const publishedDraft = requestedStatus === "draft" && liveStatus === "published";
+  const nextMetadata = { ...(previousMetadata && typeof previousMetadata === "object" ? previousMetadata : {}) };
+  if (publishedDraft) {
+    nextMetadata.checkout_draft = nextContent;
+    nextMetadata.checkout_draft_saved_at = new Date().toISOString();
+  } else {
+    delete nextMetadata.checkout_draft;
+    delete nextMetadata.checkout_draft_saved_at;
+  }
+  return { publishedDraft, nextMetadata };
+}
+
 async function checkoutAdmin(request, env, url) {
   const match = url.pathname.match(/^\/api\/checkout\/admin\/campaign\/([^/]+)$/);
   if (!match || !["GET", "PUT"].includes(request.method)) return null;
@@ -218,14 +243,21 @@ async function checkoutAdmin(request, env, url) {
   if (!campaign) return json({ error: "Campaign not found" }, 404);
   const campaignCfg = parse(campaign.config_json, {});
   const row = await env.DB.prepare(`
-    SELECT global_key, status, inline_content_json FROM cms_globals
+    SELECT global_key, status, inline_content_json, metadata_json, content_version FROM cms_globals
     WHERE account_id = ? AND global_type = ?
       AND json_extract(inline_content_json, '$.campaign_id') = ?
     ORDER BY CASE WHEN status = 'published' THEN 0 ELSE 1 END, updated_at DESC LIMIT 1
   `).bind(TENANT_ID, GLOBAL_TYPE, campaignId).first();
-  const content = parse(row?.inline_content_json, {});
+  const metadata = parse(row?.metadata_json, {});
+  // A published checkout remains live while a newer configuration is saved
+  // privately. Only Publish moves that draft to the customer-facing modal.
+  const staged = row?.status === "published" && metadata.checkout_draft
+    ? metadata.checkout_draft : null;
+  const content = staged || parse(row?.inline_content_json, {});
   if (request.method === "GET") return json({
     ok: true, key: row?.global_key || null, status: row?.status || "draft",
+    has_draft: Boolean(staged), draft_saved_at: metadata.checkout_draft_saved_at || null,
+    content_version: row?.content_version || 0,
     content: { mode: "items", eyebrow: "Companions of CPAS", title: campaign.title || "Event registration",
       subtitle: "Choose your entries and pay securely.", items_title: "Choose your entries",
       details_title: "Your details", submit_label: "Pay {total}",
@@ -237,6 +269,14 @@ async function checkoutAdmin(request, env, url) {
   });
   let input;
   try { input = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+  // Prevent one open editor tab from overwriting another. Older clients that
+  // do not send a content version remain backward compatible.
+  if (input?.content_version != null
+      && (!Number.isInteger(Number(input.content_version))
+          || Number(input.content_version) !== Number(row?.content_version || 0))) {
+    return json({ error: "This checkout changed in another editor. Reload before saving.",
+      code: "stale_checkout", content_version: Number(row?.content_version || 0) }, 409);
+  }
   const raw = input?.content;
   if (!raw || typeof raw !== "object" || raw.mode !== "items") return json({ error: "Invalid checkout configuration" }, 400);
   const status = input.status === "published" ? "published" : "draft";
@@ -260,20 +300,30 @@ async function checkoutAdmin(request, env, url) {
     note_prefix: str(raw.note_prefix, 80), selected_item_keys: items.map((it) => it.key), cover_fees: {
       enabled: raw.cover_fees?.enabled !== false, default: raw.cover_fees?.default === true,
     }, participant_items: participantItems, fields, items,
+    appearance: normalizeCheckoutAppearance(raw.appearance),
   };
-  const changes = [env.DB.prepare(`
-    INSERT INTO cms_globals (id, account_id, global_key, global_type, status, inline_content_json, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-    ON CONFLICT(account_id, global_key) DO UPDATE SET status=excluded.status,
-      inline_content_json=excluded.inline_content_json, content_version=content_version+1,
-      updated_at=datetime('now')
-  `).bind(`cmsg_${crypto.randomUUID()}`, TENANT_ID, key, GLOBAL_TYPE, status, JSON.stringify(next))];
+  const { publishedDraft, nextMetadata } = planCheckoutSave(status, row?.status, metadata, next);
+  const changes = publishedDraft
+    ? [env.DB.prepare(`
+        UPDATE cms_globals SET metadata_json = ?, content_version = content_version + 1,
+          updated_at = datetime('now') WHERE account_id = ? AND global_key = ?
+      `).bind(JSON.stringify(nextMetadata), TENANT_ID, key)]
+    : [env.DB.prepare(`
+        INSERT INTO cms_globals
+          (id, account_id, global_key, global_type, status, inline_content_json, metadata_json, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(account_id, global_key) DO UPDATE SET status=excluded.status,
+          inline_content_json=excluded.inline_content_json, metadata_json=excluded.metadata_json,
+          content_version=content_version+1, updated_at=datetime('now')
+      `).bind(`cmsg_${crypto.randomUUID()}`, TENANT_ID, key, GLOBAL_TYPE, status,
+        JSON.stringify(next), JSON.stringify(nextMetadata))];
   if (status === "published") {
     const event = { ...(campaignCfg.event || {}), tickets: items, checkout_modal: key };
     changes.push(env.DB.prepare("UPDATE fundraising_campaigns SET config_json = ? WHERE id = ?")
       .bind(JSON.stringify({ ...campaignCfg, event }), campaignId));
-  } else if (campaignCfg.event?.checkout_modal === key) {
-    // Draft/unpublished popups must not leave live event buttons invoking a 404.
+  } else if (!publishedDraft && campaignCfg.event?.checkout_modal === key) {
+    // Only an actually unpublished modal can be disconnected from live pages.
+    // Staging edits to a published checkout must NEVER disconnect its buttons.
     const event = { ...campaignCfg.event }; delete event.checkout_modal;
     changes.push(env.DB.prepare("UPDATE fundraising_campaigns SET config_json = ? WHERE id = ?")
       .bind(JSON.stringify({ ...campaignCfg, event }), campaignId));
@@ -297,10 +347,14 @@ async function checkoutAdmin(request, env, url) {
       } catch (error) { warnings.push(`${page.route_path}: ${str(error?.message, 160)}`); }
     }
   }
-  return json({ ok: true, key, status, content: next, published_routes: publishedRoutes, warnings,
-    notice: status === "published"
-      ? (warnings.length ? "Checkout saved; some event pages need republishing." : "Checkout and event pages published.")
-      : "Checkout draft saved." });
+  return json({ ok: true, key, status: publishedDraft ? "published" : status,
+    has_draft: publishedDraft, content_version: row ? Number(row.content_version || 0) + 1 : 0,
+    content: next, published_routes: publishedRoutes, warnings,
+    notice: publishedDraft
+      ? "Draft saved privately. Live checkout was not changed."
+      : status === "published"
+        ? (warnings.length ? "Checkout saved; some event pages need republishing." : "Checkout and event pages published.")
+        : "Checkout draft saved." });
 }
 
 /** Called by /api/donations/intent when the browser sent modal_key. Never trusts browser prices. */
