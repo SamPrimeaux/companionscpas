@@ -42,12 +42,16 @@ export function rowToComponent(row) {
   if (row.action_type !== undefined) {
     const style = safeObj(row.style_json);
     const value = row.action_value || '';
-    if (row.logo_asset_key && !config.logo_asset_key) config.logo_asset_key = row.logo_asset_key;
+    // The v2 columns are authoritative; stale legacy JSON fields are not.
+    if (row.logo_asset_key) config.logo_asset_key = row.logo_asset_key;
     // Action columns are authoritative after the v2 migration: never let a
     // duplicated/stale config_json URL override an edited provider link.
     if (row.action_type === 'href' || row.action_type === 'mailto') {
       if (value) config.url = value;
       else delete config.url;
+    }
+    if (row.type === 'trust_badge' && row.action_type === 'href') {
+      config.href = value || '';
     }
     config.action_type = row.action_type;
     config.action_value = value;
