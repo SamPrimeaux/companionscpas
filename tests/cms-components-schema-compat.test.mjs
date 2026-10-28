@@ -7,7 +7,7 @@ test("v2 component canonical URL overrides stale legacy config and preserves sty
     id: "payment_paypal", type: "button", label: "PayPal", sort_order: 10,
     action_type: "href", action_value: "https://example.org/current",
     logo_asset_key: "payment_logo_paypal", provider: "paypal", placement: "donate_options",
-    config_json: JSON.stringify({ url: "https://example.org/stale", note: "Donation" }),
+    config_json: JSON.stringify({ url: "https://example.org/stale", note: "Donation", background: "#000000" }),
     style_json: JSON.stringify({ background: "#eef5ff", logo_height: 22 }),
   });
   assert.equal(component.config.url, "https://example.org/current");
