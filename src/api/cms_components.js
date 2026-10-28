@@ -57,7 +57,9 @@ export function rowToComponent(row) {
     config.action_value = value;
     if (row.provider) config.provider = row.provider;
     if (row.placement) config.placement = row.placement;
-    for (const [k, v] of Object.entries(style)) if (config[k] === undefined) config[k] = v;
+    // Style values are now authored in style_json. They must take precedence
+    // over any duplicate legacy values in config_json.
+    for (const [k, v] of Object.entries(style)) config[k] = v;
   }
   return {
     id: row.id,
