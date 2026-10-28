@@ -285,7 +285,7 @@ async function renderTransportWinFragment(section, _blocks, env) {
   if (env?.DB) {
     try {
       const [fb, ig] = await Promise.all([
-        env.DB.prepare("SELECT config_json FROM cms_components WHERE id = 'social_facebook' AND active = 1 LIMIT 1").first(),
+        env.DB.prepare("SELECT config_json FROM cms_components WHERE id = 'social_facebook' LIMIT 1").first(),
         env.DB.prepare("SELECT config_json FROM cms_components WHERE id = 'social_instagram' AND active = 1 LIMIT 1").first(),
       ]);
       if (fb?.config_json) { const c = JSON.parse(fb.config_json); if (c.url) fbHref = c.url; }
