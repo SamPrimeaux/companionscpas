@@ -1063,11 +1063,15 @@ export async function paymentsEmailRoutes(request, env, url) {
             campaignId: campaignId || meta.campaign_id || null,
           }).catch((err) => console.warn("competition_entries settle skipped:", err?.message || err));
         }
-        if (!result.duplicate && (meta.modal_key || intentMeta.modal)) {
+        // Register even on duplicate webhook delivery: INSERT OR IGNORE is
+        // idempotent, and retries must repair a payment settled before its
+        // attendee record was committed. Do not acknowledge a failed insert;
+        // Stripe retries failed webhook deliveries.
+        if (meta.modal_key || intentMeta.modal) {
           await recordEventRegistration(env, {
             paymentIntentId, intentRecord, donationId: result.donationId || null,
             donorEmail, donorName, totalCents: intendedAmountCents,
-          }).catch((err) => console.warn("event_registrations insert skipped:", err?.message || err));
+          });
         }
         return json({ received: true, processed: !result.duplicate, duplicate: result.duplicate || false });
       }
