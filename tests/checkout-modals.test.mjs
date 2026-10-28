@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeItems, priceItems, cleanFields, validateParticipantNames, normalizeFieldDefs, itemsCompact } from "../src/api/checkout_modals.js";
+import { normalizeItems, priceItems, cleanFields, validateParticipantNames, normalizeFieldDefs, itemsCompact, recordEventRegistration, normalizeCheckoutAppearance, planCheckoutSave } from "../src/api/checkout_modals.js";
 
 const tickets = [
   { key: "driver", label: "Driver", price_cents: 2000 },
@@ -77,4 +77,76 @@ test("default Freedom Ride popup seed excludes chance-based add-ons and duplicat
   assert.match(seed, /participant_items/);
   assert.match(seed, /"driver","passenger"/);
   assert.doesNotMatch(seed, /\"key\":\"name\"/);
+});
+
+test("event registration can be retried after a D1 failure without duplicating its PaymentIntent", async () => {
+  let failOnce = true;
+  const registrations = new Map();
+  const env = { DB: { prepare(sql) {
+    assert.match(sql, /INSERT OR IGNORE INTO event_registrations/);
+    return { bind(...values) { return { async run() {
+      if (failOnce) { failOnce = false; throw Error("transient D1 error"); }
+      if (!registrations.has(values[4])) registrations.set(values[4], values);
+      return { success: true };
+    }}; }};
+  }}};
+  const payload = {
+    paymentIntentId: "pi_test_retry",
+    intentRecord: { id: "intent_test", campaign_id: "campaign_test", metadata_json: JSON.stringify({
+      modal: { key: "freedom_ride_checkout", lines: [{ key: "driver", qty: 1, price_cents: 2000 }], hands: 1,
+        fields: { participant_names: [{ key: "driver", index: 1, name: "Test Guest" }], phone: "555-0100" } },
+    }) },
+    donationId: "donation_test", donorEmail: "test@example.com", donorName: "Test Guest", totalCents: 2000,
+  };
+  await assert.rejects(recordEventRegistration(env, payload), /transient D1 error/);
+  assert.equal(registrations.size, 0);
+  await recordEventRegistration(env, payload);
+  await recordEventRegistration(env, payload);
+  assert.equal(registrations.size, 1);
+  const row = registrations.get("pi_test_retry");
+  assert.equal(row[3], "freedom_ride_checkout");
+  assert.equal(row[12], 2000);
+  assert.equal(JSON.parse(row[13]).participant_names[0].name, "Test Guest");
+});
+
+test("payment-success webhook retries registration on duplicate delivery", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../src/api/payments_email.js", import.meta.url), "utf8");
+  assert.match(src, /if \(meta\.modal_key \|\| intentMeta\.modal\)/);
+  assert.doesNotMatch(src, /!result\.duplicate && \(meta\.modal_key/);
+  assert.doesNotMatch(src, /event_registrations insert skipped/);
+});
+
+test("checkout appearance normalizes valid settings without accepting arbitrary CSS", () => {
+  assert.deepEqual(normalizeCheckoutAppearance({
+    accent: "#AAbbCC", surface: "dark", radius: 60, compact: true,
+  }), { accent: "#aabbcc", surface: "dark", radius: 24, compact: true });
+  assert.deepEqual(normalizeCheckoutAppearance({
+    accent: "url(fake)", surface: "unexpected", radius: -10, compact: "true",
+  }), { accent: "#7c3aed", surface: "light", radius: 6, compact: false });
+});
+
+test("saving an editor draft stages private metadata while published content remains active", () => {
+  const live = { title: "Live configuration" };
+  const draft = { title: "Editable draft", appearance: { accent: "#123abc" } };
+  const staged = planCheckoutSave("draft", "published", { saved_by: "operator" }, draft);
+  assert.equal(staged.publishedDraft, true);
+  assert.deepEqual(staged.nextMetadata.checkout_draft, draft);
+  assert.equal(staged.nextMetadata.saved_by, "operator");
+  assert.ok(staged.nextMetadata.checkout_draft_saved_at);
+  assert.equal(live.title, "Live configuration");
+  const published = planCheckoutSave("published", "published", staged.nextMetadata, draft);
+  assert.equal(published.publishedDraft, false);
+  assert.equal(published.nextMetadata.checkout_draft, undefined);
+  assert.equal(published.nextMetadata.saved_by, "operator");
+  const fresh = planCheckoutSave("draft", "draft", {}, draft);
+  assert.equal(fresh.publishedDraft, false);
+});
+
+test("stage update never unpublishes or unlinks a published checkout", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../src/api/checkout_modals.js", import.meta.url), "utf8");
+  assert.match(src, /UPDATE cms_globals SET metadata_json = \?, content_version = content_version \+ 1/);
+  assert.match(src, /!publishedDraft && campaignCfg\.event\?\.checkout_modal === key/);
+  assert.match(src, /has_draft: Boolean\(staged\)/);
 });

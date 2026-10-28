@@ -81,12 +81,12 @@ await page.click('.dm-step[data-key="passenger"][data-step="1"]');
 await page.click('.dm-step[data-key="extra_hand"][data-step="1"]');
 await page.click('.dm-step[data-key="extra_hand"][data-step="1"]');
 await page.waitForFunction(() => document.getElementById("dm-submit")?.textContent.includes("$40.00"));
-assert.equal(await page.textContent("#dm-hands"), "4 hands");
-// wait for the debounced intent re-create and check the payload carries qty only
-await page.waitForFunction(() => window.__calls.intents.some((i) => (i.items || []).length === 3), null, { timeout: 5000 });
-const last = (await calls()).intents.at(-1);
-assert.equal(last.modal_key, "freedom_ride_checkout");
-assert.deepEqual(last.items, [{ key: "driver", qty: 1 }, { key: "passenger", qty: 1 }, { key: "extra_hand", qty: 2 }]);
+assert.equal(await page.textContent("#dm-hands"), "4 selected entries");
+// Selecting or toggling tickets must never create a Stripe PaymentIntent.
+const preContinue = (await calls()).intents.length;
+await page.waitForTimeout(650); // longer than the debounce
+assert.equal((await calls()).intents.length, preContinue);
+assert.match(await page.textContent("#dm-submit"), /Continue to secure payment/);
 
 // 4. required field blocks payment
 await page.fill("#receipt-email", "rider@example.com");
@@ -94,9 +94,17 @@ await page.waitForFunction(() => !document.getElementById("dm-submit").disabled)
 await page.click("#dm-submit");
 assert.match(await page.textContent("#dm-error"), /Name for registration is required/);
 assert.equal((await calls()).confirms, 0);
+assert.equal((await calls()).intents.length, preContinue);
 
-// 5. happy path: fields attached BEFORE payment is confirmed, then custom success copy
+// 5. Continue creates exactly one server-priced intent; Pay confirms it.
 await page.fill("#dmf-name", "Sam Rider");
+await page.click("#dm-submit");
+await page.waitForFunction(() => window.__calls.intents.length > 0 && document.getElementById("dm-submit")?.textContent.includes("Pay $40.00"));
+const paymentIntents = (await calls()).intents;
+assert.equal(paymentIntents.length, preContinue + 1);
+const last = paymentIntents.at(-1);
+assert.equal(last.modal_key, "freedom_ride_checkout");
+assert.deepEqual(last.items, [{ key: "driver", qty: 1 }, { key: "passenger", qty: 1 }, { key: "extra_hand", qty: 2 }]);
 await page.click("#dm-submit");
 await page.waitForSelector("#dm-success", { state: "visible" });
 const c = await calls();
