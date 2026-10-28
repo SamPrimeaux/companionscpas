@@ -133,6 +133,7 @@
   let reinitTimer = null;
   // Data-driven popup state (null = classic donation modal, unchanged).
   let modalCfg = null, modalKey = null, itemQty = {}, currentClientSecret = null;
+  let itemPaymentRequested = false, elementsGeneration = 0;
 
   function calculateWithFees(intendedCents) {
     return Math.ceil((intendedCents + 30) / (1 - 0.029));
@@ -207,6 +208,23 @@
     #dm-modal.is-items .dm-footer{padding:8px 25px 24px}
     #dm-modal.is-items .dm-section{border-radius:14px;border:1px solid #e5e3e0;background:rgba(255,255,255,.5);padding:16px;margin-bottom:12px}
     #dm-modal.is-items .dm-title{font-size:clamp(1.5rem,4.5vw,2rem)}
+    #dm-modal.is-items .dm-item-price{color:var(--dm-accent,#7c3aed)}
+    #dm-modal.is-items .dm-step{color:var(--dm-accent,#7c3aed);border-color:var(--dm-accent,#7c3aed)}
+    #dm-modal.is-items.dm-compact .dm-item{min-height:58px;padding:9px 12px}
+    #dm-modal.is-items.dm-compact .dm-header{padding:16px 20px 8px}
+    #dm-modal.is-items.dm-compact .dm-body{padding:12px 20px 0}
+    #dm-modal.is-items.dm-compact .dm-section{padding:10px;margin-bottom:8px}
+    #dm-modal.is-items.dm-dark{background:#101827;color:#f1f5fb;border-color:#31415b}
+    #dm-modal.is-items.dm-dark .dm-title,
+    #dm-modal.is-items.dm-dark .dm-item-label{color:#f6f8ff}
+    #dm-modal.is-items.dm-dark .dm-sub,
+    #dm-modal.is-items.dm-dark .dm-label,
+    #dm-modal.is-items.dm-dark .dm-secure,
+    #dm-modal.is-items.dm-dark .dm-item-note{color:#bac6db}
+    #dm-modal.is-items.dm-dark .dm-section{background:#1a2638;border-color:#34445b}
+    #dm-modal.is-items.dm-dark .dm-item{background:#233047;border-color:#3c4c63}
+    #dm-modal.is-items.dm-dark .dm-step{background:#18243b}
+    #dm-modal.is-items.dm-dark .dm-qty{color:#fff}
     @media(max-width:460px){#dm-modal.is-items{width:100%;border-radius:18px 18px 0 0;max-height:94dvh}#dm-modal.is-items .dm-header{padding:20px 18px 0}#dm-modal.is-items .dm-body{padding:14px 15px 0}#dm-modal.is-items .dm-footer{padding:8px 18px 20px}}
     @media(prefers-reduced-motion:reduce){#dm-overlay,#dm-modal{animation:none}}`;
   function escHtml(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -337,7 +355,7 @@
             <div id="dm-participants" class="dm-participants" aria-label="Participant names"></div>
           </div>
         </div>
-        <div class="dm-section">
+        <div class="dm-section" id="dm-payment-section" style="display:none">
           <span class="dm-label">Payment details</span>
           <div class="dm-stripe-wrap">
             <div id="dm-skeleton" class="dm-skeleton"></div>
@@ -362,12 +380,17 @@
     const h = document.getElementById('dm-hands'); const n = handsCount();
     if (h) h.textContent = n ? `${n} selected entr${n === 1 ? 'y' : 'ies'}` : 'Choose at least one entry';
     participantInputs();
+    if (modalCfg && !itemPaymentRequested) {
+      const btn = document.getElementById('dm-submit');
+      if (btn) btn.disabled = getSelectedAmountCents() < 100;
+    }
     updateFeeDisplay();
   }
   function bindItems() {
     document.querySelectorAll('.dm-step').forEach(b => b.addEventListener('click', () => {
       const it = modalCfg.items.find(i => i.key === b.dataset.key); if (!it) return;
       itemQty[it.key] = Math.max(it.min || 0, Math.min(it.max, (itemQty[it.key] || 0) + Number(b.dataset.step)));
+      if (itemPaymentRequested) itemPaymentRequested = false;
       refreshItems(); scheduleReinitElements();
     }));
     refreshItems();
@@ -506,9 +529,23 @@
   }
 
   async function initElements() {
+    const generation = ++elementsGeneration;
     try {
+      // Selecting ticket quantities is not a checkout attempt.
+      if (modalCfg && !itemPaymentRequested) {
+        const panel = document.getElementById('dm-payment-section');
+        if (panel) panel.style.display = 'none';
+        const button = document.getElementById('dm-submit');
+        if (button) {
+          button.disabled = getSelectedAmountCents() < 100;
+          button.textContent = 'Continue to secure payment · ' + moneyExact(chargeAmountCents());
+        }
+        return;
+      }
       await fetchStripeConfig();
+      if (generation !== elementsGeneration || !document.getElementById('dm-overlay')) return;
       const Stripe = await loadStripe();
+      if (generation !== elementsGeneration || !document.getElementById('dm-overlay')) return;
       if (!stripeInst) stripeInst = Stripe(stripePk);
       if (modalCfg && getSelectedAmountCents() < 100) {
         const sk0 = document.getElementById('dm-skeleton'), mt0 = document.getElementById('dm-mount'), b0 = document.getElementById('dm-submit');
@@ -537,6 +574,7 @@
         body: JSON.stringify(payload),
       });
       const data = await res.json();
+      if (generation !== elementsGeneration || !document.getElementById('dm-overlay')) return;
       if (!data.client_secret) throw new Error(data.error || 'Could not initialize payment.');
       currentClientSecret = data.client_secret;
       elements = stripeInst.elements({ clientSecret: data.client_secret, appearance: APPEARANCE });
@@ -544,6 +582,7 @@
       const skeleton = document.getElementById('dm-skeleton');
       const mount = document.getElementById('dm-mount');
       pe.on('ready', () => {
+        if (generation !== elementsGeneration || !document.getElementById('dm-overlay')) return;
         if (skeleton) skeleton.style.display = 'none';
         if (mount) mount.style.display = 'block';
         const btn = document.getElementById('dm-submit');
@@ -551,6 +590,7 @@
       });
       pe.mount('#dm-mount');
     } catch (err) {
+      if (generation !== elementsGeneration || !document.getElementById('dm-overlay')) return;
       const sk = document.getElementById('dm-skeleton');
       const msg = err.message || 'Could not load payment form.';
       if (sk) { sk.style.animation = 'none'; sk.style.background = 'rgba(248,113,113,.07)'; sk.innerHTML = `<div style="padding:16px;color:#fca5a5;font-size:.82rem;text-align:center;line-height:1.5">${msg}<br><a href="/donate" style="color:#a78bfa;text-decoration:underline">Try the donate page</a></div>`; }
@@ -558,6 +598,21 @@
   }
 
   async function submit() {
+    if (modalCfg && !itemPaymentRequested) {
+      if (getSelectedAmountCents() < 100) { setErr('Select at least one entry.'); return; }
+      if (!getDonorEmail()) { setErr('Enter an email for your receipt.'); return; }
+      const missing = missingRequiredField();
+      if (missing) { setErr(missing + ' is required.'); return; }
+      setErr('');
+      clearTimeout(reinitTimer);
+      itemPaymentRequested = true;
+      const panel = document.getElementById('dm-payment-section');
+      if (panel) panel.style.display = '';
+      const button = document.getElementById('dm-submit');
+      if (button) { button.disabled = true; button.textContent = 'Preparing secure payment…'; }
+      initElements();
+      return;
+    }
     if (isSubmitting || !elements || !stripeInst) return;
     const amt = getAmount();
     if (!amt || amt < 1) { setErr('Please select or enter an amount.'); return; }
@@ -650,7 +705,9 @@
     const totalCents = coverFees ? calculateWithFees(intendedCents) : intendedCents;
     if (feeLabel) feeLabel.textContent = `Cover processing fees (+${moneyExact(feeCents)})`;
     if (btn && !btn.disabled && !isSubmitting) {
-      btn.textContent = modalCfg ? String(modalCfg.submit_label || 'Pay {total}').replace('{total}', moneyExact(totalCents)) : `Donate ${moneyExact(totalCents)}`;
+      btn.textContent = modalCfg ? (itemPaymentRequested
+        ? String(modalCfg.submit_label || 'Pay {total}').replace('{total}', moneyExact(totalCents))
+        : 'Continue to secure payment · ' + moneyExact(totalCents)) : `Donate ${moneyExact(totalCents)}`;
     }
   }
 
@@ -681,7 +738,9 @@
   }
 
   function reinitElements() {
+    elementsGeneration++;
     elements = null;
+    currentClientSecret = null;
     const sk = document.getElementById('dm-skeleton'); const mt = document.getElementById('dm-mount');
     if (sk) { sk.style.display = 'block'; sk.style.animation = ''; sk.style.background = ''; sk.innerHTML = ''; }
     if (mt) { mt.style.display = 'none'; mt.innerHTML = ''; }
@@ -742,10 +801,14 @@
       await Promise.all([configLoad, modalSettingsPromise]);
       tiers = loaded;
       applyModalConfig(await modalPromise, wantedTicket);
+      itemPaymentRequested = false;
       if (!document.getElementById('dm-overlay')) return;
-      const style = modalSettings.theme || {};
+      // A published checkout's appearance is scoped to its own D1 configuration.
+      // Ordinary donation modals continue using the existing global theme.
+      const style = modalCfg ? (modalCfg.appearance || {}) : (modalSettings.theme || {});
       modal.style.setProperty('--dm-accent', /^#[0-9a-f]{6}$/i.test(style.accent || '') ? style.accent : '#7c3aed');
       modal.style.borderRadius = (Math.min(24, Math.max(6, Number(style.radius) || 14))) + 'px';
+      modal.classList.toggle('dm-dark', !!modalCfg && style.surface === 'dark');
       modal.classList.toggle('dm-compact', style.compact === true);
       modal.classList.toggle('dm-no-monthly', modalSettings.allow_monthly === false);
       modal.classList.toggle('is-items', !!modalCfg);
@@ -763,6 +826,8 @@
   }
 
   function close() {
+    elementsGeneration++;
+    clearTimeout(reinitTimer);
     const el = document.getElementById('dm-overlay'); if (el) el.remove();
     if (modalKeyHandler) { document.removeEventListener('keydown', modalKeyHandler); modalKeyHandler = null; }
     if (previousBodyOverflow !== null) { document.body.style.overflow = previousBodyOverflow; previousBodyOverflow = null; }
@@ -770,6 +835,7 @@
     presetCampaignId = null; presetAmount = null; presetEntryId = null;
     presetDonorEmail = null; presetDonorNote = null;
     modalCfg = null; modalKey = null; itemQty = {}; currentClientSecret = null;
+    itemPaymentRequested = false;
   }
 
   function bindEvents() {
@@ -800,6 +866,7 @@
     });
     document.getElementById('dm-cover-fees')?.addEventListener('change', function () {
       coverFees = this.checked;
+      if (modalCfg) itemPaymentRequested = false;
       updateFeeDisplay();
       reinitElements();
     });
