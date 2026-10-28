@@ -251,7 +251,14 @@ export async function routesSections(request, env, url, path, method, sessionUse
         }
       }
     } catch (syncErr) {
-      console.warn("[cms/section/save] payment method sync:", syncErr?.message || syncErr);
+      // The section write may have completed, but the canonical component did
+      // not. Never report this as a fully successful save to the editor.
+      console.error("[cms/section/save] payment method sync:", syncErr?.message || syncErr);
+      return json({
+        success: false,
+        error: "Section saved, but its payment components could not be synchronized. Please retry the save before publishing.",
+        payment_method_sync_failed: true,
+      }, 500);
     }
 
     await env.DB.prepare("UPDATE cms_pages SET updated_at = datetime('now') WHERE tenant_id = ? AND route_path = ?")
