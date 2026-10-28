@@ -21,6 +21,7 @@ const html = `<!doctype html><html><body>
 <button id="legacy" data-action="donate" data-amount="20">Legacy</button>
 <button id="ticket" data-action="donate" data-amount="20" data-campaign-id="camp_x" data-event-ticket="driver" data-modal-key="freedom_ride_checkout">Pay $20</button>
 <button id="missing" data-action="donate" data-amount="20" data-modal-key="does_not_exist">Missing</button>
+<button id="preselected" data-action="donate" data-modal-key="preselected_checkout">Auto selected</button>
 <script>
 window.__calls = { intents: [], fields: [], confirms: 0, after: 0 };
 window.Stripe = function () { return {
@@ -39,6 +40,9 @@ await page.route("**/api/donations/config", (r) => r.fulfill({ json: { publishab
 await page.route("**/api/donations/tiers", (r) => r.fulfill({ json: { tiers: [{ label: "A Part of the Pack", amount_cents: 2500 }] } }));
 await page.route("**/api/checkout/modals/freedom_ride_checkout", (r) => r.fulfill({ json: CFG }));
 await page.route("**/api/checkout/modals/does_not_exist", (r) => r.fulfill({ status: 404, json: { error: "Not found" } }));
+await page.route("**/api/checkout/modals/preselected_checkout", (r) => r.fulfill({ json: {
+  ...CFG, key: "preselected_checkout", initial_item_key: "driver", auto_prepare_payment: true
+} }));
 await page.route("**/api/donations/intent", async (r) => {
   const body = JSON.parse(r.request().postData());
   await page.evaluate((b) => window.__calls.intents.push(b), body);
@@ -114,6 +118,25 @@ assert.equal(c.fields[0].payment_intent_id, "pi_test123");
 assert.deepEqual(c.fields[0].fields, { name: "Sam Rider" });
 assert.equal(await page.textContent("#dm-success h3"), "You are in!");
 assert.equal(await page.textContent("#dm-success-msg"), "See you at registration.");
+
+// 6. Config-driven initial selection preloads payment but never forces a
+// minimum: the $20 option can be removed in favor of a lower-priced entry.
+const confirmsBeforePreselect = (await calls()).confirms;
+const intentsBeforePreselect = (await calls()).intents.length;
+await page.click("#preselected");
+await page.waitForSelector("#dm-qty-driver");
+assert.equal(await page.textContent("#dm-qty-driver"), "1");
+assert.equal(await page.textContent("#dm-qty-passenger"), "0");
+await page.waitForFunction(() => window.__calls.intents.some(intent => intent.modal_key === "preselected_checkout"));
+assert.equal((await calls()).confirms, confirmsBeforePreselect, "opening payment does not charge");
+assert.equal((await calls()).intents.length, intentsBeforePreselect + 1);
+await page.waitForFunction(() => document.getElementById("dm-submit")?.textContent.includes("Pay $20.00"));
+await page.click('.dm-step[data-key="driver"][data-step="-1"]');
+assert.equal(await page.textContent("#dm-qty-driver"), "0", "initial option is not a minimum");
+await page.click('.dm-step[data-key="passenger"][data-step="1"]');
+await page.waitForFunction(() => document.getElementById("dm-submit")?.textContent.includes("$10.00"));
+assert.equal((await calls()).confirms, confirmsBeforePreselect);
+await page.click("#dm-close");
 
 await browser.close();
 console.log("checkout-modal browser proof: all assertions passed");
