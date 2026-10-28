@@ -78,15 +78,9 @@ export async function getComponentsByType(type, env) {
   if (!env?.DB) return [];
   try {
     const { results } = await env.DB.prepare(
-      'SELECT id, label, type, config_json, sort_order FROM cms_components WHERE type = ? AND active = 1 ORDER BY sort_order ASC'
+      'SELECT * FROM cms_components WHERE type = ? ORDER BY sort_order ASC'
     ).bind(type).all();
-    return (results || []).map(row => ({
-      id: row.id,
-      label: row.label,
-      type: row.type,
-      sort_order: row.sort_order,
-      config: JSON.parse(row.config_json || '{}'),
-    }));
+    return (results || []).filter(isActiveRow).map(rowToComponent);
   } catch {
     return [];
   }
