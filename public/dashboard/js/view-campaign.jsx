@@ -1247,7 +1247,12 @@ function CampaignWorkspaceView({ campaignId, onNavigate }) {
             onUploadingChange: setUploadBusy,
           }))
         ),
-        entriesPanel
+        entriesPanel,
+        !isNew && typeof CampaignCheckoutEditor === "function" && React.createElement(CampaignCheckoutEditor, {
+          campaignId: form.id || campaignId,
+          canPublish: !dirty && !saving && !uploadBusy,
+          onPublished: () => loadCampaign(false),
+        })
       ),
       publishPanel
     ),
