@@ -45,6 +45,16 @@ test("CMS components cutover preserves IDs, Stripe release data, v2 columns, and
       db.prepare("INSERT INTO cms_components_new(id,label,type,action_type,config_json) VALUES (?,?,'share_action','copy','{}')")
         .run(id, id);
     }
+    // Deliberate mismatch must abort *before* the original table is dropped.
+    db.prepare("UPDATE cms_components SET config_json = ? WHERE id='payment_paypal'")
+      .run('{"url":"https://example.org/drifted"}');
+    assert.throws(() => db.exec("BEGIN IMMEDIATE;\n" + migration + "\nCOMMIT;"), /malformed JSON/);
+    db.exec("ROLLBACK;");
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM cms_components").get().n, 10);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM cms_components_new").get().n, 10);
+    db.prepare("UPDATE cms_components SET config_json = ? WHERE id='payment_paypal'")
+      .run('{"url":"https://example.org/new"}');
+
     db.exec("BEGIN IMMEDIATE;\n" + migration + "\nCOMMIT;");
     assert.equal(db.prepare("SELECT COUNT(*) n FROM cms_components").get().n, 10);
     assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name='cms_components_new'").get(), undefined);
