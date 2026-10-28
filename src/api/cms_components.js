@@ -94,18 +94,12 @@ export async function getAllComponents(env) {
   if (!env?.DB) return {};
   try {
     const { results } = await env.DB.prepare(
-      'SELECT id, label, type, config_json, sort_order FROM cms_components WHERE active = 1 ORDER BY sort_order ASC'
+      'SELECT * FROM cms_components ORDER BY sort_order ASC'
     ).all();
     const grouped = {};
-    for (const row of results || []) {
+    for (const row of (results || []).filter(isActiveRow)) {
       if (!grouped[row.type]) grouped[row.type] = [];
-      grouped[row.type].push({
-        id: row.id,
-        label: row.label,
-        type: row.type,
-        sort_order: row.sort_order,
-        config: JSON.parse(row.config_json || '{}'),
-      });
+      grouped[row.type].push(rowToComponent(row));
     }
     return grouped;
   } catch {
