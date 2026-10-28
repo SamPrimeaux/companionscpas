@@ -16,20 +16,55 @@
  * Fetch a single component by id.
  * Returns null if not found or inactive.
  */
+/**
+ * Works against BOTH shapes so the table swap is not a flag day:
+ *   legacy: active INTEGER, config_json
+ *   new:    status ('active'|'draft'|'archived'), action_type/action_value, logo_asset_key, style_json, config_json
+ * New-shape columns are folded into `config` so existing renderers keep working
+ * (config.url, config.logo_asset_key, config.action_type, config.action_value, style keys).
+ */
+function isActiveRow(row) {
+  if (row.status !== undefined && row.status !== null) return row.status === 'active';
+  return Number(row.active) === 1;
+}
+
+function safeObj(raw) {
+  try {
+    const p = JSON.parse(raw || '{}');
+    return p && typeof p === 'object' && !Array.isArray(p) ? p : {};
+  } catch {
+    return {};
+  }
+}
+
+export function rowToComponent(row) {
+  const config = safeObj(row.config_json);
+  if (row.action_type !== undefined) {
+    const style = safeObj(row.style_json);
+    const value = row.action_value || '';
+    if (row.logo_asset_key && !config.logo_asset_key) config.logo_asset_key = row.logo_asset_key;
+    if (!config.url && (row.action_type === 'href' || row.action_type === 'mailto') && value) config.url = value;
+    config.action_type = row.action_type;
+    config.action_value = value;
+    if (row.provider) config.provider = row.provider;
+    if (row.placement) config.placement = row.placement;
+    for (const [k, v] of Object.entries(style)) if (config[k] === undefined) config[k] = v;
+  }
+  return {
+    id: row.id,
+    label: row.label,
+    type: row.type,
+    sort_order: row.sort_order,
+    config,
+  };
+}
+
 export async function getComponent(id, env) {
   if (!env?.DB) return null;
   try {
-    const row = await env.DB.prepare(
-      'SELECT id, label, type, config_json, sort_order FROM cms_components WHERE id = ? AND active = 1'
-    ).bind(id).first();
-    if (!row) return null;
-    return {
-      id: row.id,
-      label: row.label,
-      type: row.type,
-      sort_order: row.sort_order,
-      config: JSON.parse(row.config_json || '{}'),
-    };
+    const row = await env.DB.prepare('SELECT * FROM cms_components WHERE id = ?').bind(id).first();
+    if (!row || !isActiveRow(row)) return null;
+    return rowToComponent(row);
   } catch {
     return null;
   }
@@ -43,15 +78,9 @@ export async function getComponentsByType(type, env) {
   if (!env?.DB) return [];
   try {
     const { results } = await env.DB.prepare(
-      'SELECT id, label, type, config_json, sort_order FROM cms_components WHERE type = ? AND active = 1 ORDER BY sort_order ASC'
+      'SELECT * FROM cms_components WHERE type = ? ORDER BY sort_order ASC'
     ).bind(type).all();
-    return (results || []).map(row => ({
-      id: row.id,
-      label: row.label,
-      type: row.type,
-      sort_order: row.sort_order,
-      config: JSON.parse(row.config_json || '{}'),
-    }));
+    return (results || []).filter(isActiveRow).map(rowToComponent);
   } catch {
     return [];
   }
@@ -65,18 +94,12 @@ export async function getAllComponents(env) {
   if (!env?.DB) return {};
   try {
     const { results } = await env.DB.prepare(
-      'SELECT id, label, type, config_json, sort_order FROM cms_components WHERE active = 1 ORDER BY sort_order ASC'
+      'SELECT * FROM cms_components ORDER BY sort_order ASC'
     ).all();
     const grouped = {};
-    for (const row of results || []) {
+    for (const row of (results || []).filter(isActiveRow)) {
       if (!grouped[row.type]) grouped[row.type] = [];
-      grouped[row.type].push({
-        id: row.id,
-        label: row.label,
-        type: row.type,
-        sort_order: row.sort_order,
-        config: JSON.parse(row.config_json || '{}'),
-      });
+      grouped[row.type].push(rowToComponent(row));
     }
     return grouped;
   } catch {

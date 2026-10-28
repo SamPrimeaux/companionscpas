@@ -313,6 +313,34 @@ export async function sendTemplateEmail(env, { templateKey, to, name, vars = {},
   });
 }
 
+/**
+ * Single writer for newsletter_subscribers (source-agnostic schema).
+ * Idempotent on email. Never resurrects bounced/complained rows; re-subscribing an
+ * unsubscribed address is allowed only because the caller is an explicit opt-in.
+ */
+async function upsertNewsletterSubscriber(env, { email, firstName = null, lastName = null, sourceType = "form", sourceRef = null, sourcePath = null, consentText = null }) {
+  const clean = String(email || "").toLowerCase().trim();
+  const first = String(firstName || "").trim().split(/\s+/)[0] || null;
+  const last = lastName ? String(lastName).trim() : null;
+  const subId = id("sub");
+  const token = crypto.randomUUID().replace(/-/g, "");
+  await env.DB.prepare(
+    `INSERT INTO newsletter_subscribers
+       (id, email, first_name, last_name, status, source_type, source_ref, source_path,
+        consent_text, subscribed_at, unsubscribe_token, last_event_at)
+     VALUES (?, ?, ?, ?, 'subscribed', ?, ?, ?, ?, datetime('now'), ?, datetime('now'))
+     ON CONFLICT(email) DO UPDATE SET
+       status = CASE WHEN status IN ('bounced','complained') THEN status ELSE 'subscribed' END,
+       unsubscribed_at = CASE WHEN status IN ('bounced','complained') THEN unsubscribed_at ELSE NULL END,
+       first_name = COALESCE(newsletter_subscribers.first_name, excluded.first_name),
+       last_name = COALESCE(newsletter_subscribers.last_name, excluded.last_name),
+       last_event_at = datetime('now'),
+       updated_at = datetime('now')`
+  ).bind(subId, clean, first, last, sourceType, sourceRef, sourcePath, consentText, token).run();
+  const row = await env.DB.prepare("SELECT id FROM newsletter_subscribers WHERE email = ?").bind(clean).first();
+  return { id: row?.id || subId };
+}
+
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
 }
@@ -933,13 +961,12 @@ export async function paymentsEmailRoutes(request, env, url) {
 
       // 3. Newsletter subscriber table — nl_opt_in = explicit content subscription
       if (donorEmail && nlOptIn) {
-        await env.DB.prepare(
-          `INSERT INTO newsletter_subscribers (id, tenant_id, email, status, source, created_at)
-           VALUES (?, ?, ?, 'subscribed', 'donate_modal', datetime('now'))
-           ON CONFLICT(tenant_id, email) DO UPDATE SET
-             status = 'subscribed',
-             unsubscribed_at = NULL`
-        ).bind(id("ns"), TENANT_ID, donorEmail).run();
+        await upsertNewsletterSubscriber(env, {
+          email: donorEmail,
+          sourceType: "checkout",
+          sourceRef: "donate_modal",
+          consentText: "Checked newsletter opt-in during donation",
+        });
       }
     } catch (err) {
       console.warn("[after-payment] error:", err?.message || err);
@@ -1269,17 +1296,19 @@ export async function paymentsEmailRoutes(request, env, url) {
     const data = await body(request);
     const email = String(data.email || "").toLowerCase().trim();
     if (!isValidEmail(email)) return json({ error: "Valid email required" }, 400);
-    const subId = id("ns");
-    const source = data.source || "website";
+    const source = String(data.source || "website").slice(0, 80);
+    let subId;
     try {
-      await env.DB.prepare(
-        `INSERT INTO newsletter_subscribers (id, tenant_id, email, name, status, source, created_at)
-         VALUES (?, ?, ?, ?, 'subscribed', ?, datetime('now'))
-         ON CONFLICT(tenant_id, email) DO UPDATE SET
-           status = 'subscribed', unsubscribed_at = NULL,
-           name = COALESCE(excluded.name, newsletter_subscribers.name),
-           source = COALESCE(excluded.source, newsletter_subscribers.source)`
-      ).bind(subId, TENANT_ID, email, data.name || null, source).run();
+      const saved = await upsertNewsletterSubscriber(env, {
+        email,
+        firstName: data.first_name || data.name || null,
+        lastName: data.last_name || null,
+        sourceType: "form",
+        sourceRef: source,
+        sourcePath: data.path || null,
+        consentText: data.consent_text || null,
+      });
+      subId = saved.id;
     } catch (err) {
       console.error("[newsletter/subscribe] db:", err?.message || err);
       return json({ error: "Could not save subscription" }, 500);

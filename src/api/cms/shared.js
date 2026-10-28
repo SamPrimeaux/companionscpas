@@ -248,10 +248,19 @@ export async function persistFooterChrome(env, footerRaw) {
          WHERE id = ?`
       ).bind(badge.label || id, config, Number(badge.sort_order) || 0, id).run();
     } else {
-      await env.DB.prepare(
-        `INSERT INTO cms_components (id, label, type, config_json, sort_order, active, updated_at)
-         VALUES (?, ?, 'trust_badge', ?, ?, 1, datetime('now'))`
-      ).bind(id, badge.label || id, config, Number(badge.sort_order) || 0).run();
+      try {
+        // New shape (status/action_type). Preferred.
+        await env.DB.prepare(
+          `INSERT INTO cms_components (id, type, label, action_type, config_json, sort_order, status, updated_at)
+           VALUES (?, 'trust_badge', ?, 'href', ?, ?, 'active', datetime('now'))`
+        ).bind(id, badge.label || id, config, Number(badge.sort_order) || 0).run();
+      } catch {
+        // Legacy shape (active). Remove after the cms_components swap has shipped everywhere.
+        await env.DB.prepare(
+          `INSERT INTO cms_components (id, label, type, config_json, sort_order, active, updated_at)
+           VALUES (?, ?, 'trust_badge', ?, ?, 1, datetime('now'))`
+        ).bind(id, badge.label || id, config, Number(badge.sort_order) || 0).run();
+      }
     }
   }
   return JSON.stringify(next);
