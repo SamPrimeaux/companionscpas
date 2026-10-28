@@ -186,26 +186,68 @@ export async function routesSections(request, env, url, path, method, sessionUse
           const cid = String(m.component_id || "").trim();
           if (!cid) continue;
           const row = await env.DB.prepare(
-            "SELECT config_json FROM cms_components WHERE id = ? LIMIT 1"
+            "SELECT * FROM cms_components WHERE id = ? LIMIT 1"
           ).bind(cid).first().catch(() => null);
           if (!row) continue;
           let ccfg = {};
           try { ccfg = JSON.parse(row.config_json || "{}"); } catch { ccfg = {}; }
-          const next = {
-            ...ccfg,
-            ...(m.tooltip ? { label: m.tooltip } : (m.label ? { label: m.label } : {})),
-            ...(m.note != null ? { note: m.note } : {}),
-            ...(m.logo_url ? { logo_url: m.logo_url } : {}),
-            ...(m.logo_height ? { logo_height: Number(m.logo_height) } : {}),
-            ...(m.background ? { background: m.background } : {}),
-            ...(m.border_color ? { border_color: m.border_color } : {}),
-            ...(m.text_color ? { text_color: m.text_color } : {}),
-            ...(m.note_color ? { note_color: m.note_color } : {}),
-            ...(m.url ? { url: m.url } : {}),
-          };
-          await env.DB.prepare(
-            "UPDATE cms_components SET config_json = ?, updated_at = datetime('now') WHERE id = ?"
-          ).bind(JSON.stringify(next), cid).run();
+
+          if (row.action_type !== undefined) {
+            // v2 contract: link, media and styling are columns; text is config.
+            // Never let an admin save update a stale config.url while leaving the
+            // actual action_value unchanged.
+            let style = {};
+            try { style = JSON.parse(row.style_json || "{}"); } catch { style = {}; }
+            const nextConfig = {
+              ...ccfg,
+              ...(m.tooltip ? { tooltip: String(m.tooltip) } : {}),
+              ...(m.label !== undefined ? { label: String(m.label || "") } : {}),
+              ...(m.note != null ? { note: String(m.note) } : {}),
+              ...(m.show_label !== undefined ? { show_label: Boolean(m.show_label) } : {}),
+            };
+            delete nextConfig.url;
+            delete nextConfig.logo_url;
+            for (const key of ["background", "border_color", "text_color", "brand_color", "note_color", "logo_height"]) {
+              delete nextConfig[key];
+            }
+            const nextStyle = { ...style };
+            for (const key of ["background", "border_color", "text_color", "brand_color", "note_color", "logo_height"]) {
+              if (m[key] !== undefined && m[key] !== null && m[key] !== "") {
+                nextStyle[key] = key === "logo_height" ? Number(m[key]) || 22 : String(m[key]);
+              }
+            }
+            const nextUrl = String(m.url || "").trim();
+            if (nextUrl && row.action_type === "href" && !/^https?:\/\//i.test(nextUrl)) {
+              throw new Error("Payment provider link must use http or https");
+            }
+            await env.DB.prepare(
+              `UPDATE cms_components
+               SET config_json = ?, style_json = ?, action_value = ?,
+                   logo_asset_key = ?, updated_at = datetime('now')
+               WHERE id = ?`
+            ).bind(
+              JSON.stringify(nextConfig), JSON.stringify(nextStyle),
+              nextUrl && row.action_type === "href" ? nextUrl : row.action_value,
+              m.logo_asset_key || row.logo_asset_key || null, cid
+            ).run();
+          } else {
+            // Compatibility until legacy-schema sites have been migrated.
+            const next = {
+              ...ccfg,
+              ...(m.tooltip ? { label: m.tooltip } : (m.label ? { label: m.label } : {})),
+              ...(m.note != null ? { note: m.note } : {}),
+              ...(m.logo_url ? { logo_url: m.logo_url } : {}),
+              ...(m.logo_height ? { logo_height: Number(m.logo_height) } : {}),
+              ...(m.background ? { background: m.background } : {}),
+              ...(m.border_color ? { border_color: m.border_color } : {}),
+              ...(m.text_color ? { text_color: m.text_color } : {}),
+              ...(m.note_color ? { note_color: m.note_color } : {}),
+              ...(m.url ? { url: m.url } : {}),
+            };
+            await env.DB.prepare(
+              "UPDATE cms_components SET config_json = ?, updated_at = datetime('now') WHERE id = ?"
+            ).bind(JSON.stringify(next), cid).run();
+          }
         }
       }
     } catch (syncErr) {
