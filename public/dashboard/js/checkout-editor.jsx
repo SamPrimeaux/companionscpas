@@ -32,7 +32,8 @@ function CampaignCheckoutEditor({ campaignId, canPublish = true, onPublished }) 
         participant_items: content.participant_items || [] });
       setKey(data.key || ""); setStatus(data.status || "draft"); setHasDraft(!!data.has_draft);
       setVersion(Number(data.content_version || 0));
-      setDirty(false); setError(""); setNotice(""); setPreviewSelected({});
+      setDirty(false); setError(""); setNotice("");
+      setPreviewSelected(content.initial_item_key ? { [content.initial_item_key]: 1 } : {});
     }).catch(e => { if (live) setError(e.message); })
       .finally(() => { if (live) setBusy(""); });
     return () => { live = false; };
@@ -162,6 +163,20 @@ function CampaignCheckoutEditor({ campaignId, canPublish = true, onPublished }) 
             aria-current={activeTab === id ? "page" : undefined} onClick={() => setActiveTab(id)}>{label}</button>)}</nav>
         {activeTab === "options" && <div className="ccs-stack">
           <p className="ccs-hint">Edit item names, descriptions and limits. The server remains authoritative for published amounts.</p>
+          <div className="ccs-item"><strong className="ccs-section-label">When checkout opens</strong>
+            <div className="ccs-cols">
+              {field("Initially selected entry", <select value={working.initial_item_key || ""}
+                onChange={e => { edit("initial_item_key", e.target.value); setPreviewSelected(e.target.value ? { [e.target.value]: 1 } : {}); }}>
+                <option value="">None — customer chooses</option>
+                {working.items.map(it => <option key={it.key} value={it.key}>{it.label} · {money(it.price_cents)}</option>)}
+              </select>)}
+              <label className="ccs-check"><input type="checkbox" checked={!!working.auto_prepare_payment}
+                disabled={!working.initial_item_key}
+                onChange={e => edit("auto_prepare_payment", e.target.checked)} />
+                Show secure payment fields immediately</label>
+            </div>
+            <p className="ccs-hint">One optional entry starts selected. Customers can remove it; the minimum stays unchanged. Immediate payment preparation creates an unpaid Stripe intent, never a charge.</p>
+          </div>
           {working.items.map((row, i) => <div className="ccs-item" key={row.key}>
             <div className="ccs-item-head"><strong>{i + 1}. {row.label || "Untitled item"}</strong>
               <span><button type="button" disabled={i === 0} aria-label="Move item up" onClick={() => move("items", i, -1)}>↑</button>
