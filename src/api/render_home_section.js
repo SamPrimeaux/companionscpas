@@ -1,5 +1,5 @@
 import { escapeHtml, safeJson } from "./render_section.js";
-import { COMPONENT_ICONS } from "./cms_components.js";
+import { COMPONENT_ICONS, getComponent } from "./cms_components.js";
 import {
   campaignCoverUrl,
   campaignSummary,
@@ -280,20 +280,25 @@ async function renderTransportWinFragment(section, _blocks, env) {
   const headingStyle = fieldStyleAttrs(cfg, "heading");
   const textStyle = fieldStyleAttrs(cfg, "text");
   const imageStyle = fieldStyleAttrs(cfg, "image");
-  let fbHref = "https://www.facebook.com/people/Companions-of-CPAS/100069291576354/";
-  let igHref = "https://www.instagram.com/companionscpas";
+  // Read through the compatibility layer: it honors legacy active and new status
+  // flags, and resolves canonical action_value links after the component cutover.
+  // A disabled social component must not reappear via a hardcoded fallback.
+  let fbHref = "";
+  let igHref = "";
   if (env?.DB) {
-    try {
-      const [fb, ig] = await Promise.all([
-        env.DB.prepare("SELECT config_json FROM cms_components WHERE id = 'social_facebook' LIMIT 1").first(),
-        env.DB.prepare("SELECT config_json FROM cms_components WHERE id = 'social_instagram' LIMIT 1").first(),
-      ]);
-      if (fb?.config_json) { const c = JSON.parse(fb.config_json); if (c.url) fbHref = c.url; }
-      if (ig?.config_json) { const c = JSON.parse(ig.config_json); if (c.url) igHref = c.url; }
-    } catch {}
+    const [fb, ig] = await Promise.all([
+      getComponent("social_facebook", env),
+      getComponent("social_instagram", env),
+    ]);
+    fbHref = safeUrl(fb?.config?.url, "");
+    igHref = safeUrl(ig?.config?.url, "");
   }
-  const ctaEl = `<a class="dv2-social-pill dv2-social-pill--fb" href="${escAttr(fbHref)}" target="_blank" rel="noopener noreferrer" aria-label="Follow the journey on Facebook">${COMPONENT_ICONS.facebook}<span>Follow the journey</span></a>`;
-  const socialHtml = `<a class="dv2-social-pill dv2-social-pill--ig" href="${escAttr(igHref)}" target="_blank" rel="noopener noreferrer" aria-label="See updates on Instagram">${COMPONENT_ICONS.instagram}<span>See updates on Instagram</span></a>`;
+  const ctaEl = fbHref
+    ? `<a class="dv2-social-pill dv2-social-pill--fb" href="${escAttr(fbHref)}" target="_blank" rel="noopener noreferrer" aria-label="Follow the journey on Facebook">${COMPONENT_ICONS.facebook}<span>Follow the journey</span></a>`
+    : "";
+  const socialHtml = igHref
+    ? `<a class="dv2-social-pill dv2-social-pill--ig" href="${escAttr(igHref)}" target="_blank" rel="noopener noreferrer" aria-label="See updates on Instagram">${COMPONENT_ICONS.instagram}<span>See updates on Instagram</span></a>`
+    : "";
 
   return `<section class="section s-light" ${sectionAttrs("transport_win", "transport-win")}>
   <div class="container">
@@ -495,8 +500,11 @@ function renderNewsletterFragment(section) {
   const sub = pick(section, ["subheading"]) || pick(section, ["body"]) || "";
   const fosterLabel = section.cta_label != null && String(section.cta_label).trim() ? String(section.cta_label).trim() : (cfg.foster_label || null);
   const donateLabel = pick(section, ["cta_secondary_label"]) || pick(cfg, ["donate_label"]) || "Donate Now";
+  // Required fields are controlled by the signup block, not a D1 NOT NULL constraint.
+  const requiredFields = Array.isArray(cfg.required_fields) ? cfg.required_fields : ["email", "first_name"];
+  const firstNameRequired = requiredFields.includes("first_name");
 
-  return `<style>[data-cpas-section="newsletter"]{display:block}.cta-email-status{width:100%;margin:.35rem 0 0;color:rgba(255,255,255,.78);font-size:.8rem}</style>
+  return `<style>[data-cpas-section="newsletter"]{display:block}.cta-email-status{width:100%;margin:.35rem 0 0;color:rgba(255,255,255,.78);font-size:.8rem}[data-cpas-section="newsletter"] .cta-email-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;max-width:100%;overflow:hidden}[data-cpas-section="newsletter"] .cta-email-input{width:100%;min-width:0;box-sizing:border-box}[data-cpas-section="newsletter"] .cta-email-input+ .cta-email-input{border-left:1px solid rgba(255,255,255,.18)}[data-cpas-section="newsletter"] .cta-email-status{grid-column:1/-1;padding-inline:.5rem}@media(max-width:680px){[data-cpas-section="newsletter"] .cta-email-form{grid-template-columns:minmax(0,1fr)}[data-cpas-section="newsletter"] .cta-email-input+ .cta-email-input{border-left:0;border-top:1px solid rgba(255,255,255,.18)}}</style>
 <section class="cta-band s-purple" ${sectionAttrs("newsletter")}>
   <div class="container cta-band-inner">
     <div class="cta-band-left">
@@ -507,8 +515,9 @@ function renderNewsletterFragment(section) {
       </div>
     </div>
     <div class="cta-band-right">
-      <form class="cta-email-form" data-newsletter-form>
-        <input type="email" name="email" class="cta-email-input" placeholder="Your email address" aria-label="Email" required />
+      <form class="cta-email-form" data-newsletter-form data-component-id="${escAttr(section.id || "home_newsletter")}" data-required-fields="${escapeHtml(requiredFields.join(","))}">
+        <input type="text" name="first_name" class="cta-email-input" placeholder="First name" aria-label="First name" autocomplete="given-name" maxlength="80" ${firstNameRequired ? "required" : ""} />
+        <input type="email" name="email" class="cta-email-input" placeholder="Your email address" aria-label="Email" autocomplete="email" required />
         <button class="cta-email-btn" type="submit">Subscribe</button>
         <p class="cta-email-status" data-newsletter-status aria-live="polite"></p>
       </form>
