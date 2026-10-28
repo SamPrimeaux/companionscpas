@@ -221,7 +221,8 @@ export async function renderEventLanding(section = {}, blocks = [], brand = {}, 
   const donateBtn = (label, opts = {}) => {
     const amount = opts.amount ? ` data-amount="${Number(opts.amount)}"` : "";
     const key = opts.key ? ` data-event-ticket="${esc(opts.key)}"` : "";
-    return `<button type="button" class="ev-btn ${opts.cls || "ev-btn--primary"}" data-action="donate"${amount}${campAttr}${key}>${esc(label)}</button>`;
+    const modalKey = text(ev.checkout_modal) ? ` data-modal-key="${esc(ev.checkout_modal)}"` : "";
+    return `<button type="button" class="ev-btn ${opts.cls || "ev-btn--primary"}" data-action="donate"${amount}${campAttr}${key}${modalKey}>${esc(label)}</button>`;
   };
 
   const hero = `
