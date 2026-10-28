@@ -249,10 +249,13 @@ async function logEmail(env, row) {
 export async function sendResend(env, { to, name, subject, html, text, attachments = [], type, related_type, related_id }) {
   if (!to) return { skipped: true, error: "No recipient" };
   const plain = text || String(html || "").replace(/<[^>]*>/g, " ");
+  // Never persist single-use confirmation tokens in email body logs.
+  const logHtml = type === "newsletter_confirmation" ? "[confirmation link redacted]" : html;
+  const logText = type === "newsletter_confirmation" ? "[confirmation link redacted]" : plain;
   if (!env.RESEND_API_KEY && !env.RESEND_API_TOKEN) {
     await logEmail(env, {
       to, name, subject, type, related_type, related_id,
-      html, text: plain, status: "skipped", error_message: "Missing RESEND_API_KEY",
+      html: logHtml, text: logText, status: "skipped", error_message: "Missing RESEND_API_KEY",
     });
     return { skipped: true, error: "Missing RESEND_API_KEY" };
   }
@@ -276,13 +279,13 @@ export async function sendResend(env, { to, name, subject, html, text, attachmen
   if (!res.ok) {
     await logEmail(env, {
       to, name, subject, type, related_type, related_id,
-      html, text: plain, status: "failed", error_message: raw,
+      html: logHtml, text: logText, status: "failed", error_message: raw,
     });
     return { ok: false, status: res.status, error: raw };
   }
   await logEmail(env, {
     to, name, subject, type, related_type, related_id,
-    html, text: plain,
+    html: logHtml, text: logText,
     provider_message_id: parsed.id || null, status: "sent", sent_at: new Date().toISOString(),
   });
   return { ok: true, id: parsed.id || null };
@@ -318,27 +321,81 @@ export async function sendTemplateEmail(env, { templateKey, to, name, vars = {},
  * Idempotent on email. Never resurrects bounced/complained rows; re-subscribing an
  * unsubscribed address is allowed only because the caller is an explicit opt-in.
  */
+async function newsletterTokenHash(token) {
+  const bytes = new TextEncoder().encode(token);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 async function upsertNewsletterSubscriber(env, { email, firstName = null, lastName = null, sourceType = "form", sourceRef = null, sourcePath = null, consentText = null }) {
   const clean = String(email || "").toLowerCase().trim();
   const first = String(firstName || "").trim().split(/\s+/)[0] || null;
   const last = lastName ? String(lastName).trim() : null;
+  const existing = await env.DB.prepare(
+    "SELECT id, status, last_event_at FROM newsletter_subscribers WHERE email = ?"
+  ).bind(clean).first();
+  // Never silently re-enable bounced, complained, or already-subscribed contacts.
+  if (existing && ["bounced", "complained", "subscribed"].includes(existing.status)) {
+    return { id: existing.id, status: existing.status, confirmationToken: null };
+  }
+  // Limit repeat confirmation email deliveries without needing a new D1 table.
+  const lastEvent = existing?.last_event_at
+    ? Date.parse(String(existing.last_event_at).replace(" ", "T") + "Z")
+    : 0;
+  if (existing?.status === "pending" && Number.isFinite(lastEvent) && Date.now() - lastEvent < 15 * 60 * 1000) {
+    return { id: existing.id, status: "pending", confirmationToken: null };
+  }
+
   const subId = id("sub");
-  const token = crypto.randomUUID().replace(/-/g, "");
+  const confirmationToken = crypto.randomUUID().replace(/-/g, "");
+  const tokenHash = await newsletterTokenHash(confirmationToken);
+  const unsubscribeToken = crypto.randomUUID().replace(/-/g, "");
   await env.DB.prepare(
     `INSERT INTO newsletter_subscribers
        (id, email, first_name, last_name, status, source_type, source_ref, source_path,
-        consent_text, subscribed_at, unsubscribe_token, last_event_at)
-     VALUES (?, ?, ?, ?, 'subscribed', ?, ?, ?, ?, datetime('now'), ?, datetime('now'))
+        consent_text, confirm_token_hash, unsubscribe_token, last_event_at)
+     VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, datetime('now'))
      ON CONFLICT(email) DO UPDATE SET
-       status = CASE WHEN status IN ('bounced','complained') THEN status ELSE 'subscribed' END,
-       unsubscribed_at = CASE WHEN status IN ('bounced','complained') THEN unsubscribed_at ELSE NULL END,
+       status = CASE WHEN newsletter_subscribers.status IN ('bounced','complained','subscribed')
+                     THEN newsletter_subscribers.status ELSE 'pending' END,
+       confirm_token_hash = CASE WHEN newsletter_subscribers.status IN ('bounced','complained','subscribed')
+                     THEN newsletter_subscribers.confirm_token_hash ELSE excluded.confirm_token_hash END,
        first_name = COALESCE(newsletter_subscribers.first_name, excluded.first_name),
        last_name = COALESCE(newsletter_subscribers.last_name, excluded.last_name),
-       last_event_at = datetime('now'),
+       consent_text = COALESCE(excluded.consent_text, newsletter_subscribers.consent_text),
+       last_event_at = CASE WHEN newsletter_subscribers.status IN ('bounced','complained','subscribed')
+                     THEN newsletter_subscribers.last_event_at ELSE datetime('now') END,
        updated_at = datetime('now')`
-  ).bind(subId, clean, first, last, sourceType, sourceRef, sourcePath, consentText, token).run();
-  const row = await env.DB.prepare("SELECT id FROM newsletter_subscribers WHERE email = ?").bind(clean).first();
-  return { id: row?.id || subId };
+  ).bind(subId, clean, first, last, sourceType, sourceRef, sourcePath, consentText, tokenHash, unsubscribeToken).run();
+  const row = await env.DB.prepare(
+    "SELECT id, status, confirm_token_hash FROM newsletter_subscribers WHERE email = ?"
+  ).bind(clean).first();
+  return {
+    id: row?.id || subId, status: row?.status || "pending",
+    confirmationToken: row?.status === "pending" && row?.confirm_token_hash === tokenHash
+      ? confirmationToken : null,
+  };
+}
+
+async function sendNewsletterConfirmation(env, { email, firstName, subscriberId, token, origin }) {
+  if (!token) return { skipped: true };
+  const link = new URL("/api/newsletter/confirm", origin);
+  link.searchParams.set("email", email);
+  link.searchParams.set("token", token);
+  return sendResend(env, {
+    to: email,
+    name: firstName || null,
+    subject: "Confirm your Companions of CPAS newsletter subscription",
+    type: "newsletter_confirmation",
+    related_type: "newsletter_subscriber", related_id: subscriberId,
+    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px">
+      <h2>Confirm your subscription</h2>
+      <p>Hi ${escapeHtml(firstName || "there")},</p>
+      <p>Thanks for your interest in Companions of CPAS. Please confirm you want newsletter updates.</p>
+      <p><a href="${escapeHtml(link.toString())}">Confirm my subscription</a></p>
+      <p>This link expires in 48 hours. If you didn't sign up, you can ignore this email.</p>
+    </div>`,
+  });
 }
 
 function isValidEmail(email) {
@@ -961,12 +1018,18 @@ export async function paymentsEmailRoutes(request, env, url) {
 
       // 3. Newsletter subscriber table — nl_opt_in = explicit content subscription
       if (donorEmail && nlOptIn) {
-        await upsertNewsletterSubscriber(env, {
+        const saved = await upsertNewsletterSubscriber(env, {
           email: donorEmail,
           sourceType: "checkout",
           sourceRef: "donate_modal",
           consentText: "Checked newsletter opt-in during donation",
         });
+        if (saved.confirmationToken) {
+          await sendNewsletterConfirmation(env, {
+            email: donorEmail, firstName: null, subscriberId: saved.id,
+            token: saved.confirmationToken, origin: url.origin,
+          });
+        }
       }
     } catch (err) {
       console.warn("[after-payment] error:", err?.message || err);
@@ -1292,47 +1355,71 @@ export async function paymentsEmailRoutes(request, env, url) {
     return json({ received: true });
   }
 
+  if (path === "/api/newsletter/confirm" && method === "GET") {
+    const email = String(url.searchParams.get("email") || "").toLowerCase().trim();
+    const token = String(url.searchParams.get("token") || "");
+    const validToken = /^[a-f0-9]{32}$/i.test(token);
+    let confirmed = false;
+    if (isValidEmail(email) && validToken) {
+      const hash = await newsletterTokenHash(token);
+      const row = await env.DB.prepare(
+        `SELECT id, first_name FROM newsletter_subscribers
+         WHERE email = ? AND status = 'pending' AND confirm_token_hash = ?
+           AND last_event_at >= datetime('now', '-48 hours') LIMIT 1`
+      ).bind(email, hash).first();
+      if (row) {
+        const update = await env.DB.prepare(
+          `UPDATE newsletter_subscribers
+           SET status = 'subscribed', confirmed_at = datetime('now'),
+             subscribed_at = datetime('now'), unsubscribed_at = NULL,
+             confirm_token_hash = NULL, last_event_at = datetime('now'),
+             updated_at = datetime('now')
+           WHERE id = ? AND status = 'pending' AND confirm_token_hash = ?`
+        ).bind(row.id, hash).run();
+        confirmed = Number(update?.meta?.changes || update?.changes || 0) > 0;
+        if (confirmed) {
+          await sendTemplateEmail(env, {
+            templateKey: "newsletter_welcome", to: email,
+            vars: { first_name: row.first_name || "friend" },
+            type: "newsletter_welcome", related_type: "newsletter_subscriber", related_id: row.id,
+          }).catch(() => null);
+        }
+      }
+    }
+    const title = confirmed ? "Subscription confirmed" : "Confirmation link not valid";
+    const message = confirmed
+      ? "Thank you! You're now subscribed to Companions of CPAS updates."
+      : "This link may have expired or already been used. You can sign up again from the home page.";
+    return new Response(
+      `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body style="font:16px system-ui,sans-serif;max-width:36rem;margin:12vh auto;padding:1.5rem"><h1>${title}</h1><p>${message}</p><a href="/">Return to Companions of CPAS</a></body></html>`,
+      { status: confirmed ? 200 : 400, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } }
+    );
+  }
+
   if (path === "/api/newsletter/subscribe" && method === "POST") {
     const data = await body(request);
     const email = String(data.email || "").toLowerCase().trim();
     if (!isValidEmail(email)) return json({ error: "Valid email required" }, 400);
-    const source = String(data.source || "website").slice(0, 80);
-    let subId;
+    const firstName = String(data.first_name || data.name || "").trim().split(/\s+/)[0] || null;
+    const sourceRef = String(data.component_id || data.source || "website").slice(0, 120);
     try {
       const saved = await upsertNewsletterSubscriber(env, {
-        email,
-        firstName: data.first_name || data.name || null,
-        lastName: data.last_name || null,
-        sourceType: "form",
-        sourceRef: source,
-        sourcePath: data.path || null,
-        consentText: data.consent_text || null,
+        email, firstName, lastName: data.last_name || null,
+        sourceType: "form", sourceRef,
+        sourcePath: data.path || null, consentText: data.consent_text || "Submitted newsletter signup form",
       });
-      subId = saved.id;
+      if (saved.confirmationToken) {
+        await sendNewsletterConfirmation(env, {
+          email, firstName, subscriberId: saved.id,
+          token: saved.confirmationToken, origin: url.origin,
+        }).catch(() => null);
+      }
     } catch (err) {
       console.error("[newsletter/subscribe] db:", err?.message || err);
       return json({ error: "Could not save subscription" }, 500);
     }
-    const firstName = String(data.name || email.split("@")[0] || "friend").trim().split(/[\s._-]+/)[0] || "friend";
-    const adminTo = env.ADMIN_EMAIL || "companionsCPAS@gmail.com";
-    const welcome = await sendTemplateEmail(env, {
-      templateKey: "newsletter_welcome", to: email, vars: { first_name: firstName },
-      type: "newsletter_welcome", related_type: "newsletter_subscriber", related_id: subId,
-    }).catch(() => null);
-    await sendResend(env, {
-      to: adminTo,
-      subject: `New newsletter subscriber — ${email}`,
-      type: "admin_newsletter_alert",
-      related_type: "newsletter_subscriber",
-      related_id: subId,
-      html: `<div style="font-family:'DM Sans',Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1c1420">
-        <h2 style="margin:0 0 12px;font-size:20px;color:#4e1a52">New newsletter signup</h2>
-        <p style="margin:0 0 8px;line-height:1.6"><strong>Email:</strong> ${escapeHtml(email)}</p>
-        <p style="margin:0 0 8px;line-height:1.6"><strong>Source:</strong> ${escapeHtml(source)}</p>
-        <p style="margin:16px 0 0;font-size:13px;color:#5a4e6a">Subscriber saved to D1 <code>newsletter_subscribers</code>. Welcome email ${welcome?.ok ? "sent" : "pending/failed"}.</p>
-      </div>`,
-    }).catch(() => null);
-    return json({ success: true, welcome_sent: Boolean(welcome?.ok) }, 201);
+    // Generic response avoids exposing which emails are subscribed or suppressed.
+    return json({ success: true, confirmation_required: true }, 201);
   }
 
   if (path === "/api/admin/donations" && method === "GET") {
