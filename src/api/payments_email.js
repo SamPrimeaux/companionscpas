@@ -313,6 +313,34 @@ export async function sendTemplateEmail(env, { templateKey, to, name, vars = {},
   });
 }
 
+/**
+ * Single writer for newsletter_subscribers (source-agnostic schema).
+ * Idempotent on email. Never resurrects bounced/complained rows; re-subscribing an
+ * unsubscribed address is allowed only because the caller is an explicit opt-in.
+ */
+async function upsertNewsletterSubscriber(env, { email, firstName = null, lastName = null, sourceType = "form", sourceRef = null, sourcePath = null, consentText = null }) {
+  const clean = String(email || "").toLowerCase().trim();
+  const first = String(firstName || "").trim().split(/\s+/)[0] || null;
+  const last = lastName ? String(lastName).trim() : null;
+  const subId = id("sub");
+  const token = crypto.randomUUID().replace(/-/g, "");
+  await env.DB.prepare(
+    `INSERT INTO newsletter_subscribers
+       (id, email, first_name, last_name, status, source_type, source_ref, source_path,
+        consent_text, subscribed_at, unsubscribe_token, last_event_at)
+     VALUES (?, ?, ?, ?, 'subscribed', ?, ?, ?, ?, datetime('now'), ?, datetime('now'))
+     ON CONFLICT(email) DO UPDATE SET
+       status = CASE WHEN status IN ('bounced','complained') THEN status ELSE 'subscribed' END,
+       unsubscribed_at = CASE WHEN status IN ('bounced','complained') THEN unsubscribed_at ELSE NULL END,
+       first_name = COALESCE(newsletter_subscribers.first_name, excluded.first_name),
+       last_name = COALESCE(newsletter_subscribers.last_name, excluded.last_name),
+       last_event_at = datetime('now'),
+       updated_at = datetime('now')`
+  ).bind(subId, clean, first, last, sourceType, sourceRef, sourcePath, consentText, token).run();
+  const row = await env.DB.prepare("SELECT id FROM newsletter_subscribers WHERE email = ?").bind(clean).first();
+  return { id: row?.id || subId };
+}
+
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
 }
