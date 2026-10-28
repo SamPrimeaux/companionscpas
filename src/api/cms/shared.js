@@ -237,29 +237,61 @@ export async function persistFooterChrome(env, footerRaw) {
   for (const badge of chrome.trust_badges) {
     const id = String(badge.component_id || badge.id || "").trim();
     if (!id) continue;
-    const config = JSON.stringify(componentConfigFromTrustBadge(badge));
-    const existing = await env.DB.prepare(
-      "SELECT id FROM cms_components WHERE id = ? LIMIT 1"
+    const configObject = componentConfigFromTrustBadge(badge);
+    const row = await env.DB.prepare(
+      "SELECT * FROM cms_components WHERE id = ? LIMIT 1"
     ).bind(id).first().catch(() => null);
-    if (existing) {
+    if (row?.action_type !== undefined) {
+      // After v2 cutover the canonical link, position and visibility are
+      // columns. Do not save a stale copy in config_json.
+      delete configObject.href;
+      delete configObject.placement;
+      delete configObject.enabled;
       await env.DB.prepare(
         `UPDATE cms_components
-         SET label = ?, type = 'trust_badge', config_json = ?, sort_order = ?, updated_at = datetime('now')
+         SET label = ?, type = 'trust_badge', action_type = 'href',
+             action_value = ?, placement = ?, status = ?, config_json = ?,
+             sort_order = ?, updated_at = datetime('now')
          WHERE id = ?`
-      ).bind(badge.label || id, config, Number(badge.sort_order) || 0, id).run();
+      ).bind(
+        badge.label || id, badge.href || "", badge.placement || "organization",
+        badge.enabled === false ? "draft" : "active",
+        JSON.stringify(configObject), Number(badge.sort_order) || 0, id
+      ).run();
+    } else if (row) {
+      await env.DB.prepare(
+        `UPDATE cms_components
+         SET label = ?, type = 'trust_badge', config_json = ?,
+             sort_order = ?, active = ?, updated_at = datetime('now')
+         WHERE id = ?`
+      ).bind(badge.label || id, JSON.stringify(configObject),
+        Number(badge.sort_order) || 0, badge.enabled === false ? 0 : 1, id).run();
     } else {
-      try {
-        // New shape (status/action_type). Preferred.
+      // A new instance must be compatible with whichever schema is live.
+      // Inspect the table's actual columns rather than swallowing arbitrary
+      // constraint/validation errors and retrying as the legacy shape.
+      const { results: columns } = await env.DB.prepare(
+        "PRAGMA table_info(cms_components)"
+      ).all();
+      if ((columns || []).some((column) => column.name === "action_type")) {
+        delete configObject.href;
+        delete configObject.placement;
+        delete configObject.enabled;
         await env.DB.prepare(
-          `INSERT INTO cms_components (id, type, label, action_type, config_json, sort_order, status, updated_at)
-           VALUES (?, 'trust_badge', ?, 'href', ?, ?, 'active', datetime('now'))`
-        ).bind(id, badge.label || id, config, Number(badge.sort_order) || 0).run();
-      } catch {
-        // Legacy shape (active). Remove after the cms_components swap has shipped everywhere.
+          `INSERT INTO cms_components
+            (id, type, label, action_type, action_value, placement, status, config_json, sort_order)
+           VALUES (?, 'trust_badge', ?, 'href', ?, ?, ?, ?, ?)`
+        ).bind(
+          id, badge.label || id, badge.href || "",
+          badge.placement || "organization", badge.enabled === false ? "draft" : "active",
+          JSON.stringify(configObject), Number(badge.sort_order) || 0
+        ).run();
+      } else {
         await env.DB.prepare(
           `INSERT INTO cms_components (id, label, type, config_json, sort_order, active, updated_at)
-           VALUES (?, ?, 'trust_badge', ?, ?, 1, datetime('now'))`
-        ).bind(id, badge.label || id, config, Number(badge.sort_order) || 0).run();
+           VALUES (?, ?, 'trust_badge', ?, ?, ?, datetime('now'))`
+        ).bind(id, badge.label || id, JSON.stringify(configObject),
+          Number(badge.sort_order) || 0, badge.enabled === false ? 0 : 1).run();
       }
     }
   }
