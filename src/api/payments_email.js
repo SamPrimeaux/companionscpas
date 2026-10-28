@@ -1268,17 +1268,19 @@ export async function paymentsEmailRoutes(request, env, url) {
     const data = await body(request);
     const email = String(data.email || "").toLowerCase().trim();
     if (!isValidEmail(email)) return json({ error: "Valid email required" }, 400);
-    const subId = id("ns");
-    const source = data.source || "website";
+    const source = String(data.source || "website").slice(0, 80);
+    let subId;
     try {
-      await env.DB.prepare(
-        `INSERT INTO newsletter_subscribers (id, tenant_id, email, name, status, source, created_at)
-         VALUES (?, ?, ?, ?, 'subscribed', ?, datetime('now'))
-         ON CONFLICT(tenant_id, email) DO UPDATE SET
-           status = 'subscribed', unsubscribed_at = NULL,
-           name = COALESCE(excluded.name, newsletter_subscribers.name),
-           source = COALESCE(excluded.source, newsletter_subscribers.source)`
-      ).bind(subId, TENANT_ID, email, data.name || null, source).run();
+      const saved = await upsertNewsletterSubscriber(env, {
+        email,
+        firstName: data.first_name || data.name || null,
+        lastName: data.last_name || null,
+        sourceType: "form",
+        sourceRef: source,
+        sourcePath: data.path || null,
+        consentText: data.consent_text || null,
+      });
+      subId = saved.id;
     } catch (err) {
       console.error("[newsletter/subscribe] db:", err?.message || err);
       return json({ error: "Could not save subscription" }, 500);
