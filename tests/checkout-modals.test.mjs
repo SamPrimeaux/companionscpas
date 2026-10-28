@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeItems, priceItems, cleanFields, validateParticipantNames, normalizeFieldDefs, itemsCompact, recordEventRegistration, normalizeCheckoutAppearance, planCheckoutSave } from "../src/api/checkout_modals.js";
+import { normalizeItems, priceItems, cleanFields, validateParticipantNames, normalizeFieldDefs, itemsCompact, recordEventRegistration, normalizeCheckoutAppearance, planCheckoutSave, loadCheckoutModal } from "../src/api/checkout_modals.js";
 
 const tickets = [
   { key: "driver", label: "Driver", price_cents: 2000 },
@@ -9,6 +9,44 @@ const tickets = [
   { key: "bad", label: "Bad", price_cents: 0 },
   { key: "driver", label: "Dup", price_cents: 1 },
 ];
+
+
+test("published checkout exposes optional initial selection without raising the minimum", async () => {
+  const content = {
+    mode: "items", campaign_id: "campaign_test", items_source: "campaign_event_tickets",
+    initial_item_key: "driver", auto_prepare_payment: true,
+    selected_item_keys: ["driver", "passenger", "extra_hand"],
+    fields: [], cover_fees: { enabled: true, default: false },
+  };
+  const env = { DB: { prepare(sql) {
+    return { bind() { return { async first() {
+      if (sql.includes("FROM cms_globals")) return {
+        global_key: "freedom_ride_checkout", inline_content_json: JSON.stringify(content)
+      };
+      if (sql.includes("FROM fundraising_campaigns")) return {
+        config_json: JSON.stringify({ event: { tickets } })
+      };
+      return null;
+    }}; }};
+  }}};
+  const modal = await loadCheckoutModal(env, "freedom_ride_checkout");
+  assert.equal(modal.public.initial_item_key, "driver");
+  assert.equal(modal.public.auto_prepare_payment, true);
+  assert.equal(modal.public.items[0].price_cents, 2000);
+  assert.equal(modal.public.items[0].min, 0);
+  assert.equal(modal.public.items[1].min, 0);
+  assert.equal(priceItems(modal.items, [{ key: "passenger", qty: 1 }]).intendedCents, 1000);
+  assert.equal(priceItems(modal.items, [{ key: "extra_hand", qty: 1 }]).intendedCents, 500);
+  const invalid = { ...content, initial_item_key: "missing" };
+  const invalidEnv = { DB: { prepare(sql) {
+    return { bind() { return { async first() {
+      return sql.includes("FROM cms_globals")
+        ? { global_key: "invalid", inline_content_json: JSON.stringify(invalid) }
+        : { config_json: JSON.stringify({ event: { tickets } }) };
+    }}; }};
+  }}};
+  assert.equal((await loadCheckoutModal(invalidEnv, "invalid")).public.initial_item_key, null);
+});
 
 test("normalizeItems drops invalid and duplicate rows", () => {
   const items = normalizeItems(tickets, { driver: { max: 3 } });
