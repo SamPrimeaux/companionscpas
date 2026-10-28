@@ -163,6 +163,10 @@ function toPublic(key, content, items, fields) {
     },
     items,
     fields,
+    // Presentation-only initial selection; no change to price or minimum.
+    initial_item_key: items.some(item => item.key === content.initial_item_key)
+      ? content.initial_item_key : null,
+    auto_prepare_payment: content.auto_prepare_payment === true,
     appearance: normalizeCheckoutAppearance(content.appearance),
     participant_items: Array.isArray(content.participant_items) ? content.participant_items.filter((k) => items.some((i) => i.key === k)).slice(0, 12) : [],
   };
@@ -290,6 +294,9 @@ async function checkoutAdmin(request, env, url) {
   const itemKeys = new Set(items.map((it) => it.key));
   const participantItems = [...new Set(Array.isArray(raw.participant_items) ? raw.participant_items : [])];
   if (participantItems.some((key) => !itemKeys.has(key))) return json({ error: "Unknown participant ticket" }, 400);
+  const initialKey = str(raw.initial_item_key, 64);
+  if (initialKey && !itemKeys.has(initialKey))
+    return json({ error: "Initial selection must reference an available entry" }, 400);
   const key = row?.global_key || `checkout_${campaignId.replace(/[^a-z0-9_-]/gi, "_").slice(0, 50)}`;
   const next = {
     mode: "items", campaign_id: campaignId, items_source: "campaign_event_tickets",
@@ -297,7 +304,11 @@ async function checkoutAdmin(request, env, url) {
     subtitle: str(raw.subtitle, 400), items_title: str(raw.items_title, 80),
     details_title: str(raw.details_title, 80), submit_label: str(raw.submit_label, 60) || "Pay {total}",
     success_title: str(raw.success_title, 120), success_message: str(raw.success_message, 600),
-    note_prefix: str(raw.note_prefix, 80), selected_item_keys: items.map((it) => it.key), cover_fees: {
+    note_prefix: str(raw.note_prefix, 80), selected_item_keys: items.map((it) => it.key),
+    initial_item_key: initialKey || null,
+    // Optional: an explicit editor choice; never enforced globally for every checkout.
+    auto_prepare_payment: raw.auto_prepare_payment === true && !!initialKey,
+    cover_fees: {
       enabled: raw.cover_fees?.enabled !== false, default: raw.cover_fees?.default === true,
     }, participant_items: participantItems, fields, items,
     appearance: normalizeCheckoutAppearance(raw.appearance),
