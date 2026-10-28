@@ -500,8 +500,11 @@ function renderNewsletterFragment(section) {
   const sub = pick(section, ["subheading"]) || pick(section, ["body"]) || "";
   const fosterLabel = section.cta_label != null && String(section.cta_label).trim() ? String(section.cta_label).trim() : (cfg.foster_label || null);
   const donateLabel = pick(section, ["cta_secondary_label"]) || pick(cfg, ["donate_label"]) || "Donate Now";
+  // Required fields are controlled by the signup block, not a D1 NOT NULL constraint.
+  const requiredFields = Array.isArray(cfg.required_fields) ? cfg.required_fields : ["email", "first_name"];
+  const firstNameRequired = requiredFields.includes("first_name");
 
-  return `<style>[data-cpas-section="newsletter"]{display:block}.cta-email-status{width:100%;margin:.35rem 0 0;color:rgba(255,255,255,.78);font-size:.8rem}</style>
+  return `<style>[data-cpas-section="newsletter"]{display:block}.cta-email-status{width:100%;margin:.35rem 0 0;color:rgba(255,255,255,.78);font-size:.8rem}[data-cpas-section="newsletter"] .cta-email-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;max-width:100%;overflow:hidden}[data-cpas-section="newsletter"] .cta-email-input{width:100%;min-width:0;box-sizing:border-box}[data-cpas-section="newsletter"] .cta-email-input+ .cta-email-input{border-left:1px solid rgba(255,255,255,.18)}[data-cpas-section="newsletter"] .cta-email-status{grid-column:1/-1;padding-inline:.5rem}@media(max-width:680px){[data-cpas-section="newsletter"] .cta-email-form{grid-template-columns:minmax(0,1fr)}[data-cpas-section="newsletter"] .cta-email-input+ .cta-email-input{border-left:0;border-top:1px solid rgba(255,255,255,.18)}}</style>
 <section class="cta-band s-purple" ${sectionAttrs("newsletter")}>
   <div class="container cta-band-inner">
     <div class="cta-band-left">
@@ -512,8 +515,9 @@ function renderNewsletterFragment(section) {
       </div>
     </div>
     <div class="cta-band-right">
-      <form class="cta-email-form" data-newsletter-form>
-        <input type="email" name="email" class="cta-email-input" placeholder="Your email address" aria-label="Email" required />
+      <form class="cta-email-form" data-newsletter-form data-required-fields="${escapeHtml(requiredFields.join(","))}">
+        <input type="text" name="first_name" class="cta-email-input" placeholder="First name" aria-label="First name" autocomplete="given-name" maxlength="80" ${firstNameRequired ? "required" : ""} />
+        <input type="email" name="email" class="cta-email-input" placeholder="Your email address" aria-label="Email" autocomplete="email" required />
         <button class="cta-email-btn" type="submit">Subscribe</button>
         <p class="cta-email-status" data-newsletter-status aria-live="polite"></p>
       </form>
