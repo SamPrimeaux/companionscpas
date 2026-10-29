@@ -93,7 +93,7 @@ if(!shell.includes('/dashboard/sdk/studio-boot.mjs'))throw Error('Shared ecommer
 const switcher=await fetch('/dashboard/sdk/studio-boot.mjs').then(r=>r.text());
 if(!switcher.includes('pages-theme-boot.mjs'))throw Error('Pages bridge missing from shell switcher');
 const app=await fetch('/dashboard/js/app.jsx').then(r=>r.text());
-if(!app.includes('packagedStudioFrame("pages"'))throw Error('Companions Pages routes still use V1');
+if(!app.includes('window.location.assign(studioPath)')||app.includes('packagedStudioFrame'))throw Error('Companions Pages routes must full-document navigate to the canonical ecommerce Theme Studio');
 console.log(JSON.stringify({
  status:'PASS',editor:'canonical ecommerce Theme Studio',
  pages:listing.pages.length,sections:data.page.sections.length,

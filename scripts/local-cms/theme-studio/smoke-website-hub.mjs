@@ -21,6 +21,18 @@ const request = (path, options = {}) => fetch(base + path, {
 const hubResponse = await request('/dashboard/cms/website');
 const hubHtml = await hubResponse.text();
 if (!hubResponse.ok) throw Error('Website hub failed: ' + hubResponse.status);
+const trailingSlashHub = await request('/dashboard/cms/website/');
+const trailingSlashHtml = await trailingSlashHub.text();
+if (!trailingSlashHub.ok || !trailingSlashHtml.includes('<title>Website — Companions of CPAS</title>')) {
+  throw Error('Trailing-slash website route fell back to the legacy dashboard shell');
+}
+const dashboardApp = readFileSync('public/dashboard/js/app.jsx', 'utf8');
+if (!dashboardApp.includes('window.location.assign(studioPath)') ||
+    !dashboardApp.includes('if (newView === "cms-website")') ||
+    !dashboardApp.includes('Never mount it inside the legacy Companions React dashboard or an iframe') ||
+    dashboardApp.includes('packagedStudioFrame')) {
+  throw Error('Companions SPA still embeds Ecommerce Studio instead of navigating to its canonical document');
+}
 for (const marker of [
   '<title>Website — Companions of CPAS</title>',
   'id="theme-preview-desktop"',
@@ -65,6 +77,13 @@ if (!overviewResponse.ok || overview.store?.visibility !== 'public' ||
     Number(overview.performance?.published_pages) < 1 ||
     Number(overview.performance?.sections) < 1) {
   throw Error('Website overview API did not return real Companions CMS data: ' + JSON.stringify(overview));
+}
+const publishedPreviewResponse = await fetch(base + overview.active_theme.preview_href);
+const publishedPreviewHtml = await publishedPreviewResponse.text();
+if (!publishedPreviewResponse.ok ||
+    !publishedPreviewHtml.includes('Every dog deserves') ||
+    publishedPreviewHtml.includes('A storefront with room to grow')) {
+  throw Error('Online Store preview target is not the real published Companions homepage');
 }
 
 // Exercise the draft handoff against a temporary local-only draft, then remove it.

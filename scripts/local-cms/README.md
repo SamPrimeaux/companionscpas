@@ -178,7 +178,7 @@ now owns the visual editing chrome for all these existing Companions routes:
 - `http://127.0.0.1:4473/dashboard/cms/pages/home` → real Home page in the canonical Studio
 - `http://127.0.0.1:4473/dashboard/cms/forms` → real Forms workspace
 
-The website landing route is now a standalone Ecommerce surface: it does not mount inside the old CPAS dashboard sidebar/header or jump straight into the editor. The landing page reuses the package-owned Online Store overview and its preview layout; its local adapter supplies actual Companions page counts and private draft records. Selecting **Open editor**, **Edit website**, or **Open draft** opens the same canonical Theme Studio.
+The website landing route is now a standalone Ecommerce surface: it does not mount inside the old CPAS dashboard sidebar/header or jump straight into the editor. The Companions SPA performs a full document navigation into this route instead of embedding the editor in an iframe. The landing page reuses the package-owned Online Store overview and its preview layout; its local adapter supplies actual Companions page counts and private draft records. The desktop/mobile preview frames load the actual published Companions homepage at slash. Selecting **Open editor**, **Edit website**, or **Open draft** opens the same canonical Theme Studio.
 `studio-boot.ts` selects a typed tenant-data adapter based on the resource
 surface. `pages-theme-adapter.ts` loads the existing 9 D1 pages, their
 ordered sections, editor fields, brand/theme identity, and the genuine

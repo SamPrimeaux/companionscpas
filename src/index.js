@@ -465,15 +465,15 @@ export default {
           if (formId) query.set("formId", formId);
           return Response.redirect(url.origin + "/dashboard/cms/website/editor?" + query.toString(), 302);
         }
-        if (url.pathname === "/dashboard/cms/website") {
+        if (cmsPath === "/dashboard/cms/website") {
           return asset(env, request, "/dashboard/sdk/store-theme-shell.html");
         }
-        if (url.pathname === "/dashboard/cms/website/editor") {
+        if (cmsPath === "/dashboard/cms/website/editor") {
           return asset(env, request, "/dashboard/sdk/forms-theme-shell.html");
         }
-        if (url.pathname === "/dashboard/sdk/store-theme-shell.html" ||
-            url.pathname === "/dashboard/sdk/forms-theme-shell.html") {
-          return asset(env, request, url.pathname);
+        if (cmsPath === "/dashboard/sdk/store-theme-shell.html" ||
+            cmsPath === "/dashboard/sdk/forms-theme-shell.html") {
+          return asset(env, request, cmsPath);
         }
       }
       // LOCALHOST ONLY: add the actual packaged SDK nav/workbench frontend
