@@ -1,0 +1,14 @@
+{
+  "schema": "agentsam.installed-app.preview.v1",
+  "id": "form-studio",
+  "package": "@inneranimalmedia/ecommerce-cms-agentsam",
+  "source_repository": "SamPrimeaux/agentsam-sdk",
+  "source_ref": "feat/ecommerce-form-modal-studio-app-20261028",
+  "release_ready": false,
+  "source_blobs": {
+    "apps/ecommerce-cms-agentsam/frontend/form-studio/index.mjs": "16f7a442b7e274a69814bc88425759796e8fe54f",
+    "apps/ecommerce-cms-agentsam/frontend/form-studio/styles.css": "7cc68c48f6894a0564efdb4265e15dce96efadff",
+    "apps/ecommerce-cms-agentsam/apps/form-studio/presets.json": "9e73b3e8af2fd97fb30093c808019c26b844b79c"
+  },
+  "note": "Pre-release exact-source preview. Run scripts/install-agent-form-studio.mjs against the verified published package before production."
+}
