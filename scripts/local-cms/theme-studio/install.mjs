@@ -96,7 +96,7 @@ const companionsNav = `const NAV = {
 shellJs=shellJs.slice(0,navStart)+companionsNav+shellJs.slice(navEnd+3);
 const logoAnchor='const LOGO_URL =\n  "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/ad23b2d9-e2e4-4ad6-eb81-9e4c983df000/thumbnail";';
 if(!shellJs.includes(logoAnchor)) throw Error('Could not locate package shell logo');
-shellJs=shellJs.replace(logoAnchor,'const LOGO_URL = "/static/global/companionsofcpa-newlogo.webp";');
+shellJs=shellJs.replace(logoAnchor,'const LOGO_URL = "/static/global/logo-header.png";');
 const appsLabel='<div class="console-nav-label console-nav-label--apps"><span>Apps</span>';
 if(!shellJs.includes(appsLabel)) throw Error('Could not locate package Apps nav label');
 shellJs=shellJs.replace(appsLabel,'<div class="console-nav-label console-nav-label--apps"><span>Communication</span>');

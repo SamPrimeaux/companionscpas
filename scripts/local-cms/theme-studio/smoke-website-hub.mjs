@@ -102,7 +102,7 @@ for (const marker of [
 for (const foreignLabel of ['label: "Orders"', 'label: "Products"', 'label: "Customers"', 'label: "Discounts"', 'label: "Online Store"']) {
   if (navBlock.includes(foreignLabel)) throw Error('Generic ecommerce navigation leaked into Companions: ' + foreignLabel);
 }
-if (!packagedNav.includes('const LOGO_URL = "/static/global/companionsofcpa-newlogo.webp";')) {
+if (!packagedNav.includes('const LOGO_URL = "/static/global/logo-header.png";')) {
   throw Error('Companions shell is still using the donor store logo');
 }
 const overviewResponse = await request('/api/admin/store/online');
