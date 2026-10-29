@@ -66,7 +66,7 @@
         };
       },
       async createFromPreset(preset) {
-        if (preset.kind !== "form" || !capabilities["forms.create." + preset.key]) {
+        if (preset.kind !== "form" || preset.capability !== "forms.create") {
           throw Error("This preset is not installed in the Companions form backend.");
         }
         const created = await json(fetcher, "/api/cms/forms", {
@@ -115,10 +115,12 @@
   }
 
   async function loadPresets(fetcher = root.fetch.bind(root)) {
-    const [catalog, available] = await Promise.all([
-      json(fetcher, "/dashboard/apps/form-studio/presets.json"),
+    const [presetResponse, available] = await Promise.all([
+      fetcher("/dashboard/apps/form-studio/presets.json", requests),
       json(fetcher, "/api/cms/forms"),
     ]);
+    if (!presetResponse.ok) throw Error("Installed Form Studio preset registry is unavailable.");
+    const catalog = await presetResponse.json();
     const installed = new Set((available.templates || []).map(t => t.key));
     const mapped = (catalog.presets || []).map(p => ({
       ...p,
