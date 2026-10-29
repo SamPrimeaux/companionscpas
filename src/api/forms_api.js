@@ -514,7 +514,7 @@ export async function formsRoutes(request, env, url) {
       modals: (legacy.results || []).map(row => ({
         id: row.id, key: row.modal_key, title: row.title,
         description: row.subtitle || "", status: row.is_active ? "published" : "draft",
-        source: "legacy_modal", config: { ...safeJson(row.config_json, {}), provider_credentials: undefined },
+        source: "legacy_modal",
       })),
       checkouts: (checkouts.results || []).map(row => {
         const content = safeJson(row.inline_content_json, {});
@@ -695,6 +695,11 @@ export async function formsRoutes(request, env, url) {
       data.description != null ? String(data.description) : existing.form.description || "";
     const status =
       data.status != null ? normalizeStatus(data.status) : normalizeStatus(existing.form.status);
+    // No generic published draft/staging contract exists yet. Prevent the
+    // SDK Studio from accidentally modifying an already-published live form.
+    if (existing.form.status === "active" && request.headers.get("X-AgentSam-Studio") === "form-studio") {
+      return json({ success: false, error: "Versioned draft staging is required to edit a published form." }, 409);
+    }
     const intro =
       data.intro != null
         ? typeof data.intro === "string"
@@ -798,8 +803,8 @@ export async function formsRoutes(request, env, url) {
           : parseOptions(field.options_json || field.options || "[]");
         await env.DB.prepare(
           `INSERT INTO cpas_application_fields
-           (id, form_id, step_id, field_key, label, placeholder, field_type, is_required, options_json, validation_json, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (id, form_id, step_id, field_key, label, placeholder, field_type, is_required, options_json, validation_json, conditional_json, is_active, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
           .bind(
             fid,
@@ -811,7 +816,9 @@ export async function formsRoutes(request, env, url) {
             String(field.field_type || field.type || "text"),
             field.is_required || field.required ? 1 : 0,
             JSON.stringify(options),
-            JSON.stringify(field.validation || field.validation_json || {}),
+            JSON.stringify(field.validation || safeJson(field.validation_json, {})),
+            JSON.stringify(field.conditional || safeJson(field.conditional_json, {})),
+            field.is_active === false || field.is_active === 0 ? 0 : 1,
             Number(field.sort_order) || order
           )
           .run();
