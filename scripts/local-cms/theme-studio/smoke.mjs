@@ -57,7 +57,7 @@ const required=['/admin/js/pages-shared.js','/admin/js/theme-editor.js'];
 if(JSON.stringify(loaded)!==JSON.stringify(required))
  throw Error('The canonical Theme Studio runtime was not loaded');
 const shell=await fetch('/dashboard/sdk/forms-theme-shell.html').then(r=>r.text());
-if(!shell.includes('/dashboard/sdk/forms-theme-boot.mjs')
+if(!shell.includes('/dashboard/sdk/studio-boot.mjs')
   || shell.includes('<script src="/admin/js/theme-editor.js"></script>'))
  throw Error('Theme Studio package boot did not load');
 console.log(JSON.stringify({

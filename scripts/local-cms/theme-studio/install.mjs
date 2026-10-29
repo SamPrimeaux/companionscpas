@@ -33,13 +33,15 @@ await copyFile(join(pkgRoot,'frontend/theme-editor/bridge.mjs'),join(dest,'theme
 let html=await readFile(join(source,'theme-editor.html'),'utf8');
 if (!html.includes('<script src="/admin/js/theme-editor.js"></script>')) throw Error('Unexpected upstream Theme Studio HTML');
 html=html.replace('<script src="/admin/js/theme-editor.js"></script>',
-  '<script type="module" src="/dashboard/sdk/forms-theme-boot.mjs"></script>');
+  '<script type="module" src="/dashboard/sdk/studio-boot.mjs"></script>');
 html=html.replace('<script type="module" src="/admin/js/theme-editor-generation-bootstrap.mjs"></script>','');
 await writeFile(join(dest,'forms-theme-shell.html'),html);
-await build({
- entryPoints:[resolve('scripts/local-cms/theme-studio/forms-theme-boot.ts')],
- outfile:join(dest,'forms-theme-boot.mjs'),
- bundle:true,platform:'browser',format:'esm',target:'es2022',
- logLevel:'warning'
-});
+for (const entry of ['forms-theme-boot', 'pages-theme-boot', 'studio-boot']) {
+ await build({
+  entryPoints:[resolve('scripts/local-cms/theme-studio',entry+'.ts')],
+  outfile:join(dest,entry+'.mjs'),
+  bundle:true,platform:'browser',format:'esm',target:'es2022',
+  logLevel:'warning'
+ });
+}
 console.log('Canonical ecommerce Theme Studio shell staged:',files.length,'original package assets + bridge');

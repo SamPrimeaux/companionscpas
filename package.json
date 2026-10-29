@@ -15,7 +15,7 @@
     "cache:bust": "bash scripts/cache-bust.sh",
     "local:cms:typecheck": "tsc --project scripts/local-cms/theme-studio/tsconfig.json",
     "local:cms:build": "npm run local:cms:typecheck && node scripts/local-cms/theme-studio/install.mjs",
-    "local:cms:rebuild": "npm run local:cms:build && node scripts/local-cms/preview.mjs assets && node scripts/local-cms/theme-studio/smoke.mjs",
+    "local:cms:rebuild": "npm run local:cms:build && node scripts/local-cms/preview.mjs assets && node scripts/local-cms/theme-studio/smoke.mjs && node scripts/local-cms/theme-studio/smoke-pages.mjs",
     "local:cms:doctor": "node scripts/local-cms/preview.mjs doctor",
     "local:cms:serve": "node scripts/local-cms/preview.mjs start 4473"
   },

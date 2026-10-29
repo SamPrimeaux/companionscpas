@@ -166,3 +166,30 @@ gradually with rollback tests, not switched to fake previews.
 The current ecommerce `./cms` compatibility export still references the older
 client-cms-editor and needs to be consolidated upstream; it is not imported
 by this local Theme Studio integration.
+
+## Canonical ecommerce CMS Pages workspace (localhost migration wave)
+
+The same **installed** `@inneranimalmedia/ecommerce-cms-agentsam` Theme Studio
+now owns the visual editing chrome for all these existing Companions routes:
+
+- `http://127.0.0.1:4473/dashboard/cms/website` → site Pages workspace
+- `http://127.0.0.1:4473/dashboard/cms/pages` → site Pages workspace
+- `http://127.0.0.1:4473/dashboard/cms/pages/home` → real Home page
+- `http://127.0.0.1:4473/dashboard/cms/forms` → real Forms workspace
+
+These are the SAME editor layout and SDK runtime, not separate editors.
+`studio-boot.ts` selects a typed tenant-data adapter based on the resource
+surface. `pages-theme-adapter.ts` loads the existing 9 D1 pages, their
+ordered sections, editor fields, brand/theme identity, and the genuine
+Companions server-rendered CMS preview through `/api/cms/preview`.
+The package supplies the navigation tree, inspectors, theme controls,
+viewports, and styling. Generated JS assets are gitignored and rebuildable.
+
+Run `npm run local:cms:rebuild` to typecheck, assemble the installed
+ecommerce GUI, copy assets to local R2 and run both Forms and Pages smoke
+tests. Published-page and published-form writes remain blocked until a
+versioned draft/publishing adapter is implemented. Draft page section
+writes use the existing Companions CMS API. This is NOT a full writable
+CMS migration yet: some globals, media and block creation still need their
+SDK contract adapters and browser-level visual acceptance. Production V1
+routes and publishing behavior are untouched.

@@ -250,17 +250,16 @@ function App() {
     );
   }
 
-  // First SDK migration is LOCALHOST ONLY. The real ecommerce CMS editor
-  // is installed by npm; its adapter reads the existing Companions form APIs.
-  // Production keeps the original CMS until visual + data QA are accepted.
-  const usePackagedFormsEditor = ["127.0.0.1", "localhost"].includes(window.location.hostname)
+  // The same product-owned Ecommerce Theme Studio hosts both Companions
+  // Pages and Forms. Customer data adapters are strictly local for now.
+  const usePackagedStudio = ["127.0.0.1", "localhost"].includes(window.location.hostname)
     && window.location.port === "4473";
   const isCmsEditor = view === "cms-page-editor" || view === "cms-form-editor"
-    || (usePackagedFormsEditor && view === "cms-forms");
-  const packagedFormsFrame = (formId = null) => React.createElement("iframe", {
-    title: "AgentSam Ecommerce CMS — Companions Forms",
-    src: "/dashboard/sdk/forms-theme-shell.html" +
-      (formId ? "?formId=" + encodeURIComponent(formId) : ""),
+    || (usePackagedStudio && ["cms-website", "cms-pages", "cms-forms"].includes(view));
+  const packagedStudioFrame = (surface, id = null) => React.createElement("iframe", {
+    title: "AgentSam Ecommerce CMS — Companions " + (surface === "pages" ? "Pages" : "Forms"),
+    src: "/dashboard/sdk/forms-theme-shell.html?surface=" + encodeURIComponent(surface)
+      + (id ? "&" + (surface === "pages" ? "slug=" : "formId=") + encodeURIComponent(id) : ""),
     style: { width: "100%", height: "100%", minHeight: 0, flex: 1,
       border: 0, display: "block", background: "#f6f4ef" },
     referrerPolicy: "same-origin",
@@ -286,14 +285,17 @@ function App() {
 
       // CMS sub-views
       case "cms-website":
+        if (usePackagedStudio) return packagedStudioFrame("pages", "home");
         return typeof CmsWebsiteView === "function"
           ? React.createElement(CmsWebsiteView,   { onNavigate: navigate })
           : React.createElement(CMSView,          { onNavigate: navigate });
       case "cms-pages":
+        if (usePackagedStudio) return packagedStudioFrame("pages", "home");
         return typeof CmsPagesView === "function"
           ? React.createElement(CmsPagesView,     { onNavigate: navigate })
           : cmsShell("Pages", "Loading…");
       case "cms-page-editor":
+        if (usePackagedStudio) return packagedStudioFrame("pages", params.pageId);
         return typeof CmsPageEditorView === "function"
           ? React.createElement(CmsPageEditorView, { pageId: params.pageId, onNavigate: navigate })
           : cmsShell("Page Editor", "Loading…");
@@ -302,12 +304,12 @@ function App() {
           ? React.createElement(CmsImagesView,    { onNavigate: navigate })
           : cmsShell("Images", "Loading…");
       case "cms-forms":
-        if (usePackagedFormsEditor) return packagedFormsFrame();
+        if (usePackagedStudio) return packagedStudioFrame("forms");
         return typeof CmsFormsView === "function"
           ? React.createElement(CmsFormsView,     { onNavigate: navigate })
           : cmsShell("Forms", "Loading…");
       case "cms-form-editor":
-        if (usePackagedFormsEditor) return packagedFormsFrame(params.formId);
+        if (usePackagedStudio) return packagedStudioFrame("forms", params.formId);
         return typeof CmsFormEditorView === "function"
           ? React.createElement(CmsFormEditorView, { formId: params.formId, onNavigate: navigate })
           : cmsShell("Form Studio", "Loading…");
