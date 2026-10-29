@@ -1,5 +1,46 @@
 # Companions CMS — isolated localhost baseline
 
+## Ecommerce Theme Studio for Companions Forms (LOCALHOST ONLY)
+
+The route `http://127.0.0.1:4473/dashboard/cms/forms` now mounts the
+**actual `@inneranimalmedia/ecommerce-cms-agentsam` Theme Studio chrome**:
+toolbar, CMS tree, viewport controls and inspector from the installed
+package, not a second hand-built React CMS.
+
+To rebuild the local assets:
+
+```bash
+cd ~/companionscpas
+node scripts/local-cms/theme-studio/install.mjs
+node scripts/local-cms/preview.mjs assets
+node scripts/local-cms/theme-studio/smoke.mjs
+```
+
+`public/dashboard/sdk/` is generated and gitignored so the editing
+UI cannot drift away from its installed SDK package. The installer copies
+the unmodified SDK scripts/CSS/brand resources; the only document delta is
+the bootstrap script URL to load `forms-theme-boot.mjs`.
+
+**Known upstream packaging issue:** six referenced Theme Studio dependencies
+are missing from this `2.6.13` npm archive. The local installer resolves
+these from the already-present canonical `agentsam-sdk/apps/local-studio`
+Theme Studio resources and logs each fallback. Repair the upstream package
+before calling the installed GUI release-ready. No bespoke Companions UI
+replacement is introduced.
+
+`scripts/local-cms/theme-studio/forms-theme-boot.mjs` is strictly a
+Companions resource adapter. It maps all existing forms and their fields
+from authenticated `/api/cms/forms` into the SDK's own
+`createThemeEditorBridge`; it provides a safe preview and saves
+**draft forms only**. Published forms cannot be rewritten, and publish is
+disabled until safe draft promotion is implemented. The original site's
+V1 CMS stays untouched outside localhost.
+
+Visual browser inspection is still outstanding because the Mac's
+headless Chrome runtime crashes; tests verify API data, SDK bridge,
+assets and read-only guard, not end-to-end visual acceptance.
+
+
 This keeps Companions of CPAS **as its own website and Worker**. The installed
 `@inneranimalmedia/ecommerce-cms-agentsam` and
 `@inneranimalmedia/client-cms-editor` are existing packaged applications,

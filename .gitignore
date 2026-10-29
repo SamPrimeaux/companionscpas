@@ -21,3 +21,7 @@ migration/d1/*.sqlite
 migration/d1/*.db
 *.json
 url_mapping.json
+
+# Generated localhost SDK Theme Studio browser assets.
+# Authoritative UI: @inneranimalmedia/ecommerce-cms-agentsam package
+public/dashboard/sdk/

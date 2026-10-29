@@ -52,7 +52,7 @@ if(task==='doctor'){
  console.log('Remote binding mode: DISABLED (local config + --local)');
  console.log('Existing site preserved; no production CMS routes are replaced.');
 }else if(task==='assets'){
- const types={'.js':'application/javascript','.jsx':'application/javascript','.css':'text/css','.html':'text/html','.json':'application/json','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.svg':'image/svg+xml','.woff2':'font/woff2'};
+ const types={'.mjs':'application/javascript','.js':'application/javascript','.jsx':'application/javascript','.css':'text/css','.html':'text/html','.json':'application/json','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.svg':'image/svg+xml','.woff2':'font/woff2'};
  const list=walk(site).filter(p=>types[extname(p).toLowerCase()]);
  let n=0;
  for(const p of list){

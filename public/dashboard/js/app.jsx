@@ -250,7 +250,21 @@ function App() {
     );
   }
 
-  const isCmsEditor = ["cms-page-editor", "cms-form-editor", "cms-forms"].includes(view);
+  // First SDK migration is LOCALHOST ONLY. The real ecommerce CMS editor
+  // is installed by npm; its adapter reads the existing Companions form APIs.
+  // Production keeps the original CMS until visual + data QA are accepted.
+  const usePackagedFormsEditor = ["127.0.0.1", "localhost"].includes(window.location.hostname)
+    && window.location.port === "4473";
+  const isCmsEditor = view === "cms-page-editor" || view === "cms-form-editor"
+    || (usePackagedFormsEditor && view === "cms-forms");
+  const packagedFormsFrame = (formId = null) => React.createElement("iframe", {
+    title: "AgentSam Ecommerce CMS — Companions Forms",
+    src: "/dashboard/sdk/forms-theme-shell.html" +
+      (formId ? "?formId=" + encodeURIComponent(formId) : ""),
+    style: { width: "100%", height: "100%", minHeight: 0, flex: 1,
+      border: 0, display: "block", background: "#f6f4ef" },
+    referrerPolicy: "same-origin",
+  });
   const isFlushWorkspace = view === "email" || view === "collaborate";
 
   const renderView = () => {
@@ -288,12 +302,14 @@ function App() {
           ? React.createElement(CmsImagesView,    { onNavigate: navigate })
           : cmsShell("Images", "Loading…");
       case "cms-forms":
-        return typeof CmsInstalledFormStudioView === "function"
-          ? React.createElement(CmsInstalledFormStudioView, { onNavigate: navigate })
+        if (usePackagedFormsEditor) return packagedFormsFrame();
+        return typeof CmsFormsView === "function"
+          ? React.createElement(CmsFormsView,     { onNavigate: navigate })
           : cmsShell("Forms", "Loading…");
       case "cms-form-editor":
-        return typeof CmsInstalledFormStudioView === "function"
-          ? React.createElement(CmsInstalledFormStudioView, { formId: params.formId, onNavigate: navigate })
+        if (usePackagedFormsEditor) return packagedFormsFrame(params.formId);
+        return typeof CmsFormEditorView === "function"
+          ? React.createElement(CmsFormEditorView, { formId: params.formId, onNavigate: navigate })
           : cmsShell("Form Studio", "Loading…");
       case "cms-brand":
         return typeof CmsBrandView === "function"
