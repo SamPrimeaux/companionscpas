@@ -395,7 +395,7 @@ export default {
     // ── Dashboard — serve shell for all /dashboard/* paths ───────────────────
     if (url.pathname === "/dashboard" || url.pathname.startsWith("/dashboard/")) {
       // Pass JS/CSS/image assets through directly
-      const isAsset = url.pathname.match(/\.(js|jsx|css|png|webp|jpg|svg|ico|woff2?)$/i);
+      const isAsset = url.pathname.match(/\.(js|jsx|css|json|png|webp|jpg|svg|ico|woff2?)$/i);
       if (isAsset) {
         // Assets live under dashboard/ in R2
         return asset(env, request, url.pathname);
