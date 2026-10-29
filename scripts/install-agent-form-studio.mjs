@@ -23,7 +23,7 @@ const root = idx >= 0
   ? resolve(args[idx + 1])
   : dirname(require.resolve("@inneranimalmedia/ecommerce-cms-agentsam/manifest"));
 const files = {
-  "index.mjs": "frontend/form-studio/index.mjs",
+  "index.js": "frontend/form-studio/index.mjs",
   "styles.css": "frontend/form-studio/styles.css",
   "presets.json": "apps/form-studio/presets.json",
 };
@@ -55,4 +55,4 @@ const proof = {
 };
 await writeFile(join(dest, "installation.json"), JSON.stringify(proof, null, 2) + "\n");
 console.log("Installed "+pkg.name+"@"+pkg.version+" Form Studio assets from " + root);
-console.log("Source hash: " + hashes["index.mjs"]);
+console.log("Source hash: " + hashes["index.js"]);
