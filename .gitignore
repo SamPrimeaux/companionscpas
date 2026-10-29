@@ -20,6 +20,7 @@ migration/d1/backups/
 migration/d1/*.sqlite
 migration/d1/*.db
 *.json
+!scripts/local-cms/theme-studio/tsconfig.json
 url_mapping.json
 
 # Generated localhost SDK Theme Studio browser assets.

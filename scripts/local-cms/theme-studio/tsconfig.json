@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "useUnknownInCatchVariables": true
+  },
+  "include": [
+    "forms-theme-boot.ts",
+    "pages-theme-adapter.ts",
+    "pages-theme-boot.ts",
+    "studio-boot.ts",
+    "studio-host-bridge.ts",
+    "bridge-types.d.ts"
+  ]
+}

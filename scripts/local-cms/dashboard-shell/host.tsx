@@ -84,7 +84,11 @@ export function HostMiniAgent(){
  const [draft,setDraft]=useState('');
  const [selecting,setSelecting]=useState(false);
  const [visible,setVisible]=useState(true);
- const scope=useCallback(()=>document.getElementById('main-scroll'),[]);
+ const scope=useCallback(()=>{
+  const frame=document.getElementById('theme-preview') as HTMLIFrameElement|null;
+  try { if(frame?.contentDocument?.body) return frame.contentDocument.body; } catch {}
+  return document.getElementById('main-scroll')||document.body;
+ },[]);
  const openPrompt=(input:string)=>{
   const prompt=input.trim();if(!prompt)return;
   window.dispatchEvent(new CustomEvent('agentsam:open',{detail:{prompt}}));

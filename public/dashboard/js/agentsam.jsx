@@ -219,7 +219,7 @@ function AgentSamDrawer() {
   // session continuity, stop handling and message data. On localhost, the
   // packaged AgentSam workbench owns the conversation UI instead.
   const SharedAgentPanel = window.CompanionsSDKChrome?.HostAgentPanel;
-  if (SharedAgentPanel && location.hostname === "127.0.0.1" && location.port === "4473") {
+  if (SharedAgentPanel && ["127.0.0.1", "localhost"].includes(location.hostname)) {
     return React.createElement(SharedAgentPanel, {
       messages, draft: prompt, onDraftChange: setPrompt,
       onSend: () => sendPrompt(), onCancel: stopPrompt,

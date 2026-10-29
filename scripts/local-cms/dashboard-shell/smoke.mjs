@@ -33,11 +33,11 @@ for(const id of ['HostNav','HostMiniAgent','HostAgentPanel']){
  if(typeof components?.[id]!=='function')throw Error('Missing packaged component '+id);
 }
 const navHtml=renderToString(React.createElement(components.HostNav,{
- groups:[{group:'Website',items:[{key:'cms-website',label:'CMS Website',icon:'edit',path:'/dashboard/cms/website',
+ groups:[{group:'Website & Content',items:[{key:'cms-website',label:'Website & Content',icon:'edit',path:'/dashboard/cms/website',
   children:[{key:'cms-forms',label:'Forms',path:'/dashboard/cms/forms'}]}]}],
  view:'cms-forms',navigate(){},onLogout(){}
 }));
-if(!navHtml.includes('agentsam-nav')||!navHtml.includes('CMS Website'))
+if(!navHtml.includes('agentsam-nav')||(!navHtml.includes('Website &amp; Content')&&!navHtml.includes('Website & Content')))
  throw Error('SDK Nav failed to render');
 const chatHtml=renderToString(React.createElement(components.HostAgentPanel,{
  messages:[{role:'assistant',content:'Local smoke'}],draft:'',onDraftChange(){},

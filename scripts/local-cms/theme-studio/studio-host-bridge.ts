@@ -1,6 +1,7 @@
 /**
- * Embed contract: the SDK Theme Studio shares the already mounted parent
- * AgentSam workbench. It must never load a second legacy assistant in iframe.
+ * Standalone Studio mounts the shared AgentSam SDK workbench through
+ * studio-agent-host.js. If embedded by an older route, forward to the parent
+ * instead of mounting a duplicate assistant.
  */
 declare global {
   interface Window {

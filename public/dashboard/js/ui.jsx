@@ -32,8 +32,8 @@ const LOGO_DARK  = "/static/global/companionsofcpa-newlogo.webp";
 
 // ── CMS sub-nav — swapped navigation/publish for templates ───────────────────
 const NAV_STRUCTURE = [
-  { group: "Core", items: [
-    { key: "overview",  label: "Overview",   icon: "dashboard", path: "/dashboard/overview" }
+  { group: "Workspace", items: [
+    { key: "overview",  label: "Home",       icon: "dashboard", path: "/dashboard/overview" }
   ]},
   { group: "Animal Care", items: [
     { key: "animals",    label: "Animals",    icon: "paw",       path: "/dashboard/animals" },
@@ -52,22 +52,22 @@ const NAV_STRUCTURE = [
   { group: "Giving", items: [
     { key: "fundraising", label: "Fundraising", icon: "trending", path: "/dashboard/fundraising" },
   ]},
-  { group: "Website", items: [
-    { key: "cms-website", label: "CMS Website", icon: "edit", path: "/dashboard/cms/website",
+  { group: "Website & Content", items: [
+    { key: "cms-website", label: "Website & Content", icon: "edit", path: "/dashboard/cms/website",
       children: [
         { key: "cms-website",   label: "Website Overview", path: "/dashboard/cms/website" },
         { key: "cms-pages",     label: "Pages",            path: "/dashboard/cms/pages" },
-        { key: "cms-images",    label: "Images",           path: "/dashboard/cms/images" },
+        { key: "cms-images",    label: "Media Library",    path: "/dashboard/cms/images" },
         { key: "cms-forms",     label: "Forms",            path: "/dashboard/cms/forms" },
         { key: "cms-brand",     label: "Brand & Settings", path: "/dashboard/cms/brand" },
       ]
     }
   ]},
-  { group: "Admin", items: [
-    { key: "collaborate", label: "Collaborate", icon: "calendar", path: "/dashboard/collaborate" },
-    { key: "email", label: "Email", icon: "mail", path: "/dashboard/email" },
-    { key: "reports",  label: "Reports",  icon: "chart", path: "/dashboard/reports" },
-    { key: "settings", label: "Settings", icon: "gear",  path: "/dashboard/settings" },
+  { group: "Organization", items: [
+    { key: "collaborate", label: "Team & Collaboration", icon: "calendar", path: "/dashboard/collaborate" },
+    { key: "email", label: "Email & Outreach", icon: "mail", path: "/dashboard/email" },
+    { key: "reports",  label: "Reports & Analytics",  icon: "chart", path: "/dashboard/reports" },
+    { key: "settings", label: "Organization Settings", icon: "gear",  path: "/dashboard/settings" },
   ]},
 ];
 

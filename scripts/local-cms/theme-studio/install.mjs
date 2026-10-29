@@ -28,12 +28,114 @@ for(const file of files){
  await mkdir(dirname(join(dest,file)),{recursive:true});
  await copyFile(join(source,file),join(dest,file));
 }
+
+// Keep the package-owned shell, but replace its generic commerce navigation
+// with real Companions destinations. These are routes in the existing host app.
+const shellPath=join(dest,'js/shell.js');
+let shellJs=await readFile(shellPath,'utf8');
+const navStart=shellJs.indexOf('const NAV = {');
+const navEnd=shellJs.indexOf('\n};',navStart);
+if(navStart<0||navEnd<0) throw Error('Could not locate canonical package navigation config');
+const companionsNav = `const NAV = {
+  main: [
+    { href: "/dashboard/overview", label: "Home", icon: "home" },
+    {
+      id: "animal-care",
+      href: "/dashboard/animals",
+      label: "Animal Care",
+      icon: "products",
+      children: [
+        { href: "/dashboard/animals", label: "Animals" },
+        { href: "/dashboard/intakes", label: "Intakes" },
+        { href: "/dashboard/medical", label: "Medical" },
+      ],
+    },
+    {
+      id: "placement",
+      href: "/dashboard/fosters",
+      label: "Placement",
+      icon: "customers",
+      children: [
+        { href: "/dashboard/fosters", label: "Fosters" },
+        { href: "/dashboard/adoptions", label: "Adoptions" },
+        { href: "/dashboard/applications", label: "Applications" },
+      ],
+    },
+    { href: "/dashboard/volunteers", label: "Community", icon: "customers" },
+    { href: "/dashboard/fundraising", label: "Giving", icon: "finance" },
+    { href: "/dashboard/reports", label: "Reports & Analytics", icon: "analytics" },
+    { href: "/dashboard/settings", label: "Organization Settings", icon: "settings" },
+  ],
+  channels: [
+    {
+      id: "online-store",
+      href: "/dashboard/cms/website",
+      label: "Website & Content",
+      icon: "store",
+      children: [
+        { href: "/dashboard/cms/website", label: "Website Overview" },
+        { href: "/dashboard/cms/pages", label: "Pages" },
+        { href: "/dashboard/cms/images", label: "Media Library" },
+        { href: "/dashboard/cms/forms", label: "Forms" },
+        { href: "/dashboard/cms/brand", label: "Brand & Settings" },
+      ],
+    },
+  ],
+  apps: [
+    {
+      id: "companions-email",
+      label: "Email & Outreach",
+      icon: "email",
+      href: "/dashboard/email",
+      children: [
+        { href: "/dashboard/email", label: "Inbox" },
+      ],
+    },
+  ],
+};`;
+shellJs=shellJs.slice(0,navStart)+companionsNav+shellJs.slice(navEnd+3);
+const logoAnchor='const LOGO_URL =\n  "https://imagedelivery.net/g7wf09fCONpnidkRnR_5vw/ad23b2d9-e2e4-4ad6-eb81-9e4c983df000/thumbnail";';
+if(!shellJs.includes(logoAnchor)) throw Error('Could not locate package shell logo');
+shellJs=shellJs.replace(logoAnchor,'const LOGO_URL = "/static/global/companionsofcpa-newlogo.webp";');
+const appsLabel='<div class="console-nav-label console-nav-label--apps"><span>Apps</span>';
+if(!shellJs.includes(appsLabel)) throw Error('Could not locate package Apps nav label');
+shellJs=shellJs.replace(appsLabel,'<div class="console-nav-label console-nav-label--apps"><span>Communication</span>');
+const appsStart=shellJs.indexOf('      <div class="console-nav-label console-nav-label--apps">');
+const appsEnd=shellJs.indexOf('      <div class="console-nav-group">${apps}</div>',appsStart);
+if(appsStart<0||appsEnd<0) throw Error('Could not locate package app catalog menu');
+const compactApps='      <div class="console-nav-label console-nav-label--apps"><span>Communication</span></div>\n      <div class="console-nav-group">${apps}</div>';
+shellJs=shellJs.slice(0,appsStart)+compactApps+shellJs.slice(appsEnd+'      <div class="console-nav-group">${apps}</div>'.length);
+shellJs=shellJs.replace('<div class="console-nav-label">Sales channels</div>','<div class="console-nav-label">Website</div>');
+shellJs=shellJs.replace('label: "Sales channels"','label: "Website"');
+shellJs=shellJs.replace('<strong>Fuel &amp; Free Time</strong>','<strong>Companions of CPAS</strong>');
+const preferencesLink='<a href="/admin/preferences" class="console-menu-item" role="menuitem">Store preferences</a>';
+if(!shellJs.includes(preferencesLink)) throw Error('Could not locate package profile preferences link');
+shellJs=shellJs.replace(preferencesLink,'<a href="/dashboard/cms/brand" class="console-menu-item" role="menuitem">Brand &amp; website settings</a>');
+const accountLink='<a href="/admin/account" class="console-menu-item" role="menuitem">Account &amp; password</a>';
+if(!shellJs.includes(accountLink)) throw Error('Could not locate package account settings link');
+shellJs=shellJs.replace(accountLink,'<a href="/dashboard/settings" class="console-menu-item" role="menuitem">Organization settings</a>');
+await writeFile(shellPath,shellJs);
+await copyFile(resolve('scripts/local-cms/theme-studio/studio-agent-host.js'),join(dest,'studio-agent-host.js'));
 await mkdir(join(dest,'theme-editor-lib'),{recursive:true});
 await copyFile(join(pkgRoot,'frontend/theme-editor/bridge.mjs'),join(dest,'theme-editor-lib/bridge.mjs'));
 let html=await readFile(join(source,'theme-editor.html'),'utf8');
 if (!html.includes('<script src="/admin/js/theme-editor.js"></script>')) throw Error('Unexpected upstream Theme Studio HTML');
-html=html.replace('<script src="/admin/js/shell.js"></script>',
-  '<script src="/dashboard/sdk/studio-host-bridge.js"></script>\n<script src="/admin/js/shell.js"></script>');
+html=html.replace('<title>Theme Studio — AgentSam Commerce</title>','<title>Website Studio — Companions of CPAS</title>');
+html=html.replace('<link rel="stylesheet" href="/admin/css/revise-atlas.css">',
+  '<link rel="stylesheet" href="/admin/css/revise-atlas.css">\n' +
+  '<link rel="stylesheet" href="/dashboard/sdk/shell.css">\n' +
+  '<link rel="stylesheet" href="/dashboard/sdk/dashboard-mini-sdk.css">\n' +
+  '<link rel="stylesheet" href="/dashboard/sdk/dashboard-host.css">');
+const agentRuntime = [
+  '<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>',
+  '<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>',
+  '<script src="/dashboard/sdk/dashboard-shell-sdk.js"></script>',
+  '<script src="/dashboard/js/agentsam.jsx?v=companions-studio-agent-20261029"></script>',
+  '<script src="/dashboard/sdk/studio-agent-host.js"></script>',
+  '<script src="/dashboard/sdk/studio-host-bridge.js"></script>',
+  '<script src="/admin/js/shell.js"></script>',
+].join('\n');
+html=html.replace('<script src="/admin/js/shell.js"></script>',agentRuntime);
 html=html.replace('<script src="/admin/js/theme-editor.js"></script>',
   '<script type="module" src="/dashboard/sdk/studio-boot.mjs"></script>');
 html=html.replace('<script type="module" src="/admin/js/theme-editor-generation-bootstrap.mjs"></script>','');
@@ -69,7 +171,7 @@ storeHtml=replaceStoreAll(storeHtml,'<title>Online Store — Fuel & Free Time Ad
 storeHtml=replaceStoreAll(storeHtml,'<link rel="stylesheet" href="/admin/css/theme-product-browser.css">','','foreign template css');
 const backtick=String.fromCharCode(96);
 const storeRenderAnchor='<script>\nrenderShell("/admin/store", '+backtick;
-storeHtml=replaceStoreOnce(storeHtml,storeRenderAnchor,'<script>\nconst COMPANIONS_EDITOR_URL="/dashboard/cms/website/editor?surface=pages&slug=home";\nrenderShell("/admin/store", '+backtick,'editor URL');
+storeHtml=replaceStoreOnce(storeHtml,storeRenderAnchor,'<script>\nconst COMPANIONS_EDITOR_URL="/dashboard/cms/website/editor?surface=pages&slug=home";\nrenderShell("/dashboard/cms/website", '+backtick,'editor URL');
 storeHtml=replaceStoreAll(storeHtml,'<h1>Online Store</h1>','<h1>Website</h1>','page heading');
 storeHtml=replaceStoreAll(storeHtml,'<a href="#theme-product-marketplace" class="btn ghost small" id="browse-themes-shortcut">Browse templates</a>','<a href="/dashboard/cms/website/editor?surface=pages&amp;slug=home" class="btn ghost small" id="browse-themes-shortcut">Open editor</a>','editor link');
 storeHtml=replaceStoreAll(storeHtml,'title="Connect a site to preview the published storefront"','title="Open the published website"','view site title');

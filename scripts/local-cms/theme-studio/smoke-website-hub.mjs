@@ -61,13 +61,49 @@ if (formsAlias.status !== 302 ||
 }
 const editorResponse = await request('/dashboard/cms/website/editor?surface=pages&slug=home');
 const editorHtml = await editorResponse.text();
-if (!editorResponse.ok || !editorHtml.includes('Theme Studio — AgentSam Commerce') ||
+if (!editorResponse.ok || !editorHtml.includes('Website Studio — Companions of CPAS') ||
     !editorHtml.includes('/dashboard/sdk/studio-boot.mjs')) {
   throw Error('Edit website does not open the canonical full-screen Theme Studio');
 }
-const assistantAsset = await request('/admin/js/agentsam.js');
-if (!assistantAsset.ok || !(await assistantAsset.text()).includes('initAgentsamDrawer')) {
-  throw Error('Canonical AgentSam assistant runtime was not staged');
+for (const marker of [
+  '/dashboard/sdk/dashboard-shell-sdk.js',
+  '/dashboard/js/agentsam.jsx',
+  '/dashboard/sdk/studio-agent-host.js',
+  '/dashboard/sdk/studio-host-bridge.js',
+]) {
+  if (!editorHtml.includes(marker)) throw Error('Theme Studio is missing the updated AgentSam integration: ' + marker);
+}
+if (editorHtml.includes('<script src="/admin/js/agentsam.js"></script>')) {
+  throw Error('Legacy ecommerce AgentSam drawer is still loaded in the Companions Studio');
+}
+const studioAgentHost = await request('/dashboard/sdk/studio-agent-host.js');
+const sharedAgentBundle = await request('/dashboard/sdk/dashboard-shell-sdk.js');
+if (!studioAgentHost.ok || !(await studioAgentHost.text()).includes('CompanionsSDKChrome') ||
+    !sharedAgentBundle.ok || !(await sharedAgentBundle.text()).includes('HostAgentPanel')) {
+  throw Error('Updated SDK AgentSam workbench was not staged for the standalone Theme Studio');
+}
+const packagedNav = readFileSync('public/dashboard/sdk/js/shell.js', 'utf8');
+const navStart = packagedNav.indexOf('const NAV = {');
+const navEnd = packagedNav.indexOf('\n};', navStart);
+const navBlock = packagedNav.slice(navStart, navEnd + 3);
+for (const marker of [
+  'label: "Animal Care"',
+  'label: "Placement"',
+  'label: "Community"',
+  'label: "Giving"',
+  'label: "Website & Content"',
+  'label: "Media Library"',
+  'label: "Email & Outreach"',
+  'href: "/dashboard/cms/website"',
+  'href: "/dashboard/animals"',
+]) {
+  if (!navBlock.includes(marker)) throw Error('Companions shell navigation missing ' + marker);
+}
+for (const foreignLabel of ['label: "Orders"', 'label: "Products"', 'label: "Customers"', 'label: "Discounts"', 'label: "Online Store"']) {
+  if (navBlock.includes(foreignLabel)) throw Error('Generic ecommerce navigation leaked into Companions: ' + foreignLabel);
+}
+if (!packagedNav.includes('const LOGO_URL = "/static/global/companionsofcpa-newlogo.webp";')) {
+  throw Error('Companions shell is still using the donor store logo');
 }
 const overviewResponse = await request('/api/admin/store/online');
 const overview = await overviewResponse.json();
