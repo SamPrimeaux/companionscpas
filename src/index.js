@@ -386,6 +386,18 @@ export default {
       }
     }
 
+    // Local-only aliases keep the canonical Ecommerce Studio's exit/nav
+    // destinations inside the Companions CMS workspace.
+    if (["localhost", "127.0.0.1"].includes(url.hostname) && url.port === "4473") {
+      if (url.pathname === "/admin/store") return Response.redirect(url.origin + "/dashboard/cms/website", 302);
+      if (url.pathname === "/admin/theme-editor" || url.pathname === "/admin/page-edit" || url.pathname === "/admin/pages") {
+        const slug = url.searchParams.get("slug") || url.searchParams.get("page") || "home";
+        return Response.redirect(url.origin + "/dashboard/cms/website/editor?surface=pages&slug=" + encodeURIComponent(slug), 302);
+      }
+      if (url.pathname === "/admin/content") return Response.redirect(url.origin + "/dashboard/cms/images", 302);
+      if (url.pathname === "/admin/preferences") return Response.redirect(url.origin + "/dashboard/cms/brand", 302);
+    }
+
     // Admin routes
     if (url.pathname === "/admin/login" || url.pathname === "/admin" || url.pathname === "/admin/") {
       const brand = await getBrand(env).catch(() => ({}));
@@ -439,12 +451,30 @@ export default {
         }
       }
 
-      // Serve the actual installed Ecommerce CMS editor document for the
-      // localhost-only Forms migration. Authentication was checked above.
-      // Other dashboard URLs continue to serve the original site shell.
-      if (url.pathname === "/dashboard/sdk/forms-theme-shell.html" &&
-          ["localhost", "127.0.0.1"].includes(url.hostname)) {
-        return asset(env, request, url.pathname);
+      // The CMS website route is a standalone Ecommerce Online Store hub:
+      // no legacy Companions sidebar/header wrapped around the package UI.
+      if (["localhost", "127.0.0.1"].includes(url.hostname) && url.port === "4473") {
+        const cmsPath = url.pathname.replace(/\/$/, "");
+        if (cmsPath === "/dashboard/cms/pages" || cmsPath.startsWith("/dashboard/cms/pages/")) {
+          const slug = cmsPath === "/dashboard/cms/pages" ? "home" : decodeURIComponent(cmsPath.slice("/dashboard/cms/pages/".length));
+          return Response.redirect(url.origin + "/dashboard/cms/website/editor?surface=pages&slug=" + encodeURIComponent(slug), 302);
+        }
+        if (cmsPath === "/dashboard/cms/forms" || cmsPath.startsWith("/dashboard/cms/forms/")) {
+          const formId = cmsPath === "/dashboard/cms/forms" ? "" : decodeURIComponent(cmsPath.slice("/dashboard/cms/forms/".length));
+          const query = new URLSearchParams({ surface: "forms" });
+          if (formId) query.set("formId", formId);
+          return Response.redirect(url.origin + "/dashboard/cms/website/editor?" + query.toString(), 302);
+        }
+        if (url.pathname === "/dashboard/cms/website") {
+          return asset(env, request, "/dashboard/sdk/store-theme-shell.html");
+        }
+        if (url.pathname === "/dashboard/cms/website/editor") {
+          return asset(env, request, "/dashboard/sdk/forms-theme-shell.html");
+        }
+        if (url.pathname === "/dashboard/sdk/store-theme-shell.html" ||
+            url.pathname === "/dashboard/sdk/forms-theme-shell.html") {
+          return asset(env, request, url.pathname);
+        }
       }
       // LOCALHOST ONLY: add the actual packaged SDK nav/workbench frontend
       // to Companions' existing dashboard. Production remains exactly V1.

@@ -172,12 +172,13 @@ by this local Theme Studio integration.
 The same **installed** `@inneranimalmedia/ecommerce-cms-agentsam` Theme Studio
 now owns the visual editing chrome for all these existing Companions routes:
 
-- `http://127.0.0.1:4473/dashboard/cms/website` → site Pages workspace
-- `http://127.0.0.1:4473/dashboard/cms/pages` → site Pages workspace
-- `http://127.0.0.1:4473/dashboard/cms/pages/home` → real Home page
+- `http://127.0.0.1:4473/dashboard/cms/website` → full-screen Ecommerce Online Store hub with the actual Companions site preview, page/draft counts, and saved page-draft list
+- `http://127.0.0.1:4473/dashboard/cms/website/editor?surface=pages&slug=home` → canonical Pages Theme Studio, opened only after choosing to edit
+- `http://127.0.0.1:4473/dashboard/cms/pages` → legacy route adapter to the same canonical Pages Studio
+- `http://127.0.0.1:4473/dashboard/cms/pages/home` → real Home page in the canonical Studio
 - `http://127.0.0.1:4473/dashboard/cms/forms` → real Forms workspace
 
-These are the SAME editor layout and SDK runtime, not separate editors.
+The website landing route is now a standalone Ecommerce surface: it does not mount inside the old CPAS dashboard sidebar/header or jump straight into the editor. The landing page reuses the package-owned Online Store overview and its preview layout; its local adapter supplies actual Companions page counts and private draft records. Selecting **Open editor**, **Edit website**, or **Open draft** opens the same canonical Theme Studio.
 `studio-boot.ts` selects a typed tenant-data adapter based on the resource
 surface. `pages-theme-adapter.ts` loads the existing 9 D1 pages, their
 ordered sections, editor fields, brand/theme identity, and the genuine

@@ -16,7 +16,7 @@ const read=async path=>{
  if(!r.ok)throw Error('Local route '+path+' returned '+r.status);
  return r.text();
 };
-const html=await read('/dashboard/cms/pages/home');
+const html=await read('/dashboard/overview');
 if(!html.includes('/dashboard/sdk/dashboard-shell-sdk.js'))
  throw Error('Expected SDK shell injection on localhost');
 if(!html.includes('/dashboard/js/app.jsx'))
@@ -53,7 +53,7 @@ for(const original of ['/','/events']){
 console.log(JSON.stringify({
  status:'PASS', nav:'@inneranimalmedia/agentsam-nav',
  agent:'@inneranimalmedia/agentsam-workbench',
- realDashboardRoute:'/dashboard/cms/pages/home',publicRoutes:['/','/events'],
+ realDashboardRoute:'/dashboard/overview',canonicalCmsRoute:'/dashboard/cms/pages/home',publicRoutes:['/','/events'],
  uiComponents:['HostNav','HostMiniAgent','HostAgentPanel'],
  localOnly:true, uiBytes:bootstrap.length, publisherUnchanged:true
 },null,2));

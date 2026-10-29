@@ -56,13 +56,66 @@ async function pageOverrides(env, route) {
   return overrides;
 }
 export async function localCmsStudioRoutes(request, env, url) {
-  if (!url.pathname.startsWith(base)) return null;
+  const isWebsiteOverview = url.pathname === "/api/admin/store/online";
+  if (!url.pathname.startsWith(base) && !isWebsiteOverview) return null;
   if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.port !== "4473") {
-    return response({ success: false, error: "Local studio only" }, 404);
+    return isWebsiteOverview ? null : response({ success: false, error: "Local studio only" }, 404);
   }
   const user = await requireCmsUser(request, env);
   if (!user) return response({ success: false, error: "Not authenticated" }, 401);
   if (!env.DB) return response({ success: false, error: "Local CMS database unavailable" }, 503);
+  if (isWebsiteOverview) {
+    if (request.method !== "GET") return response({ error: "Method not allowed" }, 405);
+    try {
+      await ensureTable(env.DB);
+      const [pageResult, draftResult, sectionTotal, latest] = await Promise.all([
+        env.DB.prepare("SELECT slug, route_path, title, status, updated_at, is_homepage, sort_order FROM cms_pages WHERE tenant_id = ? AND archived_at IS NULL ORDER BY is_homepage DESC, sort_order ASC, title ASC").bind(TENANT_ID).all(),
+        env.DB.prepare("SELECT page_route, COUNT(*) AS section_count, MAX(updated_at) AS updated_at FROM cms_local_studio_drafts GROUP BY page_route ORDER BY MAX(updated_at) DESC").all(),
+        env.DB.prepare("SELECT COUNT(*) AS total FROM cms_page_sections WHERE tenant_id = ? AND deleted_at IS NULL").bind(TENANT_ID).first(),
+        env.DB.prepare("SELECT MAX(updated_at) AS last_saved FROM (SELECT updated_at FROM cms_pages WHERE tenant_id = ? UNION ALL SELECT updated_at FROM cms_page_sections WHERE tenant_id = ? AND deleted_at IS NULL)").bind(TENANT_ID, TENANT_ID).first(),
+      ]);
+      const pages = pageResult.results || [];
+      const draftsByRoute = new Map((draftResult.results || []).map(row => [row.page_route, row]));
+      const draftPages = pages.filter(page => draftsByRoute.has(page.route_path) || page.status !== "published");
+      const homepage = pages.find(page => page.is_homepage === 1 || page.slug === "home" || page.route_path === "/");
+      const editorHref = page => "/dashboard/cms/website/editor?surface=pages&slug=" + encodeURIComponent(page.slug || "home");
+      const draftThemes = draftPages.map(page => {
+        const draft = draftsByRoute.get(page.route_path);
+        const count = Number(draft?.section_count || 0);
+        return {
+          id: page.slug || page.route_path,
+          name: page.title || page.slug || page.route_path,
+          meta: (page.route_path === "/" ? "Homepage" : page.route_path) + " · " + (count ? count + " section edit" + (count === 1 ? "" : "s") : "Unpublished page"),
+          section_count: count,
+          edit_href: editorHref(page),
+          updated_at: draft?.updated_at || page.updated_at || null,
+        };
+      });
+      const publishedPages = pages.filter(page => page.status === "published").length;
+      return response({
+        store: {
+          visibility: homepage?.status === "published" ? "public" : "unknown",
+          url: "https://companionsofcaddo.org",
+        },
+        performance: {
+          published_pages: publishedPages,
+          draft_pages: draftPages.length,
+          sections: Number(sectionTotal?.total || 0),
+        },
+        active_theme: {
+          name: "Companions of CPAS website",
+          verified: homepage?.status === "published",
+          last_saved: latest?.last_saved || homepage?.updated_at || null,
+          preview_href: "/",
+          edit_href: homepage ? editorHref(homepage) : "/dashboard/cms/website/editor?surface=pages&slug=home",
+        },
+        draft_themes: draftThemes,
+      });
+    } catch (error) {
+      console.error("[local-website-overview]", error);
+      return response({ error: error?.message || "Website overview unavailable" }, 500);
+    }
+  }
   const action = url.pathname.slice(base.length);
   const method = request.method;
   if (!["draft", "preview"].includes(action)) return response({ success: false, error: "Unknown local studio route" }, 404);
