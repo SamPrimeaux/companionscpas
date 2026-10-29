@@ -7,29 +7,34 @@ The route `http://127.0.0.1:4473/dashboard/cms/forms` now mounts the
 toolbar, CMS tree, viewport controls and inspector from the installed
 package, not a second hand-built React CMS.
 
-To rebuild the local assets:
+To rebuild and redeploy the *localhost-only* resource assets:
 
 ```bash
 cd ~/companionscpas
-node scripts/local-cms/theme-studio/install.mjs
-node scripts/local-cms/preview.mjs assets
-node scripts/local-cms/theme-studio/smoke.mjs
+npm run local:cms:rebuild
 ```
+
+This typechecks the Companions bridge using TypeScript, compiles it with
+esbuild, stages the **assembled `dist/assets/admin` assets from the existing
+ecommerce package**, updates local R2 and runs the real-form contract smoke.
+It does not push to Cloudflare production.
 
 `public/dashboard/sdk/` is generated and gitignored so the editing
 UI cannot drift away from its installed SDK package. The installer copies
 the unmodified SDK scripts/CSS/brand resources; the only document delta is
 the bootstrap script URL to load `forms-theme-boot.mjs`.
 
-**Known upstream packaging issue:** six referenced Theme Studio dependencies
-are missing from this `2.6.13` npm archive. The local installer resolves
-these from the already-present canonical `agentsam-sdk/apps/local-studio`
-Theme Studio resources and logs each fallback. Repair the upstream package
-before calling the installed GUI release-ready. No bespoke Companions UI
-replacement is introduced.
+**Package repair:** the first `2.6.13` archive was incomplete. The
+ecommerce package's own `bin/build-assets.mjs` was run to assemble its
+TypeScript authoring engine and all Theme Studio dependencies under
+`dist/assets/admin`. The repacked **local development archive** now
+supplies these assets entirely; there is NO dependency on local-studio files.
+This is an unreleased same-version archive, not a published npm release.
+Formal package versioning and an isolated `npm ci` acceptance remain pending.
 
-`scripts/local-cms/theme-studio/forms-theme-boot.mjs` is strictly a
-Companions resource adapter. It maps all existing forms and their fields
+`scripts/local-cms/theme-studio/forms-theme-boot.ts` is strictly a
+**TypeScript** Companions resource adapter. A generated browser ES module
+is produced from it, and TS typechecking is mandatory on every rebuild. It maps all existing forms and their fields
 from authenticated `/api/cms/forms` into the SDK's own
 `createThemeEditorBridge`; it provides a safe preview and saves
 **draft forms only**. Published forms cannot be rewritten, and publish is
@@ -42,9 +47,9 @@ assets and read-only guard, not end-to-end visual acceptance.
 
 
 This keeps Companions of CPAS **as its own website and Worker**. The installed
-`@inneranimalmedia/ecommerce-cms-agentsam` and
-`@inneranimalmedia/client-cms-editor` are existing packaged applications,
-not a second Forms UI. No existing dashboard pages are overwritten.
+`@inneranimalmedia/ecommerce-cms-agentsam` is the **only customer-facing
+CMS editor package**. The older `client-cms-editor` is no longer a direct
+Companions dependency or mounted UI. No existing dashboard pages are overwritten.
 
 ## Run on the Mac
 
@@ -83,7 +88,7 @@ previews cannot process real money here. The login uses the existing
 
 ## What is actually installed
 
-The browser editor and CMS packages were packed from the current
+The ecommerce editor and its installed support packages were packed from the current
 `~/agentsam-sdk` checkout at the source commit in
 `packages/sdk-artifacts/manifest.json`, verified with SHA-256, then installed
 through npm into Companions' normal `node_modules`.
@@ -97,7 +102,8 @@ archives because DNS/registry access was unavailable on the Mac.
 
 The latest ecommerce package resolves:
 - `@inneranimalmedia/ecommerce-cms-agentsam/cms` (full CMS editor exports)
-- `@inneranimalmedia/client-cms-editor` (underlying engine)
+- The original product Theme Studio source/compiled TypeScript
+  authoring engine from `dist/assets/admin`
 - Package manifest, Theme Studio bridge and capability contract
 
 The package doctor currently reports **two external showcase imports** under
@@ -115,7 +121,10 @@ tables, including 9 pages, 66 sections, 151 asset metadata records, 10 forms,
 definitions were copied. **No subscribers, donor/payment transactions, personal
 form submissions, or live login credentials were copied.**
 
-Site files were mirrored from `public/` into LOCAL R2 using `--local`.
+Site files were mirrored from `public/` **and `static/global/`** into
+LOCAL R2 using `--local`. This also repairs the missing 122 KB
+`/static/global/cpas-shell.css` stylesheet responsible for the prior
+unstyled homepage.
 The preview uses `scripts/local-cms/wrangler.local.toml` without production
 routes or secrets. Public images hosted on remote URLs may need a valid network
 connection. The snapshot is a local workspace baseline, not an automated
@@ -139,3 +148,21 @@ Production Wrangler config, production D1, public CMS publishing and R2 were
 
 Do not run `npm run deploy`, `npm run deploy:full`, `npm run sync` or any
 Wrangler command with `--remote` as part of this localhost workflow.
+
+## TypeScript stabilization boundary
+
+Companions' source adapter is `scripts/local-cms/theme-studio/forms-theme-boot.ts`.
+`npm run local:cms:typecheck` enforces strict TS checking. Its compiler emits
+`public/dashboard/sdk/forms-theme-boot.mjs` from the typechecked source.
+The 251KB Theme Studio runtime remains owned by the ecommerce CMS package;
+**do not hand-port/copy this UI into Companions TSX**. Migrate that
+product-owned runtime toward its own TS/TSX source as a separate SDK change.
+
+**Honest current scope:** only Forms' customer-facing editor uses the
+ecommerce Theme Studio. The original Companions public pages, Worker, campaign
+checkout and unrelated dashboard views still use their existing implementations.
+Future routes should consume the same packaged editor and be converted
+gradually with rollback tests, not switched to fake previews.
+The current ecommerce `./cms` compatibility export still references the older
+client-cms-editor and needs to be consolidated upstream; it is not imported
+by this local Theme Studio integration.

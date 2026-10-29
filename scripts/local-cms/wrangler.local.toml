@@ -6,7 +6,7 @@ compatibility_date = "2025-04-01"
 [vars]
 APP_NAME = "Companions of CPAS (Local Studio)"
 APP_DOMAIN = "localhost"
-ALLOWED_ORIGINS = "http://127.0.0.1:4391"
+ALLOWED_ORIGINS = "http://127.0.0.1:4473"
 RESEND_FROM_EMAIL = "noreply@invalid.local"
 RESEND_SUPPORT_FROM = "support@invalid.local"
 ADMIN_EMAIL = "local-admin@invalid.local"

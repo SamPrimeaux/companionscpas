@@ -1,23 +1,42 @@
-import {createThemeEditorBridge} from '/dashboard/sdk/theme-editor-lib/bridge.mjs';
+/**
+ * Companions local-only data adapter for the CANONICAL Ecommerce Theme Studio.
+ * TypeScript source, built into browser ESM with esbuild. Editor chrome/layout
+ * comes unmodified from @inneranimalmedia/ecommerce-cms-agentsam.
+ */
+type FormField = {
+ id:string; field_key:string; step_id:string; label:string;
+ placeholder?:string; field_type:string; is_required:number|boolean;
+ is_active?:number; [property:string]: unknown;
+};
+type FormInfo = {id:string; form_key:string; title:string; description?:string; status:string};
+type FormBundle = {success:true; form:FormInfo; fields:FormField[]; steps:unknown[]};
+type FormCatalog = {success:true; forms:Array<Pick<FormInfo,'id'|'title'|'status'>>};
+type ThemeSection = {key:string;type:string;status:string;content:Record<string,string>};
+type ThemePage = {slug:string;title:string;status:string;sections:ThemeSection[]};
+declare global {
+ interface Window {AgentSamThemeEditorHost?: {
+  page:string;adapter:unknown;pageRoutes:Record<string,string>;onPageChange(slug:string):void;
+ }}
+}
+import { createThemeEditorBridge } from '../../../node_modules/@inneranimalmedia/ecommerce-cms-agentsam/frontend/theme-editor/bridge.mjs';
 
 const formApi='/api/cms/forms';
-const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
-const response=async(url,options)=>{
+const esc=(value:unknown)=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+const response=async<T extends {success?:boolean;error?:string}>(url:string,options:RequestInit={}):Promise<T>=>{
  const r=await fetch(url,{cache:'no-store',credentials:'same-origin',...options});
- const data=await r.json().catch(()=>null);
+ const data=await r.json().catch(()=>null) as T|null;
  if(!r.ok || !data?.success)throw Error(data?.error||'Companions resource not available');
  return data;
 };
-const records=new Map();
-const pages=[];
-const definitions={};
-const readForm=async id=>{
- const data=await response(formApi+'/'+encodeURIComponent(id));
+const records=new Map<string,FormBundle>();
+const pages:Array<{slug:string;title:string;route:null}>=[];
+const readForm=async (id:string):Promise<FormBundle>=>{
+ const data=await response<FormBundle>(formApi+'/'+encodeURIComponent(id));
  records.set(data.form.id,data);
  return data;
 };
-const formStatus=x=>x==='active'?'published':x;
-const sectionFor=f=>({
+const formStatus=(x:string)=>x==='active'?'published':x;
+const sectionFor=(f:FormField)=>({
  key:f.id,type:'form_field',version:0,
  status:Number(f.is_active)===0?'hidden':'published',
  content:{
@@ -26,12 +45,12 @@ const sectionFor=f=>({
   is_required:!!f.is_required?'true':'false'
  }
 });
-const pageFor=data=>({
+const pageFor=(data:FormBundle)=>({
  slug:data.form.id,title:data.form.title,status:formStatus(data.form.status),
  content_authority:'cms',
  sections:(data.fields||[]).map(sectionFor)
 });
-const sectionSchemas=data=>Object.fromEntries((data.fields||[]).map(f=>[
+const sectionSchemas=(data:FormBundle)=>Object.fromEntries((data.fields||[]).map(f=>[
  f.id,{
   label:f.label||'Form field',type:'form_field',
   fields:[
@@ -45,12 +64,12 @@ const sectionSchemas=data=>Object.fromEntries((data.fields||[]).map(f=>[
 const model={
  capabilities:{publish:false},
  async listPages(){return pages;},
- async getPage(id){const data=records.get(id)||await readForm(id);return pageFor(data);},
+ async getPage(id:string){const data=records.get(id)||await readForm(id);return pageFor(data);},
  async getRegistry(){
   return {definitions:[],pages:Object.fromEntries([...records.values()].map(d=>[d.form.id,{sections:sectionSchemas(d)}]))};
  },
  async getThemeIdentity(){return {name:'Companions of CPAS',status:'draft'};},
- async saveDraft(slug,key,content){
+ async saveDraft(slug:string,key:string,content:Record<string,string>){
   const original=records.get(slug)||await readForm(slug);
   if(original.form.status!=='draft')throw Error('Published forms are read-only until versioned draft staging is connected.');
   const originalField=original.fields.find(f=>f.id===key);
@@ -65,21 +84,21 @@ const model={
    is_required:String(content.is_required)==='true'
   }:f);
   // Keep steps and form identity intact; the host already owns persistence.
-  await response(formApi+'/'+encodeURIComponent(slug)+'/save',{
+  await response<{success:boolean}>(formApi+'/'+encodeURIComponent(slug)+'/save',{
    method:'POST',headers:{'Content-Type':'application/json'},
    body:JSON.stringify({status:'draft',steps:original.steps,fields:updated})
   });
   await readForm(slug);
   return {success:true,content_version:0};
  },
- async resolvePreview(id,draft){
+ async resolvePreview(id:string,draft:ThemePage){
   const item=records.get(id)||await readForm(id);
-  const type=f=>['email','tel','number','date'].includes(f.field_type)?f.field_type:'text';
+  const type=(f:FormField)=>['email','tel','number','date'].includes(f.field_type)?f.field_type:'text';
   const sectionById=new Map((draft?.sections||[]).map(x=>[x.key,x]));
   const fields=item.fields.filter(f=>Number(f.is_active)!==0).map(f=>{
    const x=sectionById.get(f.id)?.content||{};
    const label=esc(x.label??f.label),placeholder=esc(x.placeholder??f.placeholder);
-   const name=esc(f.field_key),required=String(x.is_required??f.is_required)==='true'||x.is_required===1;
+   const name=esc(f.field_key),required=String(x.is_required??f.is_required)==='true'||String(x.is_required)==='1';
    const field=f.field_type==='textarea'
     ? '<textarea disabled placeholder="'+placeholder+'"></textarea>'
     : '<input disabled type="'+type(f)+'" placeholder="'+placeholder+'">';
@@ -104,7 +123,7 @@ const model={
  async moveBlock(){throw Error('Nested form blocks are unsupported.');},
 };
 try{
- const all=await response(formApi);
+ const all=await response<FormCatalog>(formApi);
  pages.push(...(all.forms||[]).map(f=>({slug:f.id,title:f.title,route:null})));
  await Promise.all(pages.map(p=>readForm(p.slug)));
  if(!pages.length)throw Error('No Companions forms found');
@@ -126,5 +145,5 @@ try{
  });
 }catch(error){
  console.error('[companions-sdk-theme-host]',error);
- document.body.textContent='Ecommerce Theme Studio could not load: '+(error.message||String(error));
+ document.body.textContent='Ecommerce Theme Studio could not load: '+(error instanceof Error ? error.message : String(error));
 }

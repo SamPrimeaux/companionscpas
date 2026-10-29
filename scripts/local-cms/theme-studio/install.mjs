@@ -4,11 +4,14 @@
  * host adapter bootstrap; the app's GUI source is never rewritten.
  */
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { build } from 'esbuild';
 import { resolve, join, dirname } from 'node:path';
 import { createRequire } from 'node:module';
 const req=createRequire(import.meta.url);
 const pkgRoot=dirname(req.resolve('@inneranimalmedia/ecommerce-cms-agentsam/manifest'));
-const source=join(pkgRoot,'frontend/static');
+// Use the assembled *packaged* distribution, not Local Studio or raw
+// source fallbacks. Missing files fail the build instead of drifting.
+const source=join(pkgRoot,'dist/assets/admin');
 const dest=resolve('public/dashboard/sdk');
 const files=[
   ['css/admin.css'],['css/console.css'],['css/theme-editor.css'],
@@ -23,13 +26,7 @@ const files=[
 ].map(([p])=>p);
 for(const file of files){
  await mkdir(dirname(join(dest,file)),{recursive:true});
- const from=join(source,file),to=join(dest,file);
- try { await copyFile(from,to); } catch(error) {
-   if(error.code!=="ENOENT") throw error;
-   const fallback=join("/Users/samprimeaux/agentsam-sdk/apps/local-studio/frontend/public/admin",file);
-   await copyFile(fallback,to);
-   console.warn("[SDK package dependency]",file,"loaded from canonical Local Studio");
- }
+ await copyFile(join(source,file),join(dest,file));
 }
 await mkdir(join(dest,'theme-editor-lib'),{recursive:true});
 await copyFile(join(pkgRoot,'frontend/theme-editor/bridge.mjs'),join(dest,'theme-editor-lib/bridge.mjs'));
@@ -39,6 +36,10 @@ html=html.replace('<script src="/admin/js/theme-editor.js"></script>',
   '<script type="module" src="/dashboard/sdk/forms-theme-boot.mjs"></script>');
 html=html.replace('<script type="module" src="/admin/js/theme-editor-generation-bootstrap.mjs"></script>','');
 await writeFile(join(dest,'forms-theme-shell.html'),html);
-await copyFile(resolve('scripts/local-cms/theme-studio/forms-theme-boot.mjs'),
-  join(dest,'forms-theme-boot.mjs'));
+await build({
+ entryPoints:[resolve('scripts/local-cms/theme-studio/forms-theme-boot.ts')],
+ outfile:join(dest,'forms-theme-boot.mjs'),
+ bundle:true,platform:'browser',format:'esm',target:'es2022',
+ logLevel:'warning'
+});
 console.log('Canonical ecommerce Theme Studio shell staged:',files.length,'original package assets + bridge');

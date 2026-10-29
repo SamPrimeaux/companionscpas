@@ -35,9 +35,9 @@ function readPackage(name){
  if(!existsSync(manifest))throw Error('Missing installed package '+name+'. Run npm ci first.');
  return JSON.parse(readFileSync(manifest,'utf8'));
 }
-const cms=readPackage('@inneranimalmedia/client-cms-editor');
 const ecom=readPackage('@inneranimalmedia/ecommerce-cms-agentsam');
-if(cms.version!==ecom.version)throw Error('CMS engine and ecommerce app versions are not aligned');
+// Companions authoring is ecommerce-owned. Its historical client editor
+// re-export is not part of the local CMS GUI mounting contract.
 if(task==='doctor'){
  const archiveDir=join(root,'packages/sdk-artifacts');
  const hashes=JSON.parse(readFileSync(join(archiveDir,'manifest.json'),'utf8'));
@@ -47,7 +47,7 @@ if(task==='doctor'){
   if(actual!==expected)throw Error('CMS package archive checksum mismatch: '+filename);
  }
  console.log('Pinned local archives verified:',Object.keys(hashes.files).length);
- console.log('Local package baseline:',ecom.name+'@'+ecom.version,cms.name+'@'+cms.version);
+ console.log('Local canonical GUI package:',ecom.name+'@'+ecom.version);
  console.log('Local storage:',persist);
  console.log('Remote binding mode: DISABLED (local config + --local)');
  console.log('Existing site preserved; no production CMS routes are replaced.');
@@ -60,7 +60,18 @@ if(task==='doctor'){
   wranglerLocal(['r2','object','put','companionscpas/'+rel,'--local','--persist-to',persist,'--file',p,'--content-type',types[extname(p).toLowerCase()]],{silent:true});
   n++;if(n%15===0)console.log('Local R2 assets:',n,'/',list.length);
  }
- console.log('Local R2 snapshot seeded from working tree:',n,'files');
+ // The public site links to /static/global/cpas-shell.css and companion
+ // assets outside public/. A blank R2 created from public/ alone strips the
+ // site of its actual layout. Sync these originals LOCAL ONLY.
+ const global=join(root,'static/global');
+ for(const p of walk(global).filter(file=>types[extname(file).toLowerCase()])){
+  const relativeKey=relative(root,p).split('\\').join('/');
+  wranglerLocal(['r2','object','put','companionscpas/'+relativeKey,
+    '--local','--persist-to',persist,'--file',p,
+    '--content-type',types[extname(p).toLowerCase()]],{silent:true});
+  n++;
+ }
+ console.log('Local R2 snapshot seeded from public + static/global:',n,'files');
 }else if(task==='start'){
  if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid local port');
  const cmd=['--config',config,'dev','--local','--ip','127.0.0.1','--port',String(port),'--persist-to',persist,'--log-level','warn'];
