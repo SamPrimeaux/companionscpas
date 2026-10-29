@@ -490,10 +490,44 @@ export async function formsRoutes(request, env, url) {
   }
 
   // Admin routes below
-  if (!path.startsWith("/api/cms/forms") && path !== "/api/cms/donation-modal") return null;
+  if (!path.startsWith("/api/cms/forms") && path !== "/api/cms/donation-modal" && path !== "/api/cms/studio/catalog") return null;
 
   const user = await requireUser(request, env);
   if (!user) return json({ success: false, error: "Not authenticated" }, 401);
+
+  // SDK Form & Modal Studio catalog: read-only resource references, never
+  // duplicate form fields or payment state. Authentication is required above.
+  if (path === "/api/cms/studio/catalog" && method === "GET") {
+    const [legacy, checkouts] = await Promise.all([
+      env.DB.prepare(
+        `SELECT id, modal_key, title, subtitle, is_active, config_json
+         FROM cms_modals WHERE tenant_id = ? ORDER BY modal_key`
+      ).bind(TENANT).all(),
+      env.DB.prepare(
+        `SELECT id, global_key, status, content_version, inline_content_json
+         FROM cms_globals WHERE account_id = ? AND global_type = 'checkout_modal'
+         ORDER BY updated_at DESC`
+      ).bind(TENANT).all(),
+    ]);
+    return json({
+      success: true,
+      modals: (legacy.results || []).map(row => ({
+        id: row.id, key: row.modal_key, title: row.title,
+        description: row.subtitle || "", status: row.is_active ? "published" : "draft",
+        source: "legacy_modal", config: { ...safeJson(row.config_json, {}), provider_credentials: undefined },
+      })),
+      checkouts: (checkouts.results || []).map(row => {
+        const content = safeJson(row.inline_content_json, {});
+        return {
+          id: row.id, key: row.global_key, title: content.title || row.global_key,
+          description: content.subtitle || "", status: row.status,
+          content_version: row.content_version,
+          campaign_ref: content.campaign_id || null,
+          source: "cms_globals",
+        };
+      }),
+    });
+  }
 
   // Edit the existing cms_modals donation configuration; no separate modal table.
   if (path === "/api/cms/donation-modal" && method === "GET") {
