@@ -32,10 +32,17 @@ await mkdir(join(dest,'theme-editor-lib'),{recursive:true});
 await copyFile(join(pkgRoot,'frontend/theme-editor/bridge.mjs'),join(dest,'theme-editor-lib/bridge.mjs'));
 let html=await readFile(join(source,'theme-editor.html'),'utf8');
 if (!html.includes('<script src="/admin/js/theme-editor.js"></script>')) throw Error('Unexpected upstream Theme Studio HTML');
+html=html.replace('<script src="/admin/js/shell.js"></script>',
+  '<script src="/dashboard/sdk/studio-host-bridge.js"></script>\n<script src="/admin/js/shell.js"></script>');
 html=html.replace('<script src="/admin/js/theme-editor.js"></script>',
   '<script type="module" src="/dashboard/sdk/studio-boot.mjs"></script>');
 html=html.replace('<script type="module" src="/admin/js/theme-editor-generation-bootstrap.mjs"></script>','');
 await writeFile(join(dest,'forms-theme-shell.html'),html);
+await build({
+  entryPoints:[resolve('scripts/local-cms/theme-studio/studio-host-bridge.ts')],
+  outfile:join(dest,'studio-host-bridge.js'),
+  bundle:true,platform:'browser',format:'iife',target:'es2022',logLevel:'warning',
+});
 for (const entry of ['forms-theme-boot', 'pages-theme-boot', 'studio-boot']) {
  await build({
   entryPoints:[resolve('scripts/local-cms/theme-studio',entry+'.ts')],

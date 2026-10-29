@@ -218,6 +218,8 @@ export async function assemblePage(env, route, opts = {}) {
   const includeHidden = opts.includeHidden === true;
   const preview = opts.preview === true;
   const preferR2 = opts.preferR2 === true;
+  // Draft overrides affect only this render, never D1 sections or R2 fragments.
+  const sectionOverrides = opts.sectionOverrides || {};
 
   const page = await loadCmsPageRow(env, r);
   if (!page) return null;
@@ -228,11 +230,27 @@ export async function assemblePage(env, route, opts = {}) {
   const sectionHtmls = [];
   for (const section of sections) {
     const sectionBlocks = blocksBySection.get(section.section_key) || [];
+    const draftContent = sectionOverrides[section.section_key];
+    const edited = draftContent ? { ...section, ...draftContent } : section;
+    // A Custom Code draft renders its HTML body directly in memory; the published
+    // raw_html R2 pointer is deliberately omitted to avoid masking draft edits.
+    if (draftContent && section.section_type === "raw_html") {
+      const config = JSON.parse(section.config_json || "{}");
+      delete config.r2_key;
+      delete config.cdn_url;
+      const html = typeof draftContent.html === "string" ? draftContent.html : "";
+      const sourceUrl = typeof draftContent.source_url === "string" ? draftContent.source_url : "";
+      edited.config_json = JSON.stringify(html
+        ? { ...config, html_source: "paste", html, source_url: "" }
+        : sourceUrl
+          ? { ...config, html_source: "url", source_url: sourceUrl, html: "" }
+          : { ...config, html_source: "paste", html: "" });
+    }
     let html = "";
-    if (preferR2) html = await r2Text(env, fragmentR2Key(r, section.section_key));
+    if (preferR2 && !draftContent) html = await r2Text(env, fragmentR2Key(r, section.section_key));
     if (!html.trim()) {
       html = await renderSectionByType(
-        { ...section, page_route: r },
+        { ...edited, page_route: r },
         sectionBlocks,
         brand,
         env,

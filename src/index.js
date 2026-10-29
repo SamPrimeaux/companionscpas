@@ -2,6 +2,7 @@ import { syncToIAM } from "./api/resolveModel.js";
 import { authRoutes } from './api/auth_login.js';
 import { googleAuthRoutes } from './api/auth_google.js';
 import { sessionRoutes, getAuthUser } from './api/session_api.js';
+import { localCmsStudioRoutes } from './api/local_cms_studio.js';
 import { agentsamRoutes } from './api/agentsam_api.js';
 import { agentsamToolsRoutes } from './api/agentsam_tools.js';
 import { mcpHandler } from './api/mcp_handler.js';
@@ -304,6 +305,10 @@ export default {
 
       const formsResult = await formsRoutes(request, env, url);
       if (formsResult) return formsResult;
+
+      // Local QA drafts are isolated from the published Companions publisher.
+      const localStudio = await localCmsStudioRoutes(request, env, url);
+      if (localStudio) return localStudio;
 
       const cmsResult = await cmsRoutes(request, env, url);
       if (cmsResult) return cmsResult;

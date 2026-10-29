@@ -230,6 +230,20 @@ function App() {
 
   React.useEffect(() => { window.__navigate = navigate; }, [navigate]);
 
+  // Embed the canonical Studio and route its assistant trigger to the
+  // existing SDK workbench; never instantiate a second iframe chatbot.
+  React.useEffect(() => {
+    if (!["127.0.0.1", "localhost"].includes(location.hostname) || location.port !== "4473") return;
+    const onStudioMessage = (event) => {
+      if (event.origin !== location.origin || event.data?.type !== "cpas:agentsam-open") return;
+      const frame = document.querySelector("#main-scroll iframe");
+      if (!frame || event.source !== frame.contentWindow) return;
+      window.dispatchEvent(new CustomEvent("agentsam:open"));
+    };
+    window.addEventListener("message", onStudioMessage);
+    return () => window.removeEventListener("message", onStudioMessage);
+  }, []);
+
   const handleLogout = React.useCallback(async () => {
     try { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); } catch {}
     window.location.href = "/admin/login";
