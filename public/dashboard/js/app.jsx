@@ -250,7 +250,7 @@ function App() {
     );
   }
 
-  const isCmsEditor = view === "cms-page-editor" || view === "cms-form-editor";
+  const isCmsEditor = ["cms-page-editor", "cms-form-editor", "cms-forms"].includes(view);
   const isFlushWorkspace = view === "email" || view === "collaborate";
 
   const renderView = () => {
@@ -288,12 +288,12 @@ function App() {
           ? React.createElement(CmsImagesView,    { onNavigate: navigate })
           : cmsShell("Images", "Loading…");
       case "cms-forms":
-        return typeof CmsFormsView === "function"
-          ? React.createElement(CmsFormsView,     { onNavigate: navigate })
+        return typeof CmsInstalledFormStudioView === "function"
+          ? React.createElement(CmsInstalledFormStudioView, { onNavigate: navigate })
           : cmsShell("Forms", "Loading…");
       case "cms-form-editor":
-        return typeof CmsFormEditorView === "function"
-          ? React.createElement(CmsFormEditorView, { formId: params.formId, onNavigate: navigate })
+        return typeof CmsInstalledFormStudioView === "function"
+          ? React.createElement(CmsInstalledFormStudioView, { formId: params.formId, onNavigate: navigate })
           : cmsShell("Form Studio", "Loading…");
       case "cms-brand":
         return typeof CmsBrandView === "function"
