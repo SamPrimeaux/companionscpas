@@ -344,9 +344,18 @@ function App() {
     ? { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }
     : { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0 };
 
-  return React.createElement("div", { className: "cpas-shell" + (sidebarCollapsed && !isMobile ? " sidebar-collapsed" : "") },
+  const sharedChrome = usePackagedStudio ? window.CompanionsSDKChrome : null;
+  return React.createElement("div", { className: "cpas-shell" + (sharedChrome ? " cpas-sdk-shell" : "") },
+    sharedChrome?.HostNav
+      ? React.createElement(sharedChrome.HostNav, {
+          groups: NAV_STRUCTURE, view, navigate, onLogout: handleLogout
+        })
+      : null,
     React.createElement("div", { className: "cpas-main-col" },
-      React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => setNavOpen(true), navigate }),
+      React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => {
+        if (sharedChrome?.HostNav) window.dispatchEvent(new CustomEvent("cpas:sdk-nav-open"));
+        else setNavOpen(true);
+      }, navigate }),
       React.createElement("main", {
         id: "main-scroll",
         className: "cpas-dash-content" + (isFlushWorkspace || isCmsEditor ? " dash-content--flush" : ""),
@@ -358,13 +367,15 @@ function App() {
       onClick: () => setNavOpen(false),
       "aria-hidden": "true"
     }),
-    React.createElement(MobileDrawer, {
+    !sharedChrome?.HostNav && React.createElement(MobileDrawer, {
       open: navOpen, view, navigate,
       onClose: () => setNavOpen(false),
       onLogout: handleLogout
     }),
     React.createElement(AgentSamDrawer, null),
-    React.createElement(MiniAgentSamDock, null),
+    sharedChrome?.HostMiniAgent
+      ? React.createElement(sharedChrome.HostMiniAgent, null)
+      : React.createElement(MiniAgentSamDock, null),
     typeof CmsSectionUndoToast === "function"
       ? React.createElement(CmsSectionUndoToast, null)
       : null

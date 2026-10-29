@@ -48,12 +48,12 @@ async function asset(env, request, path) {
     if (obj) {
       const ext = key.split('.').pop().toLowerCase();
       const mime = {
-        html:'text/html', css:'text/css', js:'application/javascript',
+        html:'text/html', css:'text/css', js:'application/javascript', mjs:'application/javascript',
         jsx:'application/javascript', json:'application/json',
         png:'image/png', webp:'image/webp', jpg:'image/jpeg',
         svg:'image/svg+xml', ico:'image/x-icon', woff2:'font/woff2',
       }[ext] || obj.httpMetadata?.contentType || 'text/html';
-      const isDashboardCode = key.startsWith('dashboard/') && ['js', 'jsx', 'css', 'html'].includes(ext);
+      const isDashboardCode = key.startsWith('dashboard/') && ['js', 'mjs', 'jsx', 'css', 'html'].includes(ext);
       return new Response(obj.body, {
         headers: {
           'content-type': mime,
@@ -213,6 +213,14 @@ const getSession = getAuthUser;
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // Local preview: route original SDK Theme Studio asset URLs to the exact
+    // installed package assets staged under the site's LOCAL R2 namespace.
+    // Production never enters this branch and keeps Companions' own /admin.
+    if (["127.0.0.1", "localhost"].includes(url.hostname) &&
+        url.port === "4473" &&
+        /^\/admin\/(js|css|brand)\//.test(url.pathname)) {
+      return asset(env, request, "/dashboard/sdk/" + url.pathname.slice("/admin/".length));
+    }
 
     // admin.companionsofcaddo.org → redirect to /admin/login
     if (url.hostname === "admin.companionsofcaddo.org") {
@@ -426,7 +434,34 @@ export default {
         }
       }
 
-      // Serve dashboard shell — lives at dashboard/index.html in R2
+      // Serve the actual installed Ecommerce CMS editor document for the
+      // localhost-only Forms migration. Authentication was checked above.
+      // Other dashboard URLs continue to serve the original site shell.
+      if (url.pathname === "/dashboard/sdk/forms-theme-shell.html" &&
+          ["localhost", "127.0.0.1"].includes(url.hostname)) {
+        return asset(env, request, url.pathname);
+      }
+      // LOCALHOST ONLY: add the actual packaged SDK nav/workbench frontend
+      // to Companions' existing dashboard. Production remains exactly V1.
+      if ((url.hostname === "127.0.0.1" || url.hostname === "localhost") &&
+          url.port === "4473") {
+        const shell = await asset(env, request, "/dashboard/index.html");
+        if (!shell.ok) return shell;
+        const html = (await shell.text()).replace("</head>", [
+          '<link rel="stylesheet" href="/dashboard/sdk/shell.css">',
+          '<link rel="stylesheet" href="/dashboard/sdk/dashboard-nav-sdk.css">',
+          '<link rel="stylesheet" href="/dashboard/sdk/dashboard-mini-sdk.css">',
+          '<link rel="stylesheet" href="/dashboard/sdk/dashboard-host.css">',
+          '<script src="/dashboard/sdk/dashboard-shell-sdk.js"></script>',
+          '</head>'
+        ].join("\n"));
+        return new Response(html, {
+          status: shell.status,
+          headers: { "content-type": "text/html; charset=utf-8",
+            "cache-control": "no-store" }
+        });
+      }
+      // Production and rollback: original dashboard shell stays unchanged.
       return asset(env, request, "/dashboard/index.html");
     }
 

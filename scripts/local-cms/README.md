@@ -193,3 +193,46 @@ writes use the existing Companions CMS API. This is NOT a full writable
 CMS migration yet: some globals, media and block creation still need their
 SDK contract adapters and browser-level visual acceptance. Production V1
 routes and publishing behavior are untouched.
+
+## Shared dashboard shell — packaged navigation + workbench
+
+Companions' entire `/dashboard/*` shell now uses the canonical **SDK
+navigation and AgentSam workbench components on localhost only**. The
+app-owned business pages, D1 resources, forms, routes, checkout and existing
+backend `/api/agentsam/chat` streaming transport remain in Companions.
+This is a shell adoption—not a second implementation of its apps.
+
+- Source: immutable `@inneranimalmedia/agentsam-nav@2.6.13` and
+  `@inneranimalmedia/agentsam-workbench@2.6.13` packed archives.
+- `scripts/local-cms/dashboard-shell/host.tsx` maps Companions' existing
+  `NAV_STRUCTURE` onto the real SDK Nav, without inventing different routes.
+- MiniAgentSam now uses the SDK's actual `AgentComposer` and
+  `MiniAgentSam` element-selection component.
+- The slide-in assistant uses the SDK `AgentPanel`, preserving the existing
+  host session, SSE endpoint, cancellation and message state.
+- `host.css` only sets theme/layout tokens to match the ecommerce admin
+  shell; the SDK owns navigation behavior, message rendering, focus state and
+  editor code.
+- On production, the original shell, mini composer and AgentSam panel still
+  run; **no production changes** are enabled here.
+- Legacy AgentSam file/Drive attachment controls are not yet available in
+  the new SDK panel; restore those through the shared workbench adapter before
+  switching production. Cross-iframe annotations also need an explicit bridge.
+
+The SDK archive installs through offline npm are currently blocked by
+unavailable `@radix-ui/react-dialog` registry data. Instead, the local
+bundle extracts the actual SDK package archives into ignored local
+`.wrangler` state and bundles their published modules against the SDK
+checkout's installed build dependencies. This is a repeatable **Mac localdev
+workflow, not a clean-room npm installation guarantee**. The separate
+upstream publishing/registry task remains.
+
+Use `npm run local:cms:rebuild` for the complete typed CMS + shell build,
+local R2 sync, and all smoke tests. Use
+`npm run local:cms:shell:smoke` for shell-only QA.
+
+**Violet theme:** Violet is currently a *showcase* with example nonprofit
+content, not an authoritative Companions theme installation. Reuse Violet
+as a design preset or token bundle only after mapping it to actual Companions
+brand values, real site assets and editable templates. Do not publish the
+Violet demo content (including its invented organization) as Companions.

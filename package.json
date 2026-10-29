@@ -14,10 +14,11 @@
     "check:brand": "grep -RInEi \"pawlove|pawloverescue|meauxbility|g7wf09f|22963db|Grant Parish|Sissyj\" src public || true",
     "cache:bust": "bash scripts/cache-bust.sh",
     "local:cms:typecheck": "tsc --project scripts/local-cms/theme-studio/tsconfig.json",
-    "local:cms:build": "npm run local:cms:typecheck && node scripts/local-cms/theme-studio/install.mjs",
-    "local:cms:rebuild": "npm run local:cms:build && node scripts/local-cms/preview.mjs assets && node scripts/local-cms/theme-studio/smoke.mjs && node scripts/local-cms/theme-studio/smoke-pages.mjs",
+    "local:cms:build": "npm run local:cms:typecheck && node scripts/local-cms/theme-studio/install.mjs && node scripts/local-cms/dashboard-shell/build.mjs",
+    "local:cms:rebuild": "npm run local:cms:build && node scripts/local-cms/preview.mjs assets && node scripts/local-cms/theme-studio/smoke.mjs && node scripts/local-cms/theme-studio/smoke-pages.mjs && node scripts/local-cms/dashboard-shell/smoke.mjs",
     "local:cms:doctor": "node scripts/local-cms/preview.mjs doctor",
-    "local:cms:serve": "node scripts/local-cms/preview.mjs start 4473"
+    "local:cms:serve": "node scripts/local-cms/preview.mjs start 4473",
+    "local:cms:shell:smoke": "node scripts/local-cms/dashboard-shell/smoke.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.1",
