@@ -215,6 +215,18 @@ function AgentSamDrawer() {
 
   if (!open) return null;
 
+  // The current tenant still owns the real /api/agentsam/chat SSE transport,
+  // session continuity, stop handling and message data. On localhost, the
+  // packaged AgentSam workbench owns the conversation UI instead.
+  const SharedAgentPanel = window.CompanionsSDKChrome?.HostAgentPanel;
+  if (SharedAgentPanel && ["127.0.0.1", "localhost"].includes(location.hostname)) {
+    return React.createElement(SharedAgentPanel, {
+      messages, draft: prompt, onDraftChange: setPrompt,
+      onSend: () => sendPrompt(), onCancel: stopPrompt,
+      streaming: busy, steps, onClose: () => setOpen(false)
+    });
+  }
+
   const NV = {
     bg:      "var(--nav-bg)",
     bg2:     "rgba(255,255,255,0.04)",

@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="/dashboard/css/collaborate-calendar.css?v=03874b0">
 <link rel="stylesheet" href="/dashboard/css/collaborate-tasks.css?v=03874b0">
 <link rel="stylesheet" href="/dashboard/css/checkout-editor.css?v=checkout-studio-v2-20261028">
+<link rel="stylesheet" href="/dashboard/apps/form-studio/styles.css?v=studio-sdk-preview-20261028">
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -46,6 +47,16 @@
 <script type="text/babel" src="/dashboard/js/cms/brand.jsx?v=03874b0"></script>
 <script type="text/babel" src="/dashboard/js/view-cms.jsx?v=03874b0"></script>
 <script type="text/babel" src="/dashboard/js/view-cms-forms.jsx?v=03874b0"></script>
+<script src="/dashboard/js/cms/agent-form-studio-adapter.js?v=sdk-20261028"></script>
+<script type="text/babel" src="/dashboard/js/cms/agent-form-studio-host.jsx?v=sdk-20261028"></script>
+<script type="module">
+  import("/dashboard/apps/form-studio/index.js?v=studio-sdk-preview-20261028")
+    .then(mod => {
+      window.AgentSamFormStudio = mod;
+      window.dispatchEvent(new Event("agentsam-form-studio-ready"));
+    })
+    .catch(error => console.error("[form-studio] Package unavailable; legacy fallback retained.", error));
+</script>
 <script type="text/babel" src="/dashboard/js/agentsam.jsx?v=sdk-mini-2613-20261024"></script>
 <script type="text/babel" src="/dashboard/js/view-reports.jsx?v=03874b0"></script>
 <script type="text/babel" src="/dashboard/js/view-email.jsx?v=03874b0"></script>

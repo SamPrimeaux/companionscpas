@@ -1,0 +1,26 @@
+{
+  "schema": "agentsam.local-package-install.v1",
+  "source_repo": "SamPrimeaux/agentsam-sdk",
+  "source_commit": "d4d0c95b990eab4d88c1639797375fe5dfcf1429",
+  "product": "@inneranimalmedia/ecommerce-cms-agentsam",
+  "package_version": "2.6.13",
+  "purpose": "Companions localhost: canonical ecommerce CMS + archived SDK Nav/Workbench/TSX host integration",
+  "package_boundary_ready": false,
+  "files": {
+    "inneranimalmedia-agentsam-nav-2.6.13.tgz": "cdb1a2d6e20b66fbb9344ed5a1561edc1d69abf3331df688ca9b124cd87e116e",
+    "inneranimalmedia-agentsam-workbench-2.6.13.tgz": "069fbe6f30d2e111b3df51ec4a82cabb227910e5f79dd454acd392606fd64db0",
+    "inneranimalmedia-ecommerce-cms-agentsam-2.6.13.tgz": "aeb935697c8916eedd18bfea962dd79edc9a7eaef6b80ebb50dbdced17e12b0a",
+    "inneranimalmedia-revise-theme-0.2.0.tgz": "9648bc8edf41c93c591b6c5cea33f3bbcfb53fe0c2cbd5d4d3262c109a5f23a8",
+    "inneranimalmedia-section-library-0.1.0.tgz": "8d7566eed8c7a4e21f0aba40d61b37bd92fb7348cf653e05231957a17e5249f1",
+    "inneranimalmedia-site-contracts-0.1.0.tgz": "c3483b1c37afc8381552806c4a5c2431868d48c8026e9ff27fdf3049ebaa7ada",
+    "jsquash-jpeg-1.6.0.tgz": "b546f01dce888337bf132c5113b78a91a8ad76c1fe54740b2632546dda3b41b8",
+    "jsquash-png-3.1.1.tgz": "bd2a9b1ea9f39d1ddaaf088f14e97a62cfb53b1b3868e5a2a65567ccdacb0e2e",
+    "jsquash-resize-2.1.1.tgz": "0231e68692528372fd27a8b6610b7c8c84cf9cf3f256d97561a64996d9c2b962",
+    "jsquash-webp-1.5.0.tgz": "b543cb1fc17e99c31e992a71d70da570d1bc1871ce3a88440df067e5b2e6ee9e",
+    "react-19.3.0.tgz": "5a4024110c49476e1538a70fd65b9e59d038fcc280b78eb933c24e10453afbf9",
+    "react-dom-19.3.0.tgz": "dbeffb1e6cdbbbba07f799da4635333d0e20c210a32278dded85441ec4cb6a17",
+    "scheduler-0.28.0.tgz": "302995d590e3c0a11eeb40d1d0f299c1df1800135d599d85cdd5faeb614f32d6",
+    "typescript-6.0.3.tgz": "33cd0ee1beaa8c9e9d15a9da836c62ddea4c34a42d7c2d349dbc80d94165d22a",
+    "wasm-feature-detect-1.9.0.tgz": "a8cf79531f1660a169ec17b54cbb888a199384da57c70189b734009e2ab9ec35"
+  }
+}

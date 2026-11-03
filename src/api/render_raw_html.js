@@ -115,6 +115,17 @@ export async function renderRawHtml(section, _blocks = [], _brand = {}, env = nu
     return skipComment("source_url must be https");
   }
 
+  // Our own asset host is already backed by WEBSITE_ASSETS. Read that same
+  // object through the binding first; it avoids DNS dependence in local QA.
+  try {
+    const external = new URL(sourceUrl);
+    if (external.hostname === "assets.companionsofcaddo.org" && env?.WEBSITE_ASSETS) {
+      const key = decodeURIComponent(external.pathname.replace(/^\/+/, ""));
+      const assetHtml = await getRawHtmlAuthoring(env, key);
+      if (assetHtml) return wrapHtml(sectionKey, assetHtml);
+    }
+  } catch { /* Fall back to the existing validated HTTPS fetch. */ }
+
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);

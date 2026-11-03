@@ -221,6 +221,34 @@ function App() {
   }, []);
 
   const navigate = React.useCallback((newView, newParams = {}) => {
+    // The packaged Ecommerce Studio owns its own full-screen document shell.
+    // Never mount it inside the legacy Companions React dashboard or an iframe.
+    // A real navigation lets the worker serve the package's Online Store hub
+    // first, then the same canonical Theme Studio when the user chooses Edit.
+    const localPackagedStudio = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+      && window.location.port === "4473";
+    if (localPackagedStudio) {
+      let studioPath = null;
+      if (newView === "cms-website") {
+        studioPath = "/dashboard/cms/website";
+      } else if (newView === "cms-pages") {
+        studioPath = "/dashboard/cms/website/editor?surface=pages&slug=home";
+      } else if (newView === "cms-page-editor") {
+        const rawSlug = String(newParams.pageId || "home");
+        const slug = rawSlug === "/" ? "home" : rawSlug.replace(/^\/+|\/+$/g, "").replace(/\//g, "-") || "home";
+        studioPath = "/dashboard/cms/website/editor?surface=pages&slug=" + encodeURIComponent(slug);
+      } else if (newView === "cms-forms") {
+        studioPath = "/dashboard/cms/website/editor?surface=forms";
+      } else if (newView === "cms-form-editor") {
+        const query = new URLSearchParams({ surface: "forms" });
+        if (newParams.formId) query.set("formId", String(newParams.formId));
+        studioPath = "/dashboard/cms/website/editor?" + query.toString();
+      }
+      if (studioPath) {
+        window.location.assign(studioPath);
+        return;
+      }
+    }
     const path = buildPath(newView, newParams);
     window.history.pushState({}, "", path);
     setView(newView); setParams(newParams); setNavOpen(false);
@@ -229,6 +257,20 @@ function App() {
   }, []);
 
   React.useEffect(() => { window.__navigate = navigate; }, [navigate]);
+
+  // Embed the canonical Studio and route its assistant trigger to the
+  // existing SDK workbench; never instantiate a second iframe chatbot.
+  React.useEffect(() => {
+    if (!["127.0.0.1", "localhost"].includes(location.hostname) || location.port !== "4473") return;
+    const onStudioMessage = (event) => {
+      if (event.origin !== location.origin || event.data?.type !== "cpas:agentsam-open") return;
+      const frame = document.querySelector("#main-scroll iframe");
+      if (!frame || event.source !== frame.contentWindow) return;
+      window.dispatchEvent(new CustomEvent("agentsam:open"));
+    };
+    window.addEventListener("message", onStudioMessage);
+    return () => window.removeEventListener("message", onStudioMessage);
+  }, []);
 
   const handleLogout = React.useCallback(async () => {
     try { await fetch("/api/auth/logout", { method: "POST", credentials: "include" }); } catch {}
@@ -250,6 +292,14 @@ function App() {
     );
   }
 
+  // On localhost, the worker serves the package's Online Store hub and Theme
+  // Studio as full-screen documents. This React shell only supplies the
+  // existing Companions navigation/workbench for the rest of the dashboard.
+  const usePackagedStudio = ["127.0.0.1", "localhost"].includes(window.location.hostname)
+    && window.location.port === "4473";
+  // The canonical package editor is a full-screen document route. The legacy
+  // dashboard only uses flush layout for its own older editors; never iframe
+  // the Ecommerce Studio inside this React shell.
   const isCmsEditor = view === "cms-page-editor" || view === "cms-form-editor";
   const isFlushWorkspace = view === "email" || view === "collaborate";
 
@@ -326,9 +376,18 @@ function App() {
     ? { flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }
     : { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0 };
 
-  return React.createElement("div", { className: "cpas-shell" + (sidebarCollapsed && !isMobile ? " sidebar-collapsed" : "") },
+  const sharedChrome = usePackagedStudio ? window.CompanionsSDKChrome : null;
+  return React.createElement("div", { className: "cpas-shell" + (sharedChrome ? " cpas-sdk-shell" : "") },
+    sharedChrome?.HostNav
+      ? React.createElement(sharedChrome.HostNav, {
+          groups: NAV_STRUCTURE, view, navigate, onLogout: handleLogout
+        })
+      : null,
     React.createElement("div", { className: "cpas-main-col" },
-      React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => setNavOpen(true), navigate }),
+      React.createElement(TopBar, { view, isMobile, navOpen, onOpenNav: () => {
+        if (sharedChrome?.HostNav) window.dispatchEvent(new CustomEvent("cpas:sdk-nav-open"));
+        else setNavOpen(true);
+      }, navigate }),
       React.createElement("main", {
         id: "main-scroll",
         className: "cpas-dash-content" + (isFlushWorkspace || isCmsEditor ? " dash-content--flush" : ""),
@@ -340,13 +399,15 @@ function App() {
       onClick: () => setNavOpen(false),
       "aria-hidden": "true"
     }),
-    React.createElement(MobileDrawer, {
+    !sharedChrome?.HostNav && React.createElement(MobileDrawer, {
       open: navOpen, view, navigate,
       onClose: () => setNavOpen(false),
       onLogout: handleLogout
     }),
     React.createElement(AgentSamDrawer, null),
-    React.createElement(MiniAgentSamDock, null),
+    sharedChrome?.HostMiniAgent
+      ? React.createElement(sharedChrome.HostMiniAgent, null)
+      : React.createElement(MiniAgentSamDock, null),
     typeof CmsSectionUndoToast === "function"
       ? React.createElement(CmsSectionUndoToast, null)
       : null

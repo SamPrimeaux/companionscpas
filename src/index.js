@@ -2,6 +2,7 @@ import { syncToIAM } from "./api/resolveModel.js";
 import { authRoutes } from './api/auth_login.js';
 import { googleAuthRoutes } from './api/auth_google.js';
 import { sessionRoutes, getAuthUser } from './api/session_api.js';
+import { localCmsStudioRoutes } from './api/local_cms_studio.js';
 import { agentsamRoutes } from './api/agentsam_api.js';
 import { agentsamToolsRoutes } from './api/agentsam_tools.js';
 import { mcpHandler } from './api/mcp_handler.js';
@@ -48,12 +49,12 @@ async function asset(env, request, path) {
     if (obj) {
       const ext = key.split('.').pop().toLowerCase();
       const mime = {
-        html:'text/html', css:'text/css', js:'application/javascript',
+        html:'text/html', css:'text/css', js:'application/javascript', mjs:'application/javascript',
         jsx:'application/javascript', json:'application/json',
         png:'image/png', webp:'image/webp', jpg:'image/jpeg',
         svg:'image/svg+xml', ico:'image/x-icon', woff2:'font/woff2',
       }[ext] || obj.httpMetadata?.contentType || 'text/html';
-      const isDashboardCode = key.startsWith('dashboard/') && ['js', 'jsx', 'css', 'html'].includes(ext);
+      const isDashboardCode = key.startsWith('dashboard/') && ['js', 'mjs', 'jsx', 'css', 'html'].includes(ext);
       return new Response(obj.body, {
         headers: {
           'content-type': mime,
@@ -213,6 +214,14 @@ const getSession = getAuthUser;
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // Local preview: route original SDK Theme Studio asset URLs to the exact
+    // installed package assets staged under the site's LOCAL R2 namespace.
+    // Production never enters this branch and keeps Companions' own /admin.
+    if (["127.0.0.1", "localhost"].includes(url.hostname) &&
+        url.port === "4473" &&
+        /^\/admin\/(js|css|brand)\//.test(url.pathname)) {
+      return asset(env, request, "/dashboard/sdk/" + url.pathname.slice("/admin/".length));
+    }
 
     // admin.companionsofcaddo.org → redirect to /admin/login
     if (url.hostname === "admin.companionsofcaddo.org") {
@@ -297,6 +306,10 @@ export default {
       const formsResult = await formsRoutes(request, env, url);
       if (formsResult) return formsResult;
 
+      // Local QA drafts are isolated from the published Companions publisher.
+      const localStudio = await localCmsStudioRoutes(request, env, url);
+      if (localStudio) return localStudio;
+
       const cmsResult = await cmsRoutes(request, env, url);
       if (cmsResult) return cmsResult;
 
@@ -373,6 +386,18 @@ export default {
       }
     }
 
+    // Local-only aliases keep the canonical Ecommerce Studio's exit/nav
+    // destinations inside the Companions CMS workspace.
+    if (["localhost", "127.0.0.1"].includes(url.hostname) && url.port === "4473") {
+      if (url.pathname === "/admin/store") return Response.redirect(url.origin + "/dashboard/cms/website", 302);
+      if (url.pathname === "/admin/theme-editor" || url.pathname === "/admin/page-edit" || url.pathname === "/admin/pages") {
+        const slug = url.searchParams.get("slug") || url.searchParams.get("page") || "home";
+        return Response.redirect(url.origin + "/dashboard/cms/website/editor?surface=pages&slug=" + encodeURIComponent(slug), 302);
+      }
+      if (url.pathname === "/admin/content") return Response.redirect(url.origin + "/dashboard/cms/images", 302);
+      if (url.pathname === "/admin/preferences") return Response.redirect(url.origin + "/dashboard/cms/brand", 302);
+    }
+
     // Admin routes
     if (url.pathname === "/admin/login" || url.pathname === "/admin" || url.pathname === "/admin/") {
       const brand = await getBrand(env).catch(() => ({}));
@@ -395,7 +420,7 @@ export default {
     // ── Dashboard — serve shell for all /dashboard/* paths ───────────────────
     if (url.pathname === "/dashboard" || url.pathname.startsWith("/dashboard/")) {
       // Pass JS/CSS/image assets through directly
-      const isAsset = url.pathname.match(/\.(js|jsx|css|png|webp|jpg|svg|ico|woff2?)$/i);
+      const isAsset = url.pathname.match(/\.(js|mjs|jsx|css|json|png|webp|jpg|svg|ico|woff2?)$/i);
       if (isAsset) {
         // Assets live under dashboard/ in R2
         return asset(env, request, url.pathname);
@@ -426,7 +451,52 @@ export default {
         }
       }
 
-      // Serve dashboard shell — lives at dashboard/index.html in R2
+      // The CMS website route is a standalone Ecommerce Online Store hub:
+      // no legacy Companions sidebar/header wrapped around the package UI.
+      if (["localhost", "127.0.0.1"].includes(url.hostname) && url.port === "4473") {
+        const cmsPath = url.pathname.replace(/\/$/, "");
+        if (cmsPath === "/dashboard/cms/pages" || cmsPath.startsWith("/dashboard/cms/pages/")) {
+          const slug = cmsPath === "/dashboard/cms/pages" ? "home" : decodeURIComponent(cmsPath.slice("/dashboard/cms/pages/".length));
+          return Response.redirect(url.origin + "/dashboard/cms/website/editor?surface=pages&slug=" + encodeURIComponent(slug), 302);
+        }
+        if (cmsPath === "/dashboard/cms/forms" || cmsPath.startsWith("/dashboard/cms/forms/")) {
+          const formId = cmsPath === "/dashboard/cms/forms" ? "" : decodeURIComponent(cmsPath.slice("/dashboard/cms/forms/".length));
+          const query = new URLSearchParams({ surface: "forms" });
+          if (formId) query.set("formId", formId);
+          return Response.redirect(url.origin + "/dashboard/cms/website/editor?" + query.toString(), 302);
+        }
+        if (cmsPath === "/dashboard/cms/website") {
+          return asset(env, request, "/dashboard/sdk/store-theme-shell.html");
+        }
+        if (cmsPath === "/dashboard/cms/website/editor") {
+          return asset(env, request, "/dashboard/sdk/forms-theme-shell.html");
+        }
+        if (cmsPath === "/dashboard/sdk/store-theme-shell.html" ||
+            cmsPath === "/dashboard/sdk/forms-theme-shell.html") {
+          return asset(env, request, cmsPath);
+        }
+      }
+      // LOCALHOST ONLY: add the actual packaged SDK nav/workbench frontend
+      // to Companions' existing dashboard. Production remains exactly V1.
+      if ((url.hostname === "127.0.0.1" || url.hostname === "localhost") &&
+          url.port === "4473") {
+        const shell = await asset(env, request, "/dashboard/index.html");
+        if (!shell.ok) return shell;
+        const html = (await shell.text()).replace("</head>", [
+          '<link rel="stylesheet" href="/dashboard/sdk/shell.css">',
+          '<link rel="stylesheet" href="/dashboard/sdk/dashboard-nav-sdk.css">',
+          '<link rel="stylesheet" href="/dashboard/sdk/dashboard-mini-sdk.css">',
+          '<link rel="stylesheet" href="/dashboard/sdk/dashboard-host.css">',
+          '<script src="/dashboard/sdk/dashboard-shell-sdk.js"></script>',
+          '</head>'
+        ].join("\n"));
+        return new Response(html, {
+          status: shell.status,
+          headers: { "content-type": "text/html; charset=utf-8",
+            "cache-control": "no-store" }
+        });
+      }
+      // Production and rollback: original dashboard shell stays unchanged.
       return asset(env, request, "/dashboard/index.html");
     }
 

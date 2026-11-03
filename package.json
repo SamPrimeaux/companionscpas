@@ -12,13 +12,33 @@
     "css:merge": "node scripts/merge-cpas-css.mjs",
     "css:publish": "npm run css:merge && node scripts/publish-global-css.mjs",
     "check:brand": "grep -RInEi \"pawlove|pawloverescue|meauxbility|g7wf09f|22963db|Grant Parish|Sissyj\" src public || true",
-    "cache:bust": "bash scripts/cache-bust.sh"
+    "cache:bust": "bash scripts/cache-bust.sh",
+    "local:cms:typecheck": "tsc --project scripts/local-cms/theme-studio/tsconfig.json",
+    "local:cms:build": "npm run local:cms:typecheck && node scripts/local-cms/theme-studio/install.mjs && node scripts/local-cms/dashboard-shell/build.mjs",
+    "local:cms:rebuild": "npm run local:cms:build && node scripts/local-cms/preview.mjs assets && node scripts/local-cms/theme-studio/smoke.mjs && node scripts/local-cms/theme-studio/smoke-pages.mjs && node scripts/local-cms/theme-studio/smoke-website-hub.mjs && node scripts/local-cms/dashboard-shell/smoke.mjs",
+    "local:cms:doctor": "node scripts/local-cms/preview.mjs doctor",
+    "local:cms:serve": "node scripts/local-cms/preview.mjs start 4473",
+    "local:cms:shell:smoke": "node scripts/local-cms/dashboard-shell/smoke.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.28.1",
+    "typescript": "file:packages/sdk-artifacts/typescript-6.0.3.tgz",
     "wrangler": "^4.153.0"
   },
   "dependencies": {
-    "playwright": "^1.59.1"
+    "@inneranimalmedia/ecommerce-cms-agentsam": "file:packages/sdk-artifacts/inneranimalmedia-ecommerce-cms-agentsam-2.6.13.tgz",
+    "@inneranimalmedia/revise-theme": "file:packages/sdk-artifacts/inneranimalmedia-revise-theme-0.2.0.tgz",
+    "@inneranimalmedia/section-library": "file:packages/sdk-artifacts/inneranimalmedia-section-library-0.1.0.tgz",
+    "@inneranimalmedia/site-contracts": "file:packages/sdk-artifacts/inneranimalmedia-site-contracts-0.1.0.tgz",
+    "@jsquash/jpeg": "file:packages/sdk-artifacts/jsquash-jpeg-1.6.0.tgz",
+    "@jsquash/png": "file:packages/sdk-artifacts/jsquash-png-3.1.1.tgz",
+    "@jsquash/resize": "file:packages/sdk-artifacts/jsquash-resize-2.1.1.tgz",
+    "@jsquash/webp": "file:packages/sdk-artifacts/jsquash-webp-1.5.0.tgz",
+    "playwright": "^1.59.1",
+    "react": "file:packages/sdk-artifacts/react-19.3.0.tgz",
+    "react-dom": "file:packages/sdk-artifacts/react-dom-19.3.0.tgz",
+    "scheduler": "file:packages/sdk-artifacts/scheduler-0.28.0.tgz",
+    "wasm-feature-detect": "file:packages/sdk-artifacts/wasm-feature-detect-1.9.0.tgz"
   },
   "overrides": {
     "esbuild": "0.28.1",

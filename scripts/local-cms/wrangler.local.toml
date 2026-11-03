@@ -1,0 +1,25 @@
+# ISOLATED LOCAL PREVIEW ONLY. Never deploy this config.
+name = "companionscpas-local-studio"
+main = "../../src/index.js"
+compatibility_date = "2025-04-01"
+
+[vars]
+APP_NAME = "Companions of CPAS (Local Studio)"
+APP_DOMAIN = "localhost"
+ALLOWED_ORIGINS = "http://127.0.0.1:4473"
+RESEND_FROM_EMAIL = "noreply@invalid.local"
+RESEND_SUPPORT_FROM = "support@invalid.local"
+ADMIN_EMAIL = "local-admin@invalid.local"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "companionscpas"
+database_id = "fd6dd6fb-156b-4b6a-8ff0-505422652391"
+
+[[r2_buckets]]
+binding = "WEBSITE_ASSETS"
+bucket_name = "companionscpas"
+
+[[kv_namespaces]]
+binding = "CMS_CACHE"
+id = "0b410337a8494fc982ea04c5bde1eab4"
